@@ -85,6 +85,9 @@ type Texts =
       // Screen 2 — Connectors
       ConnectorsTitle: string
       ConnectorsLead: string
+      AppTypeWebOption: string
+      AppTypeSpaOption: string
+      AppSecretNotIssued: string
       NotConfigured: string
       Enabled: string
       Disabled: string
@@ -248,6 +251,10 @@ let en: Texts =
       AppDeletedNotice = "App deleted. Its tokens no longer work."
 
       ConnectorsTitle = "Connectors"
+      AppTypeWebOption = "Web application"
+      AppTypeSpaOption = "Single-page app or native app"
+      AppSecretNotIssued =
+        "This app has no secret. Single-page and native apps are public clients: they prove themselves with PKCE instead."
       NotConfigured = "Not set up"
       Enabled = "Enabled"
       Disabled = "Disabled"
@@ -352,6 +359,14 @@ let en: Texts =
                 "That provider could not be reached. Try again in a moment, or choose a different option."
             | "account-disabled" -> "This account has been disabled. Contact whoever runs this Umbral."
             | "app-created" -> "App registered."
+            | "app-name-required" -> "Give the app a name, then save again."
+            | "app-redirect-uri-invalid" ->
+                "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
+            | "app-type-invalid" -> "Choose an app type, then save again."
+            | "app-not-found" -> "That app no longer exists. The list below is current."
+            | "app-no-secret" ->
+                "Single-page and native apps have no secret to replace — they use PKCE instead."
+            | "user-not-found" -> "That user no longer exists. The list below is current."
             | "app-secret-regenerated" -> "New secret generated."
             | "app-deleted" -> "App deleted."
             | "connector-saved" -> "Connector saved."
