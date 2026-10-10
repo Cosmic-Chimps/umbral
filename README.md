@@ -452,6 +452,15 @@ connectors:
     client_secret: ${UMBRAL_GITHUB_SECRET}
     enabled: true
     # extra_scopes: []                 # optional, added to the scopes Umbral requests
+
+apps:
+  - client_id: grafana                 # identifies the app; applying twice is a no-op
+    name: Grafana
+    client_secret: ${UMBRAL_GRAFANA_SECRET}   # leave this line out for a single-page or native app
+    redirect_uris:
+      - https://grafana.example.com/login/generic_oauth
+    post_logout_redirect_uris:         # optional
+      - https://grafana.example.com/
 ```
 
 - **Secrets are never written in the file.** `client_secret` must be a
@@ -469,12 +478,13 @@ connectors:
         - ./umbral.yaml:/config/umbral.yaml:ro
   ```
 
-- **Applying is idempotent.** `slug` identifies a connector, so applying the same
-  file twice changes nothing and creates no duplicates.
-- **The file wins on every start.** A connector in the file is re-applied each
-  time Umbral starts, overwriting what you changed in the admin UI for that
-  slug (client ID, secret, enabled). Connectors that are not in the file are left
-  alone.
+- **Applying is idempotent.** `slug` identifies a connector and `client_id`
+  identifies an app, so applying the same file twice changes nothing and creates
+  no duplicates.
+- **The file wins on every start.** A connector or app in the file is re-applied
+  each time Umbral starts, overwriting what you changed in the admin UI for that
+  slug or client ID (client ID, secret, redirect URIs, enabled). Connectors and
+  apps that are not in the file are left alone.
 - **A bad file stops Umbral from starting**, naming the entry and what to do
   (`docker logs umbral`). Nothing is partly applied.
 - **Export what you have clicked.** Signed in as the operator, open
@@ -483,9 +493,17 @@ connectors:
   placeholders in place of secrets. There is no button for it in the admin UI
   yet; it is only that address.
 - **App secrets cannot be exported**, because Umbral stores only a hash of them.
-  An export lists your apps without secrets.
-- **Apps in the file:** this build checks the `apps:` section for mistakes at
-  startup, but it only *applies* `connectors:`. Register apps in the admin UI.
+  An export lists each web app with a `${UMBRAL_<CLIENT_ID>_SECRET}` reference
+  instead.
+- **Apps in the file:** an app with a `client_secret` reference is a web app
+  (confidential); one without is a single-page or native app (public), which has
+  no secret and uses PKCE. For a web app, the file is where you *set* the secret,
+  not where Umbral reads it back from: put the secret the app already uses in
+  the variable (at least 16 characters), and Umbral stores only its hash. Change
+  the variable and restart, and the new secret replaces the old one. Redirect
+  URIs are matched exactly, with no wildcards, as in the admin UI. A web app you
+  register in the admin UI shows its generated secret once; to manage it from the
+  file, put that secret in the variable.
 
 ## Forgotten operator credential
 

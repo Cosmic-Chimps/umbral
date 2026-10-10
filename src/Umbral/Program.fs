@@ -342,6 +342,12 @@ let initialize (app: WebApplication) =
                     let clock = app.Services.GetRequiredService<TimeProvider>()
                     let! applied = ConfigFile.applyConnectors dbConfig clock secrets resolved
 
+                    // Apps through OpenIddict's own manager, the way the Apps
+                    // screen creates them — OpenIddict is the only thing that
+                    // knows how a client secret is hashed.
+                    let applications = scope.ServiceProvider.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>()
+                    let! appsApplied = ConfigFile.applyApps dbConfig clock applications resolved
+
                     do!
                         SecurityEvents.record
                             dbConfig
@@ -350,7 +356,7 @@ let initialize (app: WebApplication) =
                                   SecurityEvents.ConfigApplied
                                   SecurityEvents.Success
                                   SecurityEvents.Actor.System with
-                                Detail = Some $"connectors={applied}" }
+                                Detail = Some $"connectors={applied};apps={appsApplied}" }
 
         // A fake connector authenticates anyone as whoever they claim to be.
         // If one is configured on an instance that has not explicitly allowed

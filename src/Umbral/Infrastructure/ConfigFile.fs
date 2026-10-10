@@ -9,6 +9,8 @@ open System
 open System.Collections.Generic
 open System.IO
 open System.Threading.Tasks
+open OpenIddict.Abstractions
+open type OpenIddict.Abstractions.OpenIddictConstants
 open YamlDotNet.Serialization
 open YamlDotNet.Serialization.NamingConventions
 open Umbral.Domains
@@ -128,7 +130,18 @@ let parse (yaml: string) : Result<Document, ParseError> =
 // ---------------------------------------------------------------------------
 
 type ResolveError =
-    { Where: string; Variable: string }
+    { Where: string
+      Variable: string
+      /// Finishes "references VAR, which ..." — a missing variable and a
+      /// too-short one are both reported by name, so both are one type.
+      Reason: string }
+
+/// The shortest app secret the file may set. The Apps screen generates 256
+/// bits; a file lets a person choose, and a client secret is the one thing
+/// standing between the internet and a token exchange, so a four-letter word
+/// is refused rather than hashed.
+[<Literal>]
+let MinimumAppSecretLength = 16
 
 /// Replace every `${VAR}` with its value, or report every one that is missing.
 ///
@@ -137,14 +150,21 @@ type ResolveError =
 let resolveSecrets (read: string -> string | null) (document: Document) =
     let missing = ResizeArray<ResolveError>()
 
-    let resolve where (reference: string) =
+    let resolve minimumLength where (reference: string) =
         match referencedVariable reference with
         | None -> reference
         | Some name ->
             match Option.ofObj (read name) with
-            | Some value when value.Length > 0 -> value
+            | Some value when value.Length >= max 1 minimumLength -> value
+            | Some value when value.Length > 0 ->
+                missing.Add
+                    { Where = where
+                      Variable = name
+                      Reason = $"is shorter than the {minimumLength} characters an app secret needs" }
+
+                ""
             | _ ->
-                missing.Add { Where = where; Variable = name }
+                missing.Add { Where = where; Variable = name; Reason = "is not set" }
                 ""
 
     let resolved =
@@ -152,23 +172,25 @@ let resolveSecrets (read: string -> string | null) (document: Document) =
             Connectors =
                 document.Connectors
                 |> List.mapi (fun i c ->
-                    { c with ClientSecret = resolve $"connectors[{i}].client_secret" c.ClientSecret })
+                    { c with ClientSecret = resolve 1 $"connectors[{i}].client_secret" c.ClientSecret })
             Apps =
                 document.Apps
                 |> List.mapi (fun i a ->
                     { a with
-                        ClientSecret = a.ClientSecret |> Option.map (resolve $"apps[{i}].client_secret") }) }
+                        ClientSecret =
+                            a.ClientSecret
+                            |> Option.map (resolve MinimumAppSecretLength $"apps[{i}].client_secret") }) }
 
     if missing.Count = 0 then Ok resolved else Error(List.ofSeq missing)
 
 let describeMissing (missing: ResolveError list) =
     let body =
         missing
-        |> List.map (fun m -> $"  {m.Where} references {m.Variable}, which is not set.")
+        |> List.map (fun m -> $"  {m.Where} references {m.Variable}, which {m.Reason}.")
         |> String.concat Environment.NewLine
 
     $"The configuration file cannot be applied:{Environment.NewLine}{body}{Environment.NewLine}\
-      Set those environment variables, or remove the entries that need them. Nothing has been changed."
+      Fix those environment variables, or remove the entries that need them. Nothing has been changed."
 
 // ---------------------------------------------------------------------------
 // Applying
@@ -178,8 +200,8 @@ let describeMissing (missing: ResolveError list) =
 /// identity, so applying the same file twice changes nothing and creates no
 /// duplicates (FR-027).
 ///
-/// Connectors only. Apps go through OpenIddict's manager, which the caller
-/// supplies, because this module has no business knowing about it.
+/// Connectors only. The apps are `applyApps`, which needs OpenIddict's manager
+/// and so takes it from the caller.
 let applyConnectors
     (config: Database.DbConfig)
     (clock: TimeProvider)
@@ -265,21 +287,145 @@ let applyConnectors
         return applied
     }
 
+/// Apply the `apps:` list. Idempotent on `client_id`, like the connectors.
+///
+/// What the file says about a secret. An app's secret is hashed by OpenIddict
+/// on write, so the file cannot be where it is READ from — but it can be where
+/// it is SET: `client_secret: ${UMBRAL_GRAFANA_SECRET}` is a reference to a
+/// value the operator already holds (it is what they paste into Grafana), and
+/// applying the file makes Umbral store the hash of that value. The alternative
+/// — minting a fresh secret on import — would show it nowhere at all, because
+/// nobody is at a screen when a container starts. An entry with a reference
+/// is a confidential app; one without is a public client (a single-page or
+/// native app) and is never given a secret.
+///
+/// Re-applying compares rather than rewrites: the stored hash is checked
+/// against the value the variable holds NOW, so an unchanged file changes
+/// nothing and a changed variable takes effect on the next start.
+///
+/// Apps in the database that the file does not list are left alone, as
+/// connectors are: the file describes what must exist, not everything that may.
+let applyApps
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (applications: IOpenIddictApplicationManager)
+    (document: Document)
+    : Task<int> =
+    task {
+        let mutable applied = 0
+
+        // The same rule the Apps screen uses. `validate` has already run, so a
+        // refusal here means this was called on a document that skipped it.
+        let uris where (values: string list) =
+            values
+            |> List.map (fun value ->
+                match acceptableRedirectUri value with
+                | Ok uri -> uri
+                | Error why -> failwith $"{where} {why}")
+
+        let record eventType (entry: AppEntry) (changed: string list) =
+            SecurityEvents.record
+                config
+                clock
+                { SecurityEvents.event eventType SecurityEvents.Success SecurityEvents.Actor.System with
+                    ClientId = Some entry.ClientId
+                    Detail = Some("source=config_file" + (if changed.IsEmpty then "" else ";changed=" + String.concat "," changed)) }
+
+        for index, entry in List.indexed document.Apps do
+            let desired =
+                AppClients.buildDescriptor
+                    entry.ClientId
+                    entry.Name
+                    entry.ClientSecret.IsSome
+                    (uris $"apps[{index}].redirect_uris" entry.RedirectUris)
+                    (uris $"apps[{index}].post_logout_redirect_uris" entry.PostLogoutRedirectUris)
+                    entry.ClientSecret
+
+            match! applications.FindByClientIdAsync entry.ClientId with
+            | null ->
+                let! _ = applications.CreateAsync desired
+                applied <- applied + 1
+                do! record SecurityEvents.AppCreated entry []
+
+            | existing ->
+                let current = OpenIddictApplicationDescriptor()
+                do! applications.PopulateAsync(current, existing)
+
+                let uriSet (set: ISet<Uri>) = set |> Seq.map _.OriginalString |> Set.ofSeq
+
+                let changed =
+                    [ if current.DisplayName <> desired.DisplayName then "name"
+                      if current.ClientType <> desired.ClientType then "client_type"
+                      if uriSet current.RedirectUris <> uriSet desired.RedirectUris then "redirect_uris"
+                      if uriSet current.PostLogoutRedirectUris <> uriSet desired.PostLogoutRedirectUris then
+                          "post_logout_redirect_uris"
+                      if Set.ofSeq current.Permissions <> Set.ofSeq desired.Permissions
+                         || Set.ofSeq current.Requirements <> Set.ofSeq desired.Requirements then
+                          "permissions" ]
+
+                // Verified against the hash rather than compared: the stored
+                // value is a salted PBKDF2 hash, so there is nothing to
+                // compare, and verifying is the one thing it can do.
+                let! secretChanged =
+                    task {
+                        match entry.ClientSecret with
+                        | None -> return false
+                        | Some secret when current.ClientType <> ClientTypes.Confidential -> return true
+                        | Some secret ->
+                            let! matches = applications.ValidateClientSecretAsync(existing, secret)
+                            return not matches
+                    }
+
+                if not changed.IsEmpty || secretChanged then
+                    // An unchanged secret is handed back as the stored hash:
+                    // the manager hashes a descriptor's secret only when it
+                    // differs from what is stored, so this leaves it alone
+                    // instead of hashing a hash.
+                    if not secretChanged then
+                        desired.ClientSecret <- current.ClientSecret
+
+                    do! applications.UpdateAsync(existing, desired)
+                    applied <- applied + 1
+
+                    if not changed.IsEmpty then
+                        do! record SecurityEvents.AppUpdated entry changed
+
+                    // Its own event: "who rotated the secret" is a question an
+                    // operator asks of the log by itself, and the value never
+                    // appears in it.
+                    if secretChanged then
+                        do! record SecurityEvents.AppSecretRotated entry []
+
+        return applied
+    }
+
 // ---------------------------------------------------------------------------
 // Exporting
 // ---------------------------------------------------------------------------
 
-let private variableFor (slug: string) =
-    "UMBRAL_" + slug.ToUpperInvariant().Replace('-', '_') + "_SECRET"
+/// `UMBRAL_<NAME>_SECRET`, for a connector slug or an app's client id. A client
+/// id may hold characters an environment variable cannot ('.', '-'), so
+/// anything outside letters and digits becomes an underscore.
+let private variableFor (name: string) =
+    "UMBRAL_" + Text.RegularExpressions.Regex.Replace(name.ToUpperInvariant(), "[^A-Z0-9]", "_") + "_SECRET"
+
+/// An app as the export sees it. `Confidential` is what decides whether the
+/// entry carries a `client_secret` reference: a public client never has one.
+type ExportedApp =
+    { ClientId: string
+      Name: string
+      Confidential: bool
+      RedirectUris: string list
+      PostLogoutRedirectUris: string list }
 
 /// Emit the same format `parse` accepts, so export and import round-trip
 /// (FR-029).
 ///
 /// One asymmetry, and it is forced rather than chosen: an app's secret is
-/// PBKDF2-hashed by OpenIddict on write, so there is nothing to export. An
-/// imported app is created with a fresh secret, and the file says so where
-/// someone will read it rather than discover it.
-let export (connectors: Connectors.Connector list) (apps: (string * string * string list * string list) list) =
+/// PBKDF2-hashed by OpenIddict on write, so there is nothing to export. What
+/// the file carries instead is a reference to where the operator keeps it, and
+/// the file says so where someone will read it rather than discover it.
+let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
     let lines = ResizeArray<string>()
 
     lines.Add "# Umbral configuration."
@@ -288,8 +434,10 @@ let export (connectors: Connectors.Connector list) (apps: (string * string * str
     lines.Add "# is meant to live in version control."
     lines.Add "#"
     lines.Add "# App secrets are NOT exported. OpenIddict hashes them on write, so there is"
-    lines.Add "# nothing to read back. An app created from this file gets a fresh secret,"
-    lines.Add "# which must then be copied into the app itself."
+    lines.Add "# nothing to read back. Each web app below references a variable: set it to"
+    lines.Add "# the secret that app already uses (at least 16 characters) and Umbral will"
+    lines.Add "# store its hash when this file is applied. An app without a client_secret is"
+    lines.Add "# a public client (single-page or native) and has none."
     lines.Add ""
     lines.Add $"version: {SupportedVersion}"
     lines.Add ""
@@ -321,18 +469,22 @@ let export (connectors: Connectors.Connector list) (apps: (string * string * str
     else
         lines.Add "apps:"
 
-        for clientId, name, redirectUris, postLogoutUris in apps do
-            lines.Add("  - client_id: \"" + clientId + "\"")
-            lines.Add $"    name: {name}"
+        for app in apps do
+            lines.Add("  - client_id: \"" + app.ClientId + "\"")
+            lines.Add $"    name: {app.Name}"
+
+            if app.Confidential then
+                lines.Add $"    client_secret: ${{{variableFor app.ClientId}}}"
+
             lines.Add "    redirect_uris:"
 
-            for uri in redirectUris do
+            for uri in app.RedirectUris do
                 lines.Add $"      - {uri}"
 
-            if not postLogoutUris.IsEmpty then
+            if not app.PostLogoutRedirectUris.IsEmpty then
                 lines.Add "    post_logout_redirect_uris:"
 
-                for uri in postLogoutUris do
+                for uri in app.PostLogoutRedirectUris do
                     lines.Add $"      - {uri}"
 
     String.concat Environment.NewLine lines + Environment.NewLine

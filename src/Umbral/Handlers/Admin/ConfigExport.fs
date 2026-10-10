@@ -6,6 +6,7 @@ module Umbral.Handlers.Admin.ConfigExport
 
 open System.Threading.Tasks
 open OpenIddict.Abstractions
+open type OpenIddict.Abstractions.OpenIddictConstants
 open Oxpecker
 open Umbral.Infrastructure
 
@@ -24,15 +25,18 @@ let private listApps (applications: IOpenIddictApplicationManager) =
                     let application = enumerator.Current
                     let! clientId = applications.GetClientIdAsync application
                     let! displayName = applications.GetDisplayNameAsync application
+                    let! clientType = applications.GetClientTypeAsync application
                     let! redirectUris = applications.GetRedirectUrisAsync application
                     let! postLogoutUris = applications.GetPostLogoutRedirectUrisAsync application
 
-                    results.Add(
-                        (clientId |> Option.ofObj |> Option.defaultValue ""),
-                        (displayName |> Option.ofObj |> Option.defaultValue ""),
-                        List.ofSeq redirectUris,
-                        List.ofSeq postLogoutUris
-                    )
+                    let app: ConfigFile.ExportedApp =
+                        { ClientId = clientId |> Option.ofObj |> Option.defaultValue ""
+                          Name = displayName |> Option.ofObj |> Option.defaultValue ""
+                          Confidential = (clientType = ClientTypes.Confidential)
+                          RedirectUris = List.ofSeq redirectUris
+                          PostLogoutRedirectUris = List.ofSeq postLogoutUris }
+
+                    results.Add app
                 else
                     go <- false
         finally

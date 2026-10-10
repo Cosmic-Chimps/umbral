@@ -161,7 +161,12 @@ Export (`GET /admin/config`) emits exactly this format with
 environment (FR-029).
 
 **App secrets cannot round-trip.** OpenIddict hashes them on write and
-`GetClientSecretAsync` returns the hash, so there is nothing to export. An
-imported app is therefore created with a fresh secret, and the export carries a
-comment saying so. This asymmetry is forced by the hashing, not chosen, and it
-must appear in the documentation rather than be discovered.
+`GetClientSecretAsync` returns the hash, so there is nothing to export. The file
+therefore carries a `client_secret: ${VAR}` reference per web app, and the export
+emits `${UMBRAL_<CLIENT_ID>_SECRET}` placeholders with a comment saying so. On
+apply, Umbral sets the app's secret to the variable's value (OpenIddict hashes
+it); re-applying verifies the stored hash against the value and rewrites it only
+when it differs, so a changed variable takes effect and an unchanged one changes
+nothing. An entry with no `client_secret` is a public client (single-page or
+native) and is never given one. This asymmetry is forced by the hashing, not
+chosen, and it must appear in the documentation rather than be discovered.
