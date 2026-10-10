@@ -76,19 +76,22 @@ let destinationsFor (claim: Claim) : string seq =
 // Building the identity
 // ---------------------------------------------------------------------------
 
-let private buildIdentity (user: Users.User) (idp: string) (scopes: string seq) =
-    // A ClaimsIdentity with a null authentication type is NOT authenticated and
-    // SignInAsync rejects it. This constant is the thing that makes it valid.
-    let identity =
-        ClaimsIdentity(
-            authenticationType = TokenValidationParameters.DefaultAuthenticationType,
-            nameType = Claims.Name,
-            roleType = Claims.Role
-        )
-
+/// Writes what Umbral says about a person onto an identity. Shared with the
+/// token endpoint, which re-applies it on refresh so a name or email changed at
+/// the provider since sign-in shows up in the next tokens instead of the ones
+/// frozen at authorization time.
+///
+/// Removes before it sets, so a claim the person no longer has (an avatar, a
+/// verified email) leaves the identity rather than lingering from the last
+/// issuance. On a fresh identity the removals are no-ops.
+let setProfileClaims (identity: ClaimsIdentity) (user: Users.User) (idp: string) =
     identity.SetClaim(Claims.Subject, user.Id) |> ignore
     identity.SetClaim(Claims.Name, user.DisplayName) |> ignore
     identity.SetClaim(OpenIddictSetup.IdpClaim, idp) |> ignore
+
+    identity.RemoveClaims Claims.Email |> ignore
+    identity.RemoveClaims Claims.EmailVerified |> ignore
+    identity.RemoveClaims Claims.Picture |> ignore
 
     match user.Email with
     | Some email ->
@@ -104,10 +107,24 @@ let private buildIdentity (user: Users.User) (idp: string) (scopes: string seq) 
     | Some url -> identity.SetClaim(Claims.Picture, url) |> ignore
     | None -> ()
 
+let private buildIdentity (user: Users.User) (idp: string) (scopes: string seq) =
+    // A ClaimsIdentity with a null authentication type is NOT authenticated and
+    // SignInAsync rejects it. This constant is the thing that makes it valid.
+    let identity =
+        ClaimsIdentity(
+            authenticationType = TokenValidationParameters.DefaultAuthenticationType,
+            nameType = Claims.Name,
+            roleType = Claims.Role
+        )
+
+    setProfileClaims identity user idp
     identity.SetScopes scopes |> ignore
     identity
 
-let private forbid (ctx: HttpContext) (error: string) (description: string) =
+/// OpenIddict turns this into the protocol's own error response — a redirect at
+/// the authorization endpoint, JSON at the token endpoint — so neither handler
+/// ever builds one by hand.
+let forbid (ctx: HttpContext) (error: string) (description: string) =
     let properties =
         AuthenticationProperties(
             Dictionary<string, string | null>(

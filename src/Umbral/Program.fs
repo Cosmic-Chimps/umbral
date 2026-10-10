@@ -46,6 +46,7 @@ let endpoints: Endpoint list =
       Umbral.Handlers.Connect.Start.endpoint
       Umbral.Handlers.Connect.Callback.endpoint
       yield! Umbral.Handlers.Connect.Authorize.endpoint
+      Umbral.Handlers.Connect.Token.endpoint
       yield! Umbral.Handlers.Connect.UserInfo.endpoint
       yield! Umbral.Handlers.Connect.EndSession.endpoint
       Umbral.Handlers.Connect.Error.endpoint ]

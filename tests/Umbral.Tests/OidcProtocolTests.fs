@@ -214,6 +214,59 @@ let private exchange (app: Fixtures.TestApp) (clientId: string) (secret: string)
         return! app.Client.SendAsync message
     }
 
+let private refresh (app: Fixtures.TestApp) (clientId: string) (secret: string) (refreshToken: string) =
+    task {
+        let message = new HttpRequestMessage(HttpMethod.Post, "/connect/token")
+
+        message.Content <-
+            new FormUrlEncodedContent(
+                dict
+                    [ "grant_type", "refresh_token"
+                      "refresh_token", refreshToken
+                      "client_id", clientId
+                      "client_secret", secret ]
+            )
+
+        return! app.Client.SendAsync message
+    }
+
+/// Run one statement against the app's own database. Used to put a user in a
+/// state the admin screens would not leave them in — disabled WITHOUT their
+/// authorizations revoked — so a test reaches the check Umbral itself makes
+/// instead of the one OpenIddict would have made first.
+let private sql (app: Fixtures.TestApp) (statement: string) (parameters: (string * string) list) =
+    task {
+        use! connection = Database.openConnection app.DbConfig
+        use command = connection.CreateCommand()
+        command.CommandText <- statement
+
+        for name, value in parameters do
+            command.Parameters.AddWithValue(name, value) |> ignore
+
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
+    }
+
+let private countEvents (app: Fixtures.TestApp) (where: string) =
+    task {
+        use! connection = Database.openConnection app.DbConfig
+        use command = connection.CreateCommand()
+        command.CommandText <- "SELECT count(*) FROM security_events WHERE " + where
+        let! value = command.ExecuteScalarAsync()
+        return Convert.ToInt32 value
+    }
+
+/// A fresh login that asked for a refresh token: the token response, already
+/// parsed.
+let private loginWithRefresh (app: Fixtures.TestApp) (client: Client) =
+    task {
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid email profile offline_access"
+        let! response = exchange app clientId secret code
+        let! body = json response
+        return clientId, secret, body
+    }
+
 // ---------------------------------------------------------------------------
 // T037 — discovery
 // ---------------------------------------------------------------------------
@@ -412,6 +465,30 @@ let ``an authorization code cannot be used twice`` () =
         let! second = exchange app clientId secret code
         let! body = json second
         Assert.Equal("invalid_grant", strOf body "error")
+
+        // And it is on the record: a replay is either an interception or a
+        // buggy client, and either way the operator should be able to see it.
+        let! replays = countEvents app $"event_type = 'authorization_code_replayed' AND outcome = 'failure' AND client_id = '{clientId}'"
+        Assert.Equal(1, replays)
+
+        // The ordinary first use is not a replay.
+        let! first = countEvents app "event_type = 'authorization_code_replayed'"
+        Assert.Equal(1, first)
+    }
+
+[<Fact>]
+let ``a rejected code that was never redeemed is not recorded as a replay`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+
+        let! response = exchange app clientId secret "a-code-nobody-issued"
+        let! body = json response
+        Assert.Equal("invalid_grant", strOf body "error")
+
+        let! replays = countEvents app "event_type = 'authorization_code_replayed'"
+        Assert.Equal(0, replays)
     }
 
 [<Fact>]
@@ -498,4 +575,163 @@ let ``plain PKCE is refused even though a client may ask for it`` () =
             )
 
         assertRejectedToClient response
+    }
+
+// ---------------------------------------------------------------------------
+// T091 — the refresh grant
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a refresh issues new tokens that carry the same claims`` () =
+    task {
+        // The regression test for rebuilding the identity on refresh. Destinations
+        // do not survive the round trip through a token, so a refresh that forgot
+        // SetDestinations still answers 200 with a valid id_token — carrying `sub`
+        // and nothing else. Only decoding the new token notices.
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret, first = loginWithRefresh app client
+        let original = payloadOf (strOf first "id_token")
+
+        let! response = refresh app clientId secret (strOf first "refresh_token")
+        let! body = json response
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+
+        let payload = payloadOf (strOf body "id_token")
+        Assert.Equal(strOf original "sub", strOf payload "sub")
+        Assert.Equal("sam@example.com", strOf payload "email")
+        Assert.Equal("Sam Rivera", strOf payload "name")
+        Assert.Equal("fake", strOf payload "idp")
+
+        // Still a real boolean after the round trip, not "true".
+        Assert.Equal(JsonValueKind.True, payload.GetProperty("email_verified").ValueKind)
+
+        // Rolling refresh: a new refresh token, and a new access token.
+        Assert.NotEqual<string>(strOf first "refresh_token", strOf body "refresh_token")
+        Assert.NotEqual<string>(strOf first "access_token", strOf body "access_token")
+    }
+
+[<Fact>]
+let ``a refresh reflects the person's current profile`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret, first = loginWithRefresh app client
+        let subject = strOf (payloadOf (strOf first "id_token")) "sub"
+
+        do! sql app "UPDATE users SET display_name = @name WHERE id = @id" [ "@name", "Samantha Rivera"; "@id", subject ]
+
+        let! response = refresh app clientId secret (strOf first "refresh_token")
+        let! body = json response
+
+        Assert.Equal("Samantha Rivera", strOf (payloadOf (strOf body "id_token")) "name")
+    }
+
+[<Fact>]
+let ``tokens issued by a refresh stay bound to the authorization`` () =
+    task {
+        // Rebuilding the identity from scratch would drop the private oi_au_id
+        // claim: the new tokens would work, and revoking the user's
+        // authorizations would no longer reach them. So disable through the real
+        // admin route, which revokes, and watch the REFRESHED access token die.
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret, first = loginWithRefresh app client
+        let subject = strOf (payloadOf (strOf first "id_token")) "sub"
+
+        let! response = refresh app clientId secret (strOf first "refresh_token")
+        let! body = json response
+        let accessToken = strOf body "access_token"
+
+        let userInfo () =
+            task {
+                let message = new HttpRequestMessage(HttpMethod.Get, "/connect/userinfo")
+                message.Headers.Add("Authorization", "Bearer " + accessToken)
+                let! r = app.Client.SendAsync message
+                return r.StatusCode
+            }
+
+        let! before = userInfo ()
+        Assert.Equal(HttpStatusCode.OK, before)
+
+        let! _ = client.PostForm("/admin/users", $"/admin/users/{subject}/toggle", [])
+
+        let! after = userInfo ()
+        Assert.Equal(HttpStatusCode.Unauthorized, after)
+    }
+
+[<Fact>]
+let ``a refresh after the user is disabled through the admin screen fails`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret, first = loginWithRefresh app client
+        let subject = strOf (payloadOf (strOf first "id_token")) "sub"
+
+        let! _ = client.PostForm("/admin/users", $"/admin/users/{subject}/toggle", [])
+
+        let! response = refresh app clientId secret (strOf first "refresh_token")
+        let! body = json response
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        Assert.Equal("invalid_grant", strOf body "error")
+    }
+
+[<Fact>]
+let ``a refresh fails for a disabled user even when nothing revoked their authorization`` () =
+    task {
+        // Umbral's own check, reached by disabling the row directly. Through the
+        // admin screen OpenIddict refuses first because the authorization was
+        // revoked; this is the case where it was not — a database edited by hand,
+        // a future code path that forgets to revoke — and a refresh token must
+        // still not become a new session.
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret, first = loginWithRefresh app client
+        let subject = strOf (payloadOf (strOf first "id_token")) "sub"
+
+        do! sql app "UPDATE users SET is_enabled = 0 WHERE id = @id" [ "@id", subject ]
+
+        let! response = refresh app clientId secret (strOf first "refresh_token")
+        let! body = json response
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        Assert.Equal("invalid_grant", strOf body "error")
+    }
+
+[<Fact>]
+let ``a refresh fails for a deleted user`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret, first = loginWithRefresh app client
+        let subject = strOf (payloadOf (strOf first "id_token")) "sub"
+
+        do! sql app "DELETE FROM users WHERE id = @id" [ "@id", subject ]
+
+        let! response = refresh app clientId secret (strOf first "refresh_token")
+        let! body = json response
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        Assert.Equal("invalid_grant", strOf body "error")
+    }
+
+[<Fact>]
+let ``a code exchange for a user disabled since the authorization fails`` () =
+    task {
+        // The same re-check on the other grant: disabled between the sign-in and
+        // the exchange, which is a window of seconds but a real one.
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid"
+
+        do! sql app "UPDATE users SET is_enabled = 0" []
+
+        let! response = exchange app clientId secret code
+        let! body = json response
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        Assert.Equal("invalid_grant", strOf body "error")
     }
