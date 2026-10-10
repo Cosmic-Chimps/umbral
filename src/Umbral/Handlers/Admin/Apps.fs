@@ -150,22 +150,6 @@ type private AppType =
 
 let private allAppTypes = [ Web; SpaOrNative ]
 
-/// The one permission set (T072). The brief names a single set — derived from
-/// the app-type choice rather than exposed as checkboxes — and applies it
-/// identically whether the client is confidential or public; the only things
-/// that vary by type are ClientType, ApplicationType and whether a secret is
-/// issued at all.
-let private permissionsFor (_: AppType) =
-    [ Permissions.Endpoints.Authorization
-      Permissions.Endpoints.Token
-      Permissions.Endpoints.EndSession
-      Permissions.Endpoints.Revocation
-      Permissions.GrantTypes.AuthorizationCode
-      Permissions.GrantTypes.RefreshToken
-      Permissions.ResponseTypes.Code
-      Permissions.Scopes.Email
-      Permissions.Scopes.Profile ]
-
 let private buildDescriptor
     (clientId: string)
     (name: string)
@@ -174,38 +158,13 @@ let private buildDescriptor
     (postLogoutRedirectUri: Uri option)
     (secret: string option)
     =
-    let descriptor = OpenIddictApplicationDescriptor()
-    descriptor.ClientId <- clientId
-    descriptor.ClientSecret <- Option.toObj secret
-    descriptor.DisplayName <- name
-
-    descriptor.ApplicationType <-
-        match appType with
-        | Web -> ApplicationTypes.Web
-        | SpaOrNative -> ApplicationTypes.Native
-
-    descriptor.ClientType <-
-        match appType with
-        | Web -> ClientTypes.Confidential
-        | SpaOrNative -> ClientTypes.Public
-
-    // Implicit: an app integrating against Umbral has no UI of its own to show
-    // a consent screen, and Umbral has no concept of per-scope consent anyway.
-    descriptor.ConsentType <- ConsentTypes.Implicit
-
-    descriptor.RedirectUris.Add redirectUri |> ignore
-
-    match postLogoutRedirectUri with
-    | Some uri -> descriptor.PostLogoutRedirectUris.Add uri |> ignore
-    | None -> ()
-
-    for permission in permissionsFor appType do
-        descriptor.Permissions.Add permission |> ignore
-
-    descriptor.Requirements.Add Requirements.Features.ProofKeyForCodeExchange
-    |> ignore
-
-    descriptor
+    AppClients.buildDescriptor
+        clientId
+        name
+        (appType = Web)
+        [ redirectUri ]
+        (Option.toList postLogoutRedirectUri)
+        secret
 
 // ---------------------------------------------------------------------------
 // Redirect URI validation (T072)

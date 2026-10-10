@@ -38,6 +38,7 @@ type EventType =
     | ConnectorDeleted
     // Apps
     | AppCreated
+    | AppUpdated
     | AppSecretRotated
     | AppDeleted
     // Protocol
@@ -66,6 +67,7 @@ type EventType =
         | ConnectorDisabled -> "connector_disabled"
         | ConnectorDeleted -> "connector_deleted"
         | AppCreated -> "app_created"
+        | AppUpdated -> "app_updated"
         | AppSecretRotated -> "app_secret_rotated"
         | AppDeleted -> "app_deleted"
         | AuthorizationCodeReplayed -> "authorization_code_replayed"
@@ -91,6 +93,7 @@ let allEventTypes =
       ConnectorDisabled
       ConnectorDeleted
       AppCreated
+      AppUpdated
       AppSecretRotated
       AppDeleted
       AuthorizationCodeReplayed

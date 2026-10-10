@@ -7,7 +7,7 @@ learns once and expects to keep working.
 
 ## Routes
 
-Three screens, per FR-015. Everything else is an action on one of them.
+Three screens, per FR-015. Everything else is an action on one of them (the credential form is reached from the navigation, not a fourth screen).
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -15,6 +15,7 @@ Three screens, per FR-015. Everything else is an action on one of them.
 | GET, POST | `/admin/setup` | First run: set the operator credential. Refuses once set. |
 | GET, POST | `/admin/signin` | Operator sign-in |
 | POST | `/admin/signout` | Form POST, never a GET link |
+| GET, POST | `/admin/credential` | Replace the operator credential (FR-017a): current + new twice; ends every other admin session |
 | GET | `/admin/apps` | **Screen 1** |
 | POST | `/admin/apps` | Register an app → the shown-once secret page |
 | POST | `/admin/apps/{clientId}/secret` | Regenerate |
@@ -107,6 +108,9 @@ Supplied as `UMBRAL__CONFIG_FILE` or found at `/data/umbral.yaml`.
 ```yaml
 version: 1
 
+operator:                              # optional (FR-017a)
+  credential_hash: ${UMBRAL_OPERATOR_HASH}   # output of `Umbral hash-credential`
+
 connectors:
   - slug: discord                      # immutable; it is in the callback URL
     kind: discord                      # discord | github | google
@@ -147,9 +151,24 @@ Whole-document, before anything is written, so a bad file never half-applies
 | The referenced variable is set | `connectors[0].client_secret references UMBRAL_DISCORD_SECRET, which is not set` |
 | `redirect_uris` is non-empty, absolute, no wildcards | `apps[1].redirect_uris[0] "https://*.example.com/cb" contains a wildcard` |
 | `client_id` is unique | `apps[3].client_id "grafana" is used twice` |
+| `operator.credential_hash` is `${VAR}`, and the variable holds a hash | `operator.credential_hash is a literal value. The file never holds the credential` |
 
 A literal secret is an **error, not a warning**. That rule is the thing keeping a
 secret out of the operator's git repository, and a warning would be ignored.
+
+### The operator credential
+
+The file may carry the operator credential as a **verification value** — a
+PBKDF2 hash in Umbral's own format, produced offline by `Umbral hash-credential`
+(plaintext on standard input, hash on standard output) — never the credential.
+It must be a `${VAR}` reference like every other secret: a hash is still
+something to brute-force, and the repository-secret scan treats a literal under
+a key that names a credential as an error. Applying it on an unclaimed instance
+claims it (no setup banner). Afterwards it applies **only when the hash in the
+file differs from the one last applied**, so a credential replaced from the admin
+screen is not reverted by a restart, while editing the file replaces it and ends
+every admin session. Export does not emit the `operator:` block: the instance
+cannot know whether its operator wants the credential file-managed.
 
 ### Idempotence and the one asymmetry
 
@@ -161,7 +180,12 @@ Export (`GET /admin/config`) emits exactly this format with
 environment (FR-029).
 
 **App secrets cannot round-trip.** OpenIddict hashes them on write and
-`GetClientSecretAsync` returns the hash, so there is nothing to export. An
-imported app is therefore created with a fresh secret, and the export carries a
-comment saying so. This asymmetry is forced by the hashing, not chosen, and it
-must appear in the documentation rather than be discovered.
+`GetClientSecretAsync` returns the hash, so there is nothing to export. The file
+therefore carries a `client_secret: ${VAR}` reference per web app, and the export
+emits `${UMBRAL_<CLIENT_ID>_SECRET}` placeholders with a comment saying so. On
+apply, Umbral sets the app's secret to the variable's value (OpenIddict hashes
+it); re-applying verifies the stored hash against the value and rewrites it only
+when it differs, so a changed variable takes effect and an unchanged one changes
+nothing. An entry with no `client_secret` is a public client (single-page or
+native) and is never given one. This asymmetry is forced by the hashing, not
+chosen, and it must appear in the documentation rather than be discovered.

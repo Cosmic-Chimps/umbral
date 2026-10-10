@@ -55,8 +55,9 @@
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
-    <Compile Include="Infrastructure/ConfigFile.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
+    <Compile Include="Infrastructure/AppClients.fs" />
+    <Compile Include="Infrastructure/ConfigFile.fs" />
     <Compile Include="Infrastructure/WebForms.fs" />
     <Compile Include="Infrastructure/RateLimits.fs" />
     <Compile Include="Infrastructure/Sessions.fs" />
@@ -70,6 +71,7 @@
     <Compile Include="Handlers/Admin/Setup.fs" />
     <Compile Include="Handlers/Admin/SignIn.fs" />
     <Compile Include="Handlers/Admin/SignOut.fs" />
+    <Compile Include="Handlers/Admin/Credential.fs" />
     <Compile Include="Handlers/Admin/Connectors.fs" />
     <Compile Include="Handlers/Admin/ConnectorToggle.fs" />
     <Compile Include="Handlers/Admin/ConnectorDelete.fs" />

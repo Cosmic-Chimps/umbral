@@ -114,6 +114,11 @@ let field label' name value hint error = fieldWith "text" [] ignore label' name 
 let passwordField label' name hint error =
     fieldWith "password" [] (fun i -> i.attr("autocomplete", "new-password") |> ignore) label' name "" hint error
 
+/// A labelled password input for a credential that already exists, so a
+/// password manager offers the saved value rather than suggesting a new one.
+let currentPasswordField label' name hint error =
+    fieldWith "password" [] (fun i -> i.attr("autocomplete", "current-password") |> ignore) label' name "" hint error
+
 /// A read-only value with a copy button: how an operator gets the callback
 /// URL, a client ID, or a freshly generated secret off the screen (contract:
 /// "the computed callback URL is shown read-only, with a copy button").

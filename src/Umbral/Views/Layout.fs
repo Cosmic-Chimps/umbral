@@ -22,6 +22,7 @@ let private navLinks (ctx: HttpContext) (t: Texts) =
         a(href = "/admin/apps", class' = Components.btnSm Components.Ghost) { t.NavApps }
         a(href = "/admin/connectors", class' = Components.btnSm Components.Ghost) { t.NavConnectors }
         a(href = "/admin/users", class' = Components.btnSm Components.Ghost) { t.NavUsers }
+        a(href = "/admin/credential", class' = Components.btnSm Components.Ghost) { t.NavCredential }
 
         form(method = "post", action = "/admin/signout") {
             ctx.GetAntiforgeryInput()

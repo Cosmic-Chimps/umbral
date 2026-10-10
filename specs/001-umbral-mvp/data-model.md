@@ -193,7 +193,7 @@ Event types: `sign_in_succeeded`, `sign_in_failed`, `user_linked`, `user_created
 `user_disabled`, `user_enabled`, `user_deleted`, `operator_signed_in`,
 `operator_sign_in_failed`, `operator_credential_changed`, `connector_created`,
 `connector_updated`, `connector_enabled`, `connector_disabled`,
-`connector_deleted`, `app_created`, `app_secret_rotated`, `app_deleted`,
+`connector_deleted`, `app_created`, `app_updated`, `app_secret_rotated`, `app_deleted`,
 `authorization_code_replayed`, `config_applied`.
 
 A redacting converter on the connector and settings types keeps a stray

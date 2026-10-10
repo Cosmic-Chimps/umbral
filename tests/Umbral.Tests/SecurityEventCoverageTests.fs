@@ -359,6 +359,29 @@ let ``every event type in the data model is emitted by the real product`` () =
             let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/secret", [])
             let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/delete", [])
 
+            // -- Apps from the file: one created, then renamed by a later apply
+            let applyApp (name: string) =
+                task {
+                    let yaml =
+                        $"""version: 1
+apps:
+  - client_id: filed
+    name: {name}
+    redirect_uris:
+      - https://filed.example.com/cb
+"""
+
+                    match ConfigFile.parse yaml with
+                    | Error e -> failwith e.Describe
+                    | Ok document ->
+                        let manager = app.Services.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>()
+                        let! _ = ConfigFile.applyApps app.DbConfig app.Clock manager document
+                        return ()
+                }
+
+            do! applyApp "Filed"
+            do! applyApp "Filed, renamed"
+
             let! rows = events app
             let seen = rows |> List.map (fun r -> r.EventType) |> Set.ofList
 

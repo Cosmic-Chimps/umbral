@@ -13,6 +13,7 @@ type Texts =
       NavApps: string
       NavConnectors: string
       NavUsers: string
+      NavCredential: string
       NavSignOut: string
 
       // First run (FR-016, FR-017): a single operator credential, no username.
@@ -37,6 +38,8 @@ type Texts =
       // Replacing the operator credential once signed in (FR-017a)
       CredentialReplaceTitle: string
       CredentialReplaceLead: string
+      CredentialNewLabel: string
+      CredentialReplaceButton: string
       CurrentCredentialLabel: string
       CredentialReplaced: string
       CredentialCurrentIncorrect: string
@@ -186,6 +189,7 @@ let en: Texts =
       NavApps = "Apps"
       NavConnectors = "Connectors"
       NavUsers = "Users"
+      NavCredential = "Credential"
       NavSignOut = "Sign out"
 
       SetupTitle = "Set up Umbral"
@@ -208,6 +212,8 @@ let en: Texts =
 
       CredentialReplaceTitle = "Replace the operator credential"
       CredentialReplaceLead = "Enter your current credential, then the new one. Every other admin session is signed out immediately."
+      CredentialNewLabel = "New credential"
+      CredentialReplaceButton = "Replace credential"
       CurrentCredentialLabel = "Current credential"
       CredentialReplaced = "Operator credential replaced. Use it next time you sign in."
       CredentialCurrentIncorrect = "That's not the current credential. Check it and try again."
@@ -393,6 +399,7 @@ let en: Texts =
             | "user-disabled" -> "User disabled."
             | "user-deleted" -> "User deleted."
             | "credential-replaced" -> "Operator credential replaced."
+            | "credential-current-incorrect" -> "That's not the current credential. Check it and try again."
             | other -> other }
 
 /// Umbral is English-only (research.md D10); every handler calls this the

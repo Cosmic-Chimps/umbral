@@ -2,11 +2,17 @@ module Umbral.Tests.ConfigFileTests
 
 open System
 open System.IO
+open System.Net
 open System.Threading.Tasks
 open Microsoft.AspNetCore.DataProtection
+open Microsoft.Extensions.Configuration
+open Microsoft.Extensions.DependencyInjection
+open OpenIddict.Abstractions
 open Xunit
 open Umbral.Domains.ConfigDocument
 open Umbral.Infrastructure
+open Umbral.Tests.Infrastructure
+open Umbral.Tests.Infrastructure.Flows
 
 let private valid =
     """
@@ -253,7 +259,11 @@ let ``an export round-trips through parse`` () =
             let yaml =
                 ConfigFile.export
                     connectors
-                    [ "grafana", "Grafana", [ "https://grafana.example.com/cb" ], [] ]
+                    [ { ClientId = "grafana"
+                        Name = "Grafana"
+                        Confidential = true
+                        RedirectUris = [ "https://grafana.example.com/cb" ]
+                        PostLogoutRedirectUris = [] } ]
 
             // FR-029: what comes out must be something that can go back in.
             let reparsed = parseOk yaml
@@ -278,12 +288,332 @@ let ``an export contains no secret`` () =
 
 [<Fact>]
 let ``an export says that app secrets are not included`` () =
-    let yaml = ConfigFile.export [] [ "grafana", "Grafana", [ "https://g.example.com/cb" ], [] ]
+    let yaml =
+        ConfigFile.export
+            []
+            [ { ClientId = "grafana"
+                Name = "Grafana"
+                Confidential = true
+                RedirectUris = [ "https://g.example.com/cb" ]
+                PostLogoutRedirectUris = [] } ]
 
     // The one asymmetry in the round trip, and it is forced: OpenIddict hashes
     // an app secret on write, so there is nothing to read back. Said where
     // someone will read it rather than discovered on a restore.
     Assert.Contains("NOT exported", yaml)
+
+// ---------------------------------------------------------------------------
+// Applying the `apps:` section
+//
+// Everything below starts the real application with a configuration file, so
+// an app the file declares is exercised the way an operator's would be: through
+// the real OpenIddict manager and, for the one that matters most, a real
+// authorization-code login.
+// ---------------------------------------------------------------------------
+
+let private appsFile (secretVariable: string) (redirect: string) =
+    $"""version: 1
+
+connectors:
+  - slug: fake
+    kind: fake
+    client_id: fake
+    client_secret: ${{UMBRAL_FAKE_SECRET}}
+
+apps:
+  - client_id: grafana
+    name: Grafana
+    client_secret: ${{{secretVariable}}}
+    redirect_uris:
+      - {redirect}
+  - client_id: mobile
+    name: Mobile
+    redirect_uris:
+      - com.example.app://callback
+"""
+
+let private grafanaSecret = "grafana-secret-from-the-environment"
+
+let private withFile (yaml: string) (variables: (string * string) list) (body: Fixtures.TestApp -> Task<unit>) =
+    task {
+        let path = Path.Combine(Path.GetTempPath(), "umbral-cfg-" + Guid.NewGuid().ToString "N" + ".yaml")
+        File.WriteAllText(path, yaml)
+
+        try
+            use! app =
+                Fixtures.createAppWith
+                    ([ "UMBRAL:CONFIG_FILE", path; "UMBRAL_FAKE_SECRET", "unused-fake-secret" ]
+                     @ variables
+                     @ fakeSettings)
+                    ignore
+
+            do! body app
+        finally
+            if File.Exists path then File.Delete path
+    }
+
+let private applicationsOf (app: Fixtures.TestApp) =
+    app.Services.GetRequiredService<IOpenIddictApplicationManager>()
+
+/// The application, or a failure naming the client id: the manager hands back
+/// null for a miss, which every later call on it would reject less helpfully.
+let private findApp (manager: IOpenIddictApplicationManager) (clientId: string) =
+    task {
+        match! manager.FindByClientIdAsync clientId with
+        | null -> return failwith $"no application with client id {clientId}"
+        | application -> return application
+    }
+
+let private countApplications (app: Fixtures.TestApp) =
+    task {
+        let! count = scalar app "SELECT COUNT(*) FROM OpenIddictApplications" []
+        return int count
+    }
+
+/// What a restart does: read the file again, with whatever the environment holds now.
+let private applyAgain (app: Fixtures.TestApp) (yaml: string) (variables: (string * string) list) =
+    task {
+        let environment = ("UMBRAL_FAKE_SECRET", "unused-fake-secret") :: variables
+
+        let read (name: string) : string | null =
+            environment |> List.tryFind (fst >> (=) name) |> Option.map snd |> Option.toObj
+
+        let resolved =
+            match ConfigFile.resolveSecrets read (parseOk yaml) with
+            | Ok document -> document
+            | Error missing -> failwith (ConfigFile.describeMissing missing)
+
+        return! ConfigFile.applyApps app.DbConfig app.Clock (applicationsOf app) resolved
+    }
+
+[<Fact>]
+let ``an app declared in the file exists after startup, with the shape the screen would give it`` () =
+    withFile (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ] (fun app ->
+        task {
+            let manager = applicationsOf app
+
+            let! grafana = findApp manager "grafana"
+            Assert.NotNull grafana
+            let! clientType = manager.GetClientTypeAsync grafana
+            Assert.Equal(OpenIddictConstants.ClientTypes.Confidential, clientType)
+            let! redirects = manager.GetRedirectUrisAsync grafana
+            Assert.Equal<string list>([ RedirectUri ], List.ofSeq redirects)
+            let! requirements = manager.GetRequirementsAsync grafana
+            // PKCE is not optional for an app the screen creates, so it is not
+            // optional for one the file creates.
+            Assert.Contains(OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange, requirements)
+
+            // No secret line: a public client, and it is never given one.
+            let! mobile = findApp manager "mobile"
+            let! mobileType = manager.GetClientTypeAsync mobile
+            Assert.Equal(OpenIddictConstants.ClientTypes.Public, mobileType)
+
+            // The secret is stored as OpenIddict's hash, never as the value.
+            let! stored = scalar app "SELECT ClientSecret FROM OpenIddictApplications WHERE ClientId = 'grafana'" []
+            Assert.DoesNotContain(grafanaSecret, stored)
+        })
+
+[<Fact>]
+let ``applying the apps twice changes nothing and duplicates nothing`` () =
+    withFile (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ] (fun app ->
+        task {
+            // The first apply ran at startup. A restart re-applies the file.
+            let! hashBefore = scalar app "SELECT ClientSecret FROM OpenIddictApplications WHERE ClientId = 'grafana'" []
+            let! changed = applyAgain app (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ]
+            Assert.Equal(0, changed)
+
+            let! count = countApplications app
+            Assert.Equal(2, count)
+
+            // The stored hash is untouched: an unchanged secret is verified,
+            // not re-hashed (a re-hash would also log a rotation per restart).
+            let! hashAfter = scalar app "SELECT ClientSecret FROM OpenIddictApplications WHERE ClientId = 'grafana'" []
+            Assert.Equal(hashBefore, hashAfter)
+
+            let! rows =
+                scalar app "SELECT COUNT(*) FROM security_events WHERE event_type IN ('app_updated', 'app_secret_rotated')" []
+
+            Assert.Equal("0", rows)
+        })
+
+[<Fact>]
+let ``an app from the file completes a real login with the secret from the environment`` () =
+    withFile (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ] (fun app ->
+        task {
+            let operator = Browser(app.Client)
+            do! claimOperator app operator
+
+            let! signedIn = signInViaFake (Browser(app.Client)) "grafana" "openid" "fake-user-1" "sam@example.com"
+
+            let code =
+                match signedIn with
+                | Ok code -> code
+                | Error where -> failwith $"sign-in did not complete: {where}"
+
+            // The wrong secret is refused; the one in the environment works.
+            let! wrong = exchangeCode app "grafana" "not-the-secret-at-all" code
+            Assert.NotEqual(HttpStatusCode.OK, wrong.StatusCode)
+
+            let! signedInAgain = signInViaFake (Browser(app.Client)) "grafana" "openid" "fake-user-1" "sam@example.com"
+            let! ok = exchangeCode app "grafana" grafanaSecret (match signedInAgain with Ok c -> c | Error w -> failwith w)
+            Assert.Equal(HttpStatusCode.OK, ok.StatusCode)
+        })
+
+[<Fact>]
+let ``a changed secret variable takes effect on the next apply, and the old secret stops working`` () =
+    withFile (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ] (fun app ->
+        task {
+            let! changed =
+                applyAgain app (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", "a-brand-new-grafana-secret" ]
+
+            Assert.Equal(1, changed)
+
+            let manager = applicationsOf app
+            let! grafana = findApp manager "grafana"
+            let! old = manager.ValidateClientSecretAsync(grafana, grafanaSecret)
+            let! fresh = manager.ValidateClientSecretAsync(grafana, "a-brand-new-grafana-secret")
+            Assert.False old
+            Assert.True fresh
+
+            // Recorded by name and by actor, with no value anywhere in it.
+            let! rotated =
+                scalar app "SELECT actor || '|' || COALESCE(detail, '') FROM security_events WHERE event_type = 'app_secret_rotated'" []
+
+            Assert.Equal("system|source=config_file", rotated)
+        })
+
+[<Fact>]
+let ``a changed redirect URI is updated and the app still authenticates`` () =
+    withFile (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ] (fun app ->
+        task {
+            let moved = "https://grafana.example.com/moved"
+            let! changed = applyAgain app (appsFile "UMBRAL_GRAFANA_SECRET" moved) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ]
+            Assert.Equal(1, changed)
+
+            let manager = applicationsOf app
+            let! grafana = findApp manager "grafana"
+            let! redirects = manager.GetRedirectUrisAsync grafana
+            Assert.Equal<string list>([ moved ], List.ofSeq redirects)
+
+            // Updating attributes must not blank or re-hash the secret.
+            let! stillValid = manager.ValidateClientSecretAsync(grafana, grafanaSecret)
+            Assert.True stillValid
+
+            let! updated = scalar app "SELECT detail FROM security_events WHERE event_type = 'app_updated'" []
+            Assert.Equal("source=config_file;changed=redirect_uris", updated)
+        })
+
+[<Fact>]
+let ``an app the file does not list is left alone`` () =
+    withFile (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ] (fun app ->
+        task {
+            let operator = Browser(app.Client)
+            do! claimOperator app operator
+            let! screenClientId, _ = registerApp operator "Made on the screen"
+
+            // A restart re-applies the file. The file describes what must
+            // exist; it does not delete what an operator added by hand.
+            let! _ = applyAgain app (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ]
+
+            let! _ = findApp (applicationsOf app) screenClientId
+            let! count = countApplications app
+            Assert.Equal(3, count)
+        })
+
+[<Fact>]
+let ``a secret variable that is too short is refused, naming the variable`` () =
+    match
+        ConfigFile.resolveSecrets
+            (fun _ -> ("short": string | null))
+            (parseOk (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri))
+    with
+    | Ok _ -> failwith "expected the short secret to be refused"
+    | Error problems ->
+        let message = ConfigFile.describeMissing problems
+        Assert.Contains("apps[0].client_secret", message)
+        Assert.Contains("UMBRAL_GRAFANA_SECRET", message)
+        Assert.Contains("16", message)
+
+[<Fact>]
+let ``a bad app entry stops startup, names the entry, and applies nothing`` () =
+    task {
+        let dataDirectory = Path.Combine(Path.GetTempPath(), "umbral-bad-" + Guid.NewGuid().ToString "N")
+        Directory.CreateDirectory dataDirectory |> ignore
+
+        // The first app and the connector are fine; the SECOND app's redirect
+        // is a wildcard. Whole-document validation means the good entries
+        // before it are not written either (FR-030).
+        let yaml =
+            (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri)
+                .Replace("com.example.app://callback", "https://*.example.com/cb")
+
+        File.WriteAllText(Path.Combine(dataDirectory, "umbral.yaml"), yaml)
+
+        let app =
+            Umbral.Program.buildApp Array.empty (fun builder ->
+                builder.Configuration.AddInMemoryCollection(
+                    dict
+                        [ "UMBRAL:PUBLIC_ORIGIN", Fixtures.TestOrigin
+                          "UMBRAL:DATA_DIRECTORY", dataDirectory
+                          "UMBRAL_GRAFANA_SECRET", grafanaSecret
+                          "UMBRAL_FAKE_SECRET", "unused-fake-secret" ]
+                )
+                |> ignore)
+
+        try
+            let! thrown =
+                task {
+                    try
+                        do! Umbral.Program.initialize app
+                        return None
+                    with ex ->
+                        return Some ex.Message
+                }
+
+            match thrown with
+            | None -> failwith "startup should have been refused"
+            | Some message ->
+                Assert.Contains("apps[1].redirect_uris[0]", message)
+                Assert.Contains("wildcard", message)
+                Assert.Contains("Nothing has been changed", message)
+
+            // And it is true: neither app, nor the connector, was written.
+            use! connection = Database.openConnection (app.Services.GetRequiredService<Database.DbConfig>())
+            use command = connection.CreateCommand()
+            command.CommandText <- "SELECT (SELECT COUNT(*) FROM OpenIddictApplications) + (SELECT COUNT(*) FROM connectors)"
+            let! count = command.ExecuteScalarAsync()
+            Assert.Equal(0L, count :?> int64)
+        finally
+            (app :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
+            Directory.Delete(dataDirectory, true)
+    }
+
+[<Fact>]
+let ``an export of apps from the product round-trips back through the file`` () =
+    withFile (appsFile "UMBRAL_GRAFANA_SECRET" RedirectUri) [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ] (fun app ->
+        task {
+            let operator = Browser(app.Client)
+            do! claimOperator app operator
+
+            let! export = operator.Get "/admin/config"
+            let! yaml = export.Content.ReadAsStringAsync()
+
+            // Secrets are never in it; each web app names a variable instead,
+            // and the public client has none.
+            Assert.DoesNotContain(grafanaSecret, yaml)
+            Assert.Contains("client_secret: ${UMBRAL_GRAFANA_SECRET}", yaml)
+
+            let document = parseOk yaml
+            let byId = document.Apps |> List.map (fun a -> a.ClientId, a) |> Map.ofList
+            Assert.Equal(Some "${UMBRAL_GRAFANA_SECRET}", byId["grafana"].ClientSecret)
+            Assert.Equal(None, byId["mobile"].ClientSecret)
+            Assert.Equal<string list>([ RedirectUri ], byId["grafana"].RedirectUris)
+
+            // Applying what was exported, given the same environment, changes nothing.
+            let! changed = applyAgain app yaml [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ]
+            Assert.Equal(0, changed)
+        })
 
 // ---------------------------------------------------------------------------
 // The shared redirect-URI rule

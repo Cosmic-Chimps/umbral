@@ -29,6 +29,13 @@ let private CredentialKey = "operator_credential"
 [<Literal>]
 let private CredentialSetKey = "operator_credential_set_utc"
 
+/// A random value the admin cookie carries and the database holds. Replacing
+/// the credential changes the database's copy, which is what makes every
+/// session minted before it stop being accepted — a cookie is a bearer
+/// credential that nothing else would ever revoke before its twelve hours are up.
+[<Literal>]
+let private SessionStampKey = "operator_session_stamp"
+
 /// OWASP's current PBKDF2-HMAC-SHA256 figure. It costs roughly a second on a
 /// Raspberry Pi 4, which is paid once per admin sign-in and never on a user's
 /// login path — the only place this is verified is the admin form.
@@ -75,6 +82,23 @@ let verifyCredential (stored: string) (candidate: string) =
 
                 // Constant time: the attacker controls `candidate` and can retry.
                 CryptographicOperations.FixedTimeEquals(actual, Convert.FromBase64String expected)
+            with :? FormatException ->
+                false
+        | _ -> false
+    | _ -> false
+
+/// Whether `value` is a verification value in the format `hashCredential`
+/// writes, and strong enough to be one: the file takes a hash rather than a
+/// credential, and a mistyped plaintext must be refused rather than stored as
+/// something no one can ever sign in with.
+let isCredentialHash (value: string) =
+    match value.Split '$' with
+    | [| "pbkdf2-sha256"; iterations; salt; hash |] ->
+        match Int32.TryParse iterations with
+        | true, iterations when iterations >= 100_000 ->
+            try
+                Convert.FromBase64String(salt).Length >= SaltBytes
+                && Convert.FromBase64String(hash).Length = HashBytes
             with :? FormatException ->
                 false
         | _ -> false
@@ -145,9 +169,14 @@ let setInitialCredential (config: Database.DbConfig) (clock: TimeProvider) (plai
             return Set
     }
 
-/// Replace the credential. For an operator who is already signed in, and for
-/// the offline reset path (FR-017b), which is why it does not refuse when one
-/// already exists.
+/// Replace the credential. For an operator who is already signed in (FR-017a),
+/// and for the offline reset path (FR-017b), which is why it does not refuse
+/// when one already exists.
+///
+/// Every session signed in before this is ended, because the reason to replace
+/// a credential is usually that someone else may hold it, and a session they
+/// opened with it must not outlive it. The caller who is replacing it signs in
+/// again to keep its own (`signIn` reads the new stamp).
 let replaceCredential (config: Database.DbConfig) (clock: TimeProvider) (plaintext: string) : Task<SetResult> =
     task {
         if isNull (box plaintext) || plaintext.Length < MinimumLength then
@@ -155,7 +184,53 @@ let replaceCredential (config: Database.DbConfig) (clock: TimeProvider) (plainte
         else
             do! writeSetting config clock CredentialKey (hashCredential plaintext)
             do! writeSetting config clock CredentialSetKey (clock.GetUtcNow().ToString "o")
+            do! writeSetting config clock SessionStampKey (Umbral.Domains.Ids.newSubject ())
             return Set
+    }
+
+/// The hash the configuration file last applied, so that a restart which finds
+/// the same value in the file changes nothing — and so a credential the
+/// operator replaced from the admin screen since is not put back by it.
+[<Literal>]
+let private FileCredentialKey = "operator_credential_file_hash"
+
+type FileCredentialResult =
+    /// An unclaimed instance took the file's credential: no setup screen needed.
+    | Claimed
+    /// The file carries a different value from the last one it applied.
+    | Replaced
+    | Unchanged
+
+/// Apply the operator credential a configuration file carries (FR-017a), as a
+/// hash made by `Umbral hash-credential` — the file never holds the credential.
+///
+/// "The file wins on every start" would be wrong here: it would quietly undo
+/// every replacement made from the admin screen at the next restart. So the file
+/// wins when its value CHANGES, which is the only time the operator edited it.
+let applyCredentialHash (config: Database.DbConfig) (clock: TimeProvider) (hash: string) : Task<FileCredentialResult> =
+    task {
+        let! configured = isConfigured config
+        let! lastApplied = readSetting config FileCredentialKey
+        let! stored = readSetting config CredentialKey
+
+        if lastApplied = Some hash then
+            return Unchanged
+        else
+            do! writeSetting config clock FileCredentialKey hash
+
+            if stored = Some hash then
+                // Already the credential, by whichever door: nothing to change
+                // and no one to sign out.
+                return Unchanged
+            else
+                do! writeSetting config clock CredentialKey hash
+                do! writeSetting config clock CredentialSetKey (clock.GetUtcNow().ToString "o")
+
+                if configured then
+                    do! writeSetting config clock SessionStampKey (Umbral.Domains.Ids.newSubject ())
+                    return Replaced
+                else
+                    return Claimed
     }
 
 let verify (config: Database.DbConfig) (candidate: string) : Task<bool> =
@@ -169,7 +244,43 @@ let verify (config: Database.DbConfig) (candidate: string) : Task<bool> =
 // Session
 // ---------------------------------------------------------------------------
 
+[<Literal>]
+let private OperatorClaim = "umbral:operator"
+
+[<Literal>]
+let private StampClaim = "umbral:stamp"
+
+/// The current stamp, or "" before the credential has ever been replaced — a
+/// cookie from before there was a stamp carries none, and the two match.
+let private currentStamp (config: Database.DbConfig) =
+    task {
+        let! stamp = readSetting config SessionStampKey
+        return defaultArg stamp ""
+    }
+
+/// Reject a cookie whose stamp is no longer the current one. Runs on every
+/// authenticated admin request: one indexed read against a table of a few rows,
+/// which is cheap next to the page it guards.
+let private validateStamp (context: CookieValidatePrincipalContext) : Task =
+    task {
+        let config = context.HttpContext.GetService<Database.DbConfig>()
+        let! current = currentStamp config
+
+        let carried =
+            match context.Principal with
+            | null -> ""
+            | principal ->
+                match principal.FindFirst StampClaim with
+                | null -> ""
+                | claim -> claim.Value
+
+        if carried <> current then
+            context.RejectPrincipal()
+            do! context.HttpContext.SignOutAsync Scheme
+    }
+
 let configureCookie (options: CookieAuthenticationOptions) =
+    options.Events.OnValidatePrincipal <- fun context -> validateStamp context
     options.Cookie.Name <- CookieName
     options.Cookie.HttpOnly <- true
     options.Cookie.IsEssential <- true
@@ -184,14 +295,15 @@ let configureCookie (options: CookieAuthenticationOptions) =
     options.LoginPath <- PathString "/admin/signin"
     options.AccessDeniedPath <- PathString "/admin/signin"
 
-[<Literal>]
-let private OperatorClaim = "umbral:operator"
-
 let signIn (ctx: HttpContext) : Task =
-    let identity = ClaimsIdentity(Scheme)
-    identity.AddClaim(Claim(ClaimTypes.Name, "operator"))
-    identity.AddClaim(Claim(OperatorClaim, "true"))
-    ctx.SignInAsync(Scheme, ClaimsPrincipal identity)
+    task {
+        let! stamp = currentStamp (ctx.GetService<Database.DbConfig>())
+        let identity = ClaimsIdentity(Scheme)
+        identity.AddClaim(Claim(ClaimTypes.Name, "operator"))
+        identity.AddClaim(Claim(OperatorClaim, "true"))
+        identity.AddClaim(Claim(StampClaim, stamp))
+        do! ctx.SignInAsync(Scheme, ClaimsPrincipal identity)
+    }
 
 let signOut (ctx: HttpContext) : Task = ctx.SignOutAsync Scheme
 
