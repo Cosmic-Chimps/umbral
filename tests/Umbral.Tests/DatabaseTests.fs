@@ -280,6 +280,24 @@ let ``a second start after the upgrade changes nothing`` () =
         })
 
 [<Fact>]
+let ``a database written by a newer build refuses to start`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+            let newer = string (SchemaVersion + 1)
+            do! exec config $"UPDATE settings SET value = '{newer}' WHERE key = 'schema_version'"
+
+            // Rolling back the image must fail loudly rather than run against
+            // columns and tables this build does not know about.
+            let! ex = Assert.ThrowsAsync<exn>(fun () -> initializeSchema config :> Task)
+            Assert.Contains($"schema version {newer}", ex.Message)
+            Assert.Contains("restore a backup", ex.Message)
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal(newer, version)
+        })
+
+[<Fact>]
 let ``deleting a connector removes it from every chosen set and keeps the app limited`` () =
     withDb (fun config ->
         task {

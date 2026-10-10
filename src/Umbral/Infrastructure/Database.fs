@@ -163,6 +163,15 @@ let initializeSchema (config: DbConfig) : Task<unit> =
         stored.CommandText <- "SELECT value FROM settings WHERE key = 'schema_version'"
         let! storedVersion = stored.ExecuteScalarAsync()
 
+        // A newer build wrote this database: carrying on would ignore columns
+        // and tables it relies on. Throwing before the commit rolls back the
+        // CREATE script above, so the refusal leaves the file as it was.
+        match System.Int32.TryParse(string storedVersion) with
+        | true, newer when newer > SchemaVersion ->
+            failwith
+                $"The database {config.DataSource} has schema version {newer}, but this build of Umbral only understands version {SchemaVersion}. A newer Umbral wrote it. Run that newer image again, or restore a backup taken before the upgrade. The database was not changed."
+        | _ -> ()
+
         if string storedVersion = "1" then
             // Every existing connector becomes shared through the default and
             // no app has a choice row, so every app offers what it offered
