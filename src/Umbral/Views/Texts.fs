@@ -22,6 +22,8 @@ type Texts =
       CredentialConfirmLabel: string
       CredentialHint: string
       SetupButton: string
+      SetupTokenLabel: string
+      SetupTokenHint: string
       SetupTooShort: string
       SetupMismatch: string
       SetupAlreadyDone: string
@@ -172,6 +174,9 @@ let en: Texts =
       CredentialConfirmLabel = "Confirm credential"
       CredentialHint = "At least 12 characters. This is not tied to any connector, so a broken Discord or Google app can never lock you out."
       SetupButton = "Set credential and continue"
+      SetupTokenLabel = "Setup token"
+      SetupTokenHint =
+        "Printed in the container log when Umbral started. Run `docker logs umbral` and copy the token shown there."
       SetupTooShort = "Use at least 12 characters, then submit the form again."
       SetupMismatch = "The two values don't match. Type the same credential in both fields and try again."
       SetupAlreadyDone = "Setup is already complete. Sign in instead."
@@ -300,6 +305,16 @@ let en: Texts =
       Notice =
         fun code ->
             match code with
+            | "setup-token-invalid" ->
+                "That setup token doesn't match. Run `docker logs umbral` and copy the token printed when the container started."
+            | "setup-mismatch" -> "The two values don't match. Type the same credential in both fields and try again."
+            | "setup-too-short" -> "Use at least 12 characters, then submit the form again."
+            | "signin-incorrect" -> "That credential is not correct. Try again."
+            | "sign-in-failed" -> "Sign-in didn't complete. Try again, or choose a different option."
+            | "access-denied" -> "You cancelled the sign-in. Choose an option below to try again."
+            | "provider-unreachable" ->
+                "That provider could not be reached. Try again in a moment, or choose a different option."
+            | "account-disabled" -> "This account has been disabled. Contact whoever runs this Umbral."
             | "app-created" -> "App registered."
             | "app-secret-regenerated" -> "New secret generated."
             | "app-deleted" -> "App deleted."

@@ -216,3 +216,43 @@ let requireOperator (inner: HttpContext -> Task) : HttpContext -> Task =
                 else
                     ctx.Response.Redirect "/admin/signin"
         }
+
+// ---------------------------------------------------------------------------
+// The first-run setup token
+//
+// FR-016 says the operator must establish admin access before any admin screen
+// works, but says nothing about WHO gets to be that operator. An unauthenticated
+// setup page means whoever reaches a fresh instance first claims it — and people
+// run `docker run -p 80:80` before they configure anything.
+//
+// So setup additionally requires a token printed to the container log. Reading
+// the log is the first thing an operator does, it costs one paste, and it makes
+// "claim this instance" require access the machine already implies.
+//
+// Held in memory only: a restart mints a new one and prints it again, which is
+// correct — the old one should not outlive the process that announced it.
+// ---------------------------------------------------------------------------
+
+type SetupToken() =
+    let value = Umbral.Domains.Ids.newClientId ()
+    member _.Value = value
+    member _.Matches(candidate: string) = Umbral.Domains.Ids.constantTimeEquals value candidate
+
+    /// What the operator reads in `docker logs`. Deliberately loud: it is
+    /// competing with EF Core's migration chatter for their attention.
+    member this.Banner(origin: string) =
+        let line = String.replicate 64 "="
+
+        String.concat
+            Environment.NewLine
+            [ ""
+              line
+              "  Umbral is not configured yet."
+              ""
+              $"  Open     {origin}/admin/setup"
+              $"  Token    {this.Value}"
+              ""
+              "  The token is shown only while this container runs and is"
+              "  needed once, to claim this instance."
+              line
+              "" ]

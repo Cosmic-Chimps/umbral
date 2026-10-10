@@ -118,11 +118,11 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 ### Admin access (FR-016, FR-017)
 
 - [x] T042 [US1] Create `src/Umbral/Infrastructure/AdminAuth.fs`: the operator credential hashed with PBKDF2-HMAC-SHA256 at an iteration count tuned so a Raspberry Pi 4 spends 0.5–1 s, a cookie authentication scheme, and the `requireOperator` handler combinator.
-- [ ] T043 [US1] Create `src/Umbral/Handlers/Admin/Setup.fs` — first-run credential setup at `GET`/`POST /admin/setup`. **No administrative screen is reachable until it completes**, and it refuses once the credential is set. Ship no default or well-known credential.
-- [ ] T044 [P] [US1] Create `src/Umbral/Handlers/Admin/SignIn.fs` and `src/Umbral/Handlers/Admin/SignOut.fs`. Sign-out is a form POST, never a GET link.
+- [x] T043 [US1] Create `src/Umbral/Handlers/Admin/Setup.fs` — first-run credential setup at `GET`/`POST /admin/setup`. **No administrative screen is reachable until it completes**, and it refuses once the credential is set. Ship no default or well-known credential.
+- [x] T044 [P] [US1] Create `src/Umbral/Handlers/Admin/SignIn.fs` and `src/Umbral/Handlers/Admin/SignOut.fs`. Sign-out is a form POST, never a GET link.
 - [x] T045 [US1] Create `src/Umbral/Infrastructure/WebForms.fs` with `readValidatedForm` — check `IAntiforgeryValidationFeature` **before** reading the form, because ASP.NET refuses to read a form whose token already failed and throws something confusing instead of a clean 400. Every POST handler uses it, including those with no fields to read.
-- [ ] T046 [US1] Add an offline operator-credential reset for someone with access to the data directory (FR-017b), so a forgotten credential does not mean rebuilding the instance.
-- [ ] T047 [P] [US1] Write `tests/Umbral.Tests/AdminAuthTests.fs`: no admin screen is reachable before setup; setup refuses a second time; a wrong credential fails; a form posted without an antiforgery token returns 400 and changes nothing.
+- [x] T046 [US1] Add an offline operator-credential reset for someone with access to the data directory (FR-017b), so a forgotten credential does not mean rebuilding the instance.
+- [x] T047 [P] [US1] Write `tests/Umbral.Tests/AdminAuthTests.fs`: no admin screen is reachable before setup; setup refuses a second time; a wrong credential fails; a form posted without an antiforgery token returns 400 and changes nothing.
 
 ### Connector plumbing
 

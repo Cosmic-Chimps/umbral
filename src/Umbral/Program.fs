@@ -25,7 +25,10 @@ open Umbral.Migrations
 // ---------------------------------------------------------------------------
 
 let endpoints: Endpoint list =
-    [ Umbral.Handlers.Connect.Picker.endpoint
+    [ yield! Umbral.Handlers.Admin.Setup.endpoint
+      yield! Umbral.Handlers.Admin.SignIn.endpoint
+      Umbral.Handlers.Admin.SignOut.endpoint
+      Umbral.Handlers.Connect.Picker.endpoint
       Umbral.Handlers.Connect.Start.endpoint
       Umbral.Handlers.Connect.Callback.endpoint
       yield! Umbral.Handlers.Connect.Authorize.endpoint
@@ -118,7 +121,12 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     services
         .AddAuthentication(Sessions.Scheme)
         .AddCookie(Sessions.Scheme, Action<CookieAuthenticationOptions> Sessions.configure)
+        .AddCookie(AdminAuth.Scheme, Action<CookieAuthenticationOptions> AdminAuth.configureCookie)
     |> ignore
+
+    // One per process. A restart mints a new token and prints it again, which
+    // is correct: the old one should not outlive the process that announced it.
+    services.AddSingleton<AdminAuth.SetupToken>() |> ignore
 
     let signing, encryption = Keys.loadOrCreateAll dataDirectory.KeysDirectory
 
@@ -209,7 +217,6 @@ let configureApp (app: WebApplication) =
 /// is no multi-instance race to lose.
 let initialize (app: WebApplication) =
     task {
-        let dataDirectory = app.Services.GetRequiredService<DataDirectory.DataDirectory>()
         let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
 
         do! Database.initializeSchema dbConfig
@@ -217,6 +224,17 @@ let initialize (app: WebApplication) =
         use scope = app.Services.CreateScope()
         let context = scope.ServiceProvider.GetRequiredService<UmbralContext>()
         do! context.Database.MigrateAsync()
+
+        // An unconfigured instance is claimable by whoever reaches /admin/setup
+        // first, so claiming it also needs a token only someone who can read
+        // the container log has. Printed last, after EF Core's migration
+        // chatter, so it is the final thing on screen.
+        let! configured = AdminAuth.isConfigured dbConfig
+
+        if not configured then
+            let origin = app.Services.GetRequiredService<PublicOrigin.PublicOrigin>()
+            let token = app.Services.GetRequiredService<AdminAuth.SetupToken>()
+            Console.WriteLine(token.Banner origin.Text)
     }
 // The certificates are NOT touched here. configureServices already created
 // them and handed them to OpenIddict, and loading a second copy only to
@@ -237,9 +255,68 @@ let buildApp (args: string array) (customize: WebApplicationBuilder -> unit) : W
     configureApp app
     app
 
+/// FR-017b: a way back in for an operator who has forgotten the credential.
+///
+/// Deliberately not a web route. The authority it requires is the ability to
+/// run a process against the data directory — `docker exec` into the container,
+/// or shell access on the host — which is strictly more than reaching the admin
+/// UI. A "forgot your credential" screen on a login server is a second front
+/// door, and this product has exactly one on purpose.
+///
+///     docker exec -it umbral /app/Umbral reset-credential
+let private resetCredential (app: WebApplication) =
+    task {
+        let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
+        let clock = app.Services.GetRequiredService<TimeProvider>()
+
+        // Generated rather than prompted: a reset run non-interactively through
+        // `docker exec` has nowhere to read a typed value from, and a generated
+        // one is stronger than what a locked-out operator would pick in a hurry.
+        let replacement = Umbral.Domains.Ids.newClientSecret ()
+
+        match! AdminAuth.replaceCredential dbConfig clock replacement with
+        | AdminAuth.Set ->
+            do!
+                SecurityEvents.record
+                    dbConfig
+                    clock
+                    { SecurityEvents.event
+                          SecurityEvents.OperatorCredentialChanged
+                          SecurityEvents.Success
+                          SecurityEvents.Actor.System with
+                        Detail = Some "offline_reset" }
+
+            let line = String.replicate 64 "="
+
+            Console.WriteLine(
+                String.concat
+                    Environment.NewLine
+                    [ ""
+                      line
+                      "  The operator credential has been replaced."
+                      ""
+                      $"  New credential   {replacement}"
+                      ""
+                      "  Sign in with it, then change it from the admin area."
+                      "  This is the only time it is shown."
+                      line
+                      "" ]
+            )
+
+            return 0
+
+        | other ->
+            eprintfn $"The credential could not be replaced: {other}"
+            return 1
+    }
+
 [<EntryPoint>]
 let main args =
     let app = buildApp args ignore
     (initialize app).GetAwaiter().GetResult()
-    app.Run()
-    0
+
+    if args |> Array.contains "reset-credential" then
+        (resetCredential app).GetAwaiter().GetResult()
+    else
+        app.Run()
+        0
