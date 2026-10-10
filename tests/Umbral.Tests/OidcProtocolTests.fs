@@ -158,8 +158,8 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
         return field "revealed-client-id", field "revealed-secret"
     }
 
-/// Sign in through the fake provider and return the authorization code.
-let private authorizationCode (client: Client) (clientId: string) (scope: string) =
+/// Sign in through the fake provider and return the URL the app is redirected to.
+let private authorizationRedirect (client: Client) (clientId: string) (scope: string) =
     task {
         let authorizeUrl =
             "/connect/authorize?client_id=" + Uri.EscapeDataString clientId
@@ -191,8 +191,13 @@ let private authorizationCode (client: Client) (clientId: string) (scope: string
 
         let! back = client.Get(approved.Headers.Location |> string)
         let! issued = client.Get(back.Headers.Location |> string)
-        let final = issued.Headers.Location |> string
+        return issued.Headers.Location |> string
+    }
 
+/// Sign in through the fake provider and return the authorization code.
+let private authorizationCode (client: Client) (clientId: string) (scope: string) =
+    task {
+        let! final = authorizationRedirect client clientId scope
         return Regex.Match(final, "code=([^&]+)").Groups[1].Value
     }
 
@@ -297,6 +302,70 @@ let ``the discovery document promises exactly what Umbral accepts`` () =
         Assert.Equal<string list>([ "S256" ], methods)
 
         Assert.Equal<string list>([ "code" ], strings document "response_types_supported")
+    }
+
+/// Every URL string in the discovery document, with its name.
+let private urlsIn (document: JsonElement) =
+    document.EnumerateObject()
+    |> Seq.choose (fun p ->
+        match p.Value.ValueKind with
+        | JsonValueKind.String ->
+            p.Value.GetString()
+            |> Option.ofObj
+            |> Option.filter (fun text -> text.StartsWith "http")
+            |> Option.map (fun text -> p.Name, text)
+        | _ -> None)
+    |> List.ofSeq
+
+[<Fact>]
+let ``every URL in the discovery document comes from the configured origin, whatever Host the request carries`` () =
+    task {
+        use! app = Fixtures.createApp ()
+
+        // A proxy that does not forward Host would say http://umbral:8080; one
+        // that forwards a different host would say that. Neither may leak into
+        // what clients are told to call (FR-031, research.md D4).
+        let! plain = app.Client.GetAsync "/.well-known/openid-configuration"
+        let! baseline = json plain
+
+        for host, forwardedHost, proto in
+            [ "umbral:8080", None, None
+              "umbral:8080", Some "other.example:18443", Some "https"
+              "evil.example", Some "evil.example", None ] do
+            use request = new HttpRequestMessage(HttpMethod.Get, "/.well-known/openid-configuration")
+            request.Headers.Host <- host
+            forwardedHost |> Option.iter (fun h -> request.Headers.Add("X-Forwarded-Host", h))
+            proto |> Option.iter (fun p -> request.Headers.Add("X-Forwarded-Proto", p))
+
+            let! response = app.Client.SendAsync request
+            let! document = json response
+            let urls = urlsIn document
+
+            // The ones a client actually calls must be there, or this is vacuous.
+            for name in [ "issuer"; "authorization_endpoint"; "token_endpoint"; "userinfo_endpoint"; "end_session_endpoint"; "jwks_uri" ] do
+                Assert.True(urls |> List.exists (fun (n, _) -> n = name), $"{name} missing under Host {host}")
+
+            for name, url in urls do
+                Assert.True(
+                    url.StartsWith(Fixtures.TestOrigin + "/") || url = Fixtures.TestOrigin,
+                    $"{name} is {url} under Host {host}, expected it under {Fixtures.TestOrigin}"
+                )
+
+            // And the same document as without the odd headers.
+            Assert.Equal<(string * string) list>(urlsIn baseline, urls)
+    }
+
+[<Fact>]
+let ``the iss parameter on the redirect to the app is the configured issuer`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, _ = prepare app client
+        let! final = authorizationRedirect client clientId "openid"
+
+        // RFC 9207: the app checks this against the issuer it discovered.
+        let issuer = Regex.Match(final, "[?&]iss=([^&]+)").Groups[1].Value
+        Assert.StartsWith(Fixtures.TestOrigin, Uri.UnescapeDataString issuer)
     }
 
 [<Fact>]

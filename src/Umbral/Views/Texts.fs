@@ -169,6 +169,7 @@ type Texts =
       RateLimitedBody: int -> string
       BackToSignIn: string
       BackHome: string
+      BackToApp: string
 
       /// Flash messages addressed by a short code (`data-notice="{code}"`).
       /// Codes not recognised fall back to the code itself, which is a bug
@@ -342,6 +343,7 @@ let en: Texts =
             $"Wait about {minutes} {unit}, then try again. Nothing was lost; the limit lifts by itself."
       BackToSignIn = "Back to sign-in"
       BackHome = "Back to sign-in"
+      BackToApp = "Go back to the app you were signing in to, and start again from there."
 
       ProtocolErrorTitle = "That sign-in request was rejected"
       ProtocolErrorBody =

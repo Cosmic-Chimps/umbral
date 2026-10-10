@@ -33,6 +33,10 @@
     <Compile Include="OidcProtocolTests.fs" />
     <Compile Include="OAuthRoundTripTests.fs" />
     <Compile Include="RateLimitTests.fs" />
+    <Compile Include="AdminLandingTests.fs" />
+    <Compile Include="MessagePageTests.fs" />
+    <Compile Include="SubcommandTests.fs" />
+    <Compile Include="LoggingDefaultsTests.fs" />
     <Compile Include="MetaTests.fs" />
     <Compile Include="LogRedactionTests.fs" />
     <Compile Include="CsrfTests.fs" />

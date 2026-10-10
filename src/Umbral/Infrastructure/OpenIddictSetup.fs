@@ -104,6 +104,68 @@ type AdvertiseOnlyS256() =
             .Build()
 
 // ---------------------------------------------------------------------------
+// FR-031, research.md D4 — the discovery document follows the configured origin
+//
+// `issuer` comes from `SetIssuer`, but OpenIddict resolves every endpoint URL
+// in the document against the base URI of the request being answered, which is
+// built from its scheme and Host. Behind a proxy that forwards a different
+// port, or none, a client reading discovery was told to send people to
+// `https://localhost:18443/connect/authorize` or `http://umbral:8080/...`
+// while `issuer` said `https://auth.example.com`. Every client library takes
+// its endpoints from this document, so the origin was configured and still not
+// the one in use.
+//
+// Fixed on the way OUT, not at the request. Pinning the transaction's base
+// URI instead would also change how OpenIddict matches incoming requests to
+// endpoints (it compares against that same base), and behind a proxy that
+// would stop `/connect/token` from matching at all. Rewriting only what the
+// document says leaves matching alone, and the admin origin-mismatch banner
+// keeps seeing the request as it really arrived.
+// ---------------------------------------------------------------------------
+
+type PublishIssuerOrigin() =
+    interface IOpenIddictServerHandler<OpenIddictServerEvents.HandleConfigurationRequestContext> with
+        member _.HandleAsync(context) =
+            match context.Issuer with
+            | null -> ()
+            | issuer ->
+                let rebase (endpoint: Uri | null) : Uri | null =
+                    match endpoint with
+                    | null -> null
+                    | e -> Uri(issuer, e.PathAndQuery)
+
+                context.AuthorizationEndpoint <- rebase context.AuthorizationEndpoint
+                context.TokenEndpoint <- rebase context.TokenEndpoint
+                context.UserInfoEndpoint <- rebase context.UserInfoEndpoint
+                context.EndSessionEndpoint <- rebase context.EndSessionEndpoint
+                context.RevocationEndpoint <- rebase context.RevocationEndpoint
+                context.IntrospectionEndpoint <- rebase context.IntrospectionEndpoint
+                context.JsonWebKeySetEndpoint <- rebase context.JsonWebKeySetEndpoint
+                // Not offered by Umbral today (no device flow, no PAR, no
+                // mTLS); rebased anyway so that switching one on cannot
+                // quietly reintroduce the request's host.
+                context.DeviceAuthorizationEndpoint <- rebase context.DeviceAuthorizationEndpoint
+                context.PushedAuthorizationEndpoint <- rebase context.PushedAuthorizationEndpoint
+                context.MtlsDeviceAuthorizationEndpointAlias <- rebase context.MtlsDeviceAuthorizationEndpointAlias
+                context.MtlsIntrospectionEndpointAlias <- rebase context.MtlsIntrospectionEndpointAlias
+                context.MtlsPushedAuthorizationEndpointAlias <- rebase context.MtlsPushedAuthorizationEndpointAlias
+                context.MtlsRevocationEndpointAlias <- rebase context.MtlsRevocationEndpointAlias
+                context.MtlsTokenEndpointAlias <- rebase context.MtlsTokenEndpointAlias
+                context.MtlsUserInfoEndpointAlias <- rebase context.MtlsUserInfoEndpointAlias
+
+            ValueTask.CompletedTask
+
+    static member Descriptor =
+        OpenIddictServerHandlerDescriptor
+            .CreateBuilder<OpenIddictServerEvents.HandleConfigurationRequestContext>()
+            .UseSingletonHandler<PublishIssuerOrigin>()
+            // After every Attach* handler, so nothing built later can put a
+            // request-derived URL back.
+            .SetOrder(OpenIddictServerHandlers.Discovery.AttachAdditionalMetadata.Descriptor.Order + 1_000)
+            .SetType(OpenIddictServerHandlerType.Custom)
+            .Build()
+
+// ---------------------------------------------------------------------------
 // FR-008 — recording an authorization-code replay
 //
 // A code is single use, and OpenIddict enforces that: the second presentation
@@ -208,6 +270,7 @@ let addOpenIddict (options: Options) (services: IServiceCollection) =
 
             server.AddEventHandler RejectPlainCodeChallengeMethod.Descriptor |> ignore
             server.AddEventHandler AdvertiseOnlyS256.Descriptor |> ignore
+            server.AddEventHandler PublishIssuerOrigin.Descriptor |> ignore
             server.AddEventHandler RecordAuthorizationCodeReplay.Descriptor |> ignore
 
             // Opaque reference tokens rather than self-contained JWTs. This is
