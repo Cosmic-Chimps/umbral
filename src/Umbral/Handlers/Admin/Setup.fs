@@ -56,7 +56,7 @@ let page: EndpointHandler =
             if configured then
                 return! alreadyDone ctx
             else
-                let error = ctx.TryGetQueryValue "msg" |> Option.map (Texts.current ()).Notice
+                let error = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice |> Option.map (Texts.current ()).Notice
                 return! ctx.WriteHtmlView(view ctx (Texts.current ()) error)
         }
 

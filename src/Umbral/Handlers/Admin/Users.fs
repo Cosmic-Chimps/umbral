@@ -241,7 +241,7 @@ let page: EndpointHandler =
                 let! linked = linkedProviders config user.Id
                 rows.Add { User = user; LinkedProviders = linked }
 
-            let notice = ctx.TryGetQueryValue "msg"
+            let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
             return! ctx.WriteHtmlView(view ctx t (List.ofSeq rows) term notice)
         })
 

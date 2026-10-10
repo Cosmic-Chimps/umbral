@@ -593,7 +593,7 @@ let page: EndpointHandler =
             // the create form is useful only when that offers something.
             let hasEnabledConnector = not (List.isEmpty (offeredTo AllShared connectors))
 
-            let notice = ctx.TryGetQueryValue "msg"
+            let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
             let revealed = SecretReveal.consume ctx
 
             // `app-connectors-strand` carries the app and the choice that was

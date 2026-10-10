@@ -255,11 +255,81 @@ type Texts =
       BackToApp: string
 
       /// Flash messages addressed by a short code (`data-notice="{code}"`).
-      /// Codes not recognised fall back to the code itself, which is a bug
-      /// in the caller, not something an operator should ever see.
+      /// The code arrives in a URL anyone can write, so it is never shown:
+      /// screens drop a code `knownNotice` does not recognise, and a code that
+      /// gets here anyway gets a fixed text.
       ProtocolErrorTitle: string
       ProtocolErrorBody: string
       Notice: string -> string }
+
+/// The notice texts, by code; `None` for a code no screen sends.
+let private noticeEn (code: string) : string option =
+    match code with
+    | "setup-token-invalid" ->
+        Some "That setup token doesn't match. Run `docker logs umbral` and copy the token printed when the container started."
+    | "setup-mismatch" -> Some "The two values don't match. Type the same credential in both fields and try again."
+    | "setup-too-short" -> Some "Use at least 12 characters, then submit the form again."
+    | "signin-incorrect" ->
+        Some "That credential isn't correct. Check it and try again, or run `docker exec -it umbral /app/Umbral reset-credential` on the host if you've lost it."
+    | "sign-in-failed" -> Some "Sign-in didn't complete. Try again, or choose a different option."
+    | "access-denied" -> Some "You cancelled the sign-in. Choose an option below to try again."
+    | "provider-unreachable" ->
+        Some "That provider could not be reached. Try again in a moment, or choose a different option."
+    | "account-disabled" -> Some "This account has been disabled. Contact whoever runs this Umbral."
+    | "app-created" -> Some "App registered."
+    | "app-name-required" -> Some "Give the app a name, then save again."
+    | "app-redirect-uri-invalid" ->
+        Some "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
+    | "app-type-invalid" -> Some "Choose an app type, then save again."
+    | "app-not-found" -> Some "That app no longer exists. Choose one from the list below, or register it again."
+    | "app-no-secret" ->
+        Some "Single-page and native apps have no secret to replace — they use PKCE instead. If sign-in fails for this app, check that it sends a PKCE challenge."
+    | "user-not-found" -> Some "That user no longer exists. Choose one from the list below."
+    | "app-secret-regenerated" -> Some "New secret generated."
+    | "app-deleted" -> Some "App deleted."
+    | "connector-saved" -> Some "Connector saved."
+    | "connector-unknown" -> Some "That connector isn't one Umbral supports. Choose one of the connectors listed on this screen."
+    | "connector-client-id-required" -> Some "Enter the client ID from the provider's console, then save again."
+    | "connector-secret-required" -> Some "Enter the client secret from the provider's console, then save again."
+    | "connector-last-enabled" ->
+        Some "This is the only enabled connector. Turning it off means nobody can sign in to any app. Press it again to confirm."
+
+    | "connector-delete-last-enabled" ->
+        Some "This is the only enabled connector. Nothing was deleted. Deleting it means nobody can sign in to any app — use Delete and confirm to go ahead."
+
+    | "connector-added-oidc" ->
+        Some "OpenID Connect provider added and enabled. Copy its callback URL from its card into your provider's admin area, then people can sign in with it."
+    | "connector-added" ->
+        Some "Connector added. Copy its callback URL into the provider's console, then enable it to offer it."
+    | "connector-added-oidc-unreachable" ->
+        Some "The provider was saved but is disabled, because Umbral could not reach it. Enable it once its address opens in a browser."
+    | "connector-enable-oidc-unreachable" ->
+        Some "Not enabled: Umbral could not reach the provider. Try again once its address opens in a browser."
+    | "connector-enable-oidc-wrong" ->
+        Some "Not enabled: the provider describes itself in a way Umbral cannot use. Check the issuer and the provider's signing settings, then try again."
+    | "connector-slug-invalid" ->
+        Some "The identifier can use only lower-case letters, digits and hyphens, up to 32 characters. Change it and add the connector again."
+    | "connector-slug-taken" ->
+        Some "Another connector already has that identifier. Choose a different one and add the connector again."
+    | "connector-display-name-required" -> Some "Enter the label for the sign-in button, then save again."
+    | "connector-strands-apps" ->
+        Some "Nothing was changed. The apps listed would be left with no way to sign in. Give them another connector first, or confirm to go ahead."
+    | "connector-delete-strands-apps" ->
+        Some "Nothing was deleted. The apps listed would be left with no way to sign in. Give them another connector first, or confirm to delete it anyway."
+    | "app-connectors-strand" ->
+        Some "Nothing was saved. With that choice the app would have no enabled connector to sign in with. Choose at least one enabled connector, or confirm to save it anyway."
+    | "app-connector-unknown" ->
+        Some "One of the ticked connectors no longer exists. Reload the page, tick from the list shown, and save again."
+    | "app-connectors-saved" -> Some "Sign-in methods saved. The app's next sign-in page uses them."
+    | "connector-enabled" -> Some "Connector enabled."
+    | "connector-disabled" -> Some "Connector disabled."
+    | "connector-deleted" -> Some "Connector deleted."
+    | "user-enabled" -> Some "User enabled."
+    | "user-disabled" -> Some "User disabled."
+    | "user-deleted" -> Some "User deleted."
+    | "credential-replaced" -> Some "Operator credential replaced."
+    | "credential-current-incorrect" -> Some "That's not the current credential. Check it and try again."
+    | _ -> None
 
 let en: Texts =
     { SiteName = "Umbral"
@@ -510,74 +580,13 @@ let en: Texts =
         + "configuration mismatch between the app and Umbral: check that its redirect URI is "
         + "registered here exactly as the app sends it, and that it uses PKCE with S256. If you were "
         + "just trying to sign in, go back to the app and try again, and tell its owner if it keeps happening."
-      Notice =
-        fun code ->
-            match code with
-            | "setup-token-invalid" ->
-                "That setup token doesn't match. Run `docker logs umbral` and copy the token printed when the container started."
-            | "setup-mismatch" -> "The two values don't match. Type the same credential in both fields and try again."
-            | "setup-too-short" -> "Use at least 12 characters, then submit the form again."
-            | "signin-incorrect" ->
-                "That credential isn't correct. Check it and try again, or run `docker exec -it umbral /app/Umbral reset-credential` on the host if you've lost it."
-            | "sign-in-failed" -> "Sign-in didn't complete. Try again, or choose a different option."
-            | "access-denied" -> "You cancelled the sign-in. Choose an option below to try again."
-            | "provider-unreachable" ->
-                "That provider could not be reached. Try again in a moment, or choose a different option."
-            | "account-disabled" -> "This account has been disabled. Contact whoever runs this Umbral."
-            | "app-created" -> "App registered."
-            | "app-name-required" -> "Give the app a name, then save again."
-            | "app-redirect-uri-invalid" ->
-                "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
-            | "app-type-invalid" -> "Choose an app type, then save again."
-            | "app-not-found" -> "That app no longer exists. Choose one from the list below, or register it again."
-            | "app-no-secret" ->
-                "Single-page and native apps have no secret to replace — they use PKCE instead. If sign-in fails for this app, check that it sends a PKCE challenge."
-            | "user-not-found" -> "That user no longer exists. Choose one from the list below."
-            | "app-secret-regenerated" -> "New secret generated."
-            | "app-deleted" -> "App deleted."
-            | "connector-saved" -> "Connector saved."
-            | "connector-unknown" -> "That connector isn't one Umbral supports. Choose one of the connectors listed on this screen."
-            | "connector-client-id-required" -> "Enter the client ID from the provider's console, then save again."
-            | "connector-secret-required" -> "Enter the client secret from the provider's console, then save again."
-            | "connector-last-enabled" ->
-                "This is the only enabled connector. Turning it off means nobody can sign in to any app. Press it again to confirm."
+      Notice = fun code -> noticeEn code |> Option.defaultValue "Reload the page to see its current state." }
 
-            | "connector-delete-last-enabled" ->
-                "This is the only enabled connector. Nothing was deleted. Deleting it means nobody can sign in to any app — use Delete and confirm to go ahead."
-
-            | "connector-added-oidc" ->
-                "OpenID Connect provider added and enabled. Copy its callback URL from its card into your provider's admin area, then people can sign in with it."
-            | "connector-added" ->
-                "Connector added. Copy its callback URL into the provider's console, then enable it to offer it."
-            | "connector-added-oidc-unreachable" ->
-                "The provider was saved but is disabled, because Umbral could not reach it. Enable it once its address opens in a browser."
-            | "connector-enable-oidc-unreachable" ->
-                "Not enabled: Umbral could not reach the provider. Try again once its address opens in a browser."
-            | "connector-enable-oidc-wrong" ->
-                "Not enabled: the provider describes itself in a way Umbral cannot use. Check the issuer and the provider's signing settings, then try again."
-            | "connector-slug-invalid" ->
-                "The identifier can use only lower-case letters, digits and hyphens, up to 32 characters. Change it and add the connector again."
-            | "connector-slug-taken" ->
-                "Another connector already has that identifier. Choose a different one and add the connector again."
-            | "connector-display-name-required" -> "Enter the label for the sign-in button, then save again."
-            | "connector-strands-apps" ->
-                "Nothing was changed. The apps listed would be left with no way to sign in. Give them another connector first, or confirm to go ahead."
-            | "connector-delete-strands-apps" ->
-                "Nothing was deleted. The apps listed would be left with no way to sign in. Give them another connector first, or confirm to delete it anyway."
-            | "app-connectors-strand" ->
-                "Nothing was saved. With that choice the app would have no enabled connector to sign in with. Choose at least one enabled connector, or confirm to save it anyway."
-            | "app-connector-unknown" ->
-                "One of the ticked connectors no longer exists. Reload the page, tick from the list shown, and save again."
-            | "app-connectors-saved" -> "Sign-in methods saved. The app's next sign-in page uses them."
-            | "connector-enabled" -> "Connector enabled."
-            | "connector-disabled" -> "Connector disabled."
-            | "connector-deleted" -> "Connector deleted."
-            | "user-enabled" -> "User enabled."
-            | "user-disabled" -> "User disabled."
-            | "user-deleted" -> "User deleted."
-            | "credential-replaced" -> "Operator credential replaced."
-            | "credential-current-incorrect" -> "That's not the current credential. Check it and try again."
-            | other -> other }
+/// The code itself when it is one a screen has a message for, so that a screen
+/// reading `?msg=` draws nothing, not even `data-notice`, for any other text.
+/// Codes are the same in every language, so the English table decides.
+let knownNotice (code: string) : string option =
+    noticeEn code |> Option.map (fun _ -> code)
 
 /// Umbral is English-only (research.md D10); every handler calls this the
 /// same way the multi-language reference project calls its own equivalent,

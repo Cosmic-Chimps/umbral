@@ -1053,6 +1053,45 @@ let ``enabling a provider that now describes itself wrongly is refused with the 
 
         let! stored = ConnectorStore.findBySlug app.DbConfig "home"
         Assert.False stored.Value.IsEnabled
+
+        // The reason is shown once: a refresh keeps the notice, not the reason.
+        let! again = operator.GetHtml location
+        Assert.Contains("data-notice=\"connector-enable-oidc-wrong\"", again)
+        Assert.DoesNotContain("shared secret", again)
+    }
+
+[<Fact>]
+let ``the connectors screen draws no notice text taken from its URL`` () =
+    task {
+        let stub = create issuer
+        stub.Mode <- Down
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let planted = "Umbral-support-call-555-0100-and-paste-your-credential"
+
+        // An unknown code is dropped, not echoed, whatever the parameter.
+        for url in
+            [ $"/admin/connectors?msg={planted}"
+              $"/admin/connectors?notice={planted}"
+              $"/admin/apps?msg={planted}"
+              $"/admin/users?msg={planted}"
+              $"/admin/credential?msg={planted}" ] do
+            let! screen = operator.GetHtml url
+            Assert.DoesNotContain(planted, screen)
+            Assert.DoesNotContain("data-notice", screen)
+
+        // A known code with a reason in the URL draws the fixed text, never the
+        // reason, for a stored slug or any other.
+        for code, slug, fixedText in
+            [ "connector-enable-oidc-wrong", "home", "describes itself in a way Umbral cannot use"
+              "connector-enable-oidc-unreachable", "home", "Umbral could not reach the provider"
+              "connector-added-oidc-unreachable", "nope", "saved but is disabled" ] do
+            let! screen = operator.GetHtml $"/admin/connectors?msg={code}&slug={slug}&reason={planted}"
+            Assert.DoesNotContain(planted, screen)
+            Assert.Contains($"data-notice=\"{code}\"", screen)
+            Assert.Contains(fixedText, screen)
     }
 
 [<Fact>]

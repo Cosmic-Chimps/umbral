@@ -70,18 +70,20 @@ let handler (slug: string) : EndpointHandler =
             match discovery with
             | Some(OidcDiscovery.Unreachable reason) ->
                 return!
-                    WebForms.redirectWithNoticeAbout
+                    WebForms.NoticeReason.redirect
                         ctx
                         "/admin/connectors"
                         "connector-enable-oidc-unreachable"
-                        [ "slug", slug; "reason", WebForms.truncate 300 reason ]
+                        slug
+                        (WebForms.truncate 300 reason)
             | Some(OidcDiscovery.Wrong reason) ->
                 return!
-                    WebForms.redirectWithNoticeAbout
+                    WebForms.NoticeReason.redirect
                         ctx
                         "/admin/connectors"
                         "connector-enable-oidc-wrong"
-                        [ "slug", slug; "reason", WebForms.truncate 300 reason ]
+                        slug
+                        (WebForms.truncate 300 reason)
             | Some(OidcDiscovery.Discovered _)
             | None ->
 
