@@ -25,15 +25,11 @@ type Texts =
       SetupButton: string
       SetupTokenLabel: string
       SetupTokenHint: string
-      SetupTooShort: string
-      SetupMismatch: string
-      SetupAlreadyDone: string
 
       // Operator sign-in (/admin/signin)
       SignInTitle: string
       SignInLead: string
       SignInButton: string
-      SignInIncorrect: string
 
       // Replacing the operator credential once signed in (FR-017a)
       CredentialReplaceTitle: string
@@ -42,16 +38,12 @@ type Texts =
       CredentialReplaceButton: string
       CurrentCredentialLabel: string
       CredentialReplaced: string
-      CredentialCurrentIncorrect: string
 
       // End-user connector picker (/signin) — not an admin screen
       PickerTitle: string
       PickerLead: string
       SignInWith: string -> string
       PickerNoConnectors: string
-      PickerSignInFailed: string
-      PickerAccessDenied: string
-      PickerProviderUnreachable: string
 
       // Screen 1 — Apps
       AppsTitle: string
@@ -60,12 +52,9 @@ type Texts =
       AppsNeedConnectorBody: string
       AppsEmptyTitle: string
       AppsEmptyBody: string
-      AppRegisterButton: string
       AppNameLabel: string
-      AppNameRequired: string
       AppRedirectUriLabel: string
       AppRedirectUriHint: string
-      AppRedirectUriInvalid: string
       AppPostLogoutRedirectUriLabel: string
       AppTypeLabel: string
       AppTypeHint: string
@@ -74,24 +63,18 @@ type Texts =
       AppCreateButton: string
       AppClientIdLabel: string
       AppIssuerUrlLabel: string
-      AppSecretShownTitle: string
-      AppSecretShownBody: string
       AppSecretLabel: string
       AppSecretOnceWarning: string
-      AppBackToApps: string
       AppRegenerateButton: string
       AppRegenerateConfirm: string -> string
-      AppRegenerateNotice: string
       AppDeleteButton: string
       AppDeleteConfirm: string -> string
-      AppDeletedNotice: string
 
       // Screen 2 — Connectors
       ConnectorsTitle: string
       ConnectorsLead: string
       AppTypeWebOption: string
       AppTypeSpaOption: string
-      AppSecretNotIssued: string
       NotConfigured: string
       Enabled: string
       Disabled: string
@@ -108,30 +91,12 @@ type Texts =
       ProviderConsoleHint: string -> string
       SaveConnector: string
       OriginMismatch: string -> string -> string
-      ConnectorClientIdLabel: string
-      ConnectorClientSecretLabel: string
-      ConnectorSecretMasked: string -> string
-      ConnectorSecretReplaceButton: string
-      ConnectorSecretNeverSetHint: string
-      ConnectorSaveButton: string
-      ConnectorCallbackUrlLabel: string
-      ConnectorCallbackUrlHint: string
-      ConnectorEnableButton: string
-      ConnectorDisableButton: string
-      ConnectorEnabledBadge: string
-      ConnectorDisabledBadge: string
       ConnectorDeleteButton: string
       ConnectorDeleteConfirm: string -> string
-      ConnectorDisableConfirm: string -> string
       ConnectorDisableLastWarning: string
       ConnectorDeleteLastWarning: string
-      ConnectorSavedNotice: string
-      ConnectorDeletedNotice: string
-      ConnectorCredentialsRejected: string -> string
-      GoogleLimitationNotice: string
 
       // The origin-mismatch banner (D4), naming both origins
-      OriginMismatchBanner: string -> string -> string
 
       // Screen 3 — Users
       UsersTitle: string
@@ -140,9 +105,6 @@ type Texts =
       UsersEmptyBody: string
       UserSearchLabel: string
       UserSearchPlaceholder: string
-      UserDisplayNameLabel: string
-      UserEmailLabel: string
-      UserProvidersLabel: string
       UserFirstSignInLabel: string
       UserLastSignInLabel: string
       UserNeverSignedIn: string
@@ -153,17 +115,10 @@ type Texts =
       UserDisableConfirm: string -> string
       UserDeleteButton: string
       UserDeleteConfirm: string -> string
-      UserDeletedNotice: string
 
       // Config export (GET /admin/config)
-      ConfigExportTitle: string
-      ConfigExportLead: string
-      ConfigExportDownloadButton: string
-      ConfigExportSecretNote: string
 
       // Generic chrome and errors (FR-037: every message names the next action)
-      CopyButton: string
-      CopiedNotice: string
       AntiforgeryExpiredTitle: string
       AntiforgeryExpiredBody: string
       NotFoundTitle: string
@@ -172,7 +127,6 @@ type Texts =
       ErrorBody: string
       RateLimitedTitle: string
       RateLimitedBody: int -> string
-      BackToSignIn: string
       BackHome: string
       BackToApp: string
 
@@ -203,14 +157,10 @@ let en: Texts =
       SetupTokenLabel = "Setup token"
       SetupTokenHint =
         "Printed in the container log when Umbral started. Run `docker logs umbral` and copy the token shown there."
-      SetupTooShort = "Use at least 12 characters, then submit the form again."
-      SetupMismatch = "The two values don't match. Type the same credential in both fields and try again."
-      SetupAlreadyDone = "Setup is already complete. Sign in instead."
 
       SignInTitle = "Operator sign-in"
       SignInLead = "Sign in with the operator credential to manage Apps, Connectors and Users."
       SignInButton = "Sign in"
-      SignInIncorrect = "That credential isn't correct. Check it and try again, or run `docker exec -it umbral /app/Umbral reset-credential` on the host if you've lost it."
 
       CredentialReplaceTitle = "Replace the operator credential"
       CredentialReplaceLead = "Enter your current credential, then the new one. Every other admin session is signed out immediately."
@@ -218,15 +168,11 @@ let en: Texts =
       CredentialReplaceButton = "Replace credential"
       CurrentCredentialLabel = "Current credential"
       CredentialReplaced = "Operator credential replaced. Use it next time you sign in."
-      CredentialCurrentIncorrect = "That's not the current credential. Check it and try again."
 
       PickerTitle = "Sign in"
       PickerLead = "Choose how you'd like to sign in."
       SignInWith = fun provider -> $"Sign in with {provider}"
       PickerNoConnectors = "No sign-in option is available right now. Contact the operator of this service."
-      PickerSignInFailed = "Sign-in was cancelled or didn't complete. Try again, or choose a different option below."
-      PickerAccessDenied = "Your account is disabled. Contact the operator if you believe this is a mistake."
-      PickerProviderUnreachable = "That provider isn't responding right now. Try again in a moment, or choose a different option below."
 
       AppsTitle = "Apps"
       AppsLead = "Apps that delegate sign-in to Umbral. Each gets its own client ID and secret."
@@ -234,12 +180,9 @@ let en: Texts =
       AppsNeedConnectorBody = "An app needs at least one enabled connector so people have a way to sign in. Go to Connectors and set one up."
       AppsEmptyTitle = "No apps yet"
       AppsEmptyBody = "Register your first app to get an issuer URL, a client ID and a client secret."
-      AppRegisterButton = "Register app"
       AppNameLabel = "Name"
-      AppNameRequired = "Enter a name for this app, then save again."
       AppRedirectUriLabel = "Redirect URI"
       AppRedirectUriHint = "The exact, absolute callback URL the app expects — no wildcards."
-      AppRedirectUriInvalid = "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
       AppPostLogoutRedirectUriLabel = "Post-logout redirect URI (optional)"
       AppTypeLabel = "App type"
       AppTypeHint = "Not sure? Ask where the sign-in code runs: on a server you control, pick Web application; on the person's own device, pick Single-page or native app."
@@ -248,23 +191,16 @@ let en: Texts =
       AppCreateButton = "Create app"
       AppClientIdLabel = "Client ID"
       AppIssuerUrlLabel = "Issuer URL"
-      AppSecretShownTitle = "App created"
-      AppSecretShownBody = "Copy the client ID and secret into the app's configuration now."
       AppSecretLabel = "Client secret"
       AppSecretOnceWarning = "This secret is shown only once and Umbral keeps no way to show it again. If you lose it, come back here and regenerate it."
-      AppBackToApps = "Back to Apps"
       AppRegenerateButton = "Regenerate secret"
       AppRegenerateConfirm = fun name -> $"Regenerate the secret for \"{name}\"? The app will stop working with its old secret until you update its configuration with the new one."
-      AppRegenerateNotice = "New secret generated. Update the app's configuration before its old secret is used again."
       AppDeleteButton = "Delete app"
       AppDeleteConfirm = fun name -> $"Delete \"{name}\"? Every token already issued to it stops working immediately, and this can't be undone."
-      AppDeletedNotice = "App deleted. Its tokens no longer work."
 
       ConnectorsTitle = "Connectors"
       AppTypeWebOption = "Web application"
       AppTypeSpaOption = "Single-page or native app"
-      AppSecretNotIssued =
-        "This app has no secret. Single-page and native apps are public clients: they prove themselves with PKCE instead."
       NotConfigured = "Not set up"
       Enabled = "Enabled"
       Disabled = "Disabled"
@@ -286,31 +222,10 @@ let en: Texts =
           $"Umbral is configured with the public address {configured}, but you reached it at {actual}. "
           + "Social login will fail until they match: set UMBRAL__PUBLIC_ORIGIN to the address people actually use, then restart Umbral."
       ConnectorsLead = "Upstream providers people can sign in with. Enable the ones you've registered an OAuth app with."
-      ConnectorClientIdLabel = "Client ID"
-      ConnectorClientSecretLabel = "Client secret"
-      ConnectorSecretMasked = fun lastFour -> $"Saved, ending in {lastFour}"
-      ConnectorSecretReplaceButton = "Replace secret"
-      ConnectorSecretNeverSetHint = "No secret saved yet."
-      ConnectorSaveButton = "Save"
-      ConnectorCallbackUrlLabel = "Callback URL"
-      ConnectorCallbackUrlHint = "Paste this into the provider's console as the redirect URI. Umbral computes it — never type it by hand."
-      ConnectorEnableButton = "Enable"
-      ConnectorDisableButton = "Disable"
-      ConnectorEnabledBadge = "Enabled"
-      ConnectorDisabledBadge = "Disabled"
       ConnectorDeleteButton = "Delete"
       ConnectorDeleteConfirm = fun name -> $"Delete the {name} connector? Nobody can sign in with {name} until you add it again, and the saved secret is erased. Their accounts are kept, and adding {name} back returns them to the same account."
-      ConnectorDisableConfirm = fun name -> $"Disable {name}? People won't be able to sign in with it until it's enabled again."
       ConnectorDisableLastWarning = "This is the only enabled connector. Disabling it means nobody can sign in anywhere until you enable one again, so enable another first unless you mean to turn sign-in off."
       ConnectorDeleteLastWarning = "This is the only enabled connector. Deleting it means nobody can sign in anywhere until you add one again, and the saved secret is erased. Enable another first unless you mean to turn sign-in off."
-      ConnectorSavedNotice = "Connector saved. The new credentials are used on the next sign-in — no restart needed."
-      ConnectorDeletedNotice = "Connector deleted."
-      ConnectorCredentialsRejected = fun provider -> $"{provider} rejected these credentials. Double-check the client ID and secret you pasted, then save again."
-      GoogleLimitationNotice = "Google refuses a redirect URI that is a raw IP address or that isn't https (except localhost) — so a typical \"http://192.168.x.x\" homelab address can't be registered with Google at all. Either put Umbral behind a domain name with HTTPS, or skip Google and use Discord or GitHub instead."
-
-      OriginMismatchBanner =
-        fun configured apparent ->
-            $"This request arrived as {apparent}, but Umbral is configured with the public origin {configured}. Fix UMBRAL__PUBLIC_ORIGIN or the proxy in front of Umbral so the two agree — a mismatch here is why redirect URIs fail."
 
       UsersTitle = "Users"
       UsersLead = "People who have signed in at least once, across every app."
@@ -318,9 +233,6 @@ let en: Texts =
       UsersEmptyBody = "Users appear here automatically the first time someone signs in."
       UserSearchLabel = "Search users"
       UserSearchPlaceholder = "Search by name or email"
-      UserDisplayNameLabel = "Name"
-      UserEmailLabel = "Email"
-      UserProvidersLabel = "Signed in with"
       UserFirstSignInLabel = "First sign-in"
       UserLastSignInLabel = "Last sign-in"
       UserNeverSignedIn = "Never"
@@ -331,19 +243,11 @@ let en: Texts =
       UserDisableConfirm = fun name -> $"Disable {name}? They won't be able to sign in again, and their existing sessions and tokens stop working immediately."
       UserDeleteButton = "Delete"
       UserDeleteConfirm = fun name -> $"Delete {name}? This removes their account and every linked provider account permanently, and can't be undone."
-      UserDeletedNotice = "User deleted."
 
-      ConfigExportTitle = "Export configuration"
-      ConfigExportLead = "The current apps and connectors as one YAML file. Secrets are written as environment-variable references, never in clear text."
-      ConfigExportDownloadButton = "Download umbral.yaml"
-      ConfigExportSecretNote = "App secrets can't be exported — OpenIddict only stores a hash of them. An app imported from this file gets a fresh secret; update its configuration with the new one."
-
-      CopyButton = "Copy"
-      CopiedNotice = "Copied"
       AntiforgeryExpiredTitle = "This form expired"
       AntiforgeryExpiredBody = "Reload the page and try again."
       NotFoundTitle = "Page not found"
-      NotFoundBody = "There's nothing at this address. Check the link, or go back to sign-in."
+      NotFoundBody = "There's nothing at this address. Check the link and try again."
       ErrorTitle = "Something went wrong"
       ErrorBody = "Umbral couldn't complete that request. Try again, and contact the operator if it keeps happening."
       RateLimitedTitle = "Too many attempts"
@@ -351,7 +255,6 @@ let en: Texts =
         fun minutes ->
             let unit = if minutes = 1 then "minute" else "minutes"
             $"Wait about {minutes} {unit}, then try again. Nothing was lost; the limit lifts by itself."
-      BackToSignIn = "Back to sign-in"
       BackHome = "Back to sign-in"
       BackToApp = "Go back to the app you were signing in to, and start again from there."
 

@@ -15,9 +15,7 @@ open Oxpecker.ViewEngine
 open Umbral.Infrastructure.Providers.Fake
 open Umbral.Views
 
-let private notHere (ctx: Microsoft.AspNetCore.Http.HttpContext) =
-    ctx.SetStatusCode 404
-    ctx.WriteText "Not found"
+let private notHere (ctx: Microsoft.AspNetCore.Http.HttpContext) = Layout.notFound ctx
 
 let page: EndpointHandler =
     fun ctx ->
