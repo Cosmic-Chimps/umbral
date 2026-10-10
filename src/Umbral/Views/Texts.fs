@@ -69,6 +69,8 @@ type Texts =
       AppPostLogoutRedirectUriLabel: string
       AppTypeLabel: string
       AppTypeHint: string
+      AppTypeWebDescription: string
+      AppTypeSpaDescription: string
       AppCreateButton: string
       AppClientIdLabel: string
       AppIssuerUrlLabel: string
@@ -240,7 +242,9 @@ let en: Texts =
       AppRedirectUriInvalid = "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
       AppPostLogoutRedirectUriLabel = "Post-logout redirect URI (optional)"
       AppTypeLabel = "App type"
-      AppTypeHint = "Sets the app's permissions. There's no separate checkbox list to get wrong."
+      AppTypeHint = "Not sure? Ask where the sign-in code runs: on a server you control, pick Web application; on the person's own device, pick Single-page or native app."
+      AppTypeWebDescription = "Your app has a back end that can keep a secret: ASP.NET, Node/Express, Django, Rails, PHP. Sign-in happens on the server. You get a client ID and a client secret, and sign-in is also protected with PKCE."
+      AppTypeSpaDescription = "Your app runs entirely on the person's device, where anything shipped can be read: a React, Vue or Angular app with no back end, a mobile or desktop app, a command-line tool. You get a client ID only, no secret; the app proves itself with PKCE."
       AppCreateButton = "Create app"
       AppClientIdLabel = "Client ID"
       AppIssuerUrlLabel = "Issuer URL"
@@ -258,7 +262,7 @@ let en: Texts =
 
       ConnectorsTitle = "Connectors"
       AppTypeWebOption = "Web application"
-      AppTypeSpaOption = "Single-page app or native app"
+      AppTypeSpaOption = "Single-page or native app"
       AppSecretNotIssued =
         "This app has no secret. Single-page and native apps are public clients: they prove themselves with PKCE instead."
       NotConfigured = "Not set up"

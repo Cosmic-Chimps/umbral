@@ -142,6 +142,17 @@ let componentCss =
   .um-input[aria-invalid="true"] { @apply border-error; }
   .um-input[readonly] { @apply text-on-surface-variant; }
   .um-mono { @apply font-mono; }
+  .um-choice-group { @apply m-0 min-w-0 border-0 p-0; }
+  .um-choice { @apply relative flex cursor-pointer items-start gap-3 rounded border border-outline-variant bg-surface-container p-4; }
+  .um-choice:hover { @apply border-outline bg-surface-container-high; }
+  .um-choice:has(:checked) { @apply border-primary bg-primary/10; box-shadow: 0 0 0 1px var(--color-primary); }
+  .um-choice:has(:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+  .um-choice-radio { appearance: none; flex: none; margin-top: 0.125rem; width: 1.125rem; height: 1.125rem; border-radius: 9999px; border: 2px solid var(--color-outline); background: transparent; }
+  .um-choice-radio:checked { border-color: var(--color-primary); background: radial-gradient(circle, var(--color-primary) 0 42%, transparent 48%); }
+  .um-choice-group .um-hint { @apply mt-3; }
+  .um-choice-body { @apply flex min-w-0 flex-col gap-1; }
+  .um-choice-title { @apply text-body-md font-semibold text-on-surface; }
+  .um-choice-desc { @apply text-label-md font-normal text-on-surface-variant; }
   .um-hint { @apply mt-1.5 text-label-md font-normal text-on-surface-variant; }
   .um-field-error { @apply mt-1.5 flex items-center gap-1.5 text-label-md text-error; }
   .um-alert { @apply flex items-start gap-3 rounded p-4 text-body-md border; }
@@ -157,7 +168,10 @@ let componentCss =
   .material-symbols-outlined { font-size: 1.25em; line-height: 1; vertical-align: -0.2em; user-select: none; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .um-btn, .um-input, .um-link { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
+  .um-btn, .um-input, .um-link, .um-choice { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
+}
+@supports selector(:has(*)) {
+  .um-choice-radio:focus-visible { outline: none; }
 }
 .um-btn-primary:hover { @apply brightness-110; }
 .um-btn-secondary:hover { @apply bg-surface-container-highest; }
