@@ -157,6 +157,7 @@ let private addLabConnector (app: Fixtures.TestApp) =
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = "used"
                   ExtraScopes = []
+                  IssuerUrl = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

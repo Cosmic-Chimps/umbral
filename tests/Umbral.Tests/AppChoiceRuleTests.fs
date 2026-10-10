@@ -14,6 +14,7 @@ let private connector slug kind enabled shared : Connector =
       ClientSecretRef = "ref"
       ClientSecretHint = "hint"
       ExtraScopes = []
+      IssuerUrl = None
       IsEnabled = enabled
       IsShared = shared
       CreatedUtc = DateTimeOffset.UnixEpoch

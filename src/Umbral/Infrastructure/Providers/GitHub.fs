@@ -203,8 +203,11 @@ type GitHubAdapter(httpClient: HttpClient) =
     interface IProviderAdapter with
         member _.Kind = GitHub
 
+        member _.Resolve connector =
+            Task.FromResult(Ok(endpointsFor connector.Kind))
+
         member _.BuildAuthorizeUrl(request: AuthorizeRequest) =
-            buildUrl request.Connector.Endpoints.AuthorizationUrl (commonAuthorizeParameters request)
+            buildUrl request.Endpoints.AuthorizationUrl (commonAuthorizeParameters request)
 
         member _.ExchangeAndFetch(request: ExchangeRequest) =
             task {

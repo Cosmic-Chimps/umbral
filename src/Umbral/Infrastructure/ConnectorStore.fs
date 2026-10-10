@@ -14,7 +14,7 @@ open Umbral.Domains.Connectors
 [<Literal>]
 let private Columns =
     "SELECT slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-            extra_scopes, is_enabled, is_shared, created_utc, updated_utc FROM connectors"
+            extra_scopes, is_enabled, is_shared, created_utc, updated_utc, issuer_url FROM connectors"
 
 let private readOptional (reader: SqliteDataReader) (ordinal: int) =
     if reader.IsDBNull ordinal then None else Some(reader.GetString ordinal)
@@ -38,6 +38,7 @@ let private read (reader: SqliteDataReader) =
         readOptional reader 6
         |> Option.map (fun s -> s.Split(' ', StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
         |> Option.defaultValue []
+      IssuerUrl = readOptional reader 11
       IsEnabled = reader.GetInt32 7 = 1
       IsShared = reader.GetInt32 8 = 1
       CreatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture)
@@ -75,13 +76,29 @@ let findBySlug (config: Database.DbConfig) (slug: string) =
         return List.tryHead rows
     }
 
+/// The connector configured for an issuer, if any. `issuer` is the normalised
+/// form (`normaliseIssuer`), which is also what is stored: two spellings of one
+/// address must not become two connectors.
+let findByIssuer (config: Database.DbConfig) (issuer: string) =
+    task {
+        let! rows = query config " WHERE issuer_url = @issuer" [ "@issuer", issuer ]
+        return List.tryHead rows
+    }
+
+let private issuerParameter (connector: Connector) : obj =
+    match connector.IssuerUrl with
+    | Some issuer -> issuer :> obj
+    | None -> DBNull.Value :> obj
+
 /// Create or update, keyed on the immutable slug. The kind is written when the
 /// row is created and never touched again: it is read back from the row, not
 /// worked out from the slug, because `discord-frunchy` is a Discord connector
 /// only because its row says so (FR-012). The secret is written only
 /// when a new one is supplied, so saving the form without retyping it does not
 /// wipe the stored credential — the screen cannot show it back, so an operator
-/// editing a display name has nothing to retype.
+/// editing a display name has nothing to retype. The issuer is written the same
+/// way as the kind — at creation, never updated — because it is part of every
+/// person's identity.
 let save
     (config: Database.DbConfig)
     (clock: TimeProvider)
@@ -101,8 +118,8 @@ let save
         command.CommandText <-
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-                  extra_scopes, is_enabled, is_shared, created_utc, updated_utc)
-             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @scopes, @enabled, @shared, @now, @now)
+                  extra_scopes, is_enabled, is_shared, created_utc, updated_utc, issuer_url)
+             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @scopes, @enabled, @shared, @now, @now, @issuer)
              ON CONFLICT (slug) DO UPDATE SET
                  display_name      = @name,
                  client_id         = @clientId,
@@ -122,22 +139,39 @@ let save
         command.Parameters.AddWithValue("@scopes", String.concat " " connector.ExtraScopes) |> ignore
         command.Parameters.AddWithValue("@enabled", (if connector.IsEnabled then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@shared", (if connector.IsShared then 1 else 0)) |> ignore
+        command.Parameters.AddWithValue("@issuer", issuerParameter connector) |> ignore
         command.Parameters.AddWithValue("@now", now) |> ignore
 
         let! _ = command.ExecuteNonQueryAsync()
         return ()
     }
 
-/// Add a connector under a slug the operator chose (FR-012). Returns false and
-/// writes nothing when the slug already belongs to a connector: the slug is the
+/// How adding a connector ended. A taken slug and a taken issuer are different
+/// answers because the operator fixes them differently.
+type CreateResult =
+    | Created
+    /// The slug already belongs to a connector; nothing was written.
+    | SlugTaken
+    /// Another connector already holds this issuer; nothing was written. Two
+    /// connectors on one issuer would share every person under two names
+    /// (`ux_connectors_issuer`).
+    | IssuerTaken
+
+/// SQLITE_CONSTRAINT, the primary result code for any violated constraint.
+[<Literal>]
+let private SqliteConstraint = 19
+
+/// Add a connector under a slug the operator chose (FR-012). Writes nothing and
+/// says why when the slug already belongs to a connector — the slug is the
 /// primary key and sits in the callback URL, so an existing one is never
-/// replaced here. The caller has already checked `Ids.isValidSlug`.
+/// replaced here — or when another connector already holds the issuer. The
+/// caller has already checked `Ids.isValidSlug`.
 let create
     (config: Database.DbConfig)
     (clock: TimeProvider)
     (connector: Connector)
     (secretRef: string, secretHint: string)
-    : Task<bool> =
+    : Task<CreateResult> =
     task {
         use! connection = Database.openConnection config
         use command = connection.CreateCommand()
@@ -145,8 +179,8 @@ let create
         command.CommandText <-
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-                  extra_scopes, is_enabled, is_shared, created_utc, updated_utc)
-             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @scopes, @enabled, @shared, @now, @now)
+                  extra_scopes, is_enabled, is_shared, created_utc, updated_utc, issuer_url)
+             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @scopes, @enabled, @shared, @now, @now, @issuer)
              ON CONFLICT (slug) DO NOTHING"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -158,10 +192,16 @@ let create
         command.Parameters.AddWithValue("@scopes", String.concat " " connector.ExtraScopes) |> ignore
         command.Parameters.AddWithValue("@enabled", (if connector.IsEnabled then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@shared", (if connector.IsShared then 1 else 0)) |> ignore
+        command.Parameters.AddWithValue("@issuer", issuerParameter connector) |> ignore
         command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
 
-        let! inserted = command.ExecuteNonQueryAsync()
-        return inserted > 0
+        try
+            let! inserted = command.ExecuteNonQueryAsync()
+            return if inserted > 0 then Created else SlugTaken
+        with :? SqliteException as error when error.SqliteErrorCode = SqliteConstraint && error.Message.Contains "issuer_url" ->
+            // `ON CONFLICT (slug)` covers only the primary key; the unique
+            // index on the issuer raises instead of being skipped.
+            return IssuerTaken
     }
 
 /// Change what the card form edits on a stored connector: display name, client

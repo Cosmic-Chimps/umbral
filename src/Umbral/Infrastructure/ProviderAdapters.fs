@@ -11,6 +11,7 @@
 module Umbral.Infrastructure.ProviderAdapters
 
 open System
+open System.Net.Http
 open System.Threading.Tasks
 open Umbral.Domains.Connectors
 
@@ -52,6 +53,11 @@ type ConnectorError =
 /// than read, so BuildAuthorizeUrl stays pure and golden-testable.
 type AuthorizeRequest =
     { Connector: Connector
+      /// Where the provider's authorization endpoint is, as `IProviderAdapter.Resolve`
+      /// said. Read from here and not from `Connector.Endpoints`: for an OpenID
+      /// Connect provider the static entry has no URLs, they are the provider's
+      /// to give (specs/002 research R3).
+      Endpoints: ProviderEndpoints
       RedirectUri: Uri
       State: string
       CodeChallenge: string
@@ -68,6 +74,14 @@ type ExchangeRequest =
 type IProviderAdapter =
     abstract Kind: ProviderKind
 
+    /// Where this connector's provider keeps its endpoints, asked before every
+    /// authorize URL is built. The built-in kinds answer from their compiled-in
+    /// entry and never fail; an OpenID Connect provider is asked for its
+    /// discovery document (cached), which can be unreachable or wrong, hence
+    /// the `Result`. The failure is the operator's to see, like any other
+    /// connector error.
+    abstract Resolve: Connector -> Task<Result<ProviderEndpoints, ConnectorError>>
+
     /// Pure. A golden test can assert the exact URL — scope string,
     /// code_challenge_method, redirect_uri — which is what catches the typo
     /// that otherwise costs an afternoon of provider-side errors.
@@ -83,6 +97,19 @@ type IProviderAdapter =
 [<Literal>]
 let HttpClientName = "umbral-provider"
 
+/// Builds the primary handler under the named client above.
+///
+/// A registered factory rather than an inline `new HttpClientHandler` so a test
+/// can put a stub identity provider in the handler's place and still go through
+/// the real adapters, the real DI and the real pipeline — the seam lives in the
+/// product, not in a mock (specs/002 research R9). A delegate rather than a
+/// function type so no other registration can collide with it.
+type PrimaryHandler = delegate of unit -> HttpMessageHandler
+
+/// What production uses. AllowAutoRedirect = false and why: see `HttpClientName`.
+let defaultPrimaryHandler () : HttpMessageHandler =
+    new HttpClientHandler(AllowAutoRedirect = false, MaxAutomaticRedirections = 1)
+
 /// Query-string building, shared so every adapter escapes identically.
 let buildUrl (baseUrl: string) (parameters: (string * string) list) =
     let query =
@@ -95,7 +122,7 @@ let buildUrl (baseUrl: string) (parameters: (string * string) list) =
 
 /// The authorize parameters every provider shares. An adapter adds its own.
 let commonAuthorizeParameters (request: AuthorizeRequest) =
-    let endpoints = request.Connector.Endpoints
+    let endpoints = request.Endpoints
 
     [ "client_id", request.Connector.ClientId
       "redirect_uri", request.RedirectUri.ToString()

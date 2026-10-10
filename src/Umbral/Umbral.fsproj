@@ -48,6 +48,7 @@
     <Compile Include="Infrastructure/LogRedaction.fs" />
     <Compile Include="Infrastructure/OAuthRoundTrip.fs" />
     <Compile Include="Infrastructure/ProviderAdapters.fs" />
+    <Compile Include="Infrastructure/OidcDiscovery.fs" />
     <Compile Include="Infrastructure/Providers/Fake.fs" />
     <Compile Include="Infrastructure/Providers/Discord.fs" />
     <Compile Include="Infrastructure/Providers/GitHub.fs" />
@@ -123,6 +124,19 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
     <PackageReference Include="YamlDotNet" Version="16.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The discovery and JWKS client for the `oidc` connector
+      (specs/002-generic-oidc-connector/research.md R2): it fetches
+      {issuer}/.well-known/openid-configuration and the signing keys, caches
+      them and refreshes on its own schedule, so key rotation needs no operator
+      action and Umbral writes none of that code. Pinned to the version of the
+      Microsoft.IdentityModel.* assemblies OpenIddict already brings in, so the
+      family stays one version (see `dotnet list package` with its transitive option).
+    -->
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.19.2" />
   </ItemGroup>
 
 </Project>

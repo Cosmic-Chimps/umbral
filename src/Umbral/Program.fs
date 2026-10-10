@@ -177,11 +177,18 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     // endpoint that answered with a redirect could otherwise walk an
     // authorization code — a bearer credential — to somewhere we never meant to
     // send it. The adapters cannot set this themselves; it belongs to whoever
-    // builds the handler, which is here.
+    // builds the handler, which is `ProviderAdapters.defaultPrimaryHandler`.
+    //
+    // Reached through a registered factory so a test can register its own first
+    // and put a stub identity provider behind the real adapters; `TryAdd`
+    // leaves that registration alone and production gets the default.
+    services.TryAddSingleton<ProviderAdapters.PrimaryHandler>(
+        ProviderAdapters.PrimaryHandler(fun () -> ProviderAdapters.defaultPrimaryHandler ()))
+
     services
         .AddHttpClient(ProviderAdapters.HttpClientName)
-        .ConfigurePrimaryHttpMessageHandler(fun () ->
-            new HttpClientHandler(AllowAutoRedirect = false, MaxAutomaticRedirections = 1) :> HttpMessageHandler)
+        .ConfigurePrimaryHttpMessageHandler(fun (sp: IServiceProvider) ->
+            sp.GetRequiredService<ProviderAdapters.PrimaryHandler>().Invoke())
     |> ignore
 
     // Development only, and refused at startup if a fake connector exists
@@ -214,6 +221,19 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
         Providers.Google.GoogleAdapter(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName)
         :> ProviderAdapters.IProviderAdapter)
+    |> ignore
+
+    // One discovery cache for every `oidc` connector (research R2): a manager
+    // per issuer, built over the same named client, so a provider's discovery
+    // and keys are fetched once per refresh and not once per sign-in. The same
+    // Development-only flag that admits plain http for OpenIddict admits it for
+    // a loopback issuer, and nothing else does.
+    services.AddSingleton<OidcDiscovery.OidcDiscovery>(fun sp ->
+        OidcDiscovery.OidcDiscovery(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName,
+            allowInsecureHttp,
+            TimeSpan.FromSeconds 10.0,
+            sp.GetRequiredService<TimeProvider>()))
     |> ignore
 
     services.AddSingleton<ProviderAdapters.Registry>(fun sp ->

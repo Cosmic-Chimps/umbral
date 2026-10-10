@@ -176,7 +176,7 @@ let private exec (config: DbConfig) (sql: string) =
 
 /// A database as version 1 left it: `connectors` has no `is_shared`, the choice
 /// tables do not exist, and the stored schema version is 1. Written by hand
-/// rather than by calling `initializeSchema`, which now builds version 2.
+/// rather than by calling `initializeSchema`, which builds the newest version.
 let private seedVersionOne (config: DbConfig) =
     exec
         config
@@ -205,14 +205,19 @@ let private seedVersionOne (config: DbConfig) =
          INSERT INTO settings (key, value, updated_utc) VALUES ('schema_version', '1', '2026-01-01T00:00:00Z');"
 
 [<Fact>]
-let ``a version 1 database comes up as version 2 with every connector shared`` () =
+let ``a version 1 database comes up as the current version with every connector shared`` () =
     withDb (fun config ->
         task {
             do! seedVersionOne config
             do! initializeSchema config
 
+            // Both steps ran in order, 1 -> 2 (is_shared) and 2 -> 3 (issuer_url).
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("2", version)
+            Assert.Equal(string SchemaVersion, version)
+            Assert.Equal("3", version)
+
+            let! issuers = scalar config "SELECT count(*) FROM connectors WHERE issuer_url IS NULL"
+            Assert.Equal("2", issuers)
 
             // FR-019: the column default makes every existing connector shared,
             // including a disabled one, and nothing else about them changed.
@@ -234,16 +239,21 @@ let ``a version 1 database comes up as version 2 with every connector shared`` (
         })
 
 [<Fact>]
-let ``a fresh database is version 2 and has the column and both choice tables`` () =
+let ``a fresh database is stamped with the current version and has every column and both choice tables`` () =
     withDb (fun config ->
         task {
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("2", version)
+            Assert.Equal("3", version)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('connectors')"
             Assert.Contains("is_shared", columns)
+            Assert.Contains("issuer_url", columns)
+
+            let! issuerIndex = scalar config "SELECT sql FROM sqlite_master WHERE name = 'ux_connectors_issuer'"
+            Assert.Contains("UNIQUE", issuerIndex)
+            Assert.Contains("WHERE issuer_url IS NOT NULL", issuerIndex)
 
             let! tables =
                 scalar
@@ -302,4 +312,165 @@ let ``deleting a connector removes it from every chosen set and keeps the app li
 
             let! markers = scalar config "SELECT count(*) FROM app_connector_choices"
             Assert.Equal("1", markers)
+        })
+
+// ---------------------------------------------------------------------------
+// Schema version 3 (feature 002): `issuer_url` and its unique index, the first
+// step chained after 003's, and the refusal of a database newer than the build.
+// ---------------------------------------------------------------------------
+
+/// A database as version 2 (spec 003) left it, with one row in every table the
+/// upgrade must leave alone: a connector, a user and a linked account.
+let private seedVersionTwo (config: DbConfig) =
+    exec
+        config
+        "CREATE TABLE connectors (
+             slug                    TEXT    NOT NULL PRIMARY KEY,
+             kind                    TEXT    NOT NULL,
+             display_name            TEXT    NOT NULL,
+             client_id               TEXT    NOT NULL,
+             client_secret_ref       TEXT    NOT NULL,
+             client_secret_hint      TEXT    NOT NULL,
+             extra_scopes            TEXT        NULL,
+             is_enabled              INTEGER NOT NULL DEFAULT 1,
+             is_shared               INTEGER NOT NULL DEFAULT 1,
+             created_utc             TEXT    NOT NULL,
+             updated_utc             TEXT    NOT NULL
+         );
+         CREATE TABLE users (
+             id               TEXT    NOT NULL PRIMARY KEY,
+             display_name     TEXT    NOT NULL,
+             email            TEXT        NULL,
+             email_verified   INTEGER NOT NULL DEFAULT 0,
+             avatar_url       TEXT        NULL,
+             is_enabled       INTEGER NOT NULL DEFAULT 1,
+             first_seen_utc   TEXT    NOT NULL,
+             last_seen_utc    TEXT    NOT NULL
+         );
+         CREATE TABLE linked_accounts (
+             provider_kind           TEXT    NOT NULL,
+             provider_subject        TEXT    NOT NULL,
+             user_id                 TEXT    NOT NULL,
+             asserted_email          TEXT        NULL,
+             asserted_email_verified INTEGER NOT NULL DEFAULT 0,
+             linked_utc              TEXT    NOT NULL,
+             last_used_utc           TEXT    NOT NULL,
+             PRIMARY KEY (provider_kind, provider_subject),
+             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+         );
+         CREATE TABLE settings (
+             key         TEXT NOT NULL PRIMARY KEY,
+             value       TEXT NOT NULL,
+             updated_utc TEXT NOT NULL
+         );
+         INSERT INTO connectors
+             (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint, is_enabled, is_shared, created_utc, updated_utc)
+         VALUES ('discord', 'discord', 'Discord', 'd-id', 'local:x', 'abcd', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+         INSERT INTO users (id, display_name, email, email_verified, first_seen_utc, last_seen_utc)
+         VALUES ('user-1', 'Jane', 'jane@example.com', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+         INSERT INTO linked_accounts (provider_kind, provider_subject, user_id, linked_utc, last_used_utc)
+         VALUES ('discord', '1234', 'user-1', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+         INSERT INTO settings (key, value, updated_utc) VALUES ('schema_version', '2', '2026-01-01T00:00:00Z');"
+
+/// The message of an exception a test expects. `Record.ExceptionAsync` says
+/// `exn | null`, and `Assert.NotNull` does not narrow it for the compiler.
+let private messageOf (error: exn | null) =
+    match error with
+    | null -> failwith "expected an exception, got none"
+    | error -> error.Message
+
+let private insertOidc (config: DbConfig) (slug: string) (issuer: string) =
+    task {
+        use! connection = openConnection config
+        use command = connection.CreateCommand()
+
+        command.CommandText <-
+            "INSERT INTO connectors
+                 (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint, created_utc, updated_utc, issuer_url)
+             VALUES (@slug, 'oidc', 'Home', 'id', 'ref', 'hint', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', @issuer)"
+
+        command.Parameters.AddWithValue("@slug", slug) |> ignore
+        command.Parameters.AddWithValue("@issuer", issuer) |> ignore
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
+    }
+
+[<Fact>]
+let ``a version 2 database upgrades in place with its rows intact and accepts an oidc connector`` () =
+    withDb (fun config ->
+        task {
+            do! seedVersionTwo config
+            do! initializeSchema config
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("3", version)
+
+            // Nothing that was there changed.
+            let! connector = scalar config "SELECT client_id || '|' || is_shared || '|' || ifnull(issuer_url, 'none') FROM connectors WHERE slug = 'discord'"
+            Assert.Equal("d-id|0|none", connector)
+
+            let! user = scalar config "SELECT display_name || '|' || email FROM users WHERE id = 'user-1'"
+            Assert.Equal("Jane|jane@example.com", user)
+
+            let! linked = scalar config "SELECT user_id FROM linked_accounts WHERE provider_kind = 'discord' AND provider_subject = '1234'"
+            Assert.Equal("user-1", linked)
+
+            // And the new shape works.
+            do! insertOidc config "home" "https://auth.example.com/application/o/umbral"
+
+            let! issuer = scalar config "SELECT issuer_url FROM connectors WHERE slug = 'home'"
+            Assert.Equal("https://auth.example.com/application/o/umbral", issuer)
+        })
+
+[<Fact>]
+let ``two connectors cannot hold the same issuer, but any number can hold none`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+            do! insertOidc config "home" "https://auth.example.com/o/umbral"
+
+            // The partial unique index: a second claim on one issuer is refused.
+            let! error = Record.ExceptionAsync(fun () -> insertOidc config "work" "https://auth.example.com/o/umbral" :> Task)
+            Assert.Contains("issuer_url", messageOf error)
+
+            // NULL is not an issuer: every built-in connector has none.
+            do!
+                exec
+                    config
+                    "INSERT INTO connectors (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint, created_utc, updated_utc)
+                     VALUES ('discord', 'discord', 'D', 'i', 'r', 'h', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+                            ('github', 'github', 'G', 'i', 'r', 'h', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');"
+        })
+
+[<Fact>]
+let ``a database written by a newer build refuses to start, naming both versions`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+            do! exec config "UPDATE settings SET value = '4' WHERE key = 'schema_version'"
+
+            let! error = Record.ExceptionAsync(fun () -> initializeSchema config :> Task)
+
+            // Both versions, and what to do about it.
+            let message = messageOf error
+            Assert.Contains("version 4", message)
+            Assert.Contains($"version {SchemaVersion}", message)
+            Assert.Contains("newer image", message)
+            Assert.Contains("backup", message)
+
+            // Refusing is not partly starting: the stamp is still the newer one.
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("4", version)
+        })
+
+[<Fact>]
+let ``a schema version that is not a number refuses to start`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+            do! exec config "UPDATE settings SET value = 'three' WHERE key = 'schema_version'"
+
+            let! error = Record.ExceptionAsync(fun () -> initializeSchema config :> Task)
+
+            Assert.Contains("three", messageOf error)
         })

@@ -22,6 +22,7 @@ let private seedFakeConnector (config: Database.DbConfig) (clock: TimeProvider) 
           ClientSecretRef = "local:unused"
           ClientSecretHint = "none"
           ExtraScopes = []
+          IssuerUrl = None
           IsEnabled = true
           IsShared = true
           CreatedUtc = clock.GetUtcNow()

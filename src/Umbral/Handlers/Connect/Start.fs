@@ -10,6 +10,7 @@ open Microsoft.AspNetCore.DataProtection
 open Microsoft.AspNetCore.Builder
 open Oxpecker
 open Umbral.Infrastructure
+open Umbral.Infrastructure.SecurityEvents
 
 let handler (slug: string) : EndpointHandler =
     fun ctx ->
@@ -37,6 +38,30 @@ let handler (slug: string) : EndpointHandler =
                     let returnUrl =
                         Picker.sanitizeReturnUrl (ctx.TryGetQueryValue "returnUrl" |> Option.toObj)
 
+                    // Where this provider's authorization endpoint is, asked
+                    // BEFORE the round trip starts: a provider that cannot say
+                    // must not leave a correlation cookie behind for a sign-in
+                    // that never began.
+                    let! endpoints = adapter.Resolve connector
+
+                    match endpoints with
+                    | Error error ->
+                        // The operator gets the cause, the end user a code —
+                        // the same split the callback makes.
+                        do!
+                            record
+                                config
+                                (ctx.GetService<System.TimeProvider>())
+                                { event SignInFailed Failure Actor.User with
+                                    ConnectorSlug = Some connector.Slug
+                                    RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+                                    Detail = Some error.Detail }
+
+                        Picker.redirectWithFailure ctx (Some returnUrl) (Picker.failureCode error)
+                        return ()
+
+                    | Ok endpoints ->
+
                     let started =
                         OAuthRoundTrip.start
                             (ctx.GetService<IDataProtectionProvider>())
@@ -55,6 +80,7 @@ let handler (slug: string) : EndpointHandler =
                     let url =
                         adapter.BuildAuthorizeUrl
                             { Connector = connector
+                              Endpoints = endpoints
                               RedirectUri = redirectUri
                               State = started.Correlation.State
                               CodeChallenge = started.CodeChallenge

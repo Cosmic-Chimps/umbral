@@ -11,7 +11,13 @@
     <Compile Include="Infrastructure/Fixtures.fs" />
     <Compile Include="Infrastructure/Flows.fs" />
     <Compile Include="Infrastructure/Journeys.fs" />
+    <Compile Include="Infrastructure/StubOidcProvider.fs" />
     <Compile Include="IdsTests.fs" />
+    <Compile Include="OidcDomainTests.fs" />
+    <Compile Include="OidcDiscoveryTests.fs" />
+    <Compile Include="StubOidcProviderTests.fs" />
+    <Compile Include="OidcConnectorStoreTests.fs" />
+    <Compile Include="StartResolveTests.fs" />
     <Compile Include="LinkingRuleTests.fs" />
     <Compile Include="ProviderAdapterTests.fs" />
     <Compile Include="AdminAuthTests.fs" />

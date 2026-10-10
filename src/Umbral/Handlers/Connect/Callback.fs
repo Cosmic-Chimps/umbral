@@ -13,25 +13,7 @@ open Umbral.Infrastructure
 open Umbral.Infrastructure.ProviderAdapters
 open Umbral.Infrastructure.SecurityEvents
 
-/// Everything an end user sees when a sign-in fails is one of these codes,
-/// turned into text by the picker. FR-037: never the provider's own words, and
-/// never anything about how Umbral is configured.
-let private failureCode (error: ConnectorError) =
-    match error with
-    | ProviderDeclined _ -> "access-denied"
-    | ProviderRejected _ -> "sign-in-failed"
-    | ProviderUnreachable _ -> "provider-unreachable"
-    | MalformedResponse _ -> "sign-in-failed"
-
-/// Back to the sign-in page with a failure code. With a `returnUrl` it goes
-/// back to the page of the app the person started from, so the page still names
-/// that app and offers its connectors (FR-001, research.md R4); without one
-/// there is no round trip to return to, and the bare page is all there is.
-let private fail (ctx: Microsoft.AspNetCore.Http.HttpContext) (returnUrl: string option) (code: string) =
-    match returnUrl with
-    | Some returnUrl ->
-        ctx.Response.Redirect $"/signin?returnUrl={Uri.EscapeDataString returnUrl}&msg={Uri.EscapeDataString code}"
-    | None -> ctx.Response.Redirect $"/signin?msg={Uri.EscapeDataString code}"
+let private fail = Picker.redirectWithFailure
 
 let handler (slug: string) : EndpointHandler =
     fun ctx ->
@@ -147,7 +129,7 @@ let handler (slug: string) : EndpointHandler =
             | Error error ->
                 // The operator gets the cause; the end user gets a code.
                 do! record Failure SignInFailed (Some error.Detail)
-                return fail ctx (failureCode error)
+                return fail ctx (Picker.failureCode error)
 
             | Ok profile ->
 

@@ -160,10 +160,17 @@ let private validateConnector (index: int) (entry: ConnectorEntry) =
               $"\"{entry.Slug}\" is not a valid slug. Use lower-case letters, digits and hyphens, up to 32 \
                 characters. It appears in the callback URL registered with the provider."
 
-      if (Connectors.parseKind entry.Kind).IsNone then
+      // `oidc` parses as a kind now, but the file has no `issuer` field yet
+      // (specs/002 Phase 5, pending spec 004). Accepting the kind without it
+      // would store an OpenID Connect connector with no issuer, so it stays
+      // refused here with the other kinds the file does not know.
+      match Connectors.parseKind entry.Kind with
+      | Some Connectors.Oidc
+      | None ->
           problem
               (at "kind")
               $"\"{entry.Kind}\" is not a provider Umbral supports. Use discord, github or google."
+      | Some _ -> ()
 
       if String.IsNullOrWhiteSpace entry.ClientId then
           problem (at "client_id") "is empty. Copy it from the provider's developer console."

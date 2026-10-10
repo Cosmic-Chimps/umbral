@@ -61,6 +61,9 @@ type FakeAdapter(protectorProvider: IDataProtectionProvider, gate: FakeGate) =
     interface IProviderAdapter with
         member _.Kind = ProviderKind.Fake
 
+        member _.Resolve connector =
+            Task.FromResult(Ok(endpointsFor connector.Kind))
+
         member _.BuildAuthorizeUrl request =
             // Points back at Umbral itself. Everything else — state, the
             // correlation cookie, the callback route — is the real path.

@@ -80,6 +80,7 @@ let private testConnector (kind: ProviderKind) : Connector =
       ClientSecretRef = "local:unused"
       ClientSecretHint = "1234"
       ExtraScopes = []
+      IssuerUrl = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch
@@ -87,6 +88,7 @@ let private testConnector (kind: ProviderKind) : Connector =
 
 let private authorizeRequestFor (connector: Connector) : AuthorizeRequest =
     { Connector = connector
+      Endpoints = connector.Endpoints
       RedirectUri = Uri $"https://umbral.test/connect/{connector.Slug}/callback"
       State = "STATE123"
       CodeChallenge = "CHALLENGE123"
