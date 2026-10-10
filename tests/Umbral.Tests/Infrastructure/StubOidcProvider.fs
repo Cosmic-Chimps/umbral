@@ -142,7 +142,9 @@ let defaultDiscovery (issuer: string) =
     document["scopes_supported"] <- strings [ "openid"; "email"; "profile" ]
     document
 
-let private defaultUserInfo =
+/// A fresh object for every provider: a test that edits userinfo must not edit
+/// the next test's.
+let private defaultUserInfo () =
     let claims = JsonObject()
     claims["sub"] <- node ("user-1")
     claims
@@ -194,7 +196,7 @@ type StubOidcProvider(issuer: string) =
     member val TokenResponse: (HttpStatusCode * string) option = None with get, set
 
     /// What userinfo returns. `sub` defaults to the `id_token`'s.
-    member val UserInfo: JsonObject = defaultUserInfo with get, set
+    member val UserInfo: JsonObject = defaultUserInfo () with get, set
 
     member _.SigningKey = signingKey
 

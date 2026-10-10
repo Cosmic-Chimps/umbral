@@ -15,6 +15,7 @@
     <Compile Include="IdsTests.fs" />
     <Compile Include="OidcDomainTests.fs" />
     <Compile Include="OidcDiscoveryTests.fs" />
+    <Compile Include="OidcAdapterTests.fs" />
     <Compile Include="StubOidcProviderTests.fs" />
     <Compile Include="OidcConnectorStoreTests.fs" />
     <Compile Include="StartResolveTests.fs" />

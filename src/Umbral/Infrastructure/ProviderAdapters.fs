@@ -110,7 +110,10 @@ type PrimaryHandler = delegate of unit -> HttpMessageHandler
 let defaultPrimaryHandler () : HttpMessageHandler =
     new HttpClientHandler(AllowAutoRedirect = false, MaxAutomaticRedirections = 1)
 
-/// Query-string building, shared so every adapter escapes identically.
+/// Query-string building, shared so every adapter escapes identically. A base
+/// that already carries a query (an OpenID Connect provider may publish an
+/// authorization endpoint like `https://idp/authorize?tenant=x`) gets the
+/// parameters appended with `&`, not a second `?`.
 let buildUrl (baseUrl: string) (parameters: (string * string) list) =
     let query =
         parameters
@@ -118,7 +121,8 @@ let buildUrl (baseUrl: string) (parameters: (string * string) list) =
         |> List.map (fun (key, value) -> $"{Uri.EscapeDataString key}={Uri.EscapeDataString value}")
         |> String.concat "&"
 
-    Uri(if String.IsNullOrEmpty query then baseUrl else $"{baseUrl}?{query}")
+    let separator = if baseUrl.Contains '?' then "&" else "?"
+    Uri(if String.IsNullOrEmpty query then baseUrl else $"{baseUrl}{separator}{query}")
 
 /// The authorize parameters every provider shares. An adapter adds its own.
 let commonAuthorizeParameters (request: AuthorizeRequest) =
