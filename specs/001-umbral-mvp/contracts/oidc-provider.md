@@ -58,10 +58,17 @@ The shape a client must receive. Values that are promises, not incidental:
 }
 ```
 
-**`issuer` MUST equal `UMBRAL__PUBLIC_ORIGIN` exactly.** Every client library
-compares the `iss` claim against it; a mismatch — the classic reverse-proxy
-failure — makes every login fail with an error that names neither the proxy nor
-the setting.
+**`issuer` MUST be derived from `UMBRAL__PUBLIC_ORIGIN` and nothing else.**
+Every client library compares the `iss` claim against the discovery document's
+`issuer`; a mismatch — the classic reverse-proxy failure — makes every login
+fail with an error that names neither the proxy nor the setting.
+
+Note OpenIddict normalises the issuer to a trailing slash, so a configured
+origin of `https://auth.example.com` is advertised as `https://auth.example.com/`.
+Both the discovery document and the `iss` claim come from the same place, so
+they agree, which is what a client actually checks. An earlier draft of this
+contract said the two strings must be byte-identical; that was wrong, and the
+running server is right.
 
 **`grant_types_supported` MUST NOT contain `implicit` or `password`** (FR-002).
 

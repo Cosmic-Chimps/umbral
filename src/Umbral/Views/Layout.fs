@@ -79,8 +79,10 @@ let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement
         }
     }
 
-/// Short message page (404, 500, rate limit, expired form)
-let messagePage (ctx: HttpContext) (t: Texts) (heading: string) (body: string) =
+/// Short message page whose body is composed by the caller, for the cases that
+/// need more than a sentence — a protocol error showing the detail a developer
+/// integrating an app actually needs.
+let messagePageWith (ctx: HttpContext) (t: Texts) (heading: string) (body: HtmlElement) =
     div(class' = "flex min-h-[50vh] items-center justify-center") {
         div(class' = "um-card w-full max-w-md text-center space-y-4") {
             span(class' = "mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-surface-container-high text-headline-lg text-primary") {
@@ -88,7 +90,7 @@ let messagePage (ctx: HttpContext) (t: Texts) (heading: string) (body: string) =
             }
 
             h1(class' = "text-headline-lg text-on-surface") { heading }
-            p(class' = "text-body-md text-on-surface-variant") { body }
+            body
 
             a(href = "/admin", class' = Components.btn Components.Primary) {
                 Components.icon Home
@@ -97,3 +99,8 @@ let messagePage (ctx: HttpContext) (t: Texts) (heading: string) (body: string) =
         }
     }
     |> page ctx t heading
+
+/// Short message page (404, 500, rate limit, expired form)
+let messagePage (ctx: HttpContext) (t: Texts) (heading: string) (body: string) =
+    p(class' = "text-body-md text-on-surface-variant") { body }
+    |> messagePageWith ctx t heading

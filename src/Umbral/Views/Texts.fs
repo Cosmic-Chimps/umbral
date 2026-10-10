@@ -152,6 +152,8 @@ type Texts =
       /// Flash messages addressed by a short code (`data-notice="{code}"`).
       /// Codes not recognised fall back to the code itself, which is a bug
       /// in the caller, not something an operator should ever see.
+      ProtocolErrorTitle: string
+      ProtocolErrorBody: string
       Notice: string -> string }
 
 let en: Texts =
@@ -290,6 +292,11 @@ let en: Texts =
       BackToSignIn = "Back to sign-in"
       BackHome = "Back to sign-in"
 
+      ProtocolErrorTitle = "That sign-in request was rejected"
+      ProtocolErrorBody =
+        "The application sent a request Umbral could not accept. This is almost always a "
+        + "configuration mismatch between the app and Umbral: check that its redirect URI is "
+        + "registered here exactly as the app sends it, and that it uses PKCE with S256."
       Notice =
         fun code ->
             match code with

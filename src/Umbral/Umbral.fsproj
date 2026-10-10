@@ -40,10 +40,17 @@
     <Compile Include="Infrastructure/Secrets.fs" />
     <Compile Include="Infrastructure/Database.fs" />
     <Compile Include="Infrastructure/SecurityEvents.fs" />
+    <Compile Include="Infrastructure/Users.fs" />
+    <Compile Include="Infrastructure/Sessions.fs" />
+    <Compile Include="Infrastructure/OpenIddictSetup.fs" />
     <Compile Include="Views/Texts.fs" />
     <Compile Include="Views/Theme.fs" />
     <Compile Include="Views/Components.fs" />
     <Compile Include="Views/Layout.fs" />
+    <Compile Include="Handlers/Connect/Authorize.fs" />
+    <Compile Include="Handlers/Connect/UserInfo.fs" />
+    <Compile Include="Handlers/Connect/EndSession.fs" />
+    <Compile Include="Handlers/Connect/Error.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
@@ -66,7 +73,9 @@
     <PackageReference Include="OpenIddict.AspNetCore" Version="7.7.1" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.7.1" />
     <PackageReference Include="OpenIddict.Quartz" Version="7.7.1" />
-    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.*" />
+    <!-- 4.x, not 3.x: OpenIddict.Quartz 7.7.1 requires Quartz >= 4.0.0. -->
+    <PackageReference Include="Quartz" Version="4.*" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="4.*" />
   </ItemGroup>
 
   <ItemGroup>

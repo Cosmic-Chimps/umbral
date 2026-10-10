@@ -63,7 +63,13 @@ let createAppWith (settings: (string * string) list) (customize: WebApplicationB
 
         Directory.CreateDirectory dataDirectory |> ignore
 
-        let clock = FakeTimeProvider(DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero))
+        // Starts at the real now, not a hardcoded date. It is still a fake, so
+        // a test can advance it to drive an expiry — but a clock that claims to
+        // be months before the certificates generated alongside it makes
+        // OpenIddict reject them as not-yet-valid, and the error it raises
+        // ("at least one of the registered certificates must be valid") names
+        // neither the clock nor the test.
+        let clock = FakeTimeProvider(DateTimeOffset.UtcNow)
 
         let app =
             Umbral.Program.buildApp Array.empty (fun builder ->

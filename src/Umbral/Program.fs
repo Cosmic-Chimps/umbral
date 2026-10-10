@@ -2,6 +2,7 @@ module Umbral.Program
 
 open System
 open Microsoft.AspNetCore.Builder
+open Microsoft.AspNetCore.Authentication.Cookies
 open Microsoft.AspNetCore.DataProtection
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.HttpOverrides
@@ -22,7 +23,11 @@ open Umbral.Migrations
 // T102 turns that into a build failure.
 // ---------------------------------------------------------------------------
 
-let endpoints: Endpoint list = []
+let endpoints: Endpoint list =
+    [ yield! Umbral.Handlers.Connect.Authorize.endpoint
+      yield! Umbral.Handlers.Connect.UserInfo.endpoint
+      yield! Umbral.Handlers.Connect.EndSession.endpoint
+      Umbral.Handlers.Connect.Error.endpoint ]
 
 // ---------------------------------------------------------------------------
 // Startup settings
@@ -104,13 +109,34 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
         options.KnownProxies.Clear())
     |> ignore
 
-    // No scheme is registered yet: the operator cookie arrives with AdminAuth
-    // (T042) and OpenIddict's server and validation handlers with T030. The
-    // services are here now so that UseAuthentication can sit in its correct
-    // place in the pipeline from the start — OpenIddict's server integration
-    // runs inside that middleware, so discovering the ordering later would mean
-    // re-testing everything built on top of it.
-    services.AddAuthentication() |> ignore
+    // The end user's session with Umbral. The operator's admin cookie is a
+    // separate scheme (T042) so a bug in one cannot grant the other.
+    services
+        .AddAuthentication(Sessions.Scheme)
+        .AddCookie(Sessions.Scheme, Action<CookieAuthenticationOptions> Sessions.configure)
+    |> ignore
+
+    let signing, encryption = Keys.loadOrCreateAll dataDirectory.KeysDirectory
+
+    // Plain http is refused unless the environment is EXPLICITLY Development
+    // and the operator explicitly asked for it. Two conditions, because this is
+    // the setting most likely to be switched on "just for now" on a LAN and
+    // left there.
+    //
+    // Phrased as "is Development" rather than "is not Production" on purpose:
+    // ASPNETCORE_ENVIRONMENT is frequently unset, and the negative form would
+    // then allow insecure http by default — fail-open, in the one place that
+    // must not.
+    let allowInsecureHttp =
+        config["ASPNETCORE_ENVIRONMENT"] = "Development"
+        && config["UMBRAL:INSECURE_ALLOW_HTTP"] = "true"
+
+    OpenIddictSetup.addOpenIddict
+        { Issuer = origin.Uri
+          SigningCertificate = signing
+          EncryptionCertificate = encryption
+          AllowInsecureHttp = allowInsecureHttp }
+        services
 
     services.AddAntiforgery() |> ignore
     services.AddRouting().AddOxpecker() |> ignore
@@ -152,13 +178,12 @@ let initialize (app: WebApplication) =
         use scope = app.Services.CreateScope()
         let context = scope.ServiceProvider.GetRequiredService<UmbralContext>()
         do! context.Database.MigrateAsync()
-
-        // Generate on first run so that a restart, or a replaced container,
-        // leaves every issued token still valid (SC-005).
-        let signing, encryption = Keys.loadOrCreateAll dataDirectory.KeysDirectory
-        (signing :> IDisposable).Dispose()
-        (encryption :> IDisposable).Dispose()
     }
+// The certificates are NOT touched here. configureServices already created
+// them and handed them to OpenIddict, and loading a second copy only to
+// dispose it releases the shared key handle underneath the first — on macOS
+// that surfaces from OpenIddict as "at least one of the registered
+// certificates must be valid", which names neither the disposal nor the key.
 
 /// The web app, composable so integration tests host the real thing on a TestServer.
 ///

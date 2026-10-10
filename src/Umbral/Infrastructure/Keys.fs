@@ -63,7 +63,7 @@ let private generate (purpose: KeyPurpose) =
 /// Load the certificate for `purpose` from `directory`, generating and storing
 /// it on first run. Idempotent: a second call returns the same certificate, and
 /// that is what makes a restart survivable.
-let loadOrCreate (directory: string) (purpose: KeyPurpose) : X509Certificate2 =
+let rec loadOrCreate (directory: string) (purpose: KeyPurpose) : X509Certificate2 =
     Directory.CreateDirectory directory |> ignore
     let path = Path.Combine(directory, purpose.FileName)
 
@@ -90,7 +90,7 @@ let loadOrCreate (directory: string) (purpose: KeyPurpose) : X509Certificate2 =
                 keyStorageFlags = X509KeyStorageFlags.DefaultKeySet
             )
     else
-        let certificate = generate purpose
+        use certificate = generate purpose
         let bytes = certificate.Export(X509ContentType.Pfx, password = (null: string | null))
 
         // Write to a temp file and move it into place, so a crash midway cannot
@@ -103,7 +103,16 @@ let loadOrCreate (directory: string) (purpose: KeyPurpose) : X509Certificate2 =
             File.SetUnixFileMode(temp, UnixFileMode.UserRead ||| UnixFileMode.UserWrite)
 
         File.Move(temp, path, overwrite = true)
-        certificate
+
+        // Re-load rather than returning the in-memory certificate. `generate`
+        // disposes the RSA key it built the request with, and the certificate
+        // object still refers to it — OpenIddict then rejects the credential
+        // with "at least one of the registered certificates must be valid",
+        // which names neither the key nor the disposal.
+        //
+        // Re-loading also makes the first run and every later run take exactly
+        // the same path, so a bug in loading cannot hide until the second start.
+        loadOrCreate directory purpose
 
 /// Both certificates, in one call. Distinct from each other and from whatever
 /// certificate terminates TLS — reusing the TLS certificate here means rotating

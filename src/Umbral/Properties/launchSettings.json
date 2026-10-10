@@ -10,7 +10,9 @@
 
         "UMBRAL__PUBLIC_ORIGIN": "http://localhost:5173",
 
-        "UMBRAL__DATA_DIRECTORY": ".data"
+        "UMBRAL__DATA_DIRECTORY": ".data",
+
+        "UMBRAL__INSECURE_ALLOW_HTTP": "true"
       }
     }
   }
