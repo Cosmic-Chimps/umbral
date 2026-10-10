@@ -134,6 +134,8 @@ A configured upstream provider.
 | `is_enabled` | INTEGER NOT NULL DEFAULT 1 | |
 | `created_utc` / `updated_utc` | TEXT NOT NULL | |
 
+**Superseded by [004](../004-remove-config-document/spec.md), the `extra_scopes` column.**
+
 **Deleting a connector** removes the row and the secret it holds, and nothing
 else. `linked_accounts` has no foreign key to `connectors` — a link is keyed on
 `provider_kind` and the provider's subject — so users, links, sessions and
@@ -196,6 +198,8 @@ Event types: `sign_in_succeeded`, `sign_in_failed`, `user_linked`, `user_created
 `connector_deleted`, `app_created`, `app_updated`, `app_secret_rotated`, `app_deleted`,
 `authorization_code_replayed`, `config_applied`.
 
+**Superseded by [004](../004-remove-config-document/spec.md), the `config_applied` event.**
+
 A redacting converter on the connector and settings types keeps a stray
 structured-log call from serialising a secret.
 
@@ -228,6 +232,8 @@ Umbral does not define these; it configures them. What matters for the plan:
 ---
 
 ## The configuration document
+
+**Superseded by [004](../004-remove-config-document/spec.md).**
 
 The declarative file of FR-027. Not a table — it is applied *into* the tables and
 exported back out of them.

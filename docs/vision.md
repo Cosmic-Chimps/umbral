@@ -41,7 +41,7 @@ Your measurable targets hold up under scrutiny:
 | 5 minutes to first login | ✅ | Docker run → enable Discord → configure app is straightforward if documented well |
 | 3 screens in admin | ✅ | Apps, Connectors, Users covers core needs |
 | 3 config values per app | ✅ | Issuer URL, client ID, client secret is standard OIDC |
-| 1 YAML for config-as-code | ⚠️ | Requires careful design but achievable |
+| 1 YAML for config-as-code | ❌ | Dropped: the admin area is the one place configuration changes, and the data directory is the whole state. See [spec 004](../specs/004-remove-config-document/spec.md) |
 
 The weak spot is **"never touch login again"** — that depends on edge cases like provider API changes, token rotation failures, and account merging. But as a north star, it's good.
 

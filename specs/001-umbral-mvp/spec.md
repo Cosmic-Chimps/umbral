@@ -171,6 +171,8 @@ other is unaffected.
 
 ### User Story 5 - Reproduce the whole thing from a file (Priority: P3)
 
+**Superseded by [004](../004-remove-config-document/spec.md).**
+
 The operator keeps their homelab in a git repository. They want Umbral's
 configuration in there too — and they want to rebuild the instance from that
 file on new hardware.
@@ -313,6 +315,7 @@ work against the second instance.
   file as well as from the first-run screen, held as a verification value from
   which the original cannot be recovered, and MUST be replaceable by an operator
   who is already signed in.
+  **Superseded by [004](../004-remove-config-document/spec.md), the configuration-file part.**
 - **FR-017b**: Umbral MUST provide an offline way to reset the operator
   credential for an operator with access to the data directory, so that a
   forgotten credential does not require rebuilding the instance.
@@ -344,13 +347,17 @@ work against the second instance.
   data directory.
 - **FR-027**: Umbral MUST be configurable from a single declarative file
   covering every app and connector, and applying that file MUST be idempotent.
+  **Superseded by [004](../004-remove-config-document/spec.md).**
 - **FR-028**: That file MUST NOT require a secret to be written in clear text;
   secrets MUST be expressible as references resolved from the environment.
+  **Superseded by [004](../004-remove-config-document/spec.md).**
 - **FR-029**: Umbral MUST be able to export its current configuration in exactly
   the format it accepts, so that export and import round-trip.
+  **Superseded by [004](../004-remove-config-document/spec.md).**
 - **FR-030**: Umbral MUST fail startup, with a message naming the offending
   entry, when the configuration file is malformed or inconsistent, and MUST NOT
   apply it partially.
+  **Superseded by [004](../004-remove-config-document/spec.md).**
 - **FR-031**: Umbral MUST require the operator to declare its public origin, and
   MUST use that origin for every URL it publishes or compares.
 - **FR-032**: Umbral MUST expose a health indicator suitable for a container
@@ -405,6 +412,7 @@ work against the second instance.
   administrative action, with its outcome and enough context to investigate.
 - **Configuration document**: The declarative description of every App and
   Connector, with secrets held by reference.
+  **Superseded by [004](../004-remove-config-document/spec.md).**
 
 ## Success Criteria *(mandatory)*
 
@@ -426,11 +434,13 @@ work against the second instance.
 - **SC-006**: A clean instance started from an exported configuration file plus
   its referenced environment variables is functionally identical to the instance
   it came from, with no admin UI interaction.
+  **Superseded by [004](../004-remove-config-document/spec.md).**
 - **SC-007**: The running instance holds under 150 MB resident at idle and serves
   both 64-bit Intel and 64-bit ARM hosts, so that a Raspberry Pi-class machine is
   a supported deployment.
 - **SC-008**: No secret — upstream or app — is readable from the admin UI, the
   configuration export, or the logs after it has been saved.
+  **Superseded by [004](../004-remove-config-document/spec.md), the configuration export part.**
 - **SC-009**: A disabled or deleted user loses access to every app within one
   sign-in attempt and holds no usable token afterwards.
 - **SC-010**: Every operator-facing failure message names the thing that is wrong
