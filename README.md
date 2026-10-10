@@ -173,7 +173,7 @@ Open **Apps** and fill in:
   `http://localhost:3000/callback`. It is matched **exactly**; wildcards are
   refused.
 - **App type**: **Web application** (the app has a server that can keep a
-  secret). Pick **Single-page app or native app** only for an app that cannot.
+  secret). Pick **Single-page or native app** only for an app that cannot.
   It gets no secret and relies on PKCE alone.
 
 Click **Create app**. A card appears with the **client ID** and **client

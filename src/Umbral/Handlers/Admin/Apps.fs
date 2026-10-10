@@ -27,12 +27,6 @@ open Umbral.Views
 // ---------------------------------------------------------------------------
 
 [<Literal>]
-let private AppTypeWebOption = "Web application"
-
-[<Literal>]
-let private AppTypeSpaOption = "Single-page app or native app"
-
-[<Literal>]
 let private AppSecretNotIssued =
     "This is a public client. It has no client secret — only a confidential (\"Web application\") app gets one."
 
@@ -137,10 +131,15 @@ type private AppType =
         | Web -> "web"
         | SpaOrNative -> "spa"
 
-    member this.Label =
+    member this.Label(t: Texts.Texts) =
         match this with
-        | Web -> AppTypeWebOption
-        | SpaOrNative -> AppTypeSpaOption
+        | Web -> t.AppTypeWebOption
+        | SpaOrNative -> t.AppTypeSpaOption
+
+    member this.Description(t: Texts.Texts) =
+        match this with
+        | Web -> t.AppTypeWebDescription
+        | SpaOrNative -> t.AppTypeSpaDescription
 
     static member Parse(value: string) =
         match value with
@@ -200,7 +199,7 @@ let private appRow (ctx: HttpContext) (t: Texts.Texts) (origin: PublicOrigin.Pub
     article(class' = "um-card space-y-4").data("app", row.ClientId) {
         div(class' = "flex items-center justify-between gap-3") {
             h2(class' = "text-headline-md text-on-surface") { row.DisplayName }
-            Components.pill Components.MutedTone (if isPublic then AppTypeSpaOption else AppTypeWebOption)
+            Components.pill Components.MutedTone (if isPublic then SpaOrNative.Label t else Web.Label t)
         }
 
         div(class' = "grid gap-3 sm:grid-cols-2") {
@@ -270,10 +269,34 @@ let private secretRevealCard (t: Texts.Texts) (revealed: RevealedSecret) =
 // Screen
 // ---------------------------------------------------------------------------
 
-let private appTypeOptions (selected: AppType) =
-    select(name = "appType") {
-        for appType in allAppTypes do
-            option(value = appType.Value, selected = (appType = selected)) { appType.Label }
+/// The app type as two radio cards rather than a `<select>`: the operator has
+/// to decide between them and a drop-down hides the sentence that says which
+/// one is theirs. Real radio inputs in a fieldset keep it a native, keyboard
+/// and screen-reader friendly group; the card styling is CSS only (`.um-choice`).
+let private appTypeChoices (t: Texts.Texts) (selected: AppType) =
+    fieldset(class' = "um-choice-group").attr("aria-describedby", "appType-hint") {
+        legend(class' = "um-label") { t.AppTypeLabel }
+
+        div(class' = "grid gap-3 md:grid-cols-2") {
+            for appType in allAppTypes do
+                label(class' = "um-choice") {
+                    let radio =
+                        input(type' = "radio", name = "appType", value = appType.Value, class' = "um-choice-radio")
+
+                    // `checked` is reserved in F#, so the boolean attribute is set by name.
+                    if appType = selected then
+                        radio.attr("checked", "checked") |> ignore
+
+                    radio
+
+                    span(class' = "um-choice-body") {
+                        span(class' = "um-choice-title") { appType.Label t }
+                        span(class' = "um-choice-desc") { appType.Description t }
+                    }
+                }
+        }
+
+        p(id = "appType-hint", class' = "um-hint") { t.AppTypeHint }
     }
 
 let private createForm (ctx: HttpContext) (t: Texts.Texts) =
@@ -284,11 +307,7 @@ let private createForm (ctx: HttpContext) (t: Texts.Texts) =
         Components.field t.AppRedirectUriLabel "redirectUri" "" (Some t.AppRedirectUriHint) None
         Components.field t.AppPostLogoutRedirectUriLabel "postLogoutRedirectUri" "" None None
 
-        div() {
-            label(for' = "appType", class' = "um-label") { t.AppTypeLabel }
-            appTypeOptions Web
-            p(class' = "um-hint") { t.AppTypeHint }
-        }
+        appTypeChoices t Web
 
         button(type' = "submit", class' = Components.btn Components.Primary) {
             Components.icon Theme.Add
