@@ -199,7 +199,7 @@ let private view ctx (t: Texts.Texts) origin (rows: Row list) (enabledCount: int
         for row in rows do
             card ctx t origin enabledCount row
     }
-    |> Layout.page ctx t t.ConnectorsTitle
+    |> Layout.operatorPage ctx t t.ConnectorsTitle
 
 let page: EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->

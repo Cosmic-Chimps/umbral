@@ -12,11 +12,11 @@ open Oxpecker.ViewEngine
 open Umbral.Views.Texts
 open Umbral.Views.Theme
 
-/// Top navigation: the three screens (Principle I) and sign-out. Shown on
-/// every page `Layout.page` renders; `/admin/*` routes that require it are
-/// already behind `requireOperator` by the time a handler calls this, and the
-/// unauthenticated screens (setup, sign-in, the end-user picker) render their
-/// own narrow content and simply don't link into it.
+/// Top navigation: the operator's screens (Principle I) and sign-out. Only
+/// `operatorPage` renders it, and only handlers already behind `requireOperator`
+/// call that. Setup, sign-in, the end-user picker and every message page use
+/// `page`, which shows the brand alone: an end user mid-login must not see
+/// links into `/admin` or a sign-out button.
 let private navLinks (ctx: HttpContext) (t: Texts) =
     nav(class' = "flex items-center gap-1 sm:gap-2") {
         a(href = "/admin/apps", class' = Components.btnSm Components.Ghost) { t.NavApps }
@@ -32,8 +32,8 @@ let private navLinks (ctx: HttpContext) (t: Texts) =
 
 /// Base HTML layout on the design system (Views/Theme.fs). No frontend build
 /// step: Tailwind, fonts and htmx all come from a CDN, configured at request
-/// time from F# data.
-let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
+/// time from F# data. `showNav` is true only for the operator's screens.
+let private shell (showNav: bool) (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
     html(lang = "en", class' = "bg-surface") {
         head() {
             meta(charset = "UTF-8")
@@ -64,8 +64,10 @@ let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement
 
             header(class' = "sticky top-0 z-50 border-b border-outline-variant/40 bg-surface/90 backdrop-blur-md") {
                 nav(class' = "mx-auto flex h-16 max-w-page items-center justify-between gap-4 px-4 md:px-8") {
-                    Components.brand t.SiteName
-                    navLinks ctx t
+                    Components.brand showNav t.SiteName
+
+                    if showNav then
+                        navLinks ctx t
                 }
             }
 
@@ -79,6 +81,15 @@ let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement
             }
         }
     }
+
+/// A page for anyone: the brand only, no operator navigation.
+let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
+    shell false ctx t titleText content
+
+/// A page for a signed-in operator: the brand plus the operator navigation.
+/// Call it only from handlers behind `AdminAuth.requireOperator`.
+let operatorPage (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
+    shell true ctx t titleText content
 
 /// Where a message page sends the person reading it, which depends on who that is.
 ///
