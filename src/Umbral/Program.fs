@@ -2,6 +2,7 @@ module Umbral.Program
 
 open System
 open Microsoft.AspNetCore.Builder
+open System.Net.Http
 open Microsoft.AspNetCore.Authentication.Cookies
 open Microsoft.AspNetCore.DataProtection
 open Microsoft.AspNetCore.Http
@@ -137,6 +138,41 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
           EncryptionCertificate = encryption
           AllowInsecureHttp = allowInsecureHttp }
         services
+
+    // One named client for every upstream provider call.
+    //
+    // AllowAutoRedirect = false is a requirement, not a tidy default: a token
+    // endpoint that answered with a redirect could otherwise walk an
+    // authorization code — a bearer credential — to somewhere we never meant to
+    // send it. The adapters cannot set this themselves; it belongs to whoever
+    // builds the handler, which is here.
+    services
+        .AddHttpClient(ProviderAdapters.HttpClientName)
+        .ConfigurePrimaryHttpMessageHandler(fun () ->
+            new HttpClientHandler(AllowAutoRedirect = false, MaxAutomaticRedirections = 1) :> HttpMessageHandler)
+    |> ignore
+
+    services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
+        Providers.Discord.DiscordAdapter(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName)
+        :> ProviderAdapters.IProviderAdapter)
+    |> ignore
+
+    services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
+        Providers.GitHub.GitHubAdapter(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName)
+        :> ProviderAdapters.IProviderAdapter)
+    |> ignore
+
+    services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
+        Providers.Google.GoogleAdapter(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName)
+        :> ProviderAdapters.IProviderAdapter)
+    |> ignore
+
+    services.AddSingleton<ProviderAdapters.Registry>(fun sp ->
+        ProviderAdapters.Registry(sp.GetServices<ProviderAdapters.IProviderAdapter>()))
+    |> ignore
 
     services.AddAntiforgery() |> ignore
     services.AddRouting().AddOxpecker() |> ignore

@@ -1,0 +1,14 @@
+[
+  {
+    "email": "octocat-secondary@example.com",
+    "primary": false,
+    "verified": true,
+    "visibility": "public"
+  },
+  {
+    "email": "octocat-unverified@example.com",
+    "primary": true,
+    "verified": false,
+    "visibility": "private"
+  }
+]

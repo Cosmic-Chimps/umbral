@@ -77,6 +77,12 @@ type IProviderAdapter =
     /// profile, normalise it.
     abstract ExchangeAndFetch: ExchangeRequest -> Task<Result<ProviderProfile, ConnectorError>>
 
+/// The named HttpClient every adapter uses. Its handler sets
+/// AllowAutoRedirect = false — a token endpoint answering with a redirect could
+/// otherwise carry an authorization code somewhere we never meant to send it.
+[<Literal>]
+let HttpClientName = "umbral-provider"
+
 /// Query-string building, shared so every adapter escapes identically.
 let buildUrl (baseUrl: string) (parameters: (string * string) list) =
     let query =

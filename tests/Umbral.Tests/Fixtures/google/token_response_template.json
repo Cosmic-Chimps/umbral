@@ -1,0 +1,7 @@
+{
+  "access_token": "google-access-token",
+  "expires_in": 3599,
+  "scope": "openid email profile",
+  "token_type": "Bearer",
+  "id_token": "{{ID_TOKEN}}"
+}

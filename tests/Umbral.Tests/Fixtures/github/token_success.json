@@ -1,0 +1,5 @@
+{
+  "access_token": "github-access-token",
+  "scope": "read:user,user:email",
+  "token_type": "bearer"
+}

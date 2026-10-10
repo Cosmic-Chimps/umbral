@@ -1,0 +1,7 @@
+{
+  "token_type": "Bearer",
+  "access_token": "discord-access-token",
+  "expires_in": 604800,
+  "refresh_token": "discord-refresh-token",
+  "scope": "identify email"
+}

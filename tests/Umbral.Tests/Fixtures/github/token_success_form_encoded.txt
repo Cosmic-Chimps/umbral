@@ -1,0 +1,1 @@
+access_token=github-access-token&scope=read%3Auser%2Cuser%3Aemail&token_type=bearer
