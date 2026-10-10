@@ -85,6 +85,22 @@ type Texts =
       // Screen 2 — Connectors
       ConnectorsTitle: string
       ConnectorsLead: string
+      NotConfigured: string
+      Enabled: string
+      Disabled: string
+      Enable: string
+      Disable: string
+      Copy: string
+      Copied: string
+      CallbackUrlLabel: string
+      ClientIdLabel: string
+      ClientSecretLabel: string
+      ClientSecretHint: string
+      ReplaceSecretLabel: string
+      ReplaceSecretHint: string
+      ProviderConsoleHint: string -> string
+      SaveConnector: string
+      OriginMismatch: string -> string -> string
       ConnectorClientIdLabel: string
       ConnectorClientSecretLabel: string
       ConnectorSecretMasked: string -> string
@@ -232,6 +248,26 @@ let en: Texts =
       AppDeletedNotice = "App deleted. Its tokens no longer work."
 
       ConnectorsTitle = "Connectors"
+      NotConfigured = "Not set up"
+      Enabled = "Enabled"
+      Disabled = "Disabled"
+      Enable = "Enable"
+      Disable = "Disable"
+      Copy = "Copy"
+      Copied = "Copied"
+      CallbackUrlLabel = "Redirect URI to register with the provider"
+      ClientIdLabel = "Client ID"
+      ClientSecretLabel = "Client secret"
+      ClientSecretHint = "Stored encrypted. It can't be shown again once saved — only replaced."
+      ReplaceSecretLabel = "Replace client secret"
+      ReplaceSecretHint = "Leave blank to keep the saved secret."
+      ProviderConsoleHint =
+        fun provider -> $"From the OAuth application you created in {provider}'s developer console."
+      SaveConnector = "Save connector"
+      OriginMismatch =
+        fun configured actual ->
+          $"Umbral is configured with the public address {configured}, but you reached it at {actual}. "
+          + "Social login will fail until UMBRAL__PUBLIC_ORIGIN matches the address people actually use."
       ConnectorsLead = "Upstream providers people can sign in with. Enable the ones you've registered an OAuth app with."
       ConnectorClientIdLabel = "Client ID"
       ConnectorClientSecretLabel = "Client secret"
@@ -319,6 +355,12 @@ let en: Texts =
             | "app-secret-regenerated" -> "New secret generated."
             | "app-deleted" -> "App deleted."
             | "connector-saved" -> "Connector saved."
+            | "connector-unknown" -> "That connector isn't one Umbral supports."
+            | "connector-client-id-required" -> "Enter the client ID from the provider's console, then save again."
+            | "connector-secret-required" -> "Enter the client secret from the provider's console, then save again."
+            | "connector-last-enabled" ->
+                "This is the only enabled connector. Turning it off means nobody can sign in to any app. Press it again to confirm."
+
             | "connector-enabled" -> "Connector enabled."
             | "connector-disabled" -> "Connector disabled."
             | "connector-deleted" -> "Connector deleted."

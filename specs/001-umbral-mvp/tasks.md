@@ -156,9 +156,9 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 
 ### The admin screens US1 needs
 
-- [ ] T069 [US1] Create `src/Umbral/Handlers/Admin/Connectors.fs` (`GET /admin/connectors`) and `ConnectorSave.fs` (`POST /admin/connectors/{slug}`). The screen shows the **computed callback URL read-only with a copy button** (FR-013) — the single highest-leverage element in the product, because without it the operator guesses a URL and the resulting error names nothing.
-- [ ] T070 [US1] Add the origin-mismatch banner to the admin layout: when the request's apparent origin differs from `UMBRAL__PUBLIC_ORIGIN`, name both. Advisory only — it must never change a redirect URI.
-- [ ] T071 [US1] Add the Google notice to the Connectors screen, shown when Google is selected: Google accepts neither a raw IP address nor a non-`https` non-localhost host, so the natural homelab URL cannot be registered at all. Offer the two viable paths. Order the connector list Discord, GitHub, Google.
+- [x] T069 [US1] Create `src/Umbral/Handlers/Admin/Connectors.fs` (`GET /admin/connectors`) and `ConnectorSave.fs` (`POST /admin/connectors/{slug}`). The screen shows the **computed callback URL read-only with a copy button** (FR-013) — the single highest-leverage element in the product, because without it the operator guesses a URL and the resulting error names nothing.
+- [x] T070 [US1] Add the origin-mismatch banner to the admin layout: when the request's apparent origin differs from `UMBRAL__PUBLIC_ORIGIN`, name both. Advisory only — it must never change a redirect URI.
+- [x] T071 [US1] Add the Google notice to the Connectors screen, shown when Google is selected: Google accepts neither a raw IP address nor a non-`https` non-localhost host, so the natural homelab URL cannot be registered at all. Offer the two viable paths. Order the connector list Discord, GitHub, Google.
 - [ ] T072 [US1] Create `src/Umbral/Handlers/Admin/Apps.fs` (`GET /admin/apps`) and `AppCreate.fs` (`POST /admin/apps`) using `IOpenIddictApplicationManager.CreateAsync`. **Derive permissions from an app-type choice, never expose checkboxes** — a hand-composed permission set produces an app whose login works and whose token exchange fails.
 - [ ] T073 [US1] Show the generated client secret **exactly once**, on the page immediately after creation, with a copy button and unambiguous "this will not be shown again" copy (FR-019). OpenIddict hashes it on write; there is nothing to show later.
 - [ ] T074 [US1] Tell the operator on the Apps screen that a connector is required first, and link to Connectors, when none exists (FR-006 acceptance scenario 6).
@@ -174,10 +174,10 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 
 **Independent test**: With a login working, disable a connector and confirm it vanishes from the picker on the next request; replace its secret and confirm the next login uses the new one — all without restarting the process.
 
-- [ ] T076 [US3] Create `src/Umbral/Handlers/Admin/ConnectorToggle.fs` (`POST /admin/connectors/{slug}/toggle`) returning an htmx fragment when `HX-Request` is present and the full page otherwise. Note `hxPartial` is 4.1+ and **not available** in the pinned Oxpecker.Htmx 4.0 — branch on the header.
+- [x] T076 [US3] Create `src/Umbral/Handlers/Admin/ConnectorToggle.fs` (`POST /admin/connectors/{slug}/toggle`) returning an htmx fragment when `HX-Request` is present and the full page otherwise. Note `hxPartial` is 4.1+ and **not available** in the pinned Oxpecker.Htmx 4.0 — branch on the header.
 - [ ] T077 [P] [US3] Create `src/Umbral/Handlers/Admin/ConnectorDelete.fs` with confirmation.
-- [ ] T078 [US3] Make the Connectors screen show a saved secret **masked to its last four characters with a Replace action only** — never Edit, never a reveal (FR-033). There is nothing to edit from.
-- [ ] T079 [US3] Warn before an action that would leave no enabled connector (FR-023): nobody could sign in anywhere.
+- [x] T078 [US3] Make the Connectors screen show a saved secret **masked to its last four characters with a Replace action only** — never Edit, never a reveal (FR-033). There is nothing to edit from.
+- [x] T079 [US3] Warn before an action that would leave no enabled connector (FR-023): nobody could sign in anywhere.
 - [ ] T080 [US3] Map `ConnectorError` to end-user messages that say to contact the operator and disclose nothing technical, while recording the underlying cause as a security event (FR-037).
 - [ ] T081 [US3] Write `tests/Umbral.Tests/ConnectorRuntimeTests.fs`: disabling removes the button on the very next picker load; replacing the secret changes the next token exchange; **neither restarts the process nor drops an existing session**; a saved secret is never present in any response body.
 - [ ] T082 [P] [US3] Write `tests/Umbral.Tests/HtmxFallbackTests.fs` asserting every htmx-enhanced action works identically with the `HX-Request` header absent.

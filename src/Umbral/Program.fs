@@ -28,6 +28,8 @@ let endpoints: Endpoint list =
     [ yield! Umbral.Handlers.Admin.Setup.endpoint
       yield! Umbral.Handlers.Admin.SignIn.endpoint
       Umbral.Handlers.Admin.SignOut.endpoint
+      yield! Umbral.Handlers.Admin.Connectors.endpoint
+      Umbral.Handlers.Admin.ConnectorToggle.endpoint
       Umbral.Handlers.Connect.Picker.endpoint
       Umbral.Handlers.Connect.Start.endpoint
       Umbral.Handlers.Connect.Callback.endpoint
