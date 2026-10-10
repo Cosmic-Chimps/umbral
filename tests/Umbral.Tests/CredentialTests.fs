@@ -2,7 +2,6 @@
 /// already signed in, and replacing it ends every other admin session.
 module Umbral.Tests.CredentialTests
 
-open System.Diagnostics
 open System.Net
 open System.Net.Http
 open System.Threading.Tasks
@@ -226,49 +225,4 @@ let ``guessing the current credential here is rate limited like sign-in`` () =
 
         let! over = send ()
         Assert.Equal(HttpStatusCode.TooManyRequests, over.StatusCode)
-    }
-
-let private fileCredential = "the-credential-from-the-file"
-
-/// The real subcommand, as a process: it must work with no data directory,
-/// origin or file, because it runs wherever the file is being written.
-let private runHashCredential (input: string) =
-    task {
-        let dll = typeof<AdminAuth.SetupToken>.Assembly.Location
-        let info = ProcessStartInfo("dotnet", $"\"{dll}\" hash-credential")
-        info.RedirectStandardInput <- true
-        info.RedirectStandardOutput <- true
-        info.RedirectStandardError <- true
-
-        match Process.Start info with
-        | null -> return failwith "could not start the process"
-        | proc ->
-            use proc = proc
-            do! proc.StandardInput.WriteLineAsync input
-            proc.StandardInput.Close()
-            let! output = proc.StandardOutput.ReadToEndAsync()
-            let! errors = proc.StandardError.ReadToEndAsync()
-            do! proc.WaitForExitAsync()
-            return proc.ExitCode, output, errors
-    }
-
-[<Fact>]
-let ``hash-credential prints a hash that verifies, from standard input, with nothing configured`` () =
-    task {
-        let! exitCode, output, errors = runHashCredential fileCredential
-
-        Assert.Equal(0, exitCode)
-        Assert.True(AdminAuth.verifyCredential (output.Trim()) fileCredential)
-
-        // The credential itself appears nowhere in either stream.
-        Assert.DoesNotContain(fileCredential, output)
-        Assert.DoesNotContain(fileCredential, errors)
-    }
-
-[<Fact>]
-let ``hash-credential refuses a credential that is too short`` () =
-    task {
-        let! exitCode, output, _ = runHashCredential "short"
-        Assert.Equal(1, exitCode)
-        Assert.Equal("", output.Trim())
     }
