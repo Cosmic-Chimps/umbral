@@ -71,38 +71,51 @@ let private validateSecret where (value: string) =
     else
         []
 
-let private validateUri where (value: string) =
+/// Whether a string may be used as a redirect URI, and why not if not.
+///
+/// Exported because the admin form needs exactly the same answer as the
+/// configuration file. The rule used to be written twice, and the second copy
+/// was missing the file-scheme case below — which is how a rule written twice
+/// always ends.
+let acceptableRedirectUri (value: string) : Result<Uri, string> =
     // The wildcard check comes FIRST. A URL with a `*` in the host does not
     // parse as a Uri at all, so leaving it to the parser produces "is not an
     // absolute URL" — true, but it names the wrong cause for an operator who
     // deliberately wrote a wildcard and needs to be told Umbral matches exactly.
-    if value.Contains '*' then
-        [ problem where $"\"{value}\" contains a wildcard. Redirect URIs are matched exactly." ]
+    if String.IsNullOrWhiteSpace value then
+        Error "is empty."
+    elif value.Contains '*' then
+        Error $"\"{value}\" contains a wildcard. Redirect URIs are matched exactly."
     else
         match Uri.TryCreate(value, UriKind.Absolute) with
-        | false, _ -> [ problem where $"\"{value}\" is not an absolute URL." ]
+        | false, _ -> Error $"\"{value}\" is not an absolute URL."
         | true, uri ->
             match Option.ofObj uri with
-            | None -> [ problem where $"\"{value}\" is not an absolute URL." ]
+            | None -> Error $"\"{value}\" is not an absolute URL."
 
             // On Unix a leading slash parses as an absolute FILE uri, so
             // "/callback" would otherwise pass as an absolute URL and be stored
             // as a redirect target no provider could ever send anyone to.
             | Some uri when uri.Scheme = Uri.UriSchemeFile ->
-                [ problem
-                      where
-                      $"\"{value}\" is not an absolute URL. Include the scheme and host,                         for example https://app.example.com/callback." ]
+                Error
+                    $"\"{value}\" is not an absolute URL. Include the scheme and host, \
+                      for example https://app.example.com/callback."
 
             | Some uri when
                 (uri.Scheme = Uri.UriSchemeHttp || uri.Scheme = Uri.UriSchemeHttps)
                 && String.IsNullOrEmpty uri.Host
                 ->
-                [ problem where $"\"{value}\" has no host." ]
+                Error $"\"{value}\" has no host."
 
             | Some uri when uri.Fragment <> "" ->
-                [ problem where $"\"{value}\" contains a fragment, which a provider will never send back." ]
+                Error $"\"{value}\" contains a fragment, which a provider will never send back."
 
-            | _ -> []
+            | Some uri -> Ok uri
+
+let private validateUri where (value: string) =
+    match acceptableRedirectUri value with
+    | Ok _ -> []
+    | Error what -> [ problem where what ]
 
 let private validateConnector (index: int) (entry: ConnectorEntry) =
     let at field = $"connectors[{index}].{field}"

@@ -284,3 +284,34 @@ let ``an export says that app secrets are not included`` () =
     // an app secret on write, so there is nothing to read back. Said where
     // someone will read it rather than discovered on a restore.
     Assert.Contains("NOT exported", yaml)
+
+// ---------------------------------------------------------------------------
+// The shared redirect-URI rule
+//
+// Used by both the configuration file and the Apps admin form. It lived in two
+// places until the copies diverged, so these cases pin the behaviour both of
+// them now depend on.
+// ---------------------------------------------------------------------------
+
+[<Theory>]
+// Frunchy's real callback: http on localhost must be usable, or no one can
+// develop an integration.
+[<InlineData("http://localhost:5099/signin-umbral")>]
+[<InlineData("https://grafana.example.com/login/generic_oauth")>]
+// A native app's custom scheme is legitimate and must not be refused.
+[<InlineData("com.example.app://callback")>]
+let ``an acceptable redirect URI is accepted`` (value: string) =
+    match acceptableRedirectUri value with
+    | Ok _ -> ()
+    | Error why -> failwith $"{value} should be accepted: {why}"
+
+[<Theory>]
+// On Unix this parses as an absolute file:// uri, which is the trap.
+[<InlineData("/signin-umbral", "absolute")>]
+[<InlineData("https://*.example.com/cb", "wildcard")>]
+[<InlineData("https://app.example.com/cb#frag", "fragment")>]
+[<InlineData("", "empty")>]
+let ``an unacceptable redirect URI is refused, and says why`` (value: string) (because: string) =
+    match acceptableRedirectUri value with
+    | Ok _ -> failwith $"{value} should be refused"
+    | Error why -> Assert.Contains(because, why, StringComparison.OrdinalIgnoreCase)

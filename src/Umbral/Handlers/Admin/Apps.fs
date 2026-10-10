@@ -215,14 +215,14 @@ let private buildDescriptor
 // rather than surfacing as an opaque mismatch at the authorize step.
 // ---------------------------------------------------------------------------
 
+/// The SAME rule the configuration file uses. It lived here as its own copy
+/// until the copy in Domains.ConfigDocument grew a case this one lacked: on
+/// Unix "/callback" parses as an absolute file:// uri and sailed through.
+/// One rule, one place.
 let private parseStrictUri (candidate: string) : Uri option =
-    if String.IsNullOrWhiteSpace candidate || candidate.Contains '*' then
-        None
-    else
-        // TryCreate's out parameter is `Uri | null` even when it returns true.
-        match Uri.TryCreate(candidate, UriKind.Absolute) with
-        | true, uri -> Option.ofObj uri
-        | false, _ -> None
+    match Umbral.Domains.ConfigDocument.acceptableRedirectUri candidate with
+    | Ok uri -> Some uri
+    | Error _ -> None
 
 // ---------------------------------------------------------------------------
 // One app row
