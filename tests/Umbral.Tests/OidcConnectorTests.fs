@@ -345,20 +345,6 @@ let ``a missing client id or display name is refused`` () =
     }
 
 [<Fact>]
-let ``a provider that cannot be reached is refused with the reason, and no secret is stored`` () =
-    task {
-        let stub = create issuer
-        stub.Mode <- Down
-        let! app, operator = start [ stub ] ignore []
-        use _ = app
-
-        let! html = refused operator app "home" (addFields "home" issuer)
-        Assert.Contains("data-add-error=\"issuer\"", html)
-        Assert.Contains("could not reach", html)
-        assertInputKept html issuer
-    }
-
-[<Fact>]
 let ``a second connector for an issuer already in use is refused naming the first`` () =
     task {
         let! app, operator = start [ create issuer ] ignore []
@@ -799,4 +785,395 @@ let ``no token, code or secret from an OpenID Connect login reaches a log or the
 
         let eventLeaks = rows |> List.collect (leaksIn secrets) |> List.distinct
         Assert.True(List.isEmpty eventLeaks, "secrets reached security_events: " + String.Join(", ", eventLeaks))
+    }
+
+// ---------------------------------------------------------------------------
+// Several providers, kept apart (T027, spec FR-016, FR-017)
+// ---------------------------------------------------------------------------
+
+let private otherIssuer = "https://other.example.test/o"
+
+/// Two providers that each call their person `user-1`, with different emails so
+/// that nothing but the (issuer, sub) pair could tell the two apart.
+let private twoProviders () =
+    let home = create issuer
+    let work = create otherIssuer
+    work.IdToken <- { work.IdToken with Claims = [ "email", ("work@example.com" :> obj); "name", ("Work Jane" :> obj) ] }
+    home, work
+
+[<Fact>]
+let ``two issuers that both say sub 1 are two people`` () =
+    task {
+        let home, work = twoProviders ()
+        let! app, operator = start [ home; work ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let! _ = addProvider operator "work" otherIssuer
+        let! clientId, clientSecret = createClientApp operator
+
+        let! first = signInThroughProvider (Browser app.Client) home clientId "home"
+        let! firstPayload, _ = idTokenOf app clientId clientSecret (signedIn first)
+        let! second = signInThroughProvider (Browser app.Client) work clientId "work"
+        let! secondPayload, _ = idTokenOf app clientId clientSecret (signedIn second)
+
+        // Umbral's own subject for each: different, though the providers' agree.
+        Assert.NotEqual<string>(strOf firstPayload "sub", strOf secondPayload "sub")
+
+        let! users = scalarCount app "SELECT COUNT(*) FROM users"
+        Assert.Equal(2, users)
+
+        let! subjects =
+            Flows.scalar
+                app
+                "SELECT group_concat(provider_subject, ' ') FROM (SELECT provider_subject FROM linked_accounts ORDER BY provider_subject)"
+                []
+
+        Assert.Contains($"{issuer}#user-1", subjects)
+        Assert.Contains($"{otherIssuer}#user-1", subjects)
+    }
+
+[<Fact>]
+let ``a provider deleted and added back under another slug finds the same person`` () =
+    task {
+        let stub = create issuer
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let! clientId, clientSecret = createClientApp operator
+
+        let! before = signInThroughProvider (Browser app.Client) stub clientId "home"
+        let! beforePayload, _ = idTokenOf app clientId clientSecret (signedIn before)
+
+        let! deleted = operator.PostForm("/admin/connectors", "/admin/connectors/home/delete", [])
+        Assert.Contains("connector-deleted", deleted.Headers.Location |> string)
+
+        // The people stay: only the connector and its secret went.
+        let! users = scalarCount app "SELECT COUNT(*) FROM users"
+        let! links = scalarCount app "SELECT COUNT(*) FROM linked_accounts"
+        Assert.Equal((1, 1), (users, links))
+
+        // The same issuer under a new slug, and so a new callback URL.
+        let! _ = addProvider operator "club" issuer
+        let! after = signInThroughProvider (Browser app.Client) stub clientId "club"
+        let! afterPayload, _ = idTokenOf app clientId clientSecret (signedIn after)
+
+        Assert.Equal<string>(strOf beforePayload "sub", strOf afterPayload "sub")
+
+        let! usersAfter = scalarCount app "SELECT COUNT(*) FROM users"
+        Assert.Equal(1, usersAfter)
+    }
+
+[<Fact>]
+let ``a second connector for the issuer is refused and the first keeps working`` () =
+    task {
+        let stub = create issuer
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let! clientId, _ = createClientApp operator
+
+        // Even spelt another way: one normalised issuer, one connector.
+        let! response =
+            operator.PostForm("/admin/connectors", "/admin/connectors", addFields "again" "https://AUTH.example.test/application/o/umbral/")
+
+        let! html = response.Content.ReadAsStringAsync()
+        Assert.Equal(enum<HttpStatusCode> 422, response.StatusCode)
+        Assert.Contains("Home already uses this issuer", html)
+
+        let! again = ConnectorStore.findBySlug app.DbConfig "again"
+        Assert.True again.IsNone
+
+        let! outcome = signInThroughProvider (Browser app.Client) stub clientId "home"
+        signedIn outcome |> ignore
+    }
+
+[<Fact>]
+let ``switching off or re-keying one provider leaves the other as it was, with no restart`` () =
+    task {
+        let home, work = twoProviders ()
+        let! app, operator = start [ home; work ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let! _ = addProvider operator "work" otherIssuer
+        let! clientId, _ = createClientApp operator
+
+        // Home is switched off: it leaves the sign-in page and work stays.
+        let! toggled = operator.PostForm("/admin/connectors", "/admin/connectors/home/toggle", [])
+        Assert.Contains("connector-disabled", toggled.Headers.Location |> string)
+
+        let! picker = pickerFor (Browser app.Client) clientId
+        Assert.DoesNotContain("data-connector=\"home\"", picker)
+        Assert.Contains("data-connector=\"work\"", picker)
+
+        // Work signs in with the secret it was added with.
+        let! workIn = signInThroughProvider (Browser app.Client) work clientId "work"
+        signedIn workIn |> ignore
+        Assert.Equal(Some providerSecret, work.LastTokenRequest.Value.BasicClientSecret)
+
+        // Home gets a new secret while it is off; switching it on needs no restart.
+        let newSecret = "a-replacement-secret-1f9d3c70"
+
+        let! saved =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/home",
+                [ "displayName", "Home"; "clientId", "umbral-client"; "clientSecret", newSecret; "shared", "true" ]
+            )
+
+        Assert.Contains("connector-saved", saved.Headers.Location |> string)
+
+        let! on = operator.PostForm("/admin/connectors", "/admin/connectors/home/toggle", [])
+        Assert.Contains("connector-enabled", on.Headers.Location |> string)
+
+        let! homeIn = signInThroughProvider (Browser app.Client) home clientId "home"
+        signedIn homeIn |> ignore
+        Assert.Equal(Some newSecret, home.LastTokenRequest.Value.BasicClientSecret)
+
+        // And work was not touched by any of it.
+        let! workAgain = signInThroughProvider (Browser app.Client) work clientId "work"
+        signedIn workAgain |> ignore
+        Assert.Equal(Some providerSecret, work.LastTokenRequest.Value.BasicClientSecret)
+    }
+
+// ---------------------------------------------------------------------------
+// A provider that cannot be reached (T028, spec FR-005a, Clarification Q2)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a provider that cannot be reached when it is added is saved disabled with a warning`` () =
+    task {
+        let stub = create issuer
+        stub.Mode <- Down
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! added = addProvider operator "home" issuer
+        Assert.Equal(HttpStatusCode.Redirect, added.StatusCode)
+        let location = added.Headers.Location |> string
+        Assert.Contains("connector-added-oidc-unreachable", location)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.False stored.Value.IsEnabled
+        Assert.Equal(Some issuer, stored.Value.IssuerUrl)
+
+        // The screen says why and what to do, with the address to try in a browser.
+        let! screen = operator.GetHtml location
+        Assert.Contains("data-notice=\"connector-added-oidc-unreachable\"", screen)
+        Assert.Contains("could not reach", screen)
+        Assert.Contains("saved but is disabled", screen)
+        Assert.Contains($"{issuer}/.well-known/openid-configuration", screen)
+        Assert.DoesNotContain(providerSecret, screen)
+
+        // It is created, and the log says it was created disabled.
+        let! detail =
+            Flows.scalar
+                app
+                "SELECT detail FROM security_events WHERE event_type = 'connector_created' AND connector_slug = 'home'"
+                []
+
+        Assert.StartsWith("saved_disabled: ", detail)
+        Assert.DoesNotContain(providerSecret, detail)
+
+        // And it is not on anybody's sign-in page.
+        let! clientId, _ = createClientApp operator
+        let! picker = pickerFor (Browser app.Client) clientId
+        Assert.DoesNotContain("data-connector=\"home\"", picker)
+    }
+
+[<Fact>]
+let ``enabling a provider that is still unreachable is refused with the reason, and once it is back it works`` () =
+    task {
+        let stub = create issuer
+        stub.Mode <- Down
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let! clientId, _ = createClientApp operator
+
+        let! refused = operator.PostForm("/admin/connectors", "/admin/connectors/home/toggle", [])
+        let location = refused.Headers.Location |> string
+        Assert.Contains("connector-enable-oidc-unreachable", location)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.False stored.Value.IsEnabled
+
+        let! screen = operator.GetHtml location
+        Assert.Contains("could not reach", screen)
+        Assert.Contains("stays disabled", screen)
+
+        // The same through htmx: the toggle answers the same way.
+        let! token = operator.TokenFrom "/admin/connectors"
+        let htmx = new Net.Http.HttpRequestMessage(Net.Http.HttpMethod.Post, "/admin/connectors/home/toggle")
+        htmx.Headers.Add("HX-Request", "true")
+        htmx.Content <- new Net.Http.FormUrlEncodedContent(dict [ "__RequestVerificationToken", token ])
+        let! viaHtmx = operator.Send htmx
+        Assert.Contains("connector-enable-oidc-unreachable", viaHtmx.Headers.Location |> string)
+
+        // Nothing was recorded for a refusal: nothing changed.
+        let! enabledEvents = scalarCount app "SELECT COUNT(*) FROM security_events WHERE event_type = 'connector_enabled'"
+        Assert.Equal(0, enabledEvents)
+
+        // The provider comes back: enabling works and so does a login.
+        stub.Mode <- Up
+        let! enabled = operator.PostForm("/admin/connectors", "/admin/connectors/home/toggle", [])
+        Assert.Contains("connector-enabled", enabled.Headers.Location |> string)
+
+        let! now = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.True now.Value.IsEnabled
+
+        let! outcome = signInThroughProvider (Browser app.Client) stub clientId "home"
+        signedIn outcome |> ignore
+    }
+
+[<Fact>]
+let ``enabling a provider that now describes itself wrongly is refused with the reason`` () =
+    task {
+        let stub = create issuer
+        stub.Mode <- Down
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+
+        stub.Mode <- Up
+        stub.Discovery["id_token_signing_alg_values_supported"] <- strings [ "HS256" ]
+
+        let! refused = operator.PostForm("/admin/connectors", "/admin/connectors/home/toggle", [])
+        let location = refused.Headers.Location |> string
+        Assert.Contains("connector-enable-oidc-wrong", location)
+
+        let! screen = operator.GetHtml location
+        Assert.Contains("Not enabled", screen)
+        Assert.Contains("shared secret", screen)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.False stored.Value.IsEnabled
+    }
+
+[<Fact>]
+let ``disabling a provider never contacts it`` () =
+    task {
+        let stub = create issuer
+        stub.Mode <- Down
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        // Saved while unreachable, so Umbral holds nothing cached about it; then
+        // switched on behind the check's back, as a restored backup would be.
+        let! _ = addProvider operator "home" issuer
+        do! ConnectorStore.setEnabled app.DbConfig app.Clock "home" true
+
+        let before = stub.Requests.Length
+
+        let! toggled = operator.PostForm("/admin/connectors", "/admin/connectors/home/toggle", [])
+        Assert.Contains("connector-disabled", toggled.Headers.Location |> string)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.False stored.Value.IsEnabled
+        Assert.Equal(before, stub.Requests.Length)
+    }
+
+[<Fact>]
+let ``a built-in connector is enabled without any discovery`` () =
+    task {
+        let stub = create issuer
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! off = operator.PostForm("/admin/connectors", "/admin/connectors/fake/toggle?confirm=yes", [])
+        Assert.Contains("connector-disabled", off.Headers.Location |> string)
+        let! on = operator.PostForm("/admin/connectors", "/admin/connectors/fake/toggle", [])
+        Assert.Contains("connector-enabled", on.Headers.Location |> string)
+        Assert.Empty stub.Requests
+    }
+
+// ---------------------------------------------------------------------------
+// The Users screen and the delete warning (T031, T032)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``the users screen names an oidc account by its connector, then by the issuer's host once it is gone`` () =
+    task {
+        let stub = create issuer
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let! clientId, _ = createClientApp operator
+        let! outcome = signInThroughProvider (Browser app.Client) stub clientId "home"
+        signedIn outcome |> ignore
+
+        let! screen = operator.GetHtml "/admin/users"
+        Assert.Contains("data-linked-provider=\"oidc\"", screen)
+        Assert.Contains(">Home<", screen)
+        Assert.DoesNotContain(">OpenID Connect<", screen)
+
+        // Renamed: the screen follows the connector's name.
+        let! _ =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/home",
+                [ "displayName", "Home Lab"; "clientId", "umbral-client"; "shared", "true" ]
+            )
+
+        let! renamed = operator.GetHtml "/admin/users"
+        Assert.Contains(">Home Lab<", renamed)
+
+        // Deleted: nothing names the issuer any more, so its host does.
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/home/delete", [])
+        let! gone = operator.GetHtml "/admin/users"
+        Assert.Contains("data-linked-provider=\"oidc\"", gone)
+        Assert.Contains(">auth.example.test<", gone)
+        Assert.DoesNotContain(">Home Lab<", gone)
+    }
+
+[<Fact>]
+let ``two oidc accounts of one person are told apart on the users screen`` () =
+    task {
+        let home, work = twoProviders ()
+        // The same verified email, so the second sign-in links to the first user.
+        work.IdToken <- { work.IdToken with Claims = home.IdToken.Claims }
+
+        let! app, operator = start [ home; work ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+
+        let! _ =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors",
+                addFields "work" otherIssuer |> replacing "displayName" "Work"
+            )
+
+        let! clientId, _ = createClientApp operator
+        let! first = signInThroughProvider (Browser app.Client) home clientId "home"
+        signedIn first |> ignore
+        let! second = signInThroughProvider (Browser app.Client) work clientId "work"
+        signedIn second |> ignore
+
+        let! users = scalarCount app "SELECT COUNT(*) FROM users"
+        Assert.Equal(1, users)
+
+        let! screen = operator.GetHtml "/admin/users"
+        Assert.Contains(">Home<", screen)
+        Assert.Contains(">Work<", screen)
+    }
+
+[<Fact>]
+let ``deleting an oidc provider tells the operator people come back only under the same issuer`` () =
+    task {
+        let! app, operator = start [ create issuer ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let! screen = operator.GetHtml "/admin/connectors"
+
+        Assert.Contains("add it again with the same issuer", screen)
+        Assert.Contains(issuer, screen)
     }

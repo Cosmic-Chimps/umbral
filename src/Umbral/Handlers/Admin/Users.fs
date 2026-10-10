@@ -75,14 +75,46 @@ let private search
 // is one of the three in-place interactions).
 // ---------------------------------------------------------------------------
 
+/// `LinkedProviders` is each linked account's kind, for the `data-linked-provider`
+/// hook, and the label the screen shows for it (`linkedProviders`).
 type Row =
     { User: Umbral.Infrastructure.Users.User
-      LinkedProviders: string list }
+      LinkedProviders: (string * string) list }
 
 let private providerLabel (kind: string) =
     Umbral.Domains.Connectors.parseKind kind
     |> Option.map (fun k -> k.DisplayName)
     |> Option.defaultValue kind
+
+/// What to call a linked account on screen. A built-in kind is its own name. An
+/// `oidc` account is the display name of the connector that holds its issuer —
+/// "Home" and "Work" are two accounts, not two "OpenID Connect" — or, when that
+/// connector has been deleted, the issuer's host, so the operator can still tell
+/// where the person came from (data-model "Display").
+let linkedLabel (connectors: Umbral.Domains.Connectors.Connector list) (kind: string) (subject: string) =
+    match Umbral.Domains.Connectors.parseKind kind with
+    | Some Umbral.Domains.Connectors.Oidc ->
+        match Umbral.Domains.Connectors.parseOidcSubject subject with
+        | Some(issuer, _) ->
+            match connectors |> List.tryFind (fun c -> c.IssuerUrl = Some issuer) with
+            | Some connector -> connector.DisplayName
+            | None ->
+                if Uri.IsWellFormedUriString(issuer, UriKind.Absolute) then
+                    Uri(issuer).Host
+                else
+                    issuer
+        | None -> providerLabel kind
+    | _ -> providerLabel kind
+
+/// A user's linked accounts as the screen's row wants them. Used by this screen
+/// and by the user toggle's fragment, so both draw the same labels.
+let linkedProviders (config: Database.DbConfig) (userId: string) : Task<(string * string) list> =
+    task {
+        let! accounts = UserStore.linkedAccounts config userId
+        let! connectors = ConnectorStore.listAll config
+
+        return accounts |> List.map (fun (kind, subject) -> kind, linkedLabel connectors kind subject)
+    }
 
 /// Both timestamps are always populated — a row only exists because someone
 /// signed in — so there is no "never" case to render here, unlike the
@@ -110,8 +142,8 @@ let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
         }
 
         div(class' = "flex flex-wrap gap-1.5") {
-            for kind in data.LinkedProviders do
-                (Components.pill Components.PrimaryTone (providerLabel kind)).data ("linked-provider", kind)
+            for kind, label in data.LinkedProviders do
+                (Components.pill Components.PrimaryTone label).data ("linked-provider", kind)
         }
 
         div(class' = "grid gap-1 text-body-sm text-on-surface-variant sm:grid-cols-2") {
@@ -206,8 +238,8 @@ let page: EndpointHandler =
             let rows = ResizeArray()
 
             for user in users do
-                let! kinds = UserStore.linkedKinds config user.Id
-                rows.Add { User = user; LinkedProviders = kinds }
+                let! linked = linkedProviders config user.Id
+                rows.Add { User = user; LinkedProviders = linked }
 
             let notice = ctx.TryGetQueryValue "msg"
             return! ctx.WriteHtmlView(view ctx t (List.ofSeq rows) term notice)

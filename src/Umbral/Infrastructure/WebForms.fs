@@ -79,6 +79,11 @@ let redirectWithNoticeAbout (ctx: HttpContext) (path: string) (notice: string) (
     ctx.Response.Redirect $"{path}?msg={Uri.EscapeDataString notice}{extra}"
     Task.CompletedTask
 
+/// Cut `text` to at most `limit` characters, for a value that travels in a
+/// redirect's query string or a log detail and must not grow without bound.
+let truncate (limit: int) (text: string) =
+    if text.Length <= limit then text else text.Substring(0, limit - 1) + "…"
+
 let redirect (ctx: HttpContext) (path: string) : Task =
     ctx.Response.Redirect path
     Task.CompletedTask

@@ -107,15 +107,15 @@ description: "Task list for the generic OpenID Connect connector"
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] In tests/Umbral.Tests/OidcConnectorTests.fs: two issuers with the same `sub` produce two users; delete + re-add with the same issuer under another slug keeps the user id and `sub`; a second connector with an already-configured issuer is refused with a message; toggling or replacing the secret of one provider leaves the other untouched and needs no restart
-- [ ] T028 [P] [US2] In tests/Umbral.Tests/OidcConnectorTests.fs: provider unreachable at save → saved disabled with the warning, absent from the picker; enabling while still unreachable → refused with the reason; stub back up → enabling succeeds and a login works (Clarification Q2); disabling never contacts the provider
+- [x] T027 [P] [US2] In tests/Umbral.Tests/OidcConnectorTests.fs: two issuers with the same `sub` produce two users; delete + re-add with the same issuer under another slug keeps the user id and `sub`; a second connector with an already-configured issuer is refused with a message; toggling or replacing the secret of one provider leaves the other untouched and needs no restart
+- [x] T028 [P] [US2] In tests/Umbral.Tests/OidcConnectorTests.fs: provider unreachable at save → saved disabled with the warning, absent from the picker; enabling while still unreachable → refused with the reason; stub back up → enabling succeeds and a login works (Clarification Q2); disabling never contacts the provider
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] In the `oidc` branch of `create` in src/Umbral/Handlers/Admin/Connectors.fs, `Unreachable` saves the connector with `is_enabled = 0` and redirects with the contract's warning notice; a duplicate issuer (T010's typed result) re-renders with its message
-- [ ] T030 [US2] In src/Umbral/Handlers/Admin/ConnectorToggle.fs, enabling an `oidc` connector runs `OidcDiscovery.check` first and refuses with the reason on `Unreachable` or `Wrong`; built-in kinds unchanged
-- [ ] T031 [US2] In src/Umbral/Infrastructure/UserStore.fs and the Users screen (src/Umbral/Handlers/Admin/Users.fs), show an `oidc` linked account as the display name of the connector with that issuer, else the issuer's host (data-model "Display")
-- [ ] T032 [US2] Confirm src/Umbral/Handlers/Admin/ConnectorDelete.fs needs no change for `oidc` (users and linked accounts survive) and add the FR-017 sentence to the delete confirmation text in src/Umbral/Views/Texts.fs if it helps the operator ("people will reconnect if you add this issuer again")
+- [x] T029 [US2] In the `oidc` branch of `create` in src/Umbral/Handlers/Admin/Connectors.fs, `Unreachable` saves the connector with `is_enabled = 0` and redirects with the contract's warning notice; a duplicate issuer (T010's typed result) re-renders with its message
+- [x] T030 [US2] In src/Umbral/Handlers/Admin/ConnectorToggle.fs, enabling an `oidc` connector runs `OidcDiscovery.check` first and refuses with the reason on `Unreachable` or `Wrong`; built-in kinds unchanged
+- [x] T031 [US2] In src/Umbral/Infrastructure/UserStore.fs and the Users screen (src/Umbral/Handlers/Admin/Users.fs), show an `oidc` linked account as the display name of the connector with that issuer, else the issuer's host (data-model "Display")
+- [x] T032 [US2] Confirm src/Umbral/Handlers/Admin/ConnectorDelete.fs needs no change for `oidc` (users and linked accounts survive) and add the FR-017 sentence to the delete confirmation text in src/Umbral/Views/Texts.fs if it helps the operator ("people will reconnect if you add this issuer again")
 
 **Checkpoint**: Stories 1 and 2 pass independently.
 

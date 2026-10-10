@@ -77,9 +77,9 @@ let handler (id: string) : EndpointHandler =
                 match refreshed with
                 | None -> return! WebForms.redirectWithNotice ctx "/admin/users" "user-not-found"
                 | Some refreshedUser ->
-                    let! kinds = UserStore.linkedKinds config id
+                    let! linked = linkedProviders config id
 
-                    let fragment = row ctx t { User = refreshedUser; LinkedProviders = kinds }
+                    let fragment = row ctx t { User = refreshedUser; LinkedProviders = linked }
 
                     return! ctx.WriteHtmlView fragment
             else
