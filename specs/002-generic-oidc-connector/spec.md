@@ -8,6 +8,13 @@
 
 **Input**: User description: "Generic OpenID Connect connector. Today Umbral's upstream connectors are Discord, GitHub and Google (plus a dev-only Fake). Operators who already run an identity provider — Authentik, Keycloak, Pocket ID, Authelia, Zitadel, Kanidm, GitLab, Microsoft Entra — want people to sign in to Umbral apps through it. The operator adds such a provider by its issuer URL and a slug they choose (the slug is in the callback URL and immutable), plus client ID and client secret; everything else about the provider comes from its published discovery document, so nothing else is operator-editable. Several such providers may be configured at once, each enabled/disabled/deleted and its secret replaced like the built-in connectors, from the admin UI and from the YAML configuration file (config parity, export round-trip). A person signing in through one is identified by the provider's issuer plus its subject, so two providers that issue the same subject never merge into one person, and deleting and re-adding the same provider keeps everyone's identity; the issuer therefore cannot be changed after creation. A verified email from such a provider links to an existing user under the same rule as today (never on an unverified email); the operator is warned that adding a provider means trusting its verified emails. An unreachable provider must not stop Umbral from starting; a misconfigured issuer is reported when the operator saves it, with the next action. Ships with a setup walkthrough. Out of scope: SAML, LDAP, editable endpoints, claim mapping, per-provider authorization rules."
 
+**Superseded in part**: Spec 004 (remove the configuration document) removes
+the YAML configuration file and its export, so this feature does not extend
+them: the input's "and from the YAML configuration file (config parity, export
+round-trip)" no longer applies. User Story 3, FR-019, FR-020, FR-022 and SC-007
+are dropped before this feature is built (spec 004, FR-014). Providers are
+added and managed from the admin UI only.
+
 ## Context
 
 Umbral's first release (spec 001) ships three upstream providers whose details
@@ -111,39 +118,13 @@ user identifier as before.
 
 ---
 
-### User Story 3 - The same provider, from the configuration file (Priority: P2)
+### User Story 3 - Removed
 
-An operator who keeps Umbral's configuration in git declares their identity
-provider in the configuration file — kind, short name, issuer, display name,
-client ID, and a reference to the secret held in the environment — and starts
-the container. The provider is there, as if added from the screen. Exporting
-the configuration produces the same entry back.
-
-**Why this priority**: Configuration parity is a constitutional rule
-(Principle V); a provider that can only be added by clicking is incomplete.
-It is P2 only because Story 1 must work first.
-
-**Independent Test**: Start a clean instance from a file declaring one OpenID
-Connect provider with its secret supplied through the environment; sign in
-through it; export the configuration and confirm the entry round-trips.
-
-**Acceptance Scenarios**:
-
-1. **Given** a configuration file declaring an OpenID Connect provider, **When**
-   Umbral starts, **Then** the provider exists with those values, and applying
-   the same file again changes nothing.
-2. **Given** a declared provider whose identity provider is down or
-   unreachable at that moment, **When** Umbral starts, **Then** it starts
-   normally; sign-ins through that provider fail with the usual notice until it
-   is reachable again, and every other connector keeps working.
-3. **Given** a file entry with a missing or malformed issuer, a short name that
-   breaks the rules, or a secret written in clear text, **When** Umbral starts,
-   **Then** it refuses to start, names the entry and the fix, and applies
-   nothing from the file.
-4. **Given** OpenID Connect providers added from the screen, **When** the
-   operator exports the configuration, **Then** each appears in the file format
-   with its secret as an environment reference, and importing that export into
-   a clean instance reproduces them.
+*Superseded by spec 004 (remove the configuration document), FR-014.* This
+story declared providers in the configuration file and exported them. The file
+and its export are removed, so the story is dropped. Its one scenario that does
+not depend on the file, Umbral starting while a provider is unreachable, stays
+as FR-021 and SC-006.
 
 ---
 
@@ -205,9 +186,6 @@ yes/no value, and confirm a new, separate user.
 - **Provider identity signed with a shared secret rather than published keys.**
   Refused, and the setup walkthrough says how to switch the provider to
   published-key signing.
-- **The configuration file declares a provider and the operator also edits it
-  on the screen.** The file wins at the next start for that entry, exactly as
-  for built-in connectors today.
 
 ## Requirements *(mandatory)*
 
@@ -282,20 +260,17 @@ yes/no value, and confirm a new, separate user.
   links to an existing user only when the provider explicitly asserts it as
   verified with an unambiguous true value; any other form counts as unverified.
 
-#### Configuration parity and operations
+#### Operations
 
-- **FR-019**: OpenID Connect providers MUST be declarable in the configuration
-  file with kind, short name, issuer, display name, client ID, secret as an
-  environment reference, enabled state and extra scopes, and applying the file
-  MUST be idempotent (spec 001 FR-027, FR-028).
-- **FR-020**: Validation of the configuration file MUST cover the new fields
-  (issuer required for this kind and forbidden for others; short-name rules;
-  absolute https issuer) and MUST fail startup naming the entry, applying
-  nothing (spec 001 FR-030).
+- **FR-019**: *Removed. Superseded by spec 004 (remove the configuration
+  document), FR-014.* It declared OpenID Connect providers in the configuration
+  file.
+- **FR-020**: *Removed. Superseded by spec 004, FR-014.* It validated the
+  configuration file's OpenID Connect fields at startup.
 - **FR-021**: Starting Umbral MUST NOT depend on any OpenID Connect provider
   being reachable.
-- **FR-022**: Export MUST emit OpenID Connect providers in exactly the accepted
-  format, so export and import round-trip (spec 001 FR-029).
+- **FR-022**: *Removed. Superseded by spec 004, FR-014.* It exported OpenID
+  Connect providers to the configuration file format.
 - **FR-023**: Every create, update, enable, disable and delete of an OpenID
   Connect connector, and every sign-in success or failure through one, MUST be
   recorded in the security log like the built-in connectors (spec 001 FR-035).
@@ -346,8 +321,9 @@ yes/no value, and confirm a new, separate user.
   100% of its people's previous user identifiers.
 - **SC-006**: Umbral starts and serves every other connector normally when a
   configured OpenID Connect provider is unreachable.
-- **SC-007**: A clean instance started from an exported configuration plus its
-  secrets reproduces every OpenID Connect provider with no manual step.
+- **SC-007**: *Removed. Superseded by spec 004 (remove the configuration
+  document), FR-014.* It measured the export round-trip of OpenID Connect
+  providers.
 
 ## Assumptions
 
