@@ -26,6 +26,7 @@
     <Compile Include="FakeConnectorGuardTests.fs" />
     <Compile Include="FirstLoginTests.fs" />
     <Compile Include="ConfigFileTests.fs" />
+    <Compile Include="CredentialTests.fs" />
     <Compile Include="ConnectorRuntimeTests.fs" />
     <Compile Include="ConnectorDeleteTests.fs" />
     <Compile Include="SecurityEventCoverageTests.fs" />

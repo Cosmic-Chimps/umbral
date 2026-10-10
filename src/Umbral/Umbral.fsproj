@@ -68,6 +68,7 @@
     <Compile Include="Handlers/Admin/Setup.fs" />
     <Compile Include="Handlers/Admin/SignIn.fs" />
     <Compile Include="Handlers/Admin/SignOut.fs" />
+    <Compile Include="Handlers/Admin/Credential.fs" />
     <Compile Include="Handlers/Admin/Connectors.fs" />
     <Compile Include="Handlers/Admin/ConnectorToggle.fs" />
     <Compile Include="Handlers/Admin/ConnectorDelete.fs" />

@@ -7,7 +7,7 @@ learns once and expects to keep working.
 
 ## Routes
 
-Three screens, per FR-015. Everything else is an action on one of them.
+Three screens, per FR-015. Everything else is an action on one of them (the credential form is reached from the navigation, not a fourth screen).
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -15,6 +15,7 @@ Three screens, per FR-015. Everything else is an action on one of them.
 | GET, POST | `/admin/setup` | First run: set the operator credential. Refuses once set. |
 | GET, POST | `/admin/signin` | Operator sign-in |
 | POST | `/admin/signout` | Form POST, never a GET link |
+| GET, POST | `/admin/credential` | Replace the operator credential (FR-017a): current + new twice; ends every other admin session |
 | GET | `/admin/apps` | **Screen 1** |
 | POST | `/admin/apps` | Register an app → the shown-once secret page |
 | POST | `/admin/apps/{clientId}/secret` | Regenerate |
