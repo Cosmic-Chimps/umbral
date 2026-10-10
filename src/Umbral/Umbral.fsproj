@@ -64,6 +64,8 @@
     <Compile Include="Views/Theme.fs" />
     <Compile Include="Views/Components.fs" />
     <Compile Include="Views/Layout.fs" />
+    <Compile Include="Handlers/Health.fs" />
+    <Compile Include="Handlers/Admin/Landing.fs" />
     <Compile Include="Handlers/Admin/Setup.fs" />
     <Compile Include="Handlers/Admin/SignIn.fs" />
     <Compile Include="Handlers/Admin/SignOut.fs" />
