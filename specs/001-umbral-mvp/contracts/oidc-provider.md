@@ -64,7 +64,22 @@ failure — makes every login fail with an error that names neither the proxy no
 the setting.
 
 **`grant_types_supported` MUST NOT contain `implicit` or `password`** (FR-002).
-**`code_challenge_methods_supported` MUST NOT contain `plain`.**
+
+**`code_challenge_methods_supported` MUST NOT contain `plain`.** This one costs
+code. The T001 spike established empirically that OpenIddict 7.7.1 advertises
+`["plain", "S256"]` and **genuinely accepts `plain` end to end**, and that
+`RequireProofKeyForCodeExchange()` is the only PKCE-related method on
+`OpenIddictServerBuilder` — there is no builder flag that restricts the method.
+
+Honouring this line therefore requires a custom
+`IOpenIddictServerHandler<ValidateAuthorizationRequestContext>` that rejects
+`plain` and a configuration change that stops advertising it (T105).
+
+It is worth the code. PKCE with `plain` sends the verifier *as* the challenge,
+so an attacker who can read the authorization request learns the verifier and
+PKCE protects nothing. Advertising a method we do not want used, and accepting
+it when offered, is exactly the kind of quiet default Principle IV exists to
+forbid.
 
 ## The `id_token`
 

@@ -435,6 +435,53 @@ everything else.
 
 ---
 
+## D14 — What the C# spike (T001) actually proved
+
+The spike ran the whole server path against the configuration above and settled
+several things that were assumptions until then. Confirmed, with evidence:
+
+- **Claims vanish silently without `SetDestinations`.** Two otherwise identical
+  runs: with it, the `id_token` carries `email`, `email_verified`, `name`,
+  `picture`, `idp`; without it, only `sub` and OpenIddict's own bookkeeping
+  claims survive. The failure from outside is **total silence** — HTTP 200, a
+  syntactically valid JWT, a valid signature, nothing in the logs. The only way
+  to see it is to decode the token. This is why T039 asserts the claim content
+  of a real issued token rather than the construction of the identity.
+- **The token endpoint handles both grants with no handler written.** No route is
+  mapped at `/connect/token` in the spike, and `authorization_code` and
+  `refresh_token` both return full token sets, including rolling refresh-token
+  rotation. D8's "no passthrough in the first slice" holds.
+- **Reference access tokens are genuinely opaque** — one segment, no dots, a
+  random 256-bit identifier.
+- **Revocation is immediate.** `TryRevokeAsync` on the authorization, then the
+  same access token at `/connect/userinfo` returns 401 with
+  `error="invalid_token"` and no propagation delay. FR-022 is satisfiable as
+  written, which is the whole reason D3 chose reference tokens.
+- **Keys survive a restart.** Same certificate fingerprint after `kill -9`, and
+  a pre-restart `id_token` verified by hand against the post-restart JWKS using
+  an independent library — so the key material persisted, not just a database row.
+
+Corrections to what this plan said before the spike ran:
+
+| Was | Actually |
+| --- | --- |
+| `code_challenge_methods_supported` excludes `plain` by configuration | **No builder flag does this.** `plain` is advertised and accepted. Needs a custom handler — T105. |
+| `EnableErrorPassthrough()` is safe to enable with the authorize handler | **It is not inert.** With it on and no error handler written, every request OpenIddict would reject cleanly — missing PKCE, bad `redirect_uri` — becomes an `InvalidOperationException` and an HTTP 500. It must land in the same step as `Handlers/Connect/Error.fs`. |
+| `GetOpenIddictServerRequest()` is in `OpenIddict.Server.AspNetCore` | It is in **`Microsoft.AspNetCore`**. Nothing in the error message or IntelliSense hints at this; the spike found it by reflecting over the loaded assembly. |
+| OpenIddict's built-in user-info handler is a fallback option | It maps a **fixed standard claim set only** and has no concept of a custom claim like `idp`. The hand-written passthrough handler (T034) is required, not preferred. |
+| `Permissions.Prompts.*` exists | It does not exist in 7.7.1. Consent is controlled by `ConsentType` alone. |
+
+One trap for the F# port, which D9's warning about `SetClaim`'s 15+ overloads
+predicted: `SetClaim(Claims.EmailVerified, "true")` resolves to the **string**
+overload and emits `"email_verified": "true"`, a string, not a boolean. An app
+doing `if (claims.email_verified)` in JavaScript then treats `"false"` as true.
+Use the explicit `bool` overload, and assert the JSON type in T039.
+
+Also confirmed as real and correctly placed: `DisableAudienceValidation()` and
+`DisableResourceValidation()` on the server builder, and
+`DisableTransportSecurityRequirement()` on the builder returned by
+`UseAspNetCore()`.
+
 ## Open items carried into the plan
 
 | Item | Status |
