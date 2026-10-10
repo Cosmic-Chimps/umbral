@@ -117,10 +117,10 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 
 ### Admin access (FR-016, FR-017)
 
-- [ ] T042 [US1] Create `src/Umbral/Infrastructure/AdminAuth.fs`: the operator credential hashed with PBKDF2-HMAC-SHA256 at an iteration count tuned so a Raspberry Pi 4 spends 0.5–1 s, a cookie authentication scheme, and the `requireOperator` handler combinator.
+- [x] T042 [US1] Create `src/Umbral/Infrastructure/AdminAuth.fs`: the operator credential hashed with PBKDF2-HMAC-SHA256 at an iteration count tuned so a Raspberry Pi 4 spends 0.5–1 s, a cookie authentication scheme, and the `requireOperator` handler combinator.
 - [ ] T043 [US1] Create `src/Umbral/Handlers/Admin/Setup.fs` — first-run credential setup at `GET`/`POST /admin/setup`. **No administrative screen is reachable until it completes**, and it refuses once the credential is set. Ship no default or well-known credential.
 - [ ] T044 [P] [US1] Create `src/Umbral/Handlers/Admin/SignIn.fs` and `src/Umbral/Handlers/Admin/SignOut.fs`. Sign-out is a form POST, never a GET link.
-- [ ] T045 [US1] Create `src/Umbral/Infrastructure/WebForms.fs` with `readValidatedForm` — check `IAntiforgeryValidationFeature` **before** reading the form, because ASP.NET refuses to read a form whose token already failed and throws something confusing instead of a clean 400. Every POST handler uses it, including those with no fields to read.
+- [x] T045 [US1] Create `src/Umbral/Infrastructure/WebForms.fs` with `readValidatedForm` — check `IAntiforgeryValidationFeature` **before** reading the form, because ASP.NET refuses to read a form whose token already failed and throws something confusing instead of a clean 400. Every POST handler uses it, including those with no fields to read.
 - [ ] T046 [US1] Add an offline operator-credential reset for someone with access to the data directory (FR-017b), so a forgotten credential does not mean rebuilding the instance.
 - [ ] T047 [P] [US1] Write `tests/Umbral.Tests/AdminAuthTests.fs`: no admin screen is reachable before setup; setup refuses a second time; a wrong credential fails; a form posted without an antiforgery token returns 400 and changes nothing.
 
@@ -143,13 +143,13 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 ### Identity resolution
 
 - [x] T061 [US1] Create `src/Umbral/Domains/Users.fs` with the FR-012 linking rule as a **pure** function over `(existingLink, profile, candidateUsers)`, implementing the flowchart in [data-model.md](./data-model.md).
-- [ ] T062 [US1] Create `src/Umbral/Infrastructure/UserStore.fs` — resolve-or-create from a `ProviderProfile`, keyed on `(provider_kind, provider_subject)`, touching `last_seen_utc` and `last_used_utc`.
-- [ ] T063 [US1] Write `tests/Umbral.Tests/LinkingRuleTests.fs` covering **every branch**: known link; unknown link with no email; unknown link with an unverified email (**must not link**); unknown link with a verified email matching exactly one user (links); matching zero users (creates); matching two or more users (creates a third rather than guessing); and a disabled user refused.
-- [ ] T064 [US1] Add a concurrency test asserting two simultaneous first sign-ins for the same provider account create exactly one user.
+- [x] T062 [US1] Create `src/Umbral/Infrastructure/UserStore.fs` — resolve-or-create from a `ProviderProfile`, keyed on `(provider_kind, provider_subject)`, touching `last_seen_utc` and `last_used_utc`.
+- [x] T063 [US1] Write `tests/Umbral.Tests/LinkingRuleTests.fs` covering **every branch**: known link; unknown link with no email; unknown link with an unverified email (**must not link**); unknown link with a verified email matching exactly one user (links); matching zero users (creates); matching two or more users (creates a third rather than guessing); and a disabled user refused.
+- [x] T064 [US1] Add a concurrency test asserting two simultaneous first sign-ins for the same provider account create exactly one user.
 
 ### Sign-in flow
 
-- [ ] T065 [US1] Create `src/Umbral/Infrastructure/ConnectorStore.fs` — read and write the `connectors` table, protecting and unprotecting the secret through T025.
+- [x] T065 [US1] Create `src/Umbral/Infrastructure/ConnectorStore.fs` — read and write the `connectors` table, protecting and unprotecting the secret through T025.
 - [ ] T066 [US1] Create `src/Umbral/Handlers/Connect/Picker.fs` at `GET /signin`, rendering **only enabled** connectors. When none are enabled, say so and tell the operator what to do.
 - [ ] T067 [US1] Create `src/Umbral/Handlers/Connect/Start.fs` at `GET /connect/{slug}/start` — read the connector row **inside the request** (that is what makes runtime reconfiguration work), 404 when disabled, and redirect to the provider.
 - [ ] T068 [US1] Create `src/Umbral/Handlers/Connect/Callback.fs` at `GET /connect/{slug}/callback` — complete the round trip, exchange and fetch, resolve the user, establish the session, and replay the original authorize request. Never log the authorization `code`.

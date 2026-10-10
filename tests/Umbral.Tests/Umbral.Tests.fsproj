@@ -12,6 +12,8 @@
     <Compile Include="IdsTests.fs" />
     <Compile Include="LinkingRuleTests.fs" />
     <Compile Include="ProviderAdapterTests.fs" />
+    <Compile Include="AdminAuthTests.fs" />
+    <Compile Include="UserStoreTests.fs" />
     <Compile Include="PublicOriginTests.fs" />
     <Compile Include="KeyPersistenceTests.fs" />
     <Compile Include="SecretsTests.fs" />
