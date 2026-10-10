@@ -154,6 +154,22 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-10T20:07:54.016Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T011",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:12:39.975Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T012",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:12:40.078Z"
     }
   ],
   "last_action": "living specs evaluated — skipped (not configured)",
@@ -400,7 +416,7 @@
     }
   },
   "approach": "An app's connector choice lives in two Umbral tables and connectors gain is_shared (schema v2). One pure offeredTo rule drives the sign-in page (which reads the app from returnUrl), the FR-008 session check in authorize, and admin warnings. The Connectors screen shows one card per connector with an add form; the YAML document gets two optional keys; apps keep idp as the provider kind.",
-  "currentTask": "T010",
+  "currentTask": "T012",
   "task_summaries": {
     "T001": {
       "status": "DONE",
@@ -477,6 +493,20 @@
         "src/Umbral/Infrastructure/Sessions.fs",
         "src/Umbral/Handlers/Connect/Callback.fs",
         "src/Umbral/Infrastructure/OAuthRoundTrip.fs"
+      ]
+    },
+    "T011": {
+      "status": "DONE",
+      "did": "Seven sign-in page scenarios on data-signin-app / data-connector markers (four fail without T012)",
+      "files": [
+        "tests/Umbral.Tests/SignInAppNameTests.fs"
+      ]
+    },
+    "T012": {
+      "status": "DONE",
+      "did": "Picker reads client_id from the sanitized authorize returnUrl, names the app, offers offeredTo of its choice",
+      "files": [
+        "src/Umbral/Handlers/Connect/Picker.fs"
       ]
     }
   }

@@ -64,11 +64,11 @@ The naming advice on the Connectors screen (FR-003) is built in Phase 5, which o
 
 ### Tests
 
-- [ ] **T011** [US1] Sign-ins started from app A and from app B show `data-signin-app` A and B. `/signin` alone, an unknown `client_id`, and a `returnUrl` that is not `/connect/authorize` show no `data-signin-app`. A `client_id` query value on `/signin` itself is ignored. After a failed callback the page still names the app · `tests/Umbral.Tests/SignInAppNameTests.fs`
+- [x] **T011** [US1] Sign-ins started from app A and from app B show `data-signin-app` A and B. `/signin` alone, an unknown `client_id`, and a `returnUrl` that is not `/connect/authorize` show no `data-signin-app`. A `client_id` query value on `/signin` itself is ignored. After a failed callback the page still names the app · `tests/Umbral.Tests/SignInAppNameTests.fs`
 
 ### Implementation
 
-- [ ] **T012** [US1] Read `client_id` from the sanitized `returnUrl` when its path is `/connect/authorize`. Look the app up through `IOpenIddictApplicationManager` and load its choice with `AppConnectors.choiceFor`. Render `PickerTitleForApp` with `data-signin-app`, the buttons from `offeredTo`, and `PickerNoConnectorsForApp` when an app offers nothing. With no app, keep the general title and offer every enabled shared connector (FR-001, FR-002, FR-006, FR-007) · `src/Umbral/Handlers/Connect/Picker.fs`
+- [x] **T012** [US1] Read `client_id` from the sanitized `returnUrl` when its path is `/connect/authorize`. Look the app up through `IOpenIddictApplicationManager` and load its choice with `AppConnectors.choiceFor`. Render `PickerTitleForApp` with `data-signin-app`, the buttons from `offeredTo`, and `PickerNoConnectorsForApp` when an app offers nothing. With no app, keep the general title and offer every enabled shared connector (FR-001, FR-002, FR-006, FR-007) · `src/Umbral/Handlers/Connect/Picker.fs`
 
 **Checkpoint**: every sign-in started from an app names that app (SC-001).
 
