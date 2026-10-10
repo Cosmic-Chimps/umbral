@@ -58,6 +58,9 @@
     <Compile Include="Views/Theme.fs" />
     <Compile Include="Views/Components.fs" />
     <Compile Include="Views/Layout.fs" />
+    <Compile Include="Handlers/Connect/Picker.fs" />
+    <Compile Include="Handlers/Connect/Start.fs" />
+    <Compile Include="Handlers/Connect/Callback.fs" />
     <Compile Include="Handlers/Connect/Authorize.fs" />
     <Compile Include="Handlers/Connect/UserInfo.fs" />
     <Compile Include="Handlers/Connect/EndSession.fs" />

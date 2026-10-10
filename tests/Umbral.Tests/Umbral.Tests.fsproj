@@ -20,6 +20,7 @@
     <Compile Include="DatabaseTests.fs" />
     <Compile Include="SecurityEventsTests.fs" />
     <Compile Include="BootstrapTests.fs" />
+    <Compile Include="SignInFlowTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 

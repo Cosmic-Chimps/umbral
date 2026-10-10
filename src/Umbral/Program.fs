@@ -25,7 +25,10 @@ open Umbral.Migrations
 // ---------------------------------------------------------------------------
 
 let endpoints: Endpoint list =
-    [ yield! Umbral.Handlers.Connect.Authorize.endpoint
+    [ Umbral.Handlers.Connect.Picker.endpoint
+      Umbral.Handlers.Connect.Start.endpoint
+      Umbral.Handlers.Connect.Callback.endpoint
+      yield! Umbral.Handlers.Connect.Authorize.endpoint
       yield! Umbral.Handlers.Connect.UserInfo.endpoint
       yield! Umbral.Handlers.Connect.EndSession.endpoint
       Umbral.Handlers.Connect.Error.endpoint ]
