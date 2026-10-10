@@ -90,10 +90,15 @@ let private schema =
         is_enabled              INTEGER NOT NULL DEFAULT 1,
         -- A shared connector is offered to every app set to "all shared
         -- connectors" (FR-014). A database from schema version 1 gets this
-        -- column from the ALTER in `initializeSchema`, with the same default.
+        -- column from `upgradeSteps`, with the same default.
         is_shared               INTEGER NOT NULL DEFAULT 1,
         created_utc             TEXT    NOT NULL,
-        updated_utc             TEXT    NOT NULL
+        updated_utc             TEXT    NOT NULL,
+        -- Only for kind `oidc`: the normalised issuer URL, which is part of
+        -- every person's identity there (specs/002 data-model). NULL for every
+        -- other kind. A database from before schema version 3 gets this column
+        -- from `upgradeSteps`; its unique index is `issuerIndex`, below.
+        issuer_url              TEXT        NULL
     );
 
     -- A marker: one row per app limited to a chosen set. No row means "all
@@ -139,10 +144,51 @@ let private schema =
     CREATE INDEX IF NOT EXISTS ix_security_events_time ON security_events (occurred_utc DESC);
     """
 
-/// The version this build understands. Bumped when `schema` changes in a way an
-/// older build could not read, so a downgrade fails loudly instead of corrupting.
+/// The unique index on the issuer, kept out of `schema`: that script also runs
+/// against a database whose `connectors` table predates the column, where the
+/// CREATE INDEX would fail before `upgradeSteps` had added it. Run after them,
+/// on every start, and a no-op once it exists. Partial because every
+/// non-`oidc` connector has a NULL issuer. Two connectors on one issuer would
+/// share every person under two names, which is confusion with no use.
 [<Literal>]
-let SchemaVersion = 2
+let private issuerIndex =
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_connectors_issuer
+         ON connectors (issuer_url) WHERE issuer_url IS NOT NULL"
+
+/// The version this build understands. Bumped when `schema` changes in a way an
+/// older build could not read, so a downgrade fails loudly instead of corrupting:
+/// `initializeSchema` refuses a database stamped higher than this.
+[<Literal>]
+let SchemaVersion = 3
+
+/// Spec 003. Every existing connector becomes shared through the column
+/// default and no app has a choice row, so every app offers what it offered
+/// before (FR-019). No data is rewritten.
+[<Literal>]
+let private UpgradeToVersion2 =
+    "ALTER TABLE connectors ADD COLUMN is_shared INTEGER NOT NULL DEFAULT 1;"
+
+/// Spec 002. NULL for every connector that exists today: an OpenID Connect
+/// connector is the only kind with an issuer, and none can predate it. The
+/// unique index follows in `issuerIndex`.
+[<Literal>]
+let private UpgradeToVersion3 = "ALTER TABLE connectors ADD COLUMN issuer_url TEXT NULL;"
+
+/// What takes a database from the version before to the version named. Applied
+/// in order, inside `initializeSchema`'s transaction, to a database stamped
+/// lower than `SchemaVersion`; a fresh database skips them, because `schema`
+/// already builds the newest shape and `initializeSchema` stamps it directly.
+///
+/// Append-only: a step already shipped is never edited, because deployed
+/// instances have run it and will not run it again. The next change adds a
+/// step N+1 here and bumps `SchemaVersion`.
+///
+/// Each step names its SQL as a `[<Literal>]` and sets it on the command
+/// itself, which is the shape MetaTests accepts: SQL is a literal or a literal
+/// constant, never a value that arrived by another route.
+let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
+    [ 2, (fun command -> command.CommandText <- UpgradeToVersion2)
+      3, (fun command -> command.CommandText <- UpgradeToVersion3) ]
 
 let initializeSchema (config: DbConfig) : Task<unit> =
     task {
@@ -154,37 +200,55 @@ let initializeSchema (config: DbConfig) : Task<unit> =
         create.CommandText <- schema
         let! _ = create.ExecuteNonQueryAsync()
 
-        // The stored version decides whether the v1 -> v2 column is added:
-        // SQLite has no `ADD COLUMN IF NOT EXISTS`, and the CREATE TABLE above
-        // is a no-op on a database that already has `connectors`. No row means
-        // a fresh database, which got the column from CREATE TABLE.
+        // The stored version decides which steps run: SQLite has no
+        // `ADD COLUMN IF NOT EXISTS`, and the CREATE TABLE above is a no-op on a
+        // database that already has `connectors`. No row means a fresh
+        // database, which got every column from CREATE TABLE.
         use stored = connection.CreateCommand()
         stored.Transaction <- transaction
         stored.CommandText <- "SELECT value FROM settings WHERE key = 'schema_version'"
-        let! storedVersion = stored.ExecuteScalarAsync()
+        let! storedValue = stored.ExecuteScalarAsync()
 
-        if string storedVersion = "1" then
-            // Every existing connector becomes shared through the default and
-            // no app has a choice row, so every app offers what it offered
-            // before (FR-019). No data is rewritten.
-            use upgrade = connection.CreateCommand()
-            upgrade.Transaction <- transaction
+        let storedVersion =
+            match storedValue with
+            | null -> SchemaVersion
+            | value ->
+                match System.Int32.TryParse(string value) with
+                | true, version -> version
+                | _ -> failwith $"The database's schema version is '{value}', which is not a number. Restore a backup of the data directory."
 
-            upgrade.CommandText <-
-                "ALTER TABLE connectors ADD COLUMN is_shared INTEGER NOT NULL DEFAULT 1;
-                 UPDATE settings SET value = @version, updated_utc = @now WHERE key = 'schema_version';"
+        // Throws before the transaction commits, so nothing of this start is
+        // kept. An older build that read on regardless would write rows a newer
+        // one cannot interpret.
+        if storedVersion > SchemaVersion then
+            failwith (
+                $"This database is at schema version {storedVersion}, but this build of Umbral only understands "
+                + $"up to version {SchemaVersion}. It was written by a newer Umbral. Run the newer image, or restore "
+                + "the backup of the data directory taken before the upgrade."
+            )
 
-            upgrade.Parameters.AddWithValue("@version", string SchemaVersion) |> ignore
-            upgrade.Parameters.AddWithValue("@now", System.DateTimeOffset.UtcNow.ToString "o") |> ignore
-            let! _ = upgrade.ExecuteNonQueryAsync()
-            ()
+        for version, describe in upgradeSteps do
+            if version > storedVersion then
+                use step = connection.CreateCommand()
+                step.Transaction <- transaction
+                describe step
+                let! _ = step.ExecuteNonQueryAsync()
+                ()
+
+        use index = connection.CreateCommand()
+        index.Transaction <- transaction
+        index.CommandText <- issuerIndex
+        let! _ = index.ExecuteNonQueryAsync()
 
         use version = connection.CreateCommand()
         version.Transaction <- transaction
 
+        // A fresh database has no row yet and is stamped here; an upgraded one
+        // has its row moved up. Nothing is written when the version is current.
         version.CommandText <-
             "INSERT INTO settings (key, value, updated_utc) VALUES ('schema_version', @version, @now)
-             ON CONFLICT (key) DO NOTHING"
+             ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_utc = excluded.updated_utc
+             WHERE CAST(settings.value AS INTEGER) < CAST(excluded.value AS INTEGER)"
 
         version.Parameters.AddWithValue("@version", string SchemaVersion) |> ignore
         version.Parameters.AddWithValue("@now", System.DateTimeOffset.UtcNow.ToString "o") |> ignore
