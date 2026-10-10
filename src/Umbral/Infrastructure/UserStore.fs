@@ -200,15 +200,17 @@ let resolve
         | None -> return failwith "The user row vanished between its own commit and read."
     }
 
-/// The providers a user has linked, for the Users screen. Nothing more than the
-/// kinds — the screen shows which providers, never a token or a provider id.
-let linkedKinds (config: Database.DbConfig) (userId: string) : Task<string list> =
+/// The kind and the provider's subject of each account a user has linked, oldest
+/// first. The subject is not shown as it is: for an `oidc` account it carries the
+/// issuer, which the Users screen turns into the connector's name
+/// (`Domains.Connectors.parseOidcSubject`).
+let linkedAccounts (config: Database.DbConfig) (userId: string) : Task<(string * string) list> =
     task {
         use! connection = Database.openConnection config
         use command = connection.CreateCommand()
 
         command.CommandText <-
-            "SELECT provider_kind FROM linked_accounts WHERE user_id = @id ORDER BY linked_utc"
+            "SELECT provider_kind, provider_subject FROM linked_accounts WHERE user_id = @id ORDER BY linked_utc"
 
         command.Parameters.AddWithValue("@id", userId) |> ignore
 
@@ -218,7 +220,19 @@ let linkedKinds (config: Database.DbConfig) (userId: string) : Task<string list>
 
         while go do
             let! hasRow = reader.ReadAsync()
-            if hasRow then results.Add(reader.GetString 0) else go <- false
+
+            if hasRow then
+                results.Add((reader.GetString 0, reader.GetString 1))
+            else
+                go <- false
 
         return List.ofSeq results
+    }
+
+/// The providers a user has linked, for the Users screen. Nothing more than the
+/// kinds — the screen shows which providers, never a token or a provider id.
+let linkedKinds (config: Database.DbConfig) (userId: string) : Task<string list> =
+    task {
+        let! accounts = linkedAccounts config userId
+        return accounts |> List.map fst
     }

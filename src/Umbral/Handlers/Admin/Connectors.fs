@@ -287,11 +287,11 @@ let private card
                         if isLastEnabled then
                             t.ConnectorDeleteLastWarning
                         else
-                            t.ConnectorDeleteConfirm(
-                                match row.Kind, row.Existing with
-                                | Oidc, Some existing -> existing.DisplayName
-                                | kind, _ -> kind.DisplayName
-                            )
+                            match row.Kind, row.Existing with
+                            | Oidc, Some({ IssuerUrl = Some issuer } as existing) ->
+                                t.ConnectorDeleteConfirmOidc existing.DisplayName issuer
+                            | Oidc, Some existing -> t.ConnectorDeleteConfirm existing.DisplayName
+                            | kind, _ -> t.ConnectorDeleteConfirm kind.DisplayName
                     )
                     :> HtmlElement
                 else
@@ -490,12 +490,19 @@ let private view
     (add: AddFormState)
     (notice: string option)
     (strand: StrandWarning option)
+    (explained: string option)
     =
     div(class' = "space-y-6").data("screen", "connectors") {
         Components.pageHeading t.ConnectorsTitle (Some t.ConnectorsLead)
         originBanner ctx t origin
 
         match notice, strand with
+        // A notice that carries what the provider said (`explained`) is a
+        // warning, not a success: the provider was saved disabled, or would not
+        // be enabled.
+        | Some code, None when explained.IsSome ->
+            (div().data("notice", code) { Components.alert Components.Warning explained.Value })
+            :> HtmlElement
         | Some code, Some warning ->
             (div().data("notice", code) {
                 Components.alert Components.Warning (t.Notice code)
@@ -599,6 +606,21 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                     }
                 | _ -> System.Threading.Tasks.Task.FromResult None
 
+            // The OpenID Connect notices that say what the provider answered. The
+            // issuer is read from the stored connector, the reason from the
+            // redirect: it is only ever drawn as escaped text.
+            let explained =
+                match notice, ctx.TryGetQueryValue "slug" |> Option.bind (fun slug -> existing |> List.tryFind (fun c -> c.Slug = slug)) with
+                | Some code, Some { IssuerUrl = Some issuer } ->
+                    let reason = ctx.TryGetQueryValue "reason" |> Option.defaultValue ""
+
+                    match code with
+                    | "connector-added-oidc-unreachable" -> Some(t.ConnectorAddOidcUnreachable issuer reason)
+                    | "connector-enable-oidc-unreachable" -> Some(t.ConnectorEnableOidcUnreachable issuer reason)
+                    | "connector-enable-oidc-wrong" -> Some(t.ConnectorEnableOidcWrong reason)
+                    | _ -> None
+                | _ -> None
+
             return!
                 ctx.WriteHtmlView(
                     view
@@ -612,19 +634,29 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                         add
                         notice
                         strand
+                        explained
                 )
         }
 
 let page: EndpointHandler =
     AdminAuth.requireOperator (fun ctx -> render ctx emptyAddForm)
 
-let private recordEvent (ctx: HttpContext) (kind: SecurityEvents.EventType) (slug: string) =
+let private recordEventWith
+    (ctx: HttpContext)
+    (kind: SecurityEvents.EventType)
+    (slug: string)
+    (detail: string option)
+    =
     SecurityEvents.record
         (ctx.GetService<Database.DbConfig>())
         (ctx.GetService<TimeProvider>())
         { SecurityEvents.event kind SecurityEvents.Success SecurityEvents.Actor.Operator with
             ConnectorSlug = Some slug
+            Detail = detail
             RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string }
+
+let private recordEvent (ctx: HttpContext) (kind: SecurityEvents.EventType) (slug: string) =
+    recordEventWith ctx kind slug None
 
 /// Store a secret under the connector's own slug, returning what the store
 /// keeps: the encoded reference and the hint the screen shows.
@@ -656,16 +688,17 @@ let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
 type private SaveDecision =
     /// Every check passed: save it enabled.
     | SaveEnabled
+    /// The provider could not be reached (FR-005a): save it disabled, and say
+    /// why. Enabling it later runs the check again.
+    | SaveDisabled of reason: string
     /// Refuse, keep the input, and tell the operator why.
     | Refuse of message: string
 
-let private decide (t: Texts.Texts) (issuer: string) (result: OidcDiscovery.DiscoveryResult) =
+let private decide (result: OidcDiscovery.DiscoveryResult) =
     match result with
     | OidcDiscovery.Discovered _ -> SaveEnabled
     | OidcDiscovery.Wrong reason -> Refuse reason
-    // Refused for now: a provider that cannot be reached is saved disabled once
-    // FR-005a lands (specs/002 T029), by returning a `SaveDisabled` here.
-    | OidcDiscovery.Unreachable reason -> Refuse(t.ConnectorAddOidcUnreachable issuer reason)
+    | OidcDiscovery.Unreachable reason -> SaveDisabled reason
 
 /// Add an OpenID Connect provider (specs/002 T023). The checks run in the order
 /// of the form's fields, so the first thing wrong is the first thing the operator
@@ -730,9 +763,14 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
 
         let! checkedProvider = discovery.Check issuer
 
-        match decide t issuer checkedProvider with
+        match decide checkedProvider with
         | Refuse message -> return! refuse "issuer" message
-        | SaveEnabled ->
+        | decision ->
+
+        let enabled, unreachable =
+            match decision with
+            | SaveDisabled reason -> false, Some reason
+            | _ -> true, None
 
         // Only now does the secret reach the store: the slug is free, the issuer
         // is free and the provider answered.
@@ -750,7 +788,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   ClientSecretHint = ""
                   ExtraScopes = []
                   IssuerUrl = Some issuer
-                  IsEnabled = true
+                  IsEnabled = enabled
                   IsShared = state.Shared
                   CreatedUtc = clock.GetUtcNow()
                   UpdatedUtc = clock.GetUtcNow() }
@@ -758,8 +796,26 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
 
         match added with
         | ConnectorStore.Created ->
-            do! recordEvent ctx SecurityEvents.ConnectorCreated state.Slug
-            return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added-oidc"
+            // The reason is what the provider's address did, never a credential;
+            // it is cut short because it also travels in the redirect.
+            let reasonShort = unreachable |> Option.map (WebForms.truncate 300)
+
+            do!
+                recordEventWith
+                    ctx
+                    SecurityEvents.ConnectorCreated
+                    state.Slug
+                    (reasonShort |> Option.map (fun reason -> $"saved_disabled: {reason}"))
+
+            match reasonShort with
+            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added-oidc"
+            | Some reason ->
+                return!
+                    WebForms.redirectWithNoticeAbout
+                        ctx
+                        "/admin/connectors"
+                        "connector-added-oidc-unreachable"
+                        [ "slug", state.Slug; "reason", reason ]
         // Lost a race between the checks above and the insert.
         | ConnectorStore.SlugTaken -> return! refuse "slug" t.ConnectorAddOidcSlugTaken
         | ConnectorStore.IssuerTaken -> return! refuse "issuer" (t.ConnectorAddOidcIssuerTaken issuer)

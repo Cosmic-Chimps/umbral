@@ -148,6 +148,9 @@ type Texts =
       ConnectorDisabledBadge: string
       ConnectorDeleteButton: string
       ConnectorDeleteConfirm: string -> string
+      /// Name, then the issuer: an OpenID Connect provider's people come back only
+      /// when it is added again under the same issuer (FR-017).
+      ConnectorDeleteConfirmOidc: string -> string -> string
       ConnectorDisableConfirm: string -> string
       ConnectorDisableLastWarning: string
       ConnectorDeleteLastWarning: string
@@ -195,8 +198,15 @@ type Texts =
       ConnectorAddOidcSecretRequired: string
       /// The display name of the connector that already holds the issuer.
       ConnectorAddOidcIssuerTaken: string -> string
-      /// Issuer, then the reason it could not be reached.
+      /// Issuer, then the reason it could not be reached: said after the provider
+      /// was saved disabled for that reason (FR-005a).
       ConnectorAddOidcUnreachable: string -> string -> string
+      /// Issuer, then the reason: said when enabling a provider that cannot be
+      /// reached now (Clarification Q2).
+      ConnectorEnableOidcUnreachable: string -> string -> string
+      /// The reason a discovery check refused the provider outright (it
+      /// describes itself wrongly), when the operator tried to enable it.
+      ConnectorEnableOidcWrong: string -> string
 
       // The origin-mismatch banner (D4), naming both origins
       OriginMismatchBanner: string -> string -> string
@@ -389,6 +399,9 @@ let en: Texts =
       ConnectorDeleteConfirm = fun name -> $"Delete the {name} connector? Nobody can sign in with {name} until you add it again, and the saved secret is erased. Their accounts are kept, and adding {name} back returns them to the same account."
       ConnectorDisableConfirm = fun name -> $"Disable {name}? People won't be able to sign in with it until it's enabled again."
       ConnectorDisableLastWarning = "This is the only enabled connector. Disabling it means nobody can sign in anywhere until you enable one again, so enable another first unless you mean to turn sign-in off."
+      ConnectorDeleteConfirmOidc =
+        fun name issuer ->
+            $"Delete the {name} connector? Nobody can sign in with {name} until you add it again, and the saved secret is erased. Their accounts are kept: add it again with the same issuer, {issuer}, and people reconnect to the same account — under a different issuer they would start fresh."
       ConnectorDeleteLastWarning = "This is the only enabled connector. Deleting it means nobody can sign in anywhere until you add one again, and the saved secret is erased. Enable another first unless you mean to turn sign-in off."
       ConnectorSavedNotice = "Connector saved. The new credentials are used on the next sign-in — no restart needed."
       ConnectorDeletedNotice = "Connector deleted."
@@ -437,7 +450,11 @@ let en: Texts =
             $"{name} already uses this issuer, and two connectors for one provider would share every person under two names. Use that one, or delete it first."
       ConnectorAddOidcUnreachable =
         fun issuer reason ->
-            $"Umbral could not reach {issuer}: {reason}. Check the address, and that Umbral can reach your provider, then add it again."
+            $"Umbral could not reach {issuer}: {reason}. The provider was saved but is disabled — enable it once {issuer}/.well-known/openid-configuration opens in a browser."
+      ConnectorEnableOidcUnreachable =
+        fun issuer reason ->
+            $"Umbral could not reach {issuer}: {reason}. It stays disabled — try again once {issuer}/.well-known/openid-configuration opens in a browser."
+      ConnectorEnableOidcWrong = fun reason -> $"Not enabled. {reason}"
       GoogleLimitationNotice = "Google refuses a redirect URI that is a raw IP address or that isn't https (except localhost) — so a typical \"http://192.168.x.x\" homelab address can't be registered with Google at all. Either put Umbral behind a domain name with HTTPS, or skip Google and use Discord or GitHub instead."
 
       OriginMismatchBanner =
@@ -532,6 +549,12 @@ let en: Texts =
                 "OpenID Connect provider added and enabled. Copy its callback URL from its card into your provider's admin area, then people can sign in with it."
             | "connector-added" ->
                 "Connector added. Copy its callback URL into the provider's console, then enable it to offer it."
+            | "connector-added-oidc-unreachable" ->
+                "The provider was saved but is disabled, because Umbral could not reach it. Enable it once its address opens in a browser."
+            | "connector-enable-oidc-unreachable" ->
+                "Not enabled: Umbral could not reach the provider. Try again once its address opens in a browser."
+            | "connector-enable-oidc-wrong" ->
+                "Not enabled: the provider describes itself in a way Umbral cannot use. Check the issuer and the provider's signing settings, then try again."
             | "connector-slug-invalid" ->
                 "The identifier can use only lower-case letters, digits and hyphens, up to 32 characters. Change it and add the connector again."
             | "connector-slug-taken" ->
