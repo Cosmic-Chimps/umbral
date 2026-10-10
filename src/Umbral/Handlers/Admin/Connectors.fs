@@ -88,6 +88,14 @@ let private card
     let slug = row.Slug
     let callbackUrl = (PublicOrigin.callbackUri origin slug).ToString()
     let isConfigured = row.Existing.IsSome
+
+    // What the kind is called where its own name would read wrongly: an OpenID
+    // Connect provider has no name of its own, the operator's label stands in.
+    let providerName =
+        match row.Kind, row.Existing with
+        | Oidc, Some existing -> existing.DisplayName
+        | Oidc, None -> t.ConnectorOidcProviderName
+        | kind, _ -> kind.DisplayName
     let isEnabled = row.Existing |> Option.map (fun c -> c.IsEnabled) |> Option.defaultValue false
     // An empty card is offered as shared, like the add form (FR-014).
     let isShared = row.Existing |> Option.map (fun c -> c.IsShared) |> Option.defaultValue true
@@ -152,7 +160,7 @@ let private card
         // "what is this app?" on a consent screen.
         (div(class' = "um-alert um-alert-info").attr("role", "note").data("naming-advice", "") {
             Components.icon Theme.Info
-            span() { t.ConnectorNamingAdvice row.Kind.DisplayName }
+            span() { t.ConnectorNamingAdvice providerName }
         })
         :> HtmlElement
 
@@ -165,6 +173,21 @@ let private card
             $"callback-{slug}"
             callbackUrl
             (fun input -> input.data("callback-url", "") |> ignore)
+
+        // The issuer is part of everyone's identity (FR-016), so it is shown and
+        // never edited: delete and add again is the only way to change it.
+        match row.Existing |> Option.bind (fun c -> c.IssuerUrl) with
+        | Some issuer ->
+            Components.copyField
+                t.Copy
+                t.Copied
+                t.ConnectorIssuerLabel
+                $"issuer-{slug}"
+                issuer
+                (fun input -> input.data("issuer", "") |> ignore)
+
+            (p(class' = "um-hint").data("issuer-fixed", "") { t.ConnectorIssuerFixedNote }) :> HtmlElement
+        | None -> Fragment() :> HtmlElement
 
         // Shown at the moment the provider is chosen, not buried in a document.
         // Google refuses an IP address or a non-https host outright, which is
@@ -198,7 +221,11 @@ let private card
                 t.ClientIdLabel
                 "clientId"
                 (row.Existing |> Option.map (fun c -> c.ClientId) |> Option.defaultValue "")
-                (Some (t.ProviderConsoleHint row.Kind.DisplayName))
+                (Some(
+                    match row.Kind with
+                    | Oidc -> t.ConnectorOidcClientIdHint
+                    | kind -> t.ProviderConsoleHint kind.DisplayName
+                ))
                 None
 
             match row.Existing with
@@ -260,7 +287,11 @@ let private card
                         if isLastEnabled then
                             t.ConnectorDeleteLastWarning
                         else
-                            t.ConnectorDeleteConfirm row.Kind.DisplayName
+                            t.ConnectorDeleteConfirm(
+                                match row.Kind, row.Existing with
+                                | Oidc, Some existing -> existing.DisplayName
+                                | kind, _ -> kind.DisplayName
+                            )
                     )
                     :> HtmlElement
                 else
@@ -327,16 +358,54 @@ let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWa
             }
     }
 
+/// What the add form shows: empty on a first visit, the operator's own input
+/// after a refusal. For an OpenID Connect provider a refused form is drawn again
+/// with everything kept and the reason under the field it is about (spec FR-005);
+/// the secret is the one thing never drawn again.
+type private AddFormState =
+    { Kind: string
+      Slug: string
+      DisplayName: string
+      Issuer: string
+      ClientId: string
+      Shared: bool
+      /// The field the refusal is about (`slug`, `displayName`, `issuer`,
+      /// `clientId`, `clientSecret`) and what to tell the operator.
+      Problem: (string * string) option }
+
+let private emptyAddForm =
+    { Kind = Discord.Value
+      Slug = ""
+      DisplayName = ""
+      Issuer = ""
+      ClientId = ""
+      Shared = true
+      Problem = None }
+
 /// The add form (FR-012): a connector of a kind with a slug the operator
 /// chooses. Ticked as shared by default, like the first connector of a kind
-/// (FR-014). The kind is a real select: with four options and a label there is
-/// nothing to explain that a radio card would add.
-let private addForm (ctx: HttpContext) (t: Texts.Texts) (kinds: ProviderKind list) =
+/// (FR-014). The kind is a real select: with five options and a label there is
+/// nothing to explain that a radio card would add. It is one plain form, so it
+/// works with no script: the issuer field is always there and says it is for
+/// OpenID Connect only.
+let private addForm (ctx: HttpContext) (t: Texts.Texts) (kinds: ProviderKind list) (state: AddFormState) =
+    let problemAt field =
+        match state.Problem with
+        | Some(at, message) when at = field -> Some message
+        | _ -> None
+
+    let form' =
+        form(method = "post", action = "/admin/connectors", class' = "space-y-4").data("add-connector", "")
+
+    match state.Problem with
+    | Some(field, _) -> form'.data("add-error", field) |> ignore
+    | None -> ()
+
     section(class' = "um-card space-y-4").data("add-connector-section", "") {
         h2(class' = "text-headline-md text-on-surface") { t.ConnectorAddTitle }
         p(class' = "max-w-prose text-body-md text-on-surface-variant") { t.ConnectorAddLead }
 
-        form(method = "post", action = "/admin/connectors", class' = "space-y-4").data("add-connector", "") {
+        form' {
             ctx.GetAntiforgeryInput()
 
             div() {
@@ -344,7 +413,17 @@ let private addForm (ctx: HttpContext) (t: Texts.Texts) (kinds: ProviderKind lis
 
                 select(id = "add-kind", name = "kind", class' = "um-input") {
                     for kind in kinds do
-                        option(value = kind.Value) { kind.DisplayName }
+                        let entry =
+                            option(value = kind.Value) {
+                                match kind with
+                                | Oidc -> t.ConnectorAddOidcOption
+                                | kind -> kind.DisplayName
+                            }
+
+                        if kind.Value = state.Kind then
+                            entry.attr("selected", "selected") |> ignore
+
+                        entry
                 }
             }
 
@@ -354,24 +433,44 @@ let private addForm (ctx: HttpContext) (t: Texts.Texts) (kinds: ProviderKind lis
                 (fun i -> i.attr("required", "required").attr("maxlength", "32").attr("pattern", "[a-z0-9\\-]+") |> ignore)
                 t.ConnectorAddSlugLabel
                 "slug"
-                ""
+                state.Slug
                 (Some t.ConnectorAddSlugHint)
-                None
+                (problemAt "slug")
 
             Components.fieldWith
                 "text"
                 []
-                (fun i -> i.attr("required", "required") |> ignore)
+                (fun i -> i.attr("required", "required").attr("maxlength", "64") |> ignore)
                 t.ConnectorDisplayNameLabel
                 "displayName"
-                ""
+                state.DisplayName
                 (Some t.ConnectorDisplayNameHint)
-                None
+                (problemAt "displayName")
 
-            Components.field t.ClientIdLabel "clientId" "" None None
-            Components.passwordField t.ClientSecretLabel "clientSecret" (Some t.ClientSecretHint) None
+            Components.field
+                t.ConnectorIssuerLabel
+                "issuer"
+                state.Issuer
+                (Some t.ConnectorIssuerHint)
+                (problemAt "issuer")
 
-            sharedBox t true
+            Components.field t.ClientIdLabel "clientId" state.ClientId None (problemAt "clientId")
+
+            Components.passwordField
+                t.ClientSecretLabel
+                "clientSecret"
+                (Some(if state.Problem.IsSome then t.ConnectorOidcSecretAgainHint else t.ClientSecretHint))
+                (problemAt "clientSecret")
+
+            sharedBox t state.Shared
+
+            // FR-009, before the operator submits and not after: what they are
+            // agreeing to by adding a provider.
+            (div(class' = "um-alert um-alert-warning").attr("role", "note").data("email-trust-warning", "") {
+                Components.icon Theme.Warning
+                span() { t.ConnectorEmailTrustWarning }
+            })
+            :> HtmlElement
 
             button(type' = "submit", class' = Components.btn Components.Primary) {
                 Components.icon Theme.CheckCircle
@@ -388,6 +487,7 @@ let private view
     (enabledCount: int)
     (chosenSlugs: Set<string>)
     (addableKinds: ProviderKind list)
+    (add: AddFormState)
     (notice: string option)
     (strand: StrandWarning option)
     =
@@ -410,18 +510,19 @@ let private view
         for row in rows do
             card ctx t origin enabledCount chosenSlugs row
 
-        addForm ctx t addableKinds
+        addForm ctx t addableKinds add
     }
     |> Layout.page ctx t t.ConnectorsTitle
 
-/// The kinds the add form offers: the three real providers, and the fake one
+/// The kinds the add form offers: the three real providers, OpenID Connect (which
+/// has no empty card, it is only ever added here), and the fake one
 /// only where the fake connector is allowed to exist (see `FakeGate`). A fake
 /// connector stored elsewhere would stop the next start.
 let private addableKinds (ctx: HttpContext) =
     if (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed then
-        allKinds @ [ Fake ]
+        allKinds @ [ Oidc; Fake ]
     else
-        allKinds
+        allKinds @ [ Oidc ]
 
 /// Every stored connector gets a card, then an empty card for each kind with
 /// none. Stored ones in the order Discord, GitHub, Google (the two easy wins
@@ -443,8 +544,9 @@ let private rowsFor (existing: Connector list) =
 
     stored @ empty |> List.sortBy (fun row -> kindOrder row.Kind, row.Slug)
 
-let page: EndpointHandler =
-    AdminAuth.requireOperator (fun ctx ->
+/// The screen, with the add form as given. `page` draws it empty; a refused add
+/// draws it again with the operator's input.
+let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tasks.Task =
         task {
             let t = Texts.current ()
             let config = ctx.GetService<Database.DbConfig>()
@@ -507,10 +609,14 @@ let page: EndpointHandler =
                         enabledCount
                         chosenSlugs
                         (addableKinds ctx)
+                        add
                         notice
                         strand
                 )
-        })
+        }
+
+let page: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx -> render ctx emptyAddForm)
 
 let private recordEvent (ctx: HttpContext) (kind: SecurityEvents.EventType) (slug: string) =
     SecurityEvents.record
@@ -528,13 +634,14 @@ let private putSecret (ctx: HttpContext) (slug: string) (plaintext: string) =
         return reference.Encoded, Secrets.hint plaintext
     }
 
-/// Whether this instance may hold a connector of `kind`. The fake kind is
-/// refused where the fake connector is not allowed.
+/// Whether `kind` may be created from the first-connector path, an empty card
+/// posting to its own name. The fake kind is refused where the fake connector is
+/// not allowed.
 ///
-/// `Oidc` is refused outright for now: it is added by issuer, and this handler
-/// has no issuer field yet (specs/002 T022/T023). Until it does, posting
-/// `kind=oidc`, or saving the empty `oidc` card path, must not create an
-/// OpenID Connect connector with no issuer.
+/// `Oidc` is refused here for good: it has no empty card, because a connector of
+/// that kind is nothing without an issuer and the issuer is typed on the add form
+/// (`createOidc`). Posting to `/admin/connectors/oidc` must not create an OpenID
+/// Connect connector with no issuer.
 let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
     match kind with
     | Fake -> (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed
@@ -542,6 +649,121 @@ let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
     | Discord
     | GitHub
     | Google -> true
+
+/// What a discovery check means for saving a new OpenID Connect provider
+/// (research R2, Clarification Q2). One place, so saving it disabled when the
+/// provider is unreachable (FR-005a) is a change to this match and nothing else.
+type private SaveDecision =
+    /// Every check passed: save it enabled.
+    | SaveEnabled
+    /// Refuse, keep the input, and tell the operator why.
+    | Refuse of message: string
+
+let private decide (t: Texts.Texts) (issuer: string) (result: OidcDiscovery.DiscoveryResult) =
+    match result with
+    | OidcDiscovery.Discovered _ -> SaveEnabled
+    | OidcDiscovery.Wrong reason -> Refuse reason
+    // Refused for now: a provider that cannot be reached is saved disabled once
+    // FR-005a lands (specs/002 T029), by returning a `SaveDisabled` here.
+    | OidcDiscovery.Unreachable reason -> Refuse(t.ConnectorAddOidcUnreachable issuer reason)
+
+/// Add an OpenID Connect provider (specs/002 T023). The checks run in the order
+/// of the form's fields, so the first thing wrong is the first thing the operator
+/// sees; the provider is asked about itself last, and nothing is written —
+/// not even the secret — until it has answered.
+///
+/// Unlike every other kind, a refusal draws the form again with the input kept
+/// (spec FR-005) and not a redirect with a notice: five fields typed from a
+/// provider's admin area are not something to ask for twice.
+let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IFormCollection) : System.Threading.Tasks.Task =
+    task {
+        let t = Texts.current ()
+        let config = ctx.GetService<Database.DbConfig>()
+        let clock = ctx.GetService<TimeProvider>()
+        let discovery = ctx.GetService<OidcDiscovery.OidcDiscovery>()
+
+        let state =
+            { Kind = Oidc.Value
+              Slug = WebForms.value form "slug"
+              DisplayName = WebForms.value form "displayName"
+              Issuer = WebForms.value form "issuer"
+              ClientId = WebForms.value form "clientId"
+              Shared = WebForms.checkbox form "shared"
+              Problem = None }
+
+        let refuse (field: string) (message: string) =
+            ctx.SetStatusCode 422
+            render ctx { state with Problem = Some(field, message) }
+
+        let! slugTaken = ConnectorStore.findBySlug config state.Slug
+
+        // A kind's own name is where its empty card posts, so a connector of
+        // another kind under it would be edited as the wrong provider; `oidc`
+        // itself is a kind's name too.
+        let reserved = (parseKind state.Slug).IsSome
+
+        if not (Ids.isValidSlug state.Slug) then
+            return! refuse "slug" t.ConnectorAddOidcSlugInvalid
+        elif slugTaken.IsSome || reserved then
+            return! refuse "slug" t.ConnectorAddOidcSlugTaken
+        elif state.DisplayName = "" || state.DisplayName.Length > 64 then
+            return! refuse "displayName" t.ConnectorAddOidcDisplayNameRequired
+        else
+
+        match discovery.Normalise state.Issuer with
+        | Error error -> return! refuse "issuer" error.Message
+        | Ok issuer ->
+
+        let newSecret = WebForms.optional form "clientSecret"
+
+        if state.ClientId = "" then
+            return! refuse "clientId" t.ConnectorAddOidcClientIdRequired
+        elif newSecret.IsNone then
+            return! refuse "clientSecret" t.ConnectorAddOidcSecretRequired
+        else
+
+        let! holder = ConnectorStore.findByIssuer config issuer
+
+        match holder with
+        | Some other -> return! refuse "issuer" (t.ConnectorAddOidcIssuerTaken other.DisplayName)
+        | None ->
+
+        let! checkedProvider = discovery.Check issuer
+
+        match decide t issuer checkedProvider with
+        | Refuse message -> return! refuse "issuer" message
+        | SaveEnabled ->
+
+        // Only now does the secret reach the store: the slug is free, the issuer
+        // is free and the provider answered.
+        let! secret = putSecret ctx state.Slug newSecret.Value
+
+        let! added =
+            ConnectorStore.create
+                config
+                clock
+                { Slug = state.Slug
+                  Kind = Oidc
+                  DisplayName = state.DisplayName
+                  ClientId = state.ClientId
+                  ClientSecretRef = ""
+                  ClientSecretHint = ""
+                  ExtraScopes = []
+                  IssuerUrl = Some issuer
+                  IsEnabled = true
+                  IsShared = state.Shared
+                  CreatedUtc = clock.GetUtcNow()
+                  UpdatedUtc = clock.GetUtcNow() }
+                secret
+
+        match added with
+        | ConnectorStore.Created ->
+            do! recordEvent ctx SecurityEvents.ConnectorCreated state.Slug
+            return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added-oidc"
+        // Lost a race between the checks above and the insert.
+        | ConnectorStore.SlugTaken -> return! refuse "slug" t.ConnectorAddOidcSlugTaken
+        | ConnectorStore.IssuerTaken -> return! refuse "issuer" (t.ConnectorAddOidcIssuerTaken issuer)
+    }
 
 /// Add a connector of a kind under a slug the operator chose (FR-012).
 let create: EndpointHandler =
@@ -559,6 +781,7 @@ let create: EndpointHandler =
 
             match parseKind (WebForms.value form "kind") with
             | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+            | Some Oidc -> return! createOidc ctx form
             | Some kind when not (mayCreate ctx kind) ->
                 return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
             | Some kind ->

@@ -218,6 +218,11 @@ type OidcDiscovery(client: HttpClient, allowLocalhostHttp: bool, timeout: TimeSp
     new(client: HttpClient, allowLocalhostHttp: bool) =
         OidcDiscovery(client, allowLocalhostHttp, defaultTimeout, TimeProvider.System)
 
+    /// The one spelling of an issuer this instance stores and compares: the
+    /// rule of `normaliseIssuer` with this instance's plain-http setting, so the
+    /// admin form and the cache cannot disagree about which addresses are allowed.
+    member _.Normalise(issuer: string) : Result<string, IssuerError> = normaliseIssuer allowLocalhostHttp issuer
+
     /// Ask the provider about itself, or the cache when it already has. Used by
     /// the admin save, the enable toggle, sign-in and the token exchange.
     ///

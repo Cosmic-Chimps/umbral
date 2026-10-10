@@ -514,8 +514,20 @@ type ExportedApp =
 /// PBKDF2-hashed by OpenIddict on write, so there is nothing to export. What
 /// the file carries instead is a reference to where the operator keeps it, and
 /// the file says so where someone will read it rather than discover it.
+///
+/// OpenID Connect providers are left out, and the file says so. The file cannot
+/// declare one yet (`kind: oidc` is refused by `ConfigDocument` until the issuer
+/// field exists, specs/002 Phase 5), so writing one would make an export that its
+/// own import rejects. They are configured in the admin area only for now. An
+/// app's chosen set loses their slugs for the same reason — a slug the file does
+/// not define fails validation — and the app says which, in a comment, so
+/// re-applying the file is not mistaken for a copy of the instance.
 let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
     let lines = ResizeArray<string>()
+
+    let isOidc (c: Connectors.Connector) = c.Kind = Connectors.Oidc
+    let omitted = connectors |> List.filter isOidc |> List.map _.Slug |> Set.ofList
+    let connectors = connectors |> List.filter (isOidc >> not)
 
     lines.Add "# Umbral configuration."
     lines.Add "#"
@@ -527,6 +539,12 @@ let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
     lines.Add "# the secret that app already uses (at least 16 characters) and Umbral will"
     lines.Add "# store its hash when this file is applied. An app without a client_secret is"
     lines.Add "# a public client (single-page or native) and has none."
+
+    if not omitted.IsEmpty then
+        lines.Add "#"
+        lines.Add "# OpenID Connect providers are configured in the admin area only for now, so"
+        lines.Add "# they are not in this file and applying it leaves them as they are."
+
     lines.Add ""
     lines.Add $"version: {SupportedVersion}"
     lines.Add ""
@@ -582,14 +600,26 @@ let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
                     lines.Add $"      - {uri}"
 
             // A chosen set, `[]` included: an empty set is not "all shared",
-            // so it has to survive the round trip (FR-017).
+            // so it has to survive the round trip (FR-017). Slugs of providers
+            // the file cannot declare are dropped, and named in a comment; a set
+            // left empty by that stays `[]`, never "all shared", so re-applying
+            // fails closed rather than offering the app connectors it never chose.
+            let kept, dropped =
+                match app.Choice with
+                | Connectors.AllShared -> Set.empty, Set.empty
+                | Connectors.Only slugs -> Set.difference slugs omitted, Set.intersect slugs omitted
+
+            if not dropped.IsEmpty then
+                let names = dropped |> Set.toList |> String.concat ", "
+                lines.Add $"    # Also offers, chosen in the admin area only: {names}"
+
             match app.Choice with
             | Connectors.AllShared -> ()
-            | Connectors.Only slugs when slugs.IsEmpty -> lines.Add "    connectors: []"
-            | Connectors.Only slugs ->
+            | Connectors.Only _ when kept.IsEmpty -> lines.Add "    connectors: []"
+            | Connectors.Only _ ->
                 lines.Add "    connectors:"
 
-                for slug in slugs do
+                for slug in kept do
                     lines.Add $"      - {slug}"
 
     String.concat Environment.NewLine lines + Environment.NewLine

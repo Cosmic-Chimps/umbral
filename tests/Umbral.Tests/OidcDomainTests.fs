@@ -1,7 +1,8 @@
 /// The pure rules of the OpenID Connect connector (specs/002): the kind, the
 /// issuer's one spelling, and the identity key `<issuer>#<sub>`. No network and
-/// no database; the few tests that go through the admin screen only pin what is
-/// hidden or refused until the screen learns about the kind.
+/// no database; the few tests that go through the admin screen pin how the kind
+/// may and may not be created from it (the add form with an issuer, never an
+/// empty card).
 module Umbral.Tests.OidcDomainTests
 
 open System
@@ -177,9 +178,9 @@ let ``an issuer spelled two ways is one identity once normalised`` () =
     Assert.Equal(subject "https://auth.example.com/o/", subject "https://AUTH.example.com/o")
 
 // ---------------------------------------------------------------------------
-// Through the admin screen. The add form does not offer `oidc` yet (Phase 3),
-// so these pin that it cannot be created by a hand-made post either; when the
-// form learns the kind (T022, T023) the first two change with it.
+// Through the admin screen. The add form offers `oidc` with an issuer field
+// (T022, T023); these pin what stays true: another kind cannot take its name,
+// a post without an issuer creates nothing, and it has no empty card.
 // ---------------------------------------------------------------------------
 
 let private instance () =
@@ -214,13 +215,19 @@ let ``oidc cannot be the slug of a connector of another kind`` () =
     }
 
 [<Fact>]
-let ``a hand-made post for an oidc connector creates nothing until the form carries an issuer`` () =
+let ``a hand-made post for an oidc connector without an issuer creates nothing`` () =
     task {
         let! app, operator = instance ()
         use _ = app
 
+        // The form carries no `issuer` field at all, as a script written before
+        // the field existed would post it.
         let! refused = operator.PostForm("/admin/connectors", "/admin/connectors", fields "oidc" "home")
-        Assert.Contains("connector-unknown", location refused)
+
+        // Drawn again with the reason, not stored.
+        Assert.Equal(enum<System.Net.HttpStatusCode> 422, refused.StatusCode)
+        let! html = refused.Content.ReadAsStringAsync()
+        Assert.Contains("Enter the issuer URL", html)
 
         let! stored = ConnectorStore.findBySlug app.DbConfig "home"
         Assert.True stored.IsNone
@@ -246,12 +253,13 @@ let ``the oidc name is not an empty card that saves an issuer-less connector`` (
     }
 
 [<Fact>]
-let ``the add form does not offer oidc yet`` () =
+let ``the add form offers oidc as a kind but the screen has no empty oidc card`` () =
     task {
         let! app, operator = instance ()
         use _ = app
 
         let! screen = operator.GetHtml "/admin/connectors"
-        Assert.DoesNotContain("value=\"oidc\"", screen)
+        Assert.Contains("value=\"oidc\"", screen)
+        Assert.Contains("name=\"issuer\"", screen)
         Assert.DoesNotContain("data-connector-kind=\"oidc\"", screen)
     }

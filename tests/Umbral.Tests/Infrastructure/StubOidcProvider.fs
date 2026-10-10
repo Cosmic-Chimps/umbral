@@ -202,6 +202,10 @@ type StubOidcProvider(issuer: string) =
 
     member _.LastTokenRequest = lastToken
 
+    /// The `id_token` the token endpoint last handed out, for a test that
+    /// searches the logs for it.
+    member val LastIdToken: string option = None with get, set
+
     /// Every request received, as `METHOD /path`, oldest first.
     member _.Requests = requests |> Seq.toList
 
@@ -353,7 +357,9 @@ type StubOidcProvider(issuer: string) =
             response["expires_in"] <- JsonValue.Create 3600
 
             if not this.OmitIdToken then
-                response["id_token"] <- node (this.MintIdToken(this.IdToken, clientId, issued.Nonce))
+                let idToken = this.MintIdToken(this.IdToken, clientId, issued.Nonce)
+                this.LastIdToken <- Some idToken
+                response["id_token"] <- node idToken
 
             return json HttpStatusCode.OK (response.ToJsonString())
         }
