@@ -219,7 +219,10 @@ type Icon =
 
 let iconNames =
     Reflection.FSharpType.GetUnionCases typeof<Icon>
-    |> Array.map (fun case -> (Reflection.FSharpValue.MakeUnion(case, [||]) :?> Icon).Name)
+    |> Array.map (fun case ->
+        match Reflection.FSharpValue.MakeUnion(case, [||]) with
+        | :? Icon as i -> i.Name
+        | _ -> failwith "unreachable: MakeUnion on Icon's own cases always yields an Icon")
     |> List.ofArray
 
 let fontStylesheets =

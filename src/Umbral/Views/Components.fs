@@ -201,14 +201,27 @@ let emptyState (i: Icon) (title: string) (body: string) (action: HtmlElement opt
         | None -> Fragment() :> HtmlElement
     }
 
-let private jsStringLiteral (s: string) = "'" + s.Replace("\\", "\\\\").Replace("'", "\\'") + "'"
+/// A JavaScript single-quoted string literal. Newlines matter as much as
+/// quotes here: a raw newline inside a JS string is a syntax error, and these
+/// messages interpolate operator-supplied names (an app called "Grafana\nProd"
+/// is unlikely but costs nothing to survive). A broken handler fails open — the
+/// form submits without confirming — which is the wrong direction for a
+/// destructive action.
+let private jsStringLiteral (s: string) =
+    "'"
+    + s
+        .Replace("\\", "\\\\")
+        .Replace("'", "\\'")
+        .Replace("\r", "\\r")
+        .Replace("\n", "\\n")
+    + "'"
 
 /// Wires a native `confirm()` dialog onto a destructive form, naming what
 /// breaks (contract: "destructive actions confirm, and the confirmation
 /// names what breaks"). Works identically with and without JavaScript
 /// disabled further up the stack — if JS is off, the confirm is skipped and
 /// the POST goes through as normal, same as every other form here (D11).
-let confirmSubmit (message: string) (formEl: HtmlElement) =
+let confirmSubmit (message: string) (formEl: form) =
     formEl.attr("onsubmit", $"return confirm({jsStringLiteral message})")
 
 /// Wires `navigator.clipboard` onto every `[data-copy-trigger]` button,

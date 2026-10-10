@@ -77,9 +77,9 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 
 ### Views
 
-- [ ] T027 [P] Create `src/Umbral/Views/Texts.fs` — a single record type holding **every** user-facing string. No literal text in any view, ever. English only, but the record stays so SC-010 is auditable by reading one file.
-- [ ] T028 [P] Create `src/Umbral/Views/Theme.fs` — colour, type and radius tokens as F# data that generate both the CSS custom properties and the Tailwind CDN config, plus a closed `Icon` union used to subset the icon font. No npm, no bundler, no `wwwroot`.
-- [ ] T029 Create `src/Umbral/Views/Components.fs` and `src/Umbral/Views/Layout.fs` — `Layout.page ctx t title content`, `Layout.messagePage`, and the shared card/button/field/pill components. Compile order is `Texts → Theme → Components → Layout`.
+- [x] T027 [P] Create `src/Umbral/Views/Texts.fs` — a single record type holding **every** user-facing string. No literal text in any view, ever. English only, but the record stays so SC-010 is auditable by reading one file.
+- [x] T028 [P] Create `src/Umbral/Views/Theme.fs` — colour, type and radius tokens as F# data that generate both the CSS custom properties and the Tailwind CDN config, plus a closed `Icon` union used to subset the icon font. No npm, no bundler, no `wwwroot`.
+- [x] T029 Create `src/Umbral/Views/Components.fs` and `src/Umbral/Views/Layout.fs` — `Layout.page ctx t title content`, `Layout.messagePage`, and the shared card/button/field/pill components. Compile order is `Texts → Theme → Components → Layout`.
 
 **Checkpoint**: the app boots, `/healthz` answers, keys persist, schema initialises. User stories can start.
 

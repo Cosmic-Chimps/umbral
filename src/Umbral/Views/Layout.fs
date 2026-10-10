@@ -17,8 +17,8 @@ open Umbral.Views.Theme
 /// already behind `requireOperator` by the time a handler calls this, and the
 /// unauthenticated screens (setup, sign-in, the end-user picker) render their
 /// own narrow content and simply don't link into it.
-let private nav (ctx: HttpContext) (t: Texts) =
-    Oxpecker.ViewEngine.nav(class' = "flex items-center gap-1 sm:gap-2") {
+let private navLinks (ctx: HttpContext) (t: Texts) =
+    nav(class' = "flex items-center gap-1 sm:gap-2") {
         a(href = "/admin/apps", class' = Components.btnSm Components.Ghost) { t.NavApps }
         a(href = "/admin/connectors", class' = Components.btnSm Components.Ghost) { t.NavConnectors }
         a(href = "/admin/users", class' = Components.btnSm Components.Ghost) { t.NavUsers }
@@ -62,9 +62,9 @@ let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement
             }
 
             header(class' = "sticky top-0 z-50 border-b border-outline-variant/40 bg-surface/90 backdrop-blur-md") {
-                Oxpecker.ViewEngine.nav(class' = "mx-auto flex h-16 max-w-page items-center justify-between gap-4 px-4 md:px-8") {
+                nav(class' = "mx-auto flex h-16 max-w-page items-center justify-between gap-4 px-4 md:px-8") {
                     Components.brand t.SiteName
-                    nav ctx t
+                    navLinks ctx t
                 }
             }
 
