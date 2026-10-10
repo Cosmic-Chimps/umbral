@@ -215,16 +215,16 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 - [ ] T091 Enable token-endpoint passthrough and create `src/Umbral/Handlers/Connect/Token.fs`, re-checking `is_enabled` on refresh. Rebuild the identity **from `result.Principal.Claims`** so the private `oi_*` claims carrying scopes, resources and authorization id survive, and **call `SetDestinations` again** — the destinations do not re-apply themselves.
 - [ ] T092 [P] Emit a security event for every type listed in [data-model.md](./data-model.md), at every site that causes one.
 - [ ] T093 [P] Write `tests/Umbral.Tests/LogRedactionTests.fs` asserting no secret, token or authorization code reaches any log sink.
-- [ ] T094 [P] Add rate limiting on sign-in and admin authentication (FR-038) with `configureEndpoint _.RequireRateLimiting(...)`, and a test that the limit engages.
+- [x] T094 [P] Add rate limiting on sign-in and admin authentication (FR-038) with `configureEndpoint _.RequireRateLimiting(...)`, and a test that the limit engages.
 - [ ] T095 [P] Write `tests/Umbral.Tests/CsrfTests.fs` asserting every state-changing admin route rejects a request with no antiforgery token and changes nothing.
 - [ ] T096 Write `tests/Umbral.Tests/RestartTests.fs` (SC-005): a restart leaves signed-in people signed in and previously issued tokens valid.
 - [ ] T097 [P] Write `tests/Umbral.Tests/IdleMemoryTests.fs` or a CI step asserting idle RSS stays under 150 MB (SC-007). Set `DOTNET_gcServer=0`.
-- [ ] T098 Create the multi-arch `Dockerfile` on `mcr.microsoft.com/dotnet/aspnet:10.0` for `linux/amd64` and `linux/arm64`, declaring `/data` as a volume **and saying in a comment that losing it means re-entering every secret**. Not Alpine: musl adds an RID dimension to SQLite's native asset, and a missing `e_sqlite3.so` is a classic ARM failure.
-- [ ] T099 [P] Add a `docker-compose.yml` example with a reverse proxy, showing `UMBRAL__PUBLIC_ORIGIN` set correctly.
-- [ ] T100 Write `README.md` taking a reader from nothing to a working login **without leaving the page** (FR-040), including the `/data` backup requirement.
-- [ ] T101 [P] Write `docs/connectors/discord.md`, `docs/connectors/github.md` and `docs/connectors/google.md` (FR-039): where to create the upstream OAuth app, which redirect URI to register, which scopes to request. The Google page carries the raw-IP limitation prominently.
-- [ ] T102 Write `tests/Umbral.Tests/MetaTests.fs`: **every handler module's `endpoint` appears in `Program.endpoints`** (the silent-404 trap); no committed settings file holds a non-empty secret; SQL text is literal with no interpolated values.
-- [ ] T103 Review every operator-facing string in `src/Umbral/Views/Texts.fs` against SC-010 — each must name the next action, not only what went wrong.
+- [x] T098 Create the multi-arch `Dockerfile` on `mcr.microsoft.com/dotnet/aspnet:10.0` for `linux/amd64` and `linux/arm64`, declaring `/data` as a volume **and saying in a comment that losing it means re-entering every secret**. Not Alpine: musl adds an RID dimension to SQLite's native asset, and a missing `e_sqlite3.so` is a classic ARM failure.
+- [x] T099 [P] Add a `docker-compose.yml` example with a reverse proxy, showing `UMBRAL__PUBLIC_ORIGIN` set correctly.
+- [x] T100 Write `README.md` taking a reader from nothing to a working login **without leaving the page** (FR-040), including the `/data` backup requirement.
+- [x] T101 [P] Write `docs/connectors/discord.md`, `docs/connectors/github.md` and `docs/connectors/google.md` (FR-039): where to create the upstream OAuth app, which redirect URI to register, which scopes to request. The Google page carries the raw-IP limitation prominently.
+- [x] T102 Write `tests/Umbral.Tests/MetaTests.fs`: **every handler module's `endpoint` appears in `Program.endpoints`** (the silent-404 trap); no committed settings file holds a non-empty secret; SQL text is literal with no interpolated values.
+- [x] T103 Review every operator-facing string in `src/Umbral/Views/Texts.fs` against SC-010 — each must name the next action, not only what went wrong.
 - [ ] T104 **A real third-party app has now completed a login (FrunchyBackend, 2026-10-10), so SC-002 is evidenced.** What remains here is the provider side. **Capture the provider fixtures from real calls and diff them against the authored ones** — the committed fixtures match each provider's documented shape but were never captured live, so they encode our belief and cannot catch a wrong belief. Then run the [quickstart.md](./quickstart.md) scenarios end to end against a real container, **with a timer on Scenario 1**, and record the measured time against SC-001.
 
 ---
