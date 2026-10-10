@@ -209,6 +209,19 @@ let handler: EndpointHandler =
                     // authorization, not against the cookie, so disabling takes
                     // effect at the next sign-in rather than at cookie expiry.
                     do! Sessions.signOut ctx
+
+                    // Refused here as well as at the callback, so it is recorded
+                    // here as well: this is the sign-in that was turned away.
+                    do!
+                        SecurityEvents.record
+                            (ctx.GetService<Database.DbConfig>())
+                            (ctx.GetService<TimeProvider>())
+                            { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
+                                UserId = Some u.Id
+                                ClientId = Option.ofObj request.ClientId
+                                RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+                                Detail = Some "user_disabled" }
+
                     return! forbid ctx Errors.AccessDenied "This account has been disabled."
 
                 | Some u ->

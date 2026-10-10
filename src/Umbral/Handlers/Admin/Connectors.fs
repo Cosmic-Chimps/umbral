@@ -50,11 +50,24 @@ type private Row =
         | Some c -> c.Slug
         | None -> this.Kind.Value
 
-let private card (ctx: HttpContext) (t: Texts.Texts) (origin: PublicOrigin.PublicOrigin) (row: Row) =
+let private card
+    (ctx: HttpContext)
+    (t: Texts.Texts)
+    (origin: PublicOrigin.PublicOrigin)
+    (enabledCount: int)
+    (row: Row)
+    =
     let slug = row.Slug
     let callbackUrl = (PublicOrigin.callbackUri origin slug).ToString()
     let isConfigured = row.Existing.IsSome
     let isEnabled = row.Existing |> Option.map (fun c -> c.IsEnabled) |> Option.defaultValue false
+
+    // FR-023: the one enabled connector is the one whose removal closes the
+    // door. The screen knows that when it draws the buttons, so it can ask for
+    // the stronger confirmation and set the flag the handlers wait for —
+    // without it the warning redirect would have no way to be answered.
+    let isLastEnabled = isEnabled && enabledCount = 1
+    let confirmed (path: string) = if isLastEnabled then path + "?confirm=yes" else path
 
     article(class' = "um-card space-y-4")
         .data("connector", slug)
@@ -127,17 +140,40 @@ let private card (ctx: HttpContext) (t: Texts.Texts) (origin: PublicOrigin.Publi
 
                 if isConfigured then
                     // htmx intercepts this; it is a real form either way (D11).
-                    (form(method = "post", action = $"/admin/connectors/{slug}/toggle", class' = "inline") {
+                    (form(method = "post", action = confirmed $"/admin/connectors/{slug}/toggle", class' = "inline") {
                         ctx.GetAntiforgeryInput()
 
                         button(type' = "submit", class' = Components.btnSm Components.Ghost)
-                            .attr("hx-post", $"/admin/connectors/{slug}/toggle")
+                            .attr("hx-post", confirmed $"/admin/connectors/{slug}/toggle")
                             .attr("hx-target", "closest article")
                             .attr("hx-swap", "outerHTML") {
                             Components.icon Theme.Power
                             if isEnabled then t.Disable else t.Enable
                         }
                     })
+                    |> (if isLastEnabled then
+                            Components.confirmSubmit t.ConnectorDisableLastWarning
+                        else
+                            id)
+                    :> HtmlElement
+                else
+                    Fragment() :> HtmlElement
+
+                if isConfigured then
+                    (form(method = "post", action = confirmed $"/admin/connectors/{slug}/delete", class' = "inline") {
+                        ctx.GetAntiforgeryInput()
+
+                        button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                            Components.icon Theme.DeleteForever
+                            t.ConnectorDeleteButton
+                        }
+                    })
+                    |> Components.confirmSubmit (
+                        if isLastEnabled then
+                            t.ConnectorDeleteLastWarning
+                        else
+                            t.ConnectorDeleteConfirm row.Kind.DisplayName
+                    )
                     :> HtmlElement
                 else
                     Fragment() :> HtmlElement
@@ -149,7 +185,7 @@ let private card (ctx: HttpContext) (t: Texts.Texts) (origin: PublicOrigin.Publi
 // Screen
 // ---------------------------------------------------------------------------
 
-let private view ctx (t: Texts.Texts) origin (rows: Row list) (notice: string option) =
+let private view ctx (t: Texts.Texts) origin (rows: Row list) (enabledCount: int) (notice: string option) =
     div(class' = "space-y-6").data("screen", "connectors") {
         Components.pageHeading t.ConnectorsTitle (Some t.ConnectorsLead)
         originBanner ctx t origin
@@ -161,7 +197,7 @@ let private view ctx (t: Texts.Texts) origin (rows: Row list) (notice: string op
         | None -> Fragment() :> HtmlElement
 
         for row in rows do
-            card ctx t origin row
+            card ctx t origin enabledCount row
     }
     |> Layout.page ctx t t.ConnectorsTitle
 
@@ -181,8 +217,13 @@ let page: EndpointHandler =
                     { Kind = kind
                       Existing = existing |> List.tryFind (fun c -> c.Kind = kind) })
 
+            // Counted over every stored connector, not over the cards: a fake
+            // one has no card but still keeps the door open, and the handlers
+            // count it the same way.
+            let enabledCount = existing |> List.filter (fun c -> c.IsEnabled) |> List.length
+
             let notice = ctx.TryGetQueryValue "msg"
-            return! ctx.WriteHtmlView(view ctx t (ctx.GetService<PublicOrigin.PublicOrigin>()) rows notice)
+            return! ctx.WriteHtmlView(view ctx t (ctx.GetService<PublicOrigin.PublicOrigin>()) rows enabledCount notice)
         })
 
 let save (slug: string) : EndpointHandler =

@@ -134,6 +134,13 @@ A configured upstream provider.
 | `is_enabled` | INTEGER NOT NULL DEFAULT 1 | |
 | `created_utc` / `updated_utc` | TEXT NOT NULL | |
 
+**Deleting a connector** removes the row and the secret it holds, and nothing
+else. `linked_accounts` has no foreign key to `connectors` — a link is keyed on
+`provider_kind` and the provider's subject — so users, links, sessions and
+tokens are untouched; only *new* sign-ins through it stop. Adding a connector of
+the same kind back returns the same people to the same `sub`. Deleting the last
+enabled connector asks first (FR-023).
+
 **Deliberately absent**: `authorization_url`, `token_url`, `userinfo_url`, claim
 mapping. Those are properties of the *kind*, compiled into F#. authentik and Ory
 make them editable because they support a hundred providers; Umbral supports

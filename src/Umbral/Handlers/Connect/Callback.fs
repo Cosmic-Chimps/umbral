@@ -32,14 +32,19 @@ let handler (slug: string) : EndpointHandler =
             let clock = ctx.GetService<TimeProvider>()
             let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
 
-            let record outcome eventType detail =
+            // `userId` is None until the callback has worked out WHO this is;
+            // every failure before that point genuinely has no user to name.
+            let recordFor userId outcome eventType detail =
                 record
                     config
                     clock
                     { event eventType outcome Actor.User with
+                        UserId = userId
                         ConnectorSlug = Some slug
                         RemoteIp = remoteIp
                         Detail = detail }
+
+            let record = recordFor None
 
             // Validates state, checks the slug and expiry, and DELETES the
             // correlation cookie before any of it — so a replayed callback
@@ -130,37 +135,27 @@ let handler (slug: string) : EndpointHandler =
 
             let! resolution = UserStore.resolve config clock connector.Kind profile
 
-            do!
-                record
-                    Success
-                    (match resolution.Decision with
-                     | Umbral.Domains.Linking.CreateNew -> UserCreated
-                     | Umbral.Domains.Linking.LinkToExisting _ -> UserLinked
-                     | Umbral.Domains.Linking.ExistingLink _ -> SignInSucceeded)
-                    None
+            let userId = Some resolution.User.Id
+
+            // A first sign-in or a new link is a change in its own right and is
+            // recorded as one. An ordinary return visit is not: it is only the
+            // sign-in, recorded below once it has actually succeeded — never
+            // here, where a disabled user would still be logged as a success.
+            match resolution.Decision with
+            | Umbral.Domains.Linking.CreateNew -> do! recordFor userId Success UserCreated None
+            | Umbral.Domains.Linking.LinkToExisting _ -> do! recordFor userId Success UserLinked None
+            | Umbral.Domains.Linking.ExistingLink _ -> ()
 
             if not resolution.User.IsEnabled then
                 // FR-022. Checked here as well as at the authorize endpoint, so
                 // a disabled user cannot even establish the session.
-                do!
-                    record
-                        Failure
-                        SignInFailed
-                        (Some "user_disabled")
+                do! recordFor userId Failure SignInFailed (Some "user_disabled")
 
                 return fail ctx "account-disabled"
             else
 
             do! Sessions.signIn ctx resolution.User.Id connector.Slug
-
-            do!
-                SecurityEvents.record
-                    config
-                    clock
-                    { event SignInSucceeded Success Actor.User with
-                        UserId = Some resolution.User.Id
-                        ConnectorSlug = Some slug
-                        RemoteIp = remoteIp }
+            do! recordFor userId Success SignInSucceeded None
 
             // Back to the authorization request this all started for, replayed
             // byte for byte so OpenIddict sees exactly what the app sent.

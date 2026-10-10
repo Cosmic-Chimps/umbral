@@ -34,6 +34,7 @@ let endpoints: Endpoint list =
       Umbral.Handlers.Admin.SignOut.endpoint
       yield! Umbral.Handlers.Admin.Connectors.endpoint
       Umbral.Handlers.Admin.ConnectorToggle.endpoint
+      Umbral.Handlers.Admin.ConnectorDelete.endpoint
       Umbral.Handlers.Admin.ConfigExport.endpoint
       yield! Umbral.Handlers.Dev.FakeProvider.endpoint
       yield! Umbral.Handlers.Admin.Apps.endpoint
