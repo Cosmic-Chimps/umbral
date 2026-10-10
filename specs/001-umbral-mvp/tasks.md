@@ -203,10 +203,10 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 
 **Independent test**: Export a configured instance, start a clean one from that file plus its environment, and confirm apps and connectors are identical with no admin UI interaction.
 
-- [ ] T087 [US5] Create `src/Umbral/Domains/ConfigDocument.fs` — the YAML document types and **whole-document** validation per [contracts/admin-and-config.md](./contracts/admin-and-config.md). Each error names the offending entry and the fix. **A literal secret is an error, not a warning**: that rule is what keeps a secret out of the operator's git repository, and a warning would be ignored.
-- [ ] T088 [US5] Create `src/Umbral/Infrastructure/ConfigFile.fs` — load from `UMBRAL__CONFIG_FILE` or `/data/umbral.yaml`, resolve `${VAR}` references from the environment, and apply idempotently keyed on `slug` and `client_id`. Validate everything before writing anything, so a bad file never half-applies.
+- [x] T087 [US5] Create `src/Umbral/Domains/ConfigDocument.fs` — the YAML document types and **whole-document** validation per [contracts/admin-and-config.md](./contracts/admin-and-config.md). Each error names the offending entry and the fix. **A literal secret is an error, not a warning**: that rule is what keeps a secret out of the operator's git repository, and a warning would be ignored.
+- [x] T088 [US5] Create `src/Umbral/Infrastructure/ConfigFile.fs` — load from `UMBRAL__CONFIG_FILE` or `/data/umbral.yaml`, resolve `${VAR}` references from the environment, and apply idempotently keyed on `slug` and `client_id`. Validate everything before writing anything, so a bad file never half-applies.
 - [ ] T089 [US5] Create `src/Umbral/Handlers/Admin/ConfigExport.fs` (`GET /admin/config`) emitting exactly the accepted format with `${UMBRAL_<SLUG>_SECRET}` placeholders, plus a comment stating that **app secrets cannot be exported** — OpenIddict hashes them — so an imported app gets a fresh secret. That asymmetry is forced, and must be documented rather than discovered.
-- [ ] T090 [US5] Write `tests/Umbral.Tests/ConfigFileTests.fs`: apply twice changes nothing and creates no duplicates; a literal secret fails validation; a missing environment variable fails naming the variable; a malformed document fails with **nothing partly applied**; export → import round-trips; a UI change appears in a later export.
+- [x] T090 [US5] Write `tests/Umbral.Tests/ConfigFileTests.fs`: apply twice changes nothing and creates no duplicates; a literal secret fails validation; a missing environment variable fails naming the variable; a malformed document fails with **nothing partly applied**; export → import round-trips; a UI change appears in a later export.
 
 ---
 

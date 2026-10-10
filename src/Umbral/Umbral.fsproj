@@ -36,6 +36,7 @@
     <Compile Include="Domains/Ids.fs" />
     <Compile Include="Domains/Connectors.fs" />
     <Compile Include="Domains/Linking.fs" />
+    <Compile Include="Domains/ConfigDocument.fs" />
     <Compile Include="Infrastructure/PublicOrigin.fs" />
     <Compile Include="Infrastructure/DataDirectory.fs" />
     <Compile Include="Infrastructure/Keys.fs" />
@@ -51,6 +52,7 @@
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
+    <Compile Include="Infrastructure/ConfigFile.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
     <Compile Include="Infrastructure/WebForms.fs" />
     <Compile Include="Infrastructure/Sessions.fs" />

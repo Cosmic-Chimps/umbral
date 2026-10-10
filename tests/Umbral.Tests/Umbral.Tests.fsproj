@@ -24,6 +24,7 @@
     <Compile Include="AdminScreenTests.fs" />
     <Compile Include="FakeConnectorGuardTests.fs" />
     <Compile Include="FirstLoginTests.fs" />
+    <Compile Include="ConfigFileTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 
