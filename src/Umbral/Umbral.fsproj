@@ -66,6 +66,7 @@
     <Compile Include="Handlers/Admin/SignOut.fs" />
     <Compile Include="Handlers/Admin/Connectors.fs" />
     <Compile Include="Handlers/Admin/ConnectorToggle.fs" />
+    <Compile Include="Handlers/Admin/ConfigExport.fs" />
     <Compile Include="Handlers/Dev/FakeProvider.fs" />
     <Compile Include="Handlers/Admin/Apps.fs" />
     <Compile Include="Handlers/Admin/AppSecret.fs" />

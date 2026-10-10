@@ -178,9 +178,9 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 - [x] T077 [P] [US3] Create `src/Umbral/Handlers/Admin/ConnectorDelete.fs` with confirmation.
 - [x] T078 [US3] Make the Connectors screen show a saved secret **masked to its last four characters with a Replace action only** — never Edit, never a reveal (FR-033). There is nothing to edit from.
 - [x] T079 [US3] Warn before an action that would leave no enabled connector (FR-023): nobody could sign in anywhere.
-- [ ] T080 [US3] Map `ConnectorError` to end-user messages that say to contact the operator and disclose nothing technical, while recording the underlying cause as a security event (FR-037).
-- [ ] T081 [US3] Write `tests/Umbral.Tests/ConnectorRuntimeTests.fs`: disabling removes the button on the very next picker load; replacing the secret changes the next token exchange; **neither restarts the process nor drops an existing session**; a saved secret is never present in any response body.
-- [ ] T082 [P] [US3] Write `tests/Umbral.Tests/HtmxFallbackTests.fs` asserting every htmx-enhanced action works identically with the `HX-Request` header absent.
+- [x] T080 [US3] Map `ConnectorError` to end-user messages that say to contact the operator and disclose nothing technical, while recording the underlying cause as a security event (FR-037).
+- [x] T081 [US3] Write `tests/Umbral.Tests/ConnectorRuntimeTests.fs`: disabling removes the button on the very next picker load; replacing the secret changes the next token exchange; **neither restarts the process nor drops an existing session**; a saved secret is never present in any response body.
+- [x] T082 [P] [US3] Write `tests/Umbral.Tests/HtmxFallbackTests.fs` asserting every htmx-enhanced action works identically with the `HX-Request` header absent.
 
 ---
 
@@ -205,7 +205,7 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 
 - [x] T087 [US5] Create `src/Umbral/Domains/ConfigDocument.fs` — the YAML document types and **whole-document** validation per [contracts/admin-and-config.md](./contracts/admin-and-config.md). Each error names the offending entry and the fix. **A literal secret is an error, not a warning**: that rule is what keeps a secret out of the operator's git repository, and a warning would be ignored.
 - [x] T088 [US5] Create `src/Umbral/Infrastructure/ConfigFile.fs` — load from `UMBRAL__CONFIG_FILE` or `/data/umbral.yaml`, resolve `${VAR}` references from the environment, and apply idempotently keyed on `slug` and `client_id`. Validate everything before writing anything, so a bad file never half-applies.
-- [ ] T089 [US5] Create `src/Umbral/Handlers/Admin/ConfigExport.fs` (`GET /admin/config`) emitting exactly the accepted format with `${UMBRAL_<SLUG>_SECRET}` placeholders, plus a comment stating that **app secrets cannot be exported** — OpenIddict hashes them — so an imported app gets a fresh secret. That asymmetry is forced, and must be documented rather than discovered.
+- [x] T089 [US5] Create `src/Umbral/Handlers/Admin/ConfigExport.fs` (`GET /admin/config`) emitting exactly the accepted format with `${UMBRAL_<SLUG>_SECRET}` placeholders, plus a comment stating that **app secrets cannot be exported** — OpenIddict hashes them — so an imported app gets a fresh secret. That asymmetry is forced, and must be documented rather than discovered.
 - [x] T090 [US5] Write `tests/Umbral.Tests/ConfigFileTests.fs`: apply twice changes nothing and creates no duplicates; a literal secret fails validation; a missing environment variable fails naming the variable; a malformed document fails with **nothing partly applied**; export → import round-trips; a UI change appears in a later export.
 
 ---

@@ -151,20 +151,23 @@ let ``a POST with no antiforgery token is rejected and changes nothing`` () =
         use! app = Fixtures.createApp ()
         let! browser = signedInOperator app
 
-        // No token field, no antiforgery cookie attached beyond what sign-in
-        // itself left behind — WebForms.readValidated must refuse to read
-        // this form at all.
-        let attempt =
-            Func<Task>(fun () ->
-                browser.PostFormAsync
-                    "/admin/apps"
-                    [ "name", "Csrf Probe"
-                      "redirectUri", "https://app.example.com/callback"
-                      "postLogoutRedirectUri", ""
-                      "appType", "web" ]
-                :> Task)
+        // No token field — WebForms.readValidated refuses to read the form at
+        // all. It must come back as a readable 400, not an unhandled
+        // exception: an operator whose form sat open past the token's lifetime
+        // gets here too, and they need to be told to reload, not shown a
+        // stack trace.
+        let! response =
+            browser.PostFormAsync
+                "/admin/apps"
+                [ "name", "Csrf Probe"
+                  "redirectUri", "https://app.example.com/callback"
+                  "postLogoutRedirectUri", ""
+                  "appType", "web" ]
 
-        let! _ = Assert.ThrowsAnyAsync attempt
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+
+        let! body = response.Content.ReadAsStringAsync()
+        Assert.Contains("expired", body, StringComparison.OrdinalIgnoreCase)
 
         let! appsPage = browser.GetAsync "/admin/apps"
         let! html = appsPage.Content.ReadAsStringAsync()
