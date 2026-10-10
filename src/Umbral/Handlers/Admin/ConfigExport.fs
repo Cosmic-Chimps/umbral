@@ -8,11 +8,13 @@ open System.Threading.Tasks
 open OpenIddict.Abstractions
 open type OpenIddict.Abstractions.OpenIddictConstants
 open Oxpecker
+open Umbral.Domains
 open Umbral.Infrastructure
 
-let private listApps (applications: IOpenIddictApplicationManager) =
+let private listApps (config: Database.DbConfig) (applications: IOpenIddictApplicationManager) =
     task {
         let results = ResizeArray()
+        let! choices = AppConnectors.allChoices config
         let enumerator = applications.ListAsync(System.Nullable(), System.Nullable()).GetAsyncEnumerator()
 
         try
@@ -34,7 +36,11 @@ let private listApps (applications: IOpenIddictApplicationManager) =
                           Name = displayName |> Option.ofObj |> Option.defaultValue ""
                           Confidential = (clientType = ClientTypes.Confidential)
                           RedirectUris = List.ofSeq redirectUris
-                          PostLogoutRedirectUris = List.ofSeq postLogoutUris }
+                          PostLogoutRedirectUris = List.ofSeq postLogoutUris
+                          Choice =
+                            choices
+                            |> Map.tryFind (clientId |> Option.ofObj |> Option.defaultValue "")
+                            |> Option.defaultValue Connectors.AllShared }
 
                     results.Add app
                 else
@@ -48,8 +54,9 @@ let private listApps (applications: IOpenIddictApplicationManager) =
 let handler: EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
         task {
-            let! connectors = ConnectorStore.listAll (ctx.GetService<Database.DbConfig>())
-            let! apps = listApps (ctx.GetService<IOpenIddictApplicationManager>())
+            let config = ctx.GetService<Database.DbConfig>()
+            let! connectors = ConnectorStore.listAll config
+            let! apps = listApps config (ctx.GetService<IOpenIddictApplicationManager>())
 
             let yaml = ConfigFile.export connectors apps
 
