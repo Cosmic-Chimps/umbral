@@ -241,6 +241,13 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     services.AddAntiforgery() |> ignore
     services.AddRouting().AddOxpecker() |> ignore
 
+    // SC-008: no secret reaches a log, at ANY level an operator might switch on
+    // while debugging. T093 drives a whole journey at Trace and found three
+    // sources, each capped here with a rule on the exact category. A category
+    // rule outranks both the minimum level and any `Logging__LogLevel__*`
+    // setting, so "turn verbose logging on" cannot turn a leak on with it.
+    services.AddLogging(fun logging -> LogRedaction.capCategories logging) |> ignore
+
 /// One place where an exception becomes a page.
 ///
 /// Without this, a rejected form leaves `AntiforgeryValidationException`

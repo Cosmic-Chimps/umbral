@@ -45,6 +45,7 @@
     <Compile Include="Infrastructure/Secrets.fs" />
     <Compile Include="Infrastructure/Database.fs" />
     <Compile Include="Infrastructure/SecurityEvents.fs" />
+    <Compile Include="Infrastructure/LogRedaction.fs" />
     <Compile Include="Infrastructure/OAuthRoundTrip.fs" />
     <Compile Include="Infrastructure/ProviderAdapters.fs" />
     <Compile Include="Infrastructure/Providers/Fake.fs" />

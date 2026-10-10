@@ -10,6 +10,7 @@
   <ItemGroup>
     <Compile Include="Infrastructure/Fixtures.fs" />
     <Compile Include="Infrastructure/Flows.fs" />
+    <Compile Include="Infrastructure/Journeys.fs" />
     <Compile Include="IdsTests.fs" />
     <Compile Include="LinkingRuleTests.fs" />
     <Compile Include="ProviderAdapterTests.fs" />
@@ -33,6 +34,10 @@
     <Compile Include="OAuthRoundTripTests.fs" />
     <Compile Include="RateLimitTests.fs" />
     <Compile Include="MetaTests.fs" />
+    <Compile Include="LogRedactionTests.fs" />
+    <Compile Include="CsrfTests.fs" />
+    <Compile Include="RestartTests.fs" />
+    <Compile Include="IdleMemoryTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 

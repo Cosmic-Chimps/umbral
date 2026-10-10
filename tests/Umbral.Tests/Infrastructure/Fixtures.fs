@@ -22,8 +22,10 @@ open Microsoft.Extensions.Time.Testing
 let TestOrigin = "https://umbral.test"
 
 /// An app, its client, and the temp directory both live in. Disposing removes
-/// the directory, so a run leaves nothing behind.
-type TestApp(app: WebApplication, client: HttpClient, dataDirectory: string, clock: FakeTimeProvider) =
+/// the directory, so a run leaves nothing behind — unless the directory was
+/// handed in (`ownsDirectory = false`), as a restart test does so that the
+/// second instance can start on what the first left.
+type TestApp(app: WebApplication, client: HttpClient, dataDirectory: string, clock: FakeTimeProvider, ownsDirectory: bool) =
     member _.App = app
     member _.Client = client
     member _.DataDirectory = dataDirectory
@@ -43,24 +45,22 @@ type TestApp(app: WebApplication, client: HttpClient, dataDirectory: string, clo
                 // fails and temp directories accumulate across a run.
                 Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
 
-                try
-                    if Directory.Exists dataDirectory then
-                        Directory.Delete(dataDirectory, true)
-                with _ ->
-                    ()
+                if ownsDirectory then
+                    try
+                        if Directory.Exists dataDirectory then
+                            Directory.Delete(dataDirectory, true)
+                    with _ ->
+                        ()
             }
             |> ValueTask
 
-/// Start the real app against a fresh data directory.
-///
-/// No Testcontainers: Umbral's database is a file, so isolation is a temp
-/// directory rather than a container. That keeps the suite fast and removes
-/// Docker from the list of things a contributor needs.
-let createAppWith (settings: (string * string) list) (customize: WebApplicationBuilder -> unit) : Task<TestApp> =
+let private start
+    (dataDirectory: string)
+    (ownsDirectory: bool)
+    (settings: (string * string) list)
+    (customize: WebApplicationBuilder -> unit)
+    : Task<TestApp> =
     task {
-        let dataDirectory =
-            Path.Combine(Path.GetTempPath(), "umbral-test-" + Guid.NewGuid().ToString "N")
-
         Directory.CreateDirectory dataDirectory |> ignore
 
         // Starts at the real now, not a hardcoded date. It is still a fake, so
@@ -101,7 +101,28 @@ let createAppWith (settings: (string * string) list) (customize: WebApplicationB
         // rather than needing the insecure-http escape hatch switched on.
         client.BaseAddress <- Uri TestOrigin
 
-        return new TestApp(app, client, dataDirectory, clock)
+        return new TestApp(app, client, dataDirectory, clock, ownsDirectory)
     }
+
+let private newTempDirectory () =
+    Path.Combine(Path.GetTempPath(), "umbral-test-" + Guid.NewGuid().ToString "N")
+
+/// Start the real app against a fresh data directory.
+///
+/// No Testcontainers: Umbral's database is a file, so isolation is a temp
+/// directory rather than a container. That keeps the suite fast and removes
+/// Docker from the list of things a contributor needs.
+let createAppWith (settings: (string * string) list) (customize: WebApplicationBuilder -> unit) : Task<TestApp> =
+    start (newTempDirectory ()) true settings customize
+
+/// Start the real app on a directory that already exists, and leave it behind on
+/// dispose. For restarts (SC-005): dispose the first instance, start another
+/// here, and whatever survived is what a real restart would have kept. The
+/// caller owns the directory and deletes it when the test ends.
+let createAppIn (dataDirectory: string) (settings: (string * string) list) (customize: WebApplicationBuilder -> unit) =
+    start dataDirectory false settings customize
+
+/// A fresh temp directory path for `createAppIn`.
+let freshDataDirectory () = newTempDirectory ()
 
 let createApp () = createAppWith [] ignore
