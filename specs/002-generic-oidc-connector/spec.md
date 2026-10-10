@@ -25,6 +25,14 @@ without Umbral learning any provider by name.
 This is still a **Connector** — the second of Umbral's three concepts — not a
 new concept. An operator who understands connectors already understands this.
 
+## Clarifications
+
+### Session 2026-10-10
+
+- Q: Should Umbral accept an identity provider reached over plain http (e.g. on a LAN)? → A: No. https only; `localhost` only in local-trial mode. The refusal tells the operator to put the provider behind https, and the walkthrough shows how with the same reverse proxy that fronts Umbral.
+- Q: When the admin UI cannot reach the provider at all while saving, refuse or allow? → A: Save it **disabled**, with a warning naming the reason and telling the operator to enable it once the provider is up. Enabling re-runs the check. A reachable provider that answers wrongly is still refused.
+- Q: Is the client secret required when adding an OpenID Connect provider? → A: Yes. Umbral is always a confidential client at the provider; a public (PKCE-only) registration is not supported, and the walkthrough says to choose "confidential" in the provider's console.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Sign in through my own identity provider (Priority: P1)
@@ -60,11 +68,17 @@ provider.
 3. **Given** a person who signed in once through that provider, **When** they
    sign in again, **Then** they are the same Umbral user with the same stable
    identifier, and no duplicate is created.
-4. **Given** the operator mistypes the issuer URL, or the provider at that
-   address describes itself under a different issuer, or it cannot be reached,
-   **When** they save, **Then** nothing is saved, the form keeps what they
-   typed, and the message names what is wrong and what to check next.
-5. **Given** an identity provider returns an identity that does not prove it
+4. **Given** the operator mistypes the issuer URL into a non-https address,
+   or the provider at that address describes itself under a different issuer
+   or lacks a required capability, **When** they save, **Then** nothing is
+   saved, the form keeps what they typed, and the message names what is wrong
+   and what to check next.
+5. **Given** the provider cannot be reached at all when the operator saves,
+   **When** they save, **Then** the connector is saved **disabled**, it does
+   not appear on the sign-in page, and the screen says why and to enable it
+   once the provider is up; **When** they later enable it, **Then** the same
+   check runs again and enabling succeeds only if it passes.
+6. **Given** an identity provider returns an identity that does not prove it
    came from that provider for this sign-in — wrong issuer, wrong audience,
    expired, not signed by the provider's published keys, or not tied to this
    sign-in attempt — **When** the callback arrives, **Then** the sign-in is
@@ -192,6 +206,8 @@ yes/no value, and confirm a new, separate user.
   a message naming the missing capability.
 - **Provider rotates its signing keys.** Sign-ins keep working without operator
   action.
+- **Provider unreachable when the operator saves it.** Saved disabled with a
+  warning (FR-005a); enabling it re-checks.
 - **Provider unreachable during a sign-in.** The end user sees the plain
   failure notice; the security log records that the provider could not be
   reached. Other connectors are unaffected.
@@ -217,7 +233,9 @@ yes/no value, and confirm a new, separate user.
 
 - **FR-001**: The operator MUST be able to add an OpenID Connect provider by
   supplying a display name, a short name, an issuer URL, a client ID, and a
-  client secret, and optionally extra permissions (scopes) to request.
+  client secret, and optionally extra permissions (scopes) to request. The
+  client secret is required: Umbral is always a confidential client at the
+  provider, and a save without one is refused with that reason.
 - **FR-002**: Everything else Umbral needs about the provider MUST come from
   the provider's own published self-description under its issuer URL. No other
   provider detail MUST be operator-editable.
@@ -231,9 +249,15 @@ yes/no value, and confirm a new, separate user.
   MUST fetch and check the provider's self-description before saving, and MUST
   refuse to save, keeping the operator's input, with a message naming the
   problem and the next action, when: the issuer URL is not an absolute https
-  address (except `localhost` in local-trial mode); the self-description cannot
-  be fetched; it names a different issuer; or it lacks a capability Umbral
-  requires.
+  address (except `localhost` in local-trial mode); the self-description names
+  a different issuer; or it lacks a capability Umbral requires.
+- **FR-005a**: When the self-description cannot be fetched at all (the
+  provider is unreachable, times out, or answers with something that is not a
+  self-description), Umbral MUST save the connector **disabled** and show a
+  warning naming the reason and telling the operator to enable it once the
+  provider is reachable. Enabling an OpenID Connect connector from the admin UI
+  MUST run the FR-005 check again and MUST refuse to enable, with the reason,
+  if it fails or the provider is still unreachable.
 - **FR-006**: After saving, the admin UI MUST display the exact callback
   address to register with the provider, read-only and copyable, as it does for
   built-in connectors.
@@ -306,8 +330,10 @@ yes/no value, and confirm a new, separate user.
   covering: where to find the issuer URL, with concrete pointers for at least
   Authentik, Keycloak, Pocket ID and Authelia; the callback address to
   register; the client type and secret-sending method to choose on the
-  provider side; the scopes requested; the email-trust warning; and the
-  failures an operator is likely to hit, each with the fix.
+  provider side; the scopes requested; the email-trust warning; how to put a
+  provider that is only reachable over plain http behind https with the same
+  reverse proxy that fronts Umbral; and the failures an operator is likely to
+  hit, each with the fix.
 - **FR-025**: The README's provider list and walkthrough links MUST include
   OpenID Connect providers.
 
@@ -339,8 +365,9 @@ yes/no value, and confirm a new, separate user.
 - **SC-003**: 100% of the forged or mismatched identities listed in User Story 1,
   scenario 5 are refused in automated tests, and none produces a session.
 - **SC-004**: An operator who mistypes an issuer learns what is wrong at save
-  time in 100% of the cases listed in FR-005; none of them surfaces first as a
-  failed end-user sign-in.
+  time in 100% of the cases listed in FR-005, and a provider that was
+  unreachable at save time is never offered to end users until a check has
+  passed (FR-005a); none of these surfaces first as a failed end-user sign-in.
 - **SC-005**: Two providers issuing the same subject value never produce a
   single user, and re-adding a deleted provider with the same issuer reproduces
   100% of its people's previous user identifiers.
@@ -354,9 +381,10 @@ yes/no value, and confirm a new, separate user.
 - Target providers implement OpenID Connect discovery and the
   authorization-code flow, and can sign identity tokens with published
   asymmetric keys. Every product named in the description can.
-- The provider registers Umbral as a confidential client with a client secret.
-  Providers that only support other client-authentication methods (private-key
-  assertions, mutual TLS) are out of scope for this release.
+- The provider registers Umbral as a confidential client with a client secret
+  (settled in Clarifications). Public, PKCE-only registrations are not
+  supported, and neither are other client-authentication methods (private-key
+  assertions, mutual TLS) in this release.
 - Identity providers in a homelab are reachable from the Umbral container over
   https. A provider reachable only over plain http on a LAN is refused, for the
   same reason plain-http public origins are (spec 001 FR-031); running it
