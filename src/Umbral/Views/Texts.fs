@@ -33,7 +33,6 @@ type Texts =
       SignInLead: string
       SignInButton: string
       SignInIncorrect: string
-      SignInRateLimited: string
 
       // Replacing the operator credential once signed in (FR-017a)
       CredentialReplaceTitle: string
@@ -166,7 +165,7 @@ type Texts =
       ErrorTitle: string
       ErrorBody: string
       RateLimitedTitle: string
-      RateLimitedBody: string
+      RateLimitedBody: int -> string
       BackToSignIn: string
       BackHome: string
 
@@ -188,7 +187,7 @@ let en: Texts =
       NavSignOut = "Sign out"
 
       SetupTitle = "Set up Umbral"
-      SetupLead = "Choose the operator credential. It's the only way to reach this admin area, so keep it somewhere safe — there's no recovery screen if you lose it."
+      SetupLead = "Choose the operator credential. It's the only way to reach this admin area, so keep it somewhere safe. There's no recovery screen: if you lose it, run `docker exec -it umbral /app/Umbral reset-credential` on the host."
       CredentialLabel = "Operator credential"
       CredentialConfirmLabel = "Confirm credential"
       CredentialHint = "At least 12 characters. This is not tied to any connector, so a broken Discord or Google app can never lock you out."
@@ -203,8 +202,7 @@ let en: Texts =
       SignInTitle = "Operator sign-in"
       SignInLead = "Sign in with the operator credential to manage Apps, Connectors and Users."
       SignInButton = "Sign in"
-      SignInIncorrect = "That credential wasn't right. Check it and try again."
-      SignInRateLimited = "Too many failed attempts. Wait a few minutes before trying again."
+      SignInIncorrect = "That credential isn't correct. Check it and try again, or run `docker exec -it umbral /app/Umbral reset-credential` on the host if you've lost it."
 
       CredentialReplaceTitle = "Replace the operator credential"
       CredentialReplaceLead = "Enter your current credential, then the new one. Every other admin session is signed out immediately."
@@ -274,7 +272,7 @@ let en: Texts =
       OriginMismatch =
         fun configured actual ->
           $"Umbral is configured with the public address {configured}, but you reached it at {actual}. "
-          + "Social login will fail until UMBRAL__PUBLIC_ORIGIN matches the address people actually use."
+          + "Social login will fail until they match: set UMBRAL__PUBLIC_ORIGIN to the address people actually use, then restart Umbral."
       ConnectorsLead = "Upstream providers people can sign in with. Enable the ones you've registered an OAuth app with."
       ConnectorClientIdLabel = "Client ID"
       ConnectorClientSecretLabel = "Client secret"
@@ -291,7 +289,7 @@ let en: Texts =
       ConnectorDeleteButton = "Delete"
       ConnectorDeleteConfirm = fun name -> $"Delete the {name} connector? Anyone who signs in only with {name} will no longer be able to, and this can't be undone."
       ConnectorDisableConfirm = fun name -> $"Disable {name}? People won't be able to sign in with it until it's enabled again."
-      ConnectorDisableLastWarning = "This is the only enabled connector. Disabling it means nobody can sign in anywhere until you enable one again."
+      ConnectorDisableLastWarning = "This is the only enabled connector. Disabling it means nobody can sign in anywhere until you enable one again, so enable another first unless you mean to turn sign-in off."
       ConnectorSavedNotice = "Connector saved. The new credentials are used on the next sign-in — no restart needed."
       ConnectorDeletedNotice = "Connector deleted."
       ConnectorCredentialsRejected = fun provider -> $"{provider} rejected these credentials. Double-check the client ID and secret you pasted, then save again."
@@ -336,7 +334,10 @@ let en: Texts =
       ErrorTitle = "Something went wrong"
       ErrorBody = "Umbral couldn't complete that request. Try again, and contact the operator if it keeps happening."
       RateLimitedTitle = "Too many attempts"
-      RateLimitedBody = "Wait a few minutes, then try again."
+      RateLimitedBody =
+        fun minutes ->
+            let unit = if minutes = 1 then "minute" else "minutes"
+            $"Wait about {minutes} {unit}, then try again. Nothing was lost; the limit lifts by itself."
       BackToSignIn = "Back to sign-in"
       BackHome = "Back to sign-in"
 
@@ -344,7 +345,8 @@ let en: Texts =
       ProtocolErrorBody =
         "The application sent a request Umbral could not accept. This is almost always a "
         + "configuration mismatch between the app and Umbral: check that its redirect URI is "
-        + "registered here exactly as the app sends it, and that it uses PKCE with S256."
+        + "registered here exactly as the app sends it, and that it uses PKCE with S256. If you were "
+        + "just trying to sign in, go back to the app and try again, and tell its owner if it keeps happening."
       Notice =
         fun code ->
             match code with
@@ -352,7 +354,8 @@ let en: Texts =
                 "That setup token doesn't match. Run `docker logs umbral` and copy the token printed when the container started."
             | "setup-mismatch" -> "The two values don't match. Type the same credential in both fields and try again."
             | "setup-too-short" -> "Use at least 12 characters, then submit the form again."
-            | "signin-incorrect" -> "That credential is not correct. Try again."
+            | "signin-incorrect" ->
+                "That credential isn't correct. Check it and try again, or run `docker exec -it umbral /app/Umbral reset-credential` on the host if you've lost it."
             | "sign-in-failed" -> "Sign-in didn't complete. Try again, or choose a different option."
             | "access-denied" -> "You cancelled the sign-in. Choose an option below to try again."
             | "provider-unreachable" ->
@@ -363,14 +366,14 @@ let en: Texts =
             | "app-redirect-uri-invalid" ->
                 "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
             | "app-type-invalid" -> "Choose an app type, then save again."
-            | "app-not-found" -> "That app no longer exists. The list below is current."
+            | "app-not-found" -> "That app no longer exists. Choose one from the list below, or register it again."
             | "app-no-secret" ->
-                "Single-page and native apps have no secret to replace — they use PKCE instead."
-            | "user-not-found" -> "That user no longer exists. The list below is current."
+                "Single-page and native apps have no secret to replace — they use PKCE instead. If sign-in fails for this app, check that it sends a PKCE challenge."
+            | "user-not-found" -> "That user no longer exists. Choose one from the list below."
             | "app-secret-regenerated" -> "New secret generated."
             | "app-deleted" -> "App deleted."
             | "connector-saved" -> "Connector saved."
-            | "connector-unknown" -> "That connector isn't one Umbral supports."
+            | "connector-unknown" -> "That connector isn't one Umbral supports. Choose one of the connectors listed on this screen."
             | "connector-client-id-required" -> "Enter the client ID from the provider's console, then save again."
             | "connector-secret-required" -> "Enter the client secret from the provider's console, then save again."
             | "connector-last-enabled" ->

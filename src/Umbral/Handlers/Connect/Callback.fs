@@ -7,6 +7,7 @@ module Umbral.Handlers.Connect.Callback
 
 open System
 open Microsoft.AspNetCore.DataProtection
+open Microsoft.AspNetCore.Builder
 open Oxpecker
 open Umbral.Infrastructure
 open Umbral.Infrastructure.ProviderAdapters
@@ -168,4 +169,5 @@ let handler (slug: string) : EndpointHandler =
             return ()
         }
 
-let endpoint = GET [ routef "/connect/{%s}/callback" handler ]
+let endpoint =
+    GET [ routef "/connect/{%s}/callback" handler |> configureEndpoint _.RequireRateLimiting(RateLimits.SignIn) ]

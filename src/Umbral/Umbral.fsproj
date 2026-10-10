@@ -30,7 +30,9 @@
       1. the file under Handlers/
       2. a <Compile Include> here, before Program.fs
       3. its `endpoint` added to Program.endpoints
-    T102's meta-test turns a missed step 3 into a build failure. Until then, check by hand.
+    MetaTests.fs ("every handler module's endpoint is in Program.endpoints") turns a
+    missed step 3 into a failing test that names the module. It is a test, not a
+    build error: `dotnet build` alone will not tell you, `dotnet test` will.
   -->
   <ItemGroup>
     <Compile Include="Domains/Ids.fs" />
@@ -55,6 +57,7 @@
     <Compile Include="Infrastructure/ConfigFile.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
     <Compile Include="Infrastructure/WebForms.fs" />
+    <Compile Include="Infrastructure/RateLimits.fs" />
     <Compile Include="Infrastructure/Sessions.fs" />
     <Compile Include="Infrastructure/OpenIddictSetup.fs" />
     <Compile Include="Views/Texts.fs" />
