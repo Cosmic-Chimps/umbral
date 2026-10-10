@@ -3,7 +3,7 @@
   "specName": "Federated Login for Every App, with Optional Per-App Connectors",
   "branch": "003-per-app-connectors",
   "currentStep": "implement",
-  "status": "implementing",
+  "status": "completed",
   "history": [
     {
       "step": "specify",
@@ -266,9 +266,40 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-10T21:05:21.535Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T025",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:07:40.636Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T026",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:07:40.756Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T027",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:13:41.999Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:13:42.052Z"
     }
   ],
-  "last_action": "living specs evaluated — skipped (not configured)",
+  "last_action": "all tasks done, dotnet build clean, dotnet test 423/423",
   "coverage": {
     "FR-001": {
       "title": "Sign-in page names the app being signed in to",
@@ -277,6 +308,10 @@
         "T010",
         "T011",
         "T012"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/SignInAppNameTests.fs",
+        "tests/Umbral.Tests/SignInFlowTests.fs"
       ]
     },
     "FR-002": {
@@ -284,6 +319,9 @@
       "tasks": [
         "T011",
         "T012"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/SignInAppNameTests.fs"
       ]
     },
     "FR-003": {
@@ -292,6 +330,9 @@
         "T007",
         "T023",
         "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
       ]
     },
     "FR-004": {
@@ -308,6 +349,9 @@
         "T009",
         "T013",
         "T017"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs"
       ]
     },
     "FR-006": {
@@ -316,6 +360,10 @@
         "T002",
         "T005",
         "T012"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppChoiceRuleTests.fs",
+        "tests/Umbral.Tests/SignInAppNameTests.fs"
       ]
     },
     "FR-007": {
@@ -325,6 +373,10 @@
         "T005",
         "T012",
         "T013"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppChoiceRuleTests.fs",
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs"
       ]
     },
     "FR-008": {
@@ -334,6 +386,10 @@
         "T010",
         "T013",
         "T016"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs",
+        "tests/Umbral.Tests/SignInFlowTests.fs"
       ]
     },
     "FR-009": {
@@ -341,6 +397,9 @@
       "tasks": [
         "T013",
         "T017"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs"
       ]
     },
     "FR-010": {
@@ -355,6 +414,11 @@
         "T020",
         "T023",
         "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs",
+        "tests/Umbral.Tests/ConnectorDeleteTests.fs",
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
       ]
     },
     "FR-011": {
@@ -363,6 +427,10 @@
         "T006",
         "T014",
         "T020"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/ConnectorDeleteTests.fs",
+        "tests/Umbral.Tests/DatabaseTests.fs"
       ]
     },
     "FR-012": {
@@ -371,6 +439,9 @@
         "T008",
         "T023",
         "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
       ]
     },
     "FR-013": {
@@ -379,6 +450,9 @@
         "T008",
         "T023",
         "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
       ]
     },
     "FR-014": {
@@ -389,6 +463,10 @@
         "T008",
         "T023",
         "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs",
+        "tests/Umbral.Tests/AppChoiceRuleTests.fs"
       ]
     },
     "FR-015": {
@@ -396,6 +474,9 @@
       "tasks": [
         "T010",
         "T023"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
       ]
     },
     "FR-016": {
@@ -404,6 +485,9 @@
         "T015",
         "T021",
         "T022"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/ConfigFileTests.fs"
       ]
     },
     "FR-017": {
@@ -411,6 +495,9 @@
       "tasks": [
         "T015",
         "T022"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/ConfigFileTests.fs"
       ]
     },
     "FR-018": {
@@ -418,6 +505,9 @@
       "tasks": [
         "T015",
         "T021"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/ConfigFileTests.fs"
       ]
     },
     "FR-019": {
@@ -426,6 +516,9 @@
         "T003",
         "T006",
         "T022"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/DatabaseTests.fs"
       ]
     },
     "FR-020": {
@@ -433,6 +526,9 @@
       "tasks": [
         "T013",
         "T016"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs"
       ]
     },
     "FR-021": {
@@ -500,6 +596,31 @@
       "decision": "FR-018 validates chosen sets only against the document",
       "why": "Pure validation; document is due for removal",
       "rejected": "Also accept slugs that exist only in the database"
+    },
+    {
+      "decision": "Every phase implemented by Sonnet workers run one at a time in the 003 worktree, docs in a separate worktree cherry-picked",
+      "why": "User rule: coding goes to Sonnet, Opus reviews; parallel builds in one worktree would collide",
+      "rejected": "Building Foundational inline as dispatch-briefs suggested"
+    },
+    {
+      "decision": "OAuthRoundTrip.returnUrlOf reads the correlation cookie without consuming it",
+      "why": "A provider decline fails before complete returns the correlation, and FR-001 needs the app after a failure",
+      "rejected": "Losing the app context on access_denied"
+    },
+    {
+      "decision": "Strand warnings name only apps the change newly strands; app-connectors-strand redirect carries the attempted choice",
+      "why": "An app already offering nothing is not the change doing; the confirm button must post what was tried",
+      "rejected": "Listing every app with nothing offered"
+    },
+    {
+      "decision": "A connector card post without a displayName field keeps the stored display name and shared flag",
+      "why": "Older scripted posts of the card form keep working and an absent checkbox is not read as not shared",
+      "rejected": "Refusing posts without displayName"
+    },
+    {
+      "decision": "A slug equal to another kind name is refused when adding a connector",
+      "why": "That path is where the empty card of that kind posts",
+      "rejected": "Allowing it"
     }
   ],
   "step_summaries": {
@@ -509,10 +630,13 @@
     },
     "tasks": {
       "summary": "27 tasks: Setup 1, Foundational 9 (2 waves), US1 2, US2 10 (2 waves), US3 2, Polish 3; every file owned by one phase"
+    },
+    "implement": {
+      "summary": "27/27 tasks: per-app connector choice, shared flag, several connectors per kind, sign-in page names the app, FR-008 session check, YAML keys, docs; 423/423 tests"
     }
   },
   "approach": "An app's connector choice lives in two Umbral tables and connectors gain is_shared (schema v2). One pure offeredTo rule drives the sign-in page (which reads the app from returnUrl), the FR-008 session check in authorize, and admin warnings. The Connectors screen shows one card per connector with an add form; the YAML document gets two optional keys; apps keep idp as the provider kind.",
-  "currentTask": "T024",
+  "currentTask": "T027",
   "task_summaries": {
     "T001": {
       "status": "DONE",
@@ -693,6 +817,66 @@
       "files": [
         "src/Umbral/Handlers/Admin/Connectors.fs"
       ]
+    },
+    "T025": {
+      "status": "DONE",
+      "did": "README: connectors per kind, naming advice, sign-in methods, idp is the kind, YAML keys, troubleshooting (reviewed, cherry-picked edf2998)",
+      "files": [
+        "README.md"
+      ]
+    },
+    "T026": {
+      "status": "DONE",
+      "did": "Three guides: naming advice, slug wording, Giving one app its own name, shared in YAML; Google needs its own Cloud project",
+      "files": [
+        "docs/connectors/discord.md",
+        "docs/connectors/github.md",
+        "docs/connectors/google.md"
+      ]
+    },
+    "T027": {
+      "status": "DONE",
+      "did": "dotnet build 0 warnings 0 errors; dotnet test 423/423; SC-001,003,004,005,006 mapped to tests; SC-002 is a manual docs check",
+      "files": [
+        "-"
+      ]
     }
-  }
+  },
+  "verified": [
+    {
+      "what": "build",
+      "command": "dotnet build",
+      "source": "derived",
+      "exitCode": 0,
+      "durationSeconds": 12.4,
+      "result": "    0 Warning(s) ·     0 Error(s) · Time Elapsed 00:00:12.14"
+    },
+    {
+      "what": "full test suite",
+      "command": "dotnet test",
+      "source": "derived",
+      "exitCode": 0,
+      "durationSeconds": 318.3,
+      "result": "  succeeded: 423 ·   skipped: 0 ·   duration: 5m 17s 010ms"
+    },
+    {
+      "what": "SC-002 (operator gives one app its own consent name in under 10 minutes)",
+      "command": "manual",
+      "result": "not run against a real provider; covered only by the docs walkthrough"
+    }
+  ],
+  "concerns": [
+    {
+      "note": "One full test run (US2b worker) failed once with OpenIddict at least one of the registered certificates must be valid in SignInAppNameTests; it passed alone and in every later full run (407, 423, 423). Cause not found; possibly a pre-existing flaky test.",
+      "step": "implement"
+    },
+    {
+      "note": "Sessions from before the upgrade keep their old idp value (the slug) until the person signs in again; for a YAML-configured connector whose slug differs from its kind, apps see that slug until then.",
+      "step": "implement"
+    },
+    {
+      "note": "Database.fs says a downgrade fails loudly but nothing compares the stored schema_version with the build; pre-existing, proposed as a follow-up task.",
+      "step": "implement"
+    }
+  ]
 }

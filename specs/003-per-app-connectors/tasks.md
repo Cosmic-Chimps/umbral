@@ -127,12 +127,12 @@ Files: `README.md`, `docs/connectors/discord.md`, `docs/connectors/github.md`, `
 
 **Wave 1 — independent (different files):**
 
-- [ ] **T025** [P] README: a Connector is Umbral's identity at a provider, and there can be several per kind. Name the provider's application after the instance, and say why. Cover the connector choice under "Register an app" and "Limits of the Apps screen today", that `idp` is the kind, the two YAML keys and the fields applying overwrites, the FR-018 error, and "not shared and chosen by no app" under Troubleshooting (FR-004) · `README.md`
-- [ ] **T026** [P] Each guide: the naming advice at the step that names the application, step 1 reworded now that the identifier is only the kind's name for the first connector, a "Giving one app its own name" section, and `shared` in the YAML example. Google's section says a separate Google Cloud project is needed (R8) (FR-004) · `docs/connectors/discord.md`, `docs/connectors/github.md`, `docs/connectors/google.md`
+- [x] **T025** [P] README: a Connector is Umbral's identity at a provider, and there can be several per kind. Name the provider's application after the instance, and say why. Cover the connector choice under "Register an app" and "Limits of the Apps screen today", that `idp` is the kind, the two YAML keys and the fields applying overwrites, the FR-018 error, and "not shared and chosen by no app" under Troubleshooting (FR-004) · `README.md`
+- [x] **T026** [P] Each guide: the naming advice at the step that names the application, step 1 reworded now that the identifier is only the kind's name for the first connector, a "Giving one app its own name" section, and `shared` in the YAML example. Google's section says a separate Google Cloud project is needed (R8) (FR-004) · `docs/connectors/discord.md`, `docs/connectors/github.md`, `docs/connectors/google.md`
 
 **⟶ Wait for Wave 1 to finish, then:**
 
-- [ ] **T027** Run `dotnet build` and `dotnet test` from the repository root. Check SC-001 to SC-006 against the tests that cover them, and confirm the five-minute path still needs no add step (SC-006)
+- [x] **T027** Run `dotnet build` and `dotnet test` from the repository root. Check SC-001 to SC-006 against the tests that cover them, and confirm the five-minute path still needs no add step (SC-006)
 
 ---
 
