@@ -37,7 +37,7 @@ the clock while in the provider's console.
    provider's redirect URI field.
 4. Start a sign-in at a registered app; choose **Sign in with Home**.
 
-**Expect**: the app receives Umbral's tokens with `idp = home`; the Users
+**Expect**: the app receives Umbral's tokens with `idp = oidc` (the kind, per spec 003); the Users
 screen shows one user whose linked account reads "Home". A second sign-in: same
 `sub`, still one user.
 

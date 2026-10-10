@@ -108,5 +108,7 @@ non-technical notice and a `sign_in_failed` event naming the reason:
 
 **Profile mapping**: `sub` → identity (`<issuer>#<sub>`); `email`; `email_verified`
 (only the JSON literal `true` counts); `name`, else `preferred_username`;
-`picture`. The `idp` claim Umbral issues to apps is the connector's **slug**,
-as for built-in connectors.
+`picture`. The `idp` claim Umbral issues to apps is the provider **kind**,
+`oidc`, as spec 003 made it for every connector (its research R3). Not the slug:
+002 lets a connector be deleted and re-added under another slug while people
+keep their identity, so the slug is not a stable value to hand an app.

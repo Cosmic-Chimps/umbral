@@ -76,14 +76,14 @@ description: "Task list for the generic OpenID Connect connector"
 
 **Goal**: an operator adds a provider by issuer from the admin UI and people sign in through it.
 
-**Independent test**: against the stub provider, add it through the Connectors screen only, register an app, complete a sign-in; the app receives Umbral tokens with `idp = <slug>`.
+**Independent test**: against the stub provider, add it through the Connectors screen only, register an app, complete a sign-in; the app receives Umbral tokens with `idp = oidc` (the kind, per spec 003).
 
 ### Tests for User Story 1
 
 - [ ] T016 [P] [US1] Adapter tests in tests/Umbral.Tests/OidcAdapterTests.fs: authorize URL golden test (scopes, `S256` challenge, `nonce`, `state`, exact `redirect_uri`); PKCE omitted when the document lists only `plain`; token request uses `client_secret_basic` by default and `client_secret_post` when basic is not listed; a valid login yields subject `<issuer>#<sub>`, email, name (falls back to `preferred_username`), picture
 - [ ] T017 [P] [US1] Refusal tests in tests/Umbral.Tests/OidcAdapterTests.fs, one per row of the contract's "Accepted identity" table, each asserting the recorded reason: no `id_token`; signed by the attacker key; `alg: none`; HS256; wrong `iss`; wrong `aud`; multi-`aud` without matching `azp`; expired beyond 2 min skew (driven by the fake `TimeProvider`); nonce mismatch; userinfo `sub` differs
 - [ ] T018 [P] [US1] Key-rotation test in tests/Umbral.Tests/OidcAdapterTests.fs: the stub switches signing key with a new `kid`; the next login succeeds after one cache refresh (FR-013)
-- [ ] T019 [P] [US1] End-to-end tests in tests/Umbral.Tests/OidcConnectorTests.fs (TestServer + stub via T004): operator adds `home` (kind `oidc`) through spec 003's `POST /admin/connectors`; the callback URL is shown; the picker lists "Home" for an app set to all shared connectors, and only for a limited app whose set contains it (spec 003); a full authorization-code login reaches the app with `idp = home`; a second login keeps the same `sub` and one user; form errors for `oidc` (bad slug, another kind's name, duplicate slug, http issuer, relative issuer, issuer mismatch, missing secret) re-render the add form with input kept and the contract's message; no token, code or secret in any captured log line (reuse the LogRedactionTests capture)
+- [ ] T019 [P] [US1] End-to-end tests in tests/Umbral.Tests/OidcConnectorTests.fs (TestServer + stub via T004): operator adds `home` (kind `oidc`) through spec 003's `POST /admin/connectors`; the callback URL is shown; the picker lists "Home" for an app set to all shared connectors, and only for a limited app whose set contains it (spec 003); a full authorization-code login reaches the app with `idp = oidc` (the kind, per spec 003 — not the slug); a second login keeps the same `sub` and one user; form errors for `oidc` (bad slug, another kind's name, duplicate slug, http issuer, relative issuer, issuer mismatch, missing secret) re-render the add form with input kept and the contract's message; no token, code or secret in any captured log line (reuse the LogRedactionTests capture)
 
 ### Implementation for User Story 1
 
