@@ -12,6 +12,13 @@ description: "Task list for removing the configuration document"
 
 **Line numbers** below are from `5f834b7`. T002 refreshes them after feature 003 is merged; trust the symbol names over the numbers.
 
+## T001/T002 outcome (2026-10-10)
+
+- 003 was built **with** its file keys (`c1fedbe`, "the configuration document carries shared and connectors"), not without them as Clarifications Q4 planned. It was merged into this branch as `13d9262`. Its keys (`shared` on connectors, `connectors` on apps, the FR-018 check) live only in `ConfigDocument.fs`, `ConfigFile.fs`, `ConfigExport.fs` and `ConfigFileTests.fs`, so T011 and T017 remove them with the rest.
+- The spec cleanup for 002 and 003 (task `2026-10-10-drop-the-configuration-file-requirements-from-specs-002-and-tnch`) is in progress in another session. This feature does not edit `specs/002-*` or `specs/003-*`, to avoid conflicting with it.
+- New since `5f834b7`: `ExtraScopes = []` also in `tests/Umbral.Tests/AppChoiceRuleTests.fs`, `AppConnectorChoiceTests.fs` and `SignInFlowTests.fs` (T025), and twice in `src/Umbral/Handlers/Admin/Connectors.fs` (T024). `Database.fs` is now schema v2 with an upgrade step. `tests/Umbral.Tests/DatabaseTests.fs` holds a literal **v1** schema with `extra_scopes`: keep it, because it stands for an old database. A v1 or v2 database keeps the unread column (research R4). Line numbers elsewhere moved; follow the symbol names.
+- FR-008 is met by 003 (`Connectors.fs` edits the display name): T027 verifies it.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel: different files, no dependency on an incomplete task
@@ -38,9 +45,9 @@ never run and nothing reports it.
 
 **Purpose**: start from the right base and know the real extent of the work.
 
-- [ ] T001 Confirm the prerequisites, and stop if either is missing. (1) Feature 003 is merged into the branch this work starts from. (2) The task `2026-10-10-drop-the-configuration-file-requirements-from-specs-002-and-tnch` is done: `specs/003-per-app-connectors/` has no FR-016 to FR-018 or SC-005, and 003 added no keys to `src/Umbral/Domains/ConfigDocument.fs`. If 003 did add keys, list them in research.md R1 before continuing.
-- [ ] T002 Run the quickstart V0 grep from the repo root (see [quickstart.md](./quickstart.md#v0-inventory-is-empty-before-and-after)). Compare its output with research.md R1 and record any new file or symbol in R1, so later tasks cover it.
-- [ ] T003 Run `dotnet build` and `dotnet test` from the repo root and record the passing test count in this file under "Baseline" at the end. Later phases compare against it: the count must drop only by the deleted tests and rise by the added ones.
+- [X] T001 Confirm the prerequisites, and stop if either is missing. (1) Feature 003 is merged into the branch this work starts from. (2) The task `2026-10-10-drop-the-configuration-file-requirements-from-specs-002-and-tnch` is done: `specs/003-per-app-connectors/` has no FR-016 to FR-018 or SC-005, and 003 added no keys to `src/Umbral/Domains/ConfigDocument.fs`. If 003 did add keys, list them in research.md R1 before continuing.
+- [X] T002 Run the quickstart V0 grep from the repo root (see [quickstart.md](./quickstart.md#v0-inventory-is-empty-before-and-after)). Compare its output with research.md R1 and record any new file or symbol in R1, so later tasks cover it.
+- [X] T003 Run `dotnet build` and `dotnet test` from the repo root and record the passing test count in this file under "Baseline" at the end. Later phases compare against it: the count must drop only by the deleted tests and rise by the added ones.
 
 ---
 
@@ -212,5 +219,5 @@ There is no smaller MVP than the whole change set: see "One change set" above.
 
 | When | Tests passing | Note |
 | --- | --- | --- |
-| T003 | | |
+| T003 | 423 / 423 | After merging 003 (`13d9262`); 7 min 9 s |
 | T043 | | |
