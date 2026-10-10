@@ -132,11 +132,21 @@ let ``no secret, token or code reaches a log sink or the security log`` () =
 
         // TRACE, and every category: the point is to see what the frameworks
         // would say if an operator turned verbose logging on to debug an issue.
+        // appsettings.json quiets several categories by default, so they are
+        // raised here the way an operator would, through configuration.
         let customize (builder: Microsoft.AspNetCore.Builder.WebApplicationBuilder) =
             builder.Logging.SetMinimumLevel LogLevel.Trace |> ignore
             builder.Logging.AddProvider provider |> ignore
 
-        use! app = Fixtures.createAppWith fakeSettings customize
+        let verbose =
+            [ for category in
+                  [ "Default"
+                    "Microsoft.AspNetCore"
+                    "Microsoft.EntityFrameworkCore.Database.Command"
+                    "OpenIddict"
+                    "Quartz" ] -> $"Logging:LogLevel:{category}", "Trace" ]
+
+        use! app = Fixtures.createAppWith (fakeSettings @ verbose) customize
         let browser = Browser(app.Client)
         let secrets = List<Secret>()
 
