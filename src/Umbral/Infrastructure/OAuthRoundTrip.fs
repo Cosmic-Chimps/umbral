@@ -277,3 +277,32 @@ let complete
     else
         rememberConsumed now correlation.State |> ignore
         Ok correlation
+
+/// The authorization request this round trip belongs to, read from the
+/// correlation cookie WITHOUT consuming it. `complete` rejects most failures
+/// before it hands the correlation back, but a person who cancels at the
+/// provider, or whose state does not match, should still land on the sign-in
+/// page of the app they started from. Only a correlation that decrypts and has
+/// not expired speaks for the request: with none, there is no round trip to
+/// return to and the caller falls back to the bare sign-in page.
+///
+/// Reads only. It does not delete the cookie and does not mark anything
+/// consumed, so it cannot weaken `complete`.
+let returnUrlOf (protectorProvider: IDataProtectionProvider) (clock: TimeProvider) (ctx: HttpContext) : string option =
+    let cookie =
+        match ctx.Request.Cookies.TryGetValue CookieName with
+        | true, value -> Option.ofObj value |> Option.filter (fun v -> v.Length > 0)
+        | _ -> None
+
+    match cookie with
+    | None -> None
+    | Some payload ->
+        try
+            let protector = protectorProvider.CreateProtector ProtectorPurpose
+
+            match decode (protector.Unprotect payload) with
+            | Some correlation when clock.GetUtcNow() - correlation.IssuedAtUtc <= Lifetime ->
+                Some correlation.ReturnUrl
+            | _ -> None
+        with _ ->
+            None

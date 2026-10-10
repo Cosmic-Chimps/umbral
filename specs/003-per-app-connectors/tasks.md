@@ -18,7 +18,7 @@ description: "Task list for 003: federated login for every app, with optional pe
 
 Files: `tests/Umbral.Tests/Umbral.Tests.fsproj`, the four new test files as empty modules.
 
-- [ ] **T001** Create empty test modules `AppChoiceRuleTests.fs`, `SignInAppNameTests.fs`, `AppConnectorChoiceTests.fs`, `MultipleConnectorsTests.fs` and register them in the test project before `SmokeTests.fs` · `tests/Umbral.Tests/Umbral.Tests.fsproj`
+- [x] **T001** Create empty test modules `AppChoiceRuleTests.fs`, `SignInAppNameTests.fs`, `AppConnectorChoiceTests.fs`, `MultipleConnectorsTests.fs` and register them in the test project before `SmokeTests.fs` · `tests/Umbral.Tests/Umbral.Tests.fsproj`
 
 ---
 
@@ -32,25 +32,25 @@ No story starts until this phase is done.
 
 **Wave 1 — independent (different files):**
 
-- [ ] **T002** [P] Unit tests for `offeredTo` (AllShared offers enabled shared only; Only offers enabled members, shared or not; an unknown slug in a set widens nothing) and `strandedApps` (names apps left with nothing, keeps input order) · `tests/Umbral.Tests/AppChoiceRuleTests.fs`
-- [ ] **T003** [P] Upgrade test: a version 1 database with connectors comes up as version 2, every connector shared, no choice rows. A fresh database is version 2 with the column. A second start changes nothing · `tests/Umbral.Tests/DatabaseTests.fs`
-- [ ] **T004** [P] Sign-in flow: the token's `idp` is the connector's kind; the session carries the `connector` claim with the slug; a session cookie with only an `idp` claim (pre-upgrade) is still honoured; a failed callback redirects to `/signin` with the original `returnUrl` · `tests/Umbral.Tests/SignInFlowTests.fs`
+- [x] **T002** [P] Unit tests for `offeredTo` (AllShared offers enabled shared only; Only offers enabled members, shared or not; an unknown slug in a set widens nothing) and `strandedApps` (names apps left with nothing, keeps input order) · `tests/Umbral.Tests/AppChoiceRuleTests.fs`
+- [x] **T003** [P] Upgrade test: a version 1 database with connectors comes up as version 2, every connector shared, no choice rows. A fresh database is version 2 with the column. A second start changes nothing · `tests/Umbral.Tests/DatabaseTests.fs`
+- [x] **T004** [P] Sign-in flow: the token's `idp` is the connector's kind; the session carries the `connector` claim with the slug; a session cookie with only an `idp` claim (pre-upgrade) is still honoured; a failed callback redirects to `/signin` with the original `returnUrl` · `tests/Umbral.Tests/SignInFlowTests.fs`
 
 ### Implementation
 
 **Wave 1 — independent (different files):**
 
-- [ ] **T005** [P] Add `IsShared` to `Connector`, the `AppChoice` union, `offeredTo` and `strandedApps`, as in contracts/signin-and-session.md · `src/Umbral/Domains/Connectors.fs`
-- [ ] **T006** [P] Schema v2: `is_shared` in `CREATE TABLE connectors`, the two choice tables with their cascades and index, the v1 → v2 `ALTER TABLE` inside the schema transaction, `SchemaVersion = 2` (R2) · `src/Umbral/Infrastructure/Database.fs`
-- [ ] **T007** [P] Every new text and notice code from both contracts: `PickerTitleForApp`, `PickerNoConnectorsForApp`, the naming advice, the add-connector form, the connector choice, the stranded-apps warnings and the nine notice codes. Each operator message says what to do next · `src/Umbral/Views/Texts.fs`
+- [x] **T005** [P] Add `IsShared` to `Connector`, the `AppChoice` union, `offeredTo` and `strandedApps`, as in contracts/signin-and-session.md · `src/Umbral/Domains/Connectors.fs`
+- [x] **T006** [P] Schema v2: `is_shared` in `CREATE TABLE connectors`, the two choice tables with their cascades and index, the v1 → v2 `ALTER TABLE` inside the schema transaction, `SchemaVersion = 2` (R2) · `src/Umbral/Infrastructure/Database.fs`
+- [x] **T007** [P] Every new text and notice code from both contracts: `PickerTitleForApp`, `PickerNoConnectorsForApp`, the naming advice, the add-connector form, the connector choice, the stranded-apps warnings and the nine notice codes. Each operator message says what to do next · `src/Umbral/Views/Texts.fs`
 
 **⟶ Wait for Wave 1 to finish, then:**
 
 **Wave 2 — independent (different files):**
 
-- [ ] **T008** [P] Read and write `is_shared`. Add `create` with an operator-chosen slug and `update` for display name, credentials and shared. `save` no longer infers the kind from the slug · `src/Umbral/Infrastructure/ConnectorStore.fs`
-- [ ] **T009** [P] New module: `choiceFor clientId`, `allChoices`, `setChoice clientId AppChoice` (one transaction: marker row and set, or delete for AllShared), `deleteFor clientId`. Register it after `ConnectorStore.fs` · `src/Umbral/Infrastructure/AppConnectors.fs`, `src/Umbral/Umbral.fsproj`
-- [ ] **T010** [P] `Sessions.signIn ctx userId kind slug` writes `idp` = kind and `connector` = slug. Add `currentConnector` with the pre-upgrade fallback to `idp`. `Callback` signs in with both, and `Callback.fail` keeps the round trip's `returnUrl` (R3, R4) · `src/Umbral/Infrastructure/Sessions.fs`, `src/Umbral/Handlers/Connect/Callback.fs`
+- [x] **T008** [P] Read and write `is_shared`. Add `create` with an operator-chosen slug and `update` for display name, credentials and shared. `save` no longer infers the kind from the slug · `src/Umbral/Infrastructure/ConnectorStore.fs`
+- [x] **T009** [P] New module: `choiceFor clientId`, `allChoices`, `setChoice clientId AppChoice` (one transaction: marker row and set, or delete for AllShared), `deleteFor clientId`. Register it after `ConnectorStore.fs` · `src/Umbral/Infrastructure/AppConnectors.fs`, `src/Umbral/Umbral.fsproj`
+- [x] **T010** [P] `Sessions.signIn ctx userId kind slug` writes `idp` = kind and `connector` = slug. Add `currentConnector` with the pre-upgrade fallback to `idp`. `Callback` signs in with both, and `Callback.fail` keeps the round trip's `returnUrl` (R3, R4) · `src/Umbral/Infrastructure/Sessions.fs`, `src/Umbral/Handlers/Connect/Callback.fs`
 
 **Checkpoint**: the full existing suite passes unchanged, plus T002 to T004. Sign-in behaves exactly as before for every app.
 

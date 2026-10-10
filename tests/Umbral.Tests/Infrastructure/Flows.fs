@@ -129,6 +129,7 @@ let seedFakeConnector (app: Fixtures.TestApp) =
                   ClientSecretHint = "used"
                   ExtraScopes = []
                   IsEnabled = true
+                  IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
                   UpdatedUtc = app.Clock.GetUtcNow() }
                 None

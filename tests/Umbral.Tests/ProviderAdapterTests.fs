@@ -81,6 +81,7 @@ let private testConnector (kind: ProviderKind) : Connector =
       ClientSecretHint = "1234"
       ExtraScopes = []
       IsEnabled = true
+      IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch
       UpdatedUtc = DateTimeOffset.UnixEpoch }
 

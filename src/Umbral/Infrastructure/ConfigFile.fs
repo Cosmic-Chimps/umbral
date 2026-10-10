@@ -253,6 +253,9 @@ let applyConnectors
                       ClientSecretHint = Secrets.hint entry.ClientSecret
                       ExtraScopes = entry.ExtraScopes
                       IsEnabled = entry.Enabled
+                      // Not in the document until the shared key lands (T022):
+                      // applying must not reset a setting the file cannot say.
+                      IsShared = existing |> Option.map (fun c -> c.IsShared) |> Option.defaultValue true
                       CreatedUtc = existing |> Option.map (fun c -> c.CreatedUtc) |> Option.defaultValue (clock.GetUtcNow())
                       UpdatedUtc = clock.GetUtcNow() }
 

@@ -14,7 +14,7 @@ open Umbral.Domains.Connectors
 [<Literal>]
 let private Columns =
     "SELECT slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-            extra_scopes, is_enabled, created_utc, updated_utc FROM connectors"
+            extra_scopes, is_enabled, is_shared, created_utc, updated_utc FROM connectors"
 
 let private readOptional (reader: SqliteDataReader) (ordinal: int) =
     if reader.IsDBNull ordinal then None else Some(reader.GetString ordinal)
@@ -39,8 +39,9 @@ let private read (reader: SqliteDataReader) =
         |> Option.map (fun s -> s.Split(' ', StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
         |> Option.defaultValue []
       IsEnabled = reader.GetInt32 7 = 1
-      CreatedUtc = DateTimeOffset.Parse(reader.GetString 8, Globalization.CultureInfo.InvariantCulture)
-      UpdatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture) }
+      IsShared = reader.GetInt32 8 = 1
+      CreatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture)
+      UpdatedUtc = DateTimeOffset.Parse(reader.GetString 10, Globalization.CultureInfo.InvariantCulture) }
 
 let private query (config: Database.DbConfig) (where: string) (parameters: (string * string) list) =
     task {
@@ -74,7 +75,10 @@ let findBySlug (config: Database.DbConfig) (slug: string) =
         return List.tryHead rows
     }
 
-/// Create or update, keyed on the immutable slug. The secret is written only
+/// Create or update, keyed on the immutable slug. The kind is written when the
+/// row is created and never touched again: it is read back from the row, not
+/// worked out from the slug, because `discord-frunchy` is a Discord connector
+/// only because its row says so (FR-012). The secret is written only
 /// when a new one is supplied, so saving the form without retyping it does not
 /// wipe the stored credential — the screen cannot show it back, so an operator
 /// editing a display name has nothing to retype.
@@ -97,8 +101,8 @@ let save
         command.CommandText <-
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-                  extra_scopes, is_enabled, created_utc, updated_utc)
-             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @scopes, @enabled, @now, @now)
+                  extra_scopes, is_enabled, is_shared, created_utc, updated_utc)
+             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @scopes, @enabled, @shared, @now, @now)
              ON CONFLICT (slug) DO UPDATE SET
                  display_name      = @name,
                  client_id         = @clientId,
@@ -106,6 +110,7 @@ let save
                  client_secret_hint= @secretHint,
                  extra_scopes      = @scopes,
                  is_enabled        = @enabled,
+                 is_shared         = @shared,
                  updated_utc       = @now"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -116,10 +121,95 @@ let save
         command.Parameters.AddWithValue("@secretHint", secretHint) |> ignore
         command.Parameters.AddWithValue("@scopes", String.concat " " connector.ExtraScopes) |> ignore
         command.Parameters.AddWithValue("@enabled", (if connector.IsEnabled then 1 else 0)) |> ignore
+        command.Parameters.AddWithValue("@shared", (if connector.IsShared then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@now", now) |> ignore
 
         let! _ = command.ExecuteNonQueryAsync()
         return ()
+    }
+
+/// Add a connector under a slug the operator chose (FR-012). Returns false and
+/// writes nothing when the slug already belongs to a connector: the slug is the
+/// primary key and sits in the callback URL, so an existing one is never
+/// replaced here. The caller has already checked `Ids.isValidSlug`.
+let create
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (connector: Connector)
+    (secretRef: string, secretHint: string)
+    : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+
+        command.CommandText <-
+            "INSERT INTO connectors
+                 (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
+                  extra_scopes, is_enabled, is_shared, created_utc, updated_utc)
+             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @scopes, @enabled, @shared, @now, @now)
+             ON CONFLICT (slug) DO NOTHING"
+
+        command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
+        command.Parameters.AddWithValue("@kind", connector.Kind.Value) |> ignore
+        command.Parameters.AddWithValue("@name", connector.DisplayName) |> ignore
+        command.Parameters.AddWithValue("@clientId", connector.ClientId) |> ignore
+        command.Parameters.AddWithValue("@secretRef", secretRef) |> ignore
+        command.Parameters.AddWithValue("@secretHint", secretHint) |> ignore
+        command.Parameters.AddWithValue("@scopes", String.concat " " connector.ExtraScopes) |> ignore
+        command.Parameters.AddWithValue("@enabled", (if connector.IsEnabled then 1 else 0)) |> ignore
+        command.Parameters.AddWithValue("@shared", (if connector.IsShared then 1 else 0)) |> ignore
+        command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+
+        let! inserted = command.ExecuteNonQueryAsync()
+        return inserted > 0
+    }
+
+/// Change what the card form edits on a stored connector: display name, client
+/// id, the shared setting and, when one is supplied, the secret. Slug, kind,
+/// scopes and the enabled flag are left alone: the slug and kind never change
+/// (FR-013) and enabling has its own action. Returns false when no connector has
+/// that slug.
+let update
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (slug: string)
+    (displayName: string)
+    (clientId: string)
+    (isShared: bool)
+    (newSecretRef: (string * string) option)
+    : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+
+        // Without a new secret the stored reference and hint stay as they are.
+        command.CommandText <-
+            "UPDATE connectors SET
+                 display_name       = @name,
+                 client_id          = @clientId,
+                 is_shared          = @shared,
+                 client_secret_ref  = coalesce(@secretRef, client_secret_ref),
+                 client_secret_hint = coalesce(@secretHint, client_secret_hint),
+                 updated_utc        = @now
+             WHERE slug = @slug"
+
+        command.Parameters.AddWithValue("@slug", slug) |> ignore
+        command.Parameters.AddWithValue("@name", displayName) |> ignore
+        command.Parameters.AddWithValue("@clientId", clientId) |> ignore
+        command.Parameters.AddWithValue("@shared", (if isShared then 1 else 0)) |> ignore
+
+        match newSecretRef with
+        | Some(ref, hint) ->
+            command.Parameters.AddWithValue("@secretRef", ref) |> ignore
+            command.Parameters.AddWithValue("@secretHint", hint) |> ignore
+        | None ->
+            command.Parameters.AddWithValue("@secretRef", DBNull.Value) |> ignore
+            command.Parameters.AddWithValue("@secretHint", DBNull.Value) |> ignore
+
+        command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+
+        let! changed = command.ExecuteNonQueryAsync()
+        return changed > 0
     }
 
 let setEnabled (config: Database.DbConfig) (clock: TimeProvider) (slug: string) (isEnabled: bool) : Task<unit> =

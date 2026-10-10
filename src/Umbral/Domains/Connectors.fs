@@ -127,6 +127,10 @@ type Connector =
       ClientSecretHint: string
       ExtraScopes: string list
       IsEnabled: bool
+      /// A shared connector is offered to every app set to "all shared
+      /// connectors". One that is not shared is offered only to the apps whose
+      /// chosen set names it (FR-014).
+      IsShared: bool
       CreatedUtc: DateTimeOffset
       UpdatedUtc: DateTimeOffset }
 
@@ -136,3 +140,35 @@ type Connector =
         (this.Endpoints.Scopes @ this.ExtraScopes)
         |> List.distinct
         |> String.concat " "
+
+/// An app's connector choice (FR-005). No row in `app_connector_choices` means
+/// AllShared, which is also the default for a new app.
+type AppChoice =
+    | AllShared
+    /// A chosen set of connector slugs. Empty is a valid set: the app then
+    /// offers nothing, and stays limited rather than widening (FR-011).
+    | Only of Set<string>
+
+/// The enabled connectors an app offers. AllShared: every enabled connector
+/// that is shared (FR-006, FR-014). Only: every enabled connector whose slug is
+/// in the set, shared or not (FR-007). A slug in the set that no connector has
+/// offers nothing and widens nothing.
+///
+/// The only place this rule is written. The sign-in page, the authorize
+/// endpoint's session check (FR-008), the admin warnings (FR-010) and the Apps
+/// screen all call it, so they cannot disagree.
+let offeredTo (choice: AppChoice) (connectors: Connector list) : Connector list =
+    connectors
+    |> List.filter (fun connector ->
+        connector.IsEnabled
+        && match choice with
+           | AllShared -> connector.IsShared
+           | Only slugs -> Set.contains connector.Slug slugs)
+
+/// The apps left with nothing offered, given the connectors as they would be
+/// after a change. Input is each app's client id, name and choice; output is
+/// (client id, name) in the input order. Every FR-010 warning names these.
+let strandedApps (apps: (string * string * AppChoice) list) (connectors: Connector list) : (string * string) list =
+    apps
+    |> List.filter (fun (_, _, choice) -> List.isEmpty (offeredTo choice connectors))
+    |> List.map (fun (clientId, name, _) -> clientId, name)

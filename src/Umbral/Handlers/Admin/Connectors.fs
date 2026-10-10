@@ -275,6 +275,7 @@ let save (slug: string) : EndpointHandler =
                       // A connector arrives enabled: the operator came here to
                       // turn it on, and a saved-but-off connector is a puzzle.
                       IsEnabled = true
+                      IsShared = true
                       CreatedUtc = clock.GetUtcNow()
                       UpdatedUtc = clock.GetUtcNow() }
 

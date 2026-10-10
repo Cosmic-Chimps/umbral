@@ -22,10 +22,18 @@ let Scheme = "Umbral.Session"
 [<Literal>]
 let CookieName = "umbral_session"
 
-/// The connector slug that authenticated this session, carried so the `idp`
-/// claim can tell an app "signed in with Discord" without a second lookup.
+/// The provider KIND that authenticated this session (`discord`), carried so
+/// the `idp` claim can tell an app "signed in with Discord" without a second
+/// lookup. The kind and not the slug: with two Discord connectors, the slug
+/// would hand an app a new value for the same person (research.md R3).
 [<Literal>]
 let IdpClaim = "idp"
+
+/// The SLUG of the connector that established this session, which the
+/// authorize endpoint checks against what the requesting app offers (FR-008).
+/// Never passed on to apps. Sessions from before feature 003 do not have it.
+[<Literal>]
+let ConnectorClaim = "connector"
 
 let configure (options: CookieAuthenticationOptions) =
     options.Cookie.Name <- CookieName
@@ -52,11 +60,13 @@ let configure (options: CookieAuthenticationOptions) =
     options.LogoutPath <- PathString "/connect/logout"
     options.AccessDeniedPath <- PathString "/signin"
 
-/// Establish a session for a user who has just come back from a provider.
-let signIn (ctx: HttpContext) (userId: string) (idp: string) : Task =
+/// Establish a session for a user who has just come back from a provider,
+/// through the connector `slug` of the given `kind`.
+let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) : Task =
     let identity = ClaimsIdentity(Scheme)
     identity.AddClaim(Claim(ClaimTypes.NameIdentifier, userId))
-    identity.AddClaim(Claim(IdpClaim, idp))
+    identity.AddClaim(Claim(IdpClaim, kind))
+    identity.AddClaim(Claim(ConnectorClaim, slug))
     ctx.SignInAsync(Scheme, ClaimsPrincipal identity)
 
 let signOut (ctx: HttpContext) : Task = ctx.SignOutAsync Scheme
@@ -72,4 +82,13 @@ let currentSubject (principal: ClaimsPrincipal) =
 let currentIdp (principal: ClaimsPrincipal) =
     match principal.FindFirst IdpClaim with
     | null -> None
+    | claim -> Some claim.Value
+
+/// The slug of the connector that established the session. A session from
+/// before the upgrade has no `connector` claim, and its `idp` holds the slug:
+/// every slug that could exist then equalled its kind, so that one value serves
+/// as both.
+let currentConnector (principal: ClaimsPrincipal) =
+    match principal.FindFirst ConnectorClaim with
+    | null -> currentIdp principal
     | claim -> Some claim.Value
