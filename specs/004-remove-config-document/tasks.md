@@ -126,10 +126,13 @@ never run and nothing reports it.
 
 **Independent Test**: start a clean instance, run `reset-credential`, and sign in with the credential it prints. `SubcommandTests` already covers that path ("reset-credential on an unclaimed instance claims it…").
 
-- [ ] T029 [US2] In `src/Umbral/Program.fs`, delete `hashCredential` and its doc comment (lines 518-566) and the `elif args |> Array.contains "hash-credential"` branch in `main` (lines 573-574). Reword the comment above `main` if it lists the subcommands.
-- [ ] T030 [US2] In `tests/Umbral.Tests/CredentialTests.fs`, delete the `hash-credential` process helper (near line 405) and both facts, `hash-credential prints a hash that verifies…` and `hash-credential refuses a credential that is too short` (from line 427). Remove `hashOf` and any `open` left unused.
-- [ ] T031 [P] [US2] In `README.md`, add a short "Claim an instance from a script" subsection, beside "Forgotten operator credential" or inside the first-run steps. It says: start the container, then run `docker exec umbral /app/Umbral reset-credential` (compose: `docker compose exec umbral /app/Umbral reset-credential`) once. It claims an unclaimed instance and prints a credential once, for the script to store. The setup screen then no longer asks for a token. Every other step stays as it is.
-- [ ] T032 [US2] Run `dotnet build` and `dotnet test`: green. Both `reset-credential` facts in `SubcommandTests.fs` pass unchanged.
+- [X] T029 [US2] In `src/Umbral/Program.fs`, delete `hashCredential` and its doc comment (lines 518-566) and the `elif args |> Array.contains "hash-credential"` branch in `main` (lines 573-574). Reword the comment above `main` if it lists the subcommands.
+  - Deviation: also reworded the `resetCredential` doc comment, which still said `initialize` would "apply the configuration file".
+- [X] T030 [US2] In `tests/Umbral.Tests/CredentialTests.fs`, delete the `hash-credential` process helper (near line 405) and both facts, `hash-credential prints a hash that verifies…` and `hash-credential refuses a credential that is too short` (from line 427). Remove `hashOf` and any `open` left unused.
+  - Deviation: `fileCredential` and `open System.Diagnostics` were only used by the removed helper and facts, so they went too.
+- [X] T031 [P] [US2] In `README.md`, add a short "Claim an instance from a script" subsection, beside "Forgotten operator credential" or inside the first-run steps. It says: start the container, then run `docker exec umbral /app/Umbral reset-credential` (compose: `docker compose exec umbral /app/Umbral reset-credential`) once. It claims an unclaimed instance and prints a credential once, for the script to store. The setup screen then no longer asks for a token. Every other step stays as it is.
+  - Deviation: placed as a `####` subsection at the end of quick-start step 3 ("Claim the instance"), before step 4.
+- [X] T032 [US2] Run `dotnet build` and `dotnet test`: green. Both `reset-credential` facts in `SubcommandTests.fs` pass unchanged.
 
 **Checkpoint**: the operator credential can be set only from the setup screen, the credential screen or `reset-credential`.
 
@@ -141,9 +144,11 @@ never run and nothing reports it.
 
 **Independent Test**: copy an instance's data directory and start a second instance on the copy with the same public origin. It serves the same sign-ins, app secrets and sessions.
 
-- [ ] T033 [US3] Add a fact to `tests/Umbral.Tests/RestartTests.fs`: "an instance started from a copy of the data directory serves the same apps, secrets and sessions". Sign a person in to an app with a confidential client, using the helpers the existing restart fact uses. Stop the app. Copy the data directory recursively to a second temp directory and start a new app on the copy with `Fixtures.createAppIn` and the same public origin. Expect: the app's existing client secret is accepted at the token endpoint, the person's Umbral session cookie is still valid, the identity token validates against the copy's JWKS, and the connector list is the same.
-- [ ] T034 [P] [US3] In `README.md`, rework the opening of the backup and restore section so it also says that copying the data directory is how to move Umbral to another machine or rebuild it. The same public origin is needed: tokens and the redirect addresses registered with providers depend on it. Keep every command as it is.
-- [ ] T035 [US3] Run `dotnet test`: green, including T033.
+- [X] T033 [US3] Add a fact to `tests/Umbral.Tests/RestartTests.fs`: "an instance started from a copy of the data directory serves the same apps, secrets and sessions". Sign a person in to an app with a confidential client, using the helpers the existing restart fact uses. Stop the app. Copy the data directory recursively to a second temp directory and start a new app on the copy with `Fixtures.createAppIn` and the same public origin. Expect: the app's existing client secret is accepted at the token endpoint, the person's Umbral session cookie is still valid, the identity token validates against the copy's JWKS, and the connector list is the same.
+  - Deviation: one fact covers all four checks. The existing secret and session checks are one flow: the session resumes an authorize request on the copy, and the app's original secret redeems the resulting code at the token endpoint.
+- [X] T034 [P] [US3] In `README.md`, rework the opening of the backup and restore section so it also says that copying the data directory is how to move Umbral to another machine or rebuild it. The same public origin is needed: tokens and the redirect addresses registered with providers depend on it. Keep every command as it is.
+  - Deviation: a new paragraph right after the opening blockquote, not an edit of it. The `umbral.yaml` table row stays for T038.
+- [X] T035 [US3] Run `dotnet test`: green, including T033.
 
 **Checkpoint**: what export and apply promised, a copied data directory delivers, with app secrets included.
 

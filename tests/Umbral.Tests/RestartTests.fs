@@ -235,3 +235,102 @@ let ``a restart leaves people signed in and issued tokens valid`` () =
             with _ ->
                 ()
     }
+
+/// Copy a directory and everything under it: how an operator moves an
+/// instance, or rebuilds one from a backup.
+let rec private copyDirectory (source: string) (target: string) =
+    Directory.CreateDirectory target |> ignore
+
+    for file in Directory.GetFiles source do
+        File.Copy(file, Path.Combine(target, Path.GetRelativePath(source, file)))
+
+    for directory in Directory.GetDirectories source do
+        copyDirectory directory (Path.Combine(target, Path.GetRelativePath(source, directory)))
+
+/// SC-003: the data directory is the whole instance. What an operator used to
+/// get from exporting a configuration file, a copy of the directory delivers,
+/// with the app secrets the export could never carry.
+[<Fact>]
+let ``an instance started from a copy of the data directory serves the same apps, secrets and sessions`` () =
+    task {
+        let original = Fixtures.freshDataDirectory ()
+        let copy = Fixtures.freshDataDirectory ()
+
+        try
+            let! first = Fixtures.createAppIn original fakeSettings ignore
+
+            let! outcome =
+                task {
+                    try
+                        let operator = Browser(first.Client)
+                        let! prepared = prepare first operator
+
+                        let person = Browser(first.Client)
+
+                        let! signIn =
+                            signInThroughFake person prepared.ClientId "openid email profile" "fake-user-1" "sam@example.com"
+
+                        let! exchanged = exchangeCode first.Client prepared.ClientId prepared.ClientSecret signIn.Code
+                        Assert.Equal(HttpStatusCode.OK, exchanged.StatusCode)
+                        let! tokens = json exchanged
+
+                        let! connectors = ConnectorStore.listAll first.DbConfig
+
+                        return Choice1Of2(prepared, person, strOf tokens "id_token", connectors |> List.map (fun c -> c.Slug))
+                    with e ->
+                        return Choice2Of2 e
+                }
+
+            // Stopped before it is copied: the pools are cleared so the
+            // database file is whole and the WAL folded into it, which is what
+            // a backup of a stopped instance holds.
+            do! (first :> IAsyncDisposable).DisposeAsync()
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
+
+            let prepared, person, idToken, connectorSlugs =
+                match outcome with
+                | Choice1Of2 state -> state
+                | Choice2Of2 e -> raise e
+
+            copyDirectory original copy
+
+            // The same public origin, as moving to another machine requires.
+            use! second = Fixtures.createAppIn copy fakeSettings ignore
+            let resumed = continuedFrom person second.Client
+
+            // The person's session cookie resumes an authorization request on
+            // the copy: a code straight back to the app, not the picker.
+            let! authorized = resumed.Get(authorizeUrl prepared.ClientId "openid email profile")
+            let landed = authorized.Headers.Location |> string
+
+            Assert.True(
+                landed.StartsWith RedirectUri && landed.Contains "code=",
+                $"the end-user session did not survive the copy; the authorize request went to {landed}"
+            )
+
+            let code =
+                Text.RegularExpressions.Regex.Match(landed, "code=([^&]+)").Groups[1].Value
+                |> Uri.UnescapeDataString
+
+            // The app secret handed out by the original is accepted by the
+            // copy. OpenIddict keeps only a hash of it, so this is the proof
+            // that the copy holds the same app, not a lookalike.
+            let! exchanged = exchangeCode second.Client prepared.ClientId prepared.ClientSecret code
+            Assert.Equal(HttpStatusCode.OK, exchanged.StatusCode)
+
+            // An id_token the original issued verifies against the copy's JWKS.
+            let! keys = signingKeys second.Client
+            Assert.True(verifies keys idToken, "an id_token issued by the original does not verify against the copy")
+
+            let! copied = ConnectorStore.listAll second.DbConfig
+            Assert.Equal<string list>(connectorSlugs, copied |> List.map (fun c -> c.Slug))
+        finally
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
+
+            for directory in [ original; copy ] do
+                try
+                    if Directory.Exists directory then
+                        Directory.Delete(directory, true)
+                with _ ->
+                    ()
+    }

@@ -139,6 +139,23 @@ current one and the new one twice, and signs every other admin session out.
 You land on the **Connectors** screen. The admin area has three screens:
 **Apps**, **Connectors**, **Users**.
 
+#### Claim an instance from a script
+
+To claim an instance without opening the setup page, start the container and
+run this once:
+
+```bash
+docker exec umbral /app/Umbral reset-credential
+# compose:
+docker compose exec umbral /app/Umbral reset-credential
+```
+
+On an instance nobody has claimed, it claims it and prints a credential, once.
+Have your script store it. The setup page then no longer asks for a token: it
+sends you to the sign-in page. Run on an instance that is already claimed, the
+same command replaces the credential (see
+[Forgotten operator credential](#forgotten-operator-credential)).
+
 ### 4. Add a connector (GitHub)
 
 1. On the **GitHub** card, find **Redirect URI to register with the provider**
@@ -431,6 +448,12 @@ Every URL Umbral publishes comes from `UMBRAL__PUBLIC_ORIGIN`, never from the
 > working.** You would re-enter each provider's client secret, regenerate each
 > app's secret and update every app. Back it up, and test that you can restore
 > it.
+
+The same copy is how you move Umbral to another machine, or rebuild it after
+losing one. Start it on the copy with the same `UMBRAL__PUBLIC_ORIGIN`: the
+tokens and the redirect addresses you registered with each provider depend on
+it. App secrets come along, people stay signed in, and nothing else needs
+re-entering.
 
 What is in there:
 
