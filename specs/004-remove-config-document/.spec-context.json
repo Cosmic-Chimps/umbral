@@ -2,8 +2,8 @@
   "workflow": "speckit",
   "specName": "Remove the Configuration Document",
   "branch": "alta/humble-ketch-37rt",
-  "currentStep": "specify",
-  "status": "specified",
+  "currentStep": "plan",
+  "status": "planned",
   "history": [
     {
       "step": "specify",
@@ -11,6 +11,13 @@
       "kind": "start",
       "by": "extension",
       "at": "2026-10-10T19:55:56.863Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-10-10T21:08:55.778Z"
     }
   ]
 }
