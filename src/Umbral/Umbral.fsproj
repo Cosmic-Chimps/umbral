@@ -69,6 +69,7 @@
     <Compile Include="Handlers/Admin/SignOut.fs" />
     <Compile Include="Handlers/Admin/Connectors.fs" />
     <Compile Include="Handlers/Admin/ConnectorToggle.fs" />
+    <Compile Include="Handlers/Admin/ConnectorDelete.fs" />
     <Compile Include="Handlers/Admin/ConfigExport.fs" />
     <Compile Include="Handlers/Dev/FakeProvider.fs" />
     <Compile Include="Handlers/Admin/Apps.fs" />
@@ -84,6 +85,7 @@
     <Compile Include="Handlers/Connect/EndSession.fs" />
     <Compile Include="Handlers/Connect/Error.fs" />
     <Compile Include="Handlers/Connect/Authorize.fs" />
+    <Compile Include="Handlers/Connect/Token.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

@@ -212,8 +212,8 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 
 ## Phase 8: Polish & Cross-Cutting
 
-- [ ] T091 Enable token-endpoint passthrough and create `src/Umbral/Handlers/Connect/Token.fs`, re-checking `is_enabled` on refresh. Rebuild the identity **from `result.Principal.Claims`** so the private `oi_*` claims carrying scopes, resources and authorization id survive, and **call `SetDestinations` again** — the destinations do not re-apply themselves.
-- [ ] T092 [P] Emit a security event for every type listed in [data-model.md](./data-model.md), at every site that causes one.
+- [x] T091 Enable token-endpoint passthrough and create `src/Umbral/Handlers/Connect/Token.fs`, re-checking `is_enabled` on refresh. Rebuild the identity **from `result.Principal.Claims`** so the private `oi_*` claims carrying scopes, resources and authorization id survive, and **call `SetDestinations` again** — the destinations do not re-apply themselves.
+- [x] T092 [P] Emit a security event for every type listed in [data-model.md](./data-model.md), at every site that causes one.
 - [ ] T093 [P] Write `tests/Umbral.Tests/LogRedactionTests.fs` asserting no secret, token or authorization code reaches any log sink.
 - [x] T094 [P] Add rate limiting on sign-in and admin authentication (FR-038) with `configureEndpoint _.RequireRateLimiting(...)`, and a test that the limit engages.
 - [ ] T095 [P] Write `tests/Umbral.Tests/CsrfTests.fs` asserting every state-changing admin route rejects a request with no antiforgery token and changes nothing.

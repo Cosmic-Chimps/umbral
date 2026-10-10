@@ -119,6 +119,7 @@ type Texts =
       ConnectorDeleteConfirm: string -> string
       ConnectorDisableConfirm: string -> string
       ConnectorDisableLastWarning: string
+      ConnectorDeleteLastWarning: string
       ConnectorSavedNotice: string
       ConnectorDeletedNotice: string
       ConnectorCredentialsRejected: string -> string
@@ -287,9 +288,10 @@ let en: Texts =
       ConnectorEnabledBadge = "Enabled"
       ConnectorDisabledBadge = "Disabled"
       ConnectorDeleteButton = "Delete"
-      ConnectorDeleteConfirm = fun name -> $"Delete the {name} connector? Anyone who signs in only with {name} will no longer be able to, and this can't be undone."
+      ConnectorDeleteConfirm = fun name -> $"Delete the {name} connector? Nobody can sign in with {name} until you add it again, and the saved secret is erased. Their accounts are kept, and adding {name} back returns them to the same account."
       ConnectorDisableConfirm = fun name -> $"Disable {name}? People won't be able to sign in with it until it's enabled again."
       ConnectorDisableLastWarning = "This is the only enabled connector. Disabling it means nobody can sign in anywhere until you enable one again, so enable another first unless you mean to turn sign-in off."
+      ConnectorDeleteLastWarning = "This is the only enabled connector. Deleting it means nobody can sign in anywhere until you add one again, and the saved secret is erased. Enable another first unless you mean to turn sign-in off."
       ConnectorSavedNotice = "Connector saved. The new credentials are used on the next sign-in — no restart needed."
       ConnectorDeletedNotice = "Connector deleted."
       ConnectorCredentialsRejected = fun provider -> $"{provider} rejected these credentials. Double-check the client ID and secret you pasted, then save again."
@@ -378,6 +380,9 @@ let en: Texts =
             | "connector-secret-required" -> "Enter the client secret from the provider's console, then save again."
             | "connector-last-enabled" ->
                 "This is the only enabled connector. Turning it off means nobody can sign in to any app. Press it again to confirm."
+
+            | "connector-delete-last-enabled" ->
+                "This is the only enabled connector. Nothing was deleted. Deleting it means nobody can sign in to any app — use Delete and confirm to go ahead."
 
             | "connector-enabled" -> "Connector enabled."
             | "connector-disabled" -> "Connector disabled."

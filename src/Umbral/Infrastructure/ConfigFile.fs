@@ -211,6 +211,57 @@ let applyConnectors
                 do! ConnectorStore.save config clock connector (Some(reference.Encoded, Secrets.hint entry.ClientSecret))
                 applied <- applied + 1
 
+                // FR-035: a connector the file creates or changes is a change an
+                // operator may need to trace, actor System because nobody was
+                // signed in to make it. Only a REAL change is recorded — a
+                // restart re-applies the same file and would otherwise write a
+                // "connector updated" row per connector every time the process
+                // starts, burying the one that matters.
+                match existing with
+                | None ->
+                    do!
+                        SecurityEvents.record
+                            config
+                            clock
+                            { SecurityEvents.event
+                                  SecurityEvents.ConnectorCreated
+                                  SecurityEvents.Success
+                                  SecurityEvents.Actor.System with
+                                ConnectorSlug = Some entry.Slug
+                                Detail = Some "source=config_file" }
+
+                | Some before ->
+                    // Compared by decrypting the stored secret: the stored
+                    // reference differs on every write even for an identical
+                    // secret, and the hint is only four characters.
+                    let! secretChanged =
+                        task {
+                            match Secrets.SecretRef.Decode before.ClientSecretRef with
+                            | Ok previous ->
+                                let! plaintext = secrets.Get previous
+                                return plaintext <> Some entry.ClientSecret
+                            | Error _ -> return true
+                        }
+
+                    let changed =
+                        [ if before.ClientId <> connector.ClientId then "client_id"
+                          if before.DisplayName <> connector.DisplayName then "display_name"
+                          if before.ExtraScopes <> connector.ExtraScopes then "extra_scopes"
+                          if before.IsEnabled <> connector.IsEnabled then "enabled"
+                          if secretChanged then "secret" ]
+
+                    if not changed.IsEmpty then
+                        do!
+                            SecurityEvents.record
+                                config
+                                clock
+                                { SecurityEvents.event
+                                      SecurityEvents.ConnectorUpdated
+                                      SecurityEvents.Success
+                                      SecurityEvents.Actor.System with
+                                    ConnectorSlug = Some entry.Slug
+                                    Detail = Some("source=config_file;changed=" + String.concat "," changed) }
+
         return applied
     }
 

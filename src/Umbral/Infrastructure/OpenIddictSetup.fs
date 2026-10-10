@@ -12,6 +12,8 @@ module Umbral.Infrastructure.OpenIddictSetup
 
 open System
 open System.Threading.Tasks
+// GetHttpRequest, like GetOpenIddictServerRequest, lives in this namespace.
+open Microsoft.AspNetCore
 open Microsoft.Extensions.DependencyInjection
 open Quartz
 open OpenIddict.Abstractions
@@ -102,6 +104,68 @@ type AdvertiseOnlyS256() =
             .Build()
 
 // ---------------------------------------------------------------------------
+// FR-008 — recording an authorization-code replay
+//
+// A code is single use, and OpenIddict enforces that: the second presentation
+// is rejected as ID2010 ("already been redeemed") and the whole authorization
+// is revoked, which is the right outcome. What it does not do is tell the
+// operator. A replayed code is either an interception in progress or a client
+// that retries when it should not, and both are worth being able to find.
+//
+// The rejection happens inside OpenIddict's own pipeline, BEFORE passthrough
+// would hand the request to Token.fs, so no handler of ours ever sees it as a
+// request. The first place Umbral can observe it is the token response being
+// applied, where the error and its documentation link are already settled.
+// Matched on the link (".../errors/ID2010") rather than the sentence: the link
+// names the exact rejection and is not prose someone will reword. The
+// protocol test that replays a code fails if this ever stops matching.
+// ---------------------------------------------------------------------------
+
+[<Literal>]
+let private RedeemedCodeErrorId = "ID2010"
+
+type RecordAuthorizationCodeReplay() =
+    interface IOpenIddictServerHandler<OpenIddictServerEvents.ApplyTokenResponseContext> with
+        member _.HandleAsync(context) =
+            let isReplay =
+                not (isNull context.Request)
+                && context.Request.IsAuthorizationCodeGrantType()
+                && (match context.Response.ErrorUri with
+                    | null -> false
+                    | uri -> uri.EndsWith RedeemedCodeErrorId)
+
+            if not isReplay then
+                ValueTask.CompletedTask
+            else
+                match context.Transaction.GetHttpRequest() with
+                | null -> ValueTask.CompletedTask
+                | request ->
+                    let services = request.HttpContext.RequestServices
+
+                    ValueTask(
+                        SecurityEvents.record
+                            (services.GetRequiredService<Database.DbConfig>())
+                            (services.GetRequiredService<TimeProvider>())
+                            { SecurityEvents.event SecurityEvents.AuthorizationCodeReplayed SecurityEvents.Failure SecurityEvents.Actor.User with
+                                ClientId = Option.ofObj context.Request.ClientId
+                                RemoteIp =
+                                    request.HttpContext.Connection.RemoteIpAddress
+                                    |> Option.ofObj
+                                    |> Option.map string }
+                    )
+
+    static member Descriptor =
+        OpenIddictServerHandlerDescriptor
+            .CreateBuilder<OpenIddictServerEvents.ApplyTokenResponseContext>()
+            .UseSingletonHandler<RecordAuthorizationCodeReplay>()
+            // Before OpenIddict writes the response (ProcessJsonResponse is at
+            // 500_000): once the body is out the request is handled and later
+            // handlers never run.
+            .SetOrder(100_000)
+            .SetType(OpenIddictServerHandlerType.Custom)
+            .Build()
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -144,6 +208,7 @@ let addOpenIddict (options: Options) (services: IServiceCollection) =
 
             server.AddEventHandler RejectPlainCodeChallengeMethod.Descriptor |> ignore
             server.AddEventHandler AdvertiseOnlyS256.Descriptor |> ignore
+            server.AddEventHandler RecordAuthorizationCodeReplay.Descriptor |> ignore
 
             // Opaque reference tokens rather than self-contained JWTs. This is
             // what makes FR-022 true as written: revoking an authorization stops
@@ -189,12 +254,17 @@ let addOpenIddict (options: Options) (services: IServiceCollection) =
             // Forbid are thin wrappers over HttpContext.SignInAsync and
             // ForbidAsync, which an Oxpecker handler calls directly.
             //
-            // The token endpoint is NOT in this list. Left alone, OpenIddict
-            // handles authorization_code and refresh_token itself — PKCE
-            // verification, client authentication, rolling refresh rotation —
-            // for zero code. The spike confirmed it.
+            // The token endpoint IS in this list, since T091. OpenIddict still
+            // does the heavy lifting there — PKCE verification, client
+            // authentication, code and refresh-token validation, rolling
+            // refresh rotation — but the decision to issue is Umbral's, because
+            // FR-022 needs `is_enabled` re-checked on every refresh and a
+            // handler that does not run cannot check it. The cost is that the
+            // handler now owns rebuilding the identity and re-applying claim
+            // destinations (Handlers/Connect/Token.fs).
             aspNet
                 .EnableAuthorizationEndpointPassthrough()
+                .EnableTokenEndpointPassthrough()
                 .EnableUserInfoEndpointPassthrough()
                 .EnableEndSessionEndpointPassthrough()
             |> ignore

@@ -9,6 +9,7 @@
   <!-- Same compile-order constraint as the web project: helpers before the tests that use them. -->
   <ItemGroup>
     <Compile Include="Infrastructure/Fixtures.fs" />
+    <Compile Include="Infrastructure/Flows.fs" />
     <Compile Include="IdsTests.fs" />
     <Compile Include="LinkingRuleTests.fs" />
     <Compile Include="ProviderAdapterTests.fs" />
@@ -26,6 +27,8 @@
     <Compile Include="FirstLoginTests.fs" />
     <Compile Include="ConfigFileTests.fs" />
     <Compile Include="ConnectorRuntimeTests.fs" />
+    <Compile Include="ConnectorDeleteTests.fs" />
+    <Compile Include="SecurityEventCoverageTests.fs" />
     <Compile Include="OidcProtocolTests.fs" />
     <Compile Include="OAuthRoundTripTests.fs" />
     <Compile Include="RateLimitTests.fs" />
