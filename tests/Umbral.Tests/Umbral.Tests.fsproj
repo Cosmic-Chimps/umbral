@@ -10,6 +10,7 @@
   <ItemGroup>
     <Compile Include="Infrastructure/Fixtures.fs" />
     <Compile Include="IdsTests.fs" />
+    <Compile Include="LinkingRuleTests.fs" />
     <Compile Include="PublicOriginTests.fs" />
     <Compile Include="KeyPersistenceTests.fs" />
     <Compile Include="SecretsTests.fs" />

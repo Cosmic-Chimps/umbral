@@ -34,12 +34,16 @@
   -->
   <ItemGroup>
     <Compile Include="Domains/Ids.fs" />
+    <Compile Include="Domains/Connectors.fs" />
+    <Compile Include="Domains/Linking.fs" />
     <Compile Include="Infrastructure/PublicOrigin.fs" />
     <Compile Include="Infrastructure/DataDirectory.fs" />
     <Compile Include="Infrastructure/Keys.fs" />
     <Compile Include="Infrastructure/Secrets.fs" />
     <Compile Include="Infrastructure/Database.fs" />
     <Compile Include="Infrastructure/SecurityEvents.fs" />
+    <Compile Include="Infrastructure/OAuthRoundTrip.fs" />
+    <Compile Include="Infrastructure/ProviderAdapters.fs" />
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/Sessions.fs" />
     <Compile Include="Infrastructure/OpenIddictSetup.fs" />
