@@ -34,7 +34,7 @@ let private startProcess (dataDirectory: string) (port: int) (args: string list)
     info.RedirectStandardOutput <- true
     info.RedirectStandardError <- true
     // A clean slate: nothing the developer's shell exports may change what runs.
-    for name in [ "ASPNETCORE_ENVIRONMENT"; "DOTNET_ENVIRONMENT"; "UMBRAL__CONFIG_FILE" ] do
+    for name in [ "ASPNETCORE_ENVIRONMENT"; "DOTNET_ENVIRONMENT" ] do
         info.Environment.Remove name |> ignore
 
     info.Environment["UMBRAL__PUBLIC_ORIGIN"] <- "https://umbral.test"

@@ -150,7 +150,6 @@ let addFakeConnector (app: Fixtures.TestApp) (secret: string) =
                   ClientId = "fake"
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = Secrets.hint secret
-                  ExtraScopes = []
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

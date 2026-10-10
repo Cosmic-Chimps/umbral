@@ -174,12 +174,11 @@ let private buildDescriptor
 // rather than surfacing as an opaque mismatch at the authorize step.
 // ---------------------------------------------------------------------------
 
-/// The SAME rule the configuration file uses. It lived here as its own copy
-/// until the copy in Domains.ConfigDocument grew a case this one lacked: on
-/// Unix "/callback" parses as an absolute file:// uri and sailed through.
-/// One rule, one place.
+/// The screen and the rule share one module. The screen used to keep its own
+/// copy, and that copy lacked a case: on Unix "/callback" parses as an absolute
+/// file:// uri and sailed through. One rule, one place.
 let private parseStrictUri (candidate: string) : Uri option =
-    match Umbral.Domains.ConfigDocument.acceptableRedirectUri candidate with
+    match Umbral.Domains.RedirectUris.acceptable candidate with
     | Ok uri -> Some uri
     | Error _ -> None
 

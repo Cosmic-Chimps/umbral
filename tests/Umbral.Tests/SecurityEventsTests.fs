@@ -95,7 +95,7 @@ let ``the clock is injectable so a test can assert the timestamp`` () =
             let fixedNow = DateTimeOffset(2026, 3, 14, 15, 9, 26, TimeSpan.Zero)
             let clock = new FakeTimeProvider(fixedNow)
 
-            do! record config clock (event ConfigApplied Success System)
+            do! record config clock (event AppDeleted Success System)
 
             let! stored = rows config "SELECT occurred_utc FROM security_events"
             Assert.Equal(fixedNow, DateTimeOffset.Parse(stored, Globalization.CultureInfo.InvariantCulture))

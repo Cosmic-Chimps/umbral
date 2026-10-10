@@ -13,7 +13,6 @@ let private connector slug kind enabled shared : Connector =
       ClientId = "id"
       ClientSecretRef = "ref"
       ClientSecretHint = "hint"
-      ExtraScopes = []
       IsEnabled = enabled
       IsShared = shared
       CreatedUtc = DateTimeOffset.UnixEpoch

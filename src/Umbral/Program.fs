@@ -40,7 +40,6 @@ let endpoints: Endpoint list =
       yield! Umbral.Handlers.Admin.Connectors.endpoint
       Umbral.Handlers.Admin.ConnectorToggle.endpoint
       Umbral.Handlers.Admin.ConnectorDelete.endpoint
-      Umbral.Handlers.Admin.ConfigExport.endpoint
       yield! Umbral.Handlers.Dev.FakeProvider.endpoint
       yield! Umbral.Handlers.Admin.Apps.endpoint
       Umbral.Handlers.Admin.AppSecret.endpoint
@@ -316,64 +315,12 @@ let configureApp (app: WebApplication) =
 let initialize (app: WebApplication) =
     task {
         let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
-        let dataDirectory = app.Services.GetRequiredService<DataDirectory.DataDirectory>()
-        let config = app.Services.GetRequiredService<IConfiguration>()
 
         do! Database.initializeSchema dbConfig
 
         use scope = app.Services.CreateScope()
         let context = scope.ServiceProvider.GetRequiredService<UmbralContext>()
         do! context.Database.MigrateAsync()
-
-        // Apply the configuration file, if the operator supplied one. Before
-        // the fake-connector check, so a file that adds one is caught by it.
-        //
-        // Every failure here stops the process rather than starting a
-        // half-configured instance (FR-030). An operator who mistyped a
-        // variable name should find out now, with the entry named, not when a
-        // login fails with a provider error that mentions neither.
-        let configPath =
-            ConfigFile.locate config[ "UMBRAL:CONFIG_FILE" ] dataDirectory
-
-        match ConfigFile.tryRead configPath with
-        | None -> ()
-        | Some yaml ->
-            match ConfigFile.parse yaml with
-            | Error e -> failwith $"{configPath}: {e.Describe}"
-            | Ok document ->
-                match ConfigFile.resolveSecrets (fun name -> config[name]) document with
-                | Error missing -> failwith $"{configPath}: {ConfigFile.describeMissing missing}"
-                | Ok resolved ->
-                    let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-                    let clock = app.Services.GetRequiredService<TimeProvider>()
-                    let! applied = ConfigFile.applyConnectors dbConfig clock secrets resolved
-
-                    // Apps through OpenIddict's own manager, the way the Apps
-                    // screen creates them — OpenIddict is the only thing that
-                    // knows how a client secret is hashed.
-                    let applications = scope.ServiceProvider.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>()
-                    let! appsApplied = ConfigFile.applyApps dbConfig clock applications resolved
-
-                    // Before the setup banner below: a file that carries the
-                    // operator credential claims the instance, and an instance
-                    // that is already claimed has no use for the banner.
-                    let! operatorApplied = ConfigFile.applyOperator dbConfig clock resolved
-
-                    do!
-                        SecurityEvents.record
-                            dbConfig
-                            clock
-                            { SecurityEvents.event
-                                  SecurityEvents.ConfigApplied
-                                  SecurityEvents.Success
-                                  SecurityEvents.Actor.System with
-                                Detail =
-                                    Some(
-                                        $"connectors={applied};apps={appsApplied}"
-                                        + (match operatorApplied with
-                                           | Some result -> $";operator={string result}".ToLowerInvariant()
-                                           | None -> "")
-                                    ) }
 
         // A fake connector authenticates anyone as whoever they claim to be.
         // If one is configured on an instance that has not explicitly allowed
@@ -390,9 +337,8 @@ let initialize (app: WebApplication) =
 
         // An unconfigured instance is claimable by whoever reaches /admin/setup
         // first, so claiming it also needs a token only someone who can read
-        // the container log has. Printed after the configuration file, which
-        // may claim the instance itself; appsettings.json keeps the startup
-        // chatter quiet enough that it stays near the end of the log.
+        // the container log has. appsettings.json keeps the startup chatter
+        // quiet enough that it stays near the end of the log.
         if not configured then
             let origin = app.Services.GetRequiredService<PublicOrigin.PublicOrigin>()
             let token = app.Services.GetRequiredService<AdminAuth.SetupToken>()

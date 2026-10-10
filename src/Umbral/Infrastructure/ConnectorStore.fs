@@ -14,10 +14,7 @@ open Umbral.Domains.Connectors
 [<Literal>]
 let private Columns =
     "SELECT slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-            extra_scopes, is_enabled, is_shared, created_utc, updated_utc FROM connectors"
-
-let private readOptional (reader: SqliteDataReader) (ordinal: int) =
-    if reader.IsDBNull ordinal then None else Some(reader.GetString ordinal)
+            is_enabled, is_shared, created_utc, updated_utc FROM connectors"
 
 let private read (reader: SqliteDataReader) =
     let kind =
@@ -34,14 +31,10 @@ let private read (reader: SqliteDataReader) =
       ClientId = reader.GetString 3
       ClientSecretRef = reader.GetString 4
       ClientSecretHint = reader.GetString 5
-      ExtraScopes =
-        readOptional reader 6
-        |> Option.map (fun s -> s.Split(' ', StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
-        |> Option.defaultValue []
-      IsEnabled = reader.GetInt32 7 = 1
-      IsShared = reader.GetInt32 8 = 1
-      CreatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture)
-      UpdatedUtc = DateTimeOffset.Parse(reader.GetString 10, Globalization.CultureInfo.InvariantCulture) }
+      IsEnabled = reader.GetInt32 6 = 1
+      IsShared = reader.GetInt32 7 = 1
+      CreatedUtc = DateTimeOffset.Parse(reader.GetString 8, Globalization.CultureInfo.InvariantCulture)
+      UpdatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture) }
 
 let private query (config: Database.DbConfig) (where: string) (parameters: (string * string) list) =
     task {
@@ -101,14 +94,13 @@ let save
         command.CommandText <-
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-                  extra_scopes, is_enabled, is_shared, created_utc, updated_utc)
-             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @scopes, @enabled, @shared, @now, @now)
+                  is_enabled, is_shared, created_utc, updated_utc)
+             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now)
              ON CONFLICT (slug) DO UPDATE SET
                  display_name      = @name,
                  client_id         = @clientId,
                  client_secret_ref = @secretRef,
                  client_secret_hint= @secretHint,
-                 extra_scopes      = @scopes,
                  is_enabled        = @enabled,
                  is_shared         = @shared,
                  updated_utc       = @now"
@@ -119,7 +111,6 @@ let save
         command.Parameters.AddWithValue("@clientId", connector.ClientId) |> ignore
         command.Parameters.AddWithValue("@secretRef", secretRef) |> ignore
         command.Parameters.AddWithValue("@secretHint", secretHint) |> ignore
-        command.Parameters.AddWithValue("@scopes", String.concat " " connector.ExtraScopes) |> ignore
         command.Parameters.AddWithValue("@enabled", (if connector.IsEnabled then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@shared", (if connector.IsShared then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@now", now) |> ignore
@@ -145,8 +136,8 @@ let create
         command.CommandText <-
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-                  extra_scopes, is_enabled, is_shared, created_utc, updated_utc)
-             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @scopes, @enabled, @shared, @now, @now)
+                  is_enabled, is_shared, created_utc, updated_utc)
+             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now)
              ON CONFLICT (slug) DO NOTHING"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -155,7 +146,6 @@ let create
         command.Parameters.AddWithValue("@clientId", connector.ClientId) |> ignore
         command.Parameters.AddWithValue("@secretRef", secretRef) |> ignore
         command.Parameters.AddWithValue("@secretHint", secretHint) |> ignore
-        command.Parameters.AddWithValue("@scopes", String.concat " " connector.ExtraScopes) |> ignore
         command.Parameters.AddWithValue("@enabled", (if connector.IsEnabled then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@shared", (if connector.IsShared then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore

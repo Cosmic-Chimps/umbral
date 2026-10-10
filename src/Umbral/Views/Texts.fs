@@ -201,12 +201,6 @@ type Texts =
       UserDeleteConfirm: string -> string
       UserDeletedNotice: string
 
-      // Config export (GET /admin/config)
-      ConfigExportTitle: string
-      ConfigExportLead: string
-      ConfigExportDownloadButton: string
-      ConfigExportSecretNote: string
-
       // Generic chrome and errors (FR-037: every message names the next action)
       CopyButton: string
       CopiedNotice: string
@@ -413,11 +407,6 @@ let en: Texts =
       UserDeleteButton = "Delete"
       UserDeleteConfirm = fun name -> $"Delete {name}? This removes their account and every linked provider account permanently, and can't be undone."
       UserDeletedNotice = "User deleted."
-
-      ConfigExportTitle = "Export configuration"
-      ConfigExportLead = "The current apps and connectors as one YAML file. Secrets are written as environment-variable references, never in clear text."
-      ConfigExportDownloadButton = "Download umbral.yaml"
-      ConfigExportSecretNote = "App secrets can't be exported — OpenIddict only stores a hash of them. An app imported from this file gets a fresh secret; update its configuration with the new one."
 
       CopyButton = "Copy"
       CopiedNotice = "Copied"

@@ -9,8 +9,8 @@ open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 open Umbral.Tests.Infrastructure
 
-/// Put a fake connector straight into the database, as a configuration file or
-/// a careless operator could.
+/// Put a fake connector straight into the database, as a restored backup or a
+/// careless operator could.
 let private seedFakeConnector (config: Database.DbConfig) (clock: TimeProvider) =
     ConnectorStore.save
         config
@@ -21,7 +21,6 @@ let private seedFakeConnector (config: Database.DbConfig) (clock: TimeProvider) 
           ClientId = "fake-client"
           ClientSecretRef = "local:unused"
           ClientSecretHint = "none"
-          ExtraScopes = []
           IsEnabled = true
           IsShared = true
           CreatedUtc = clock.GetUtcNow()

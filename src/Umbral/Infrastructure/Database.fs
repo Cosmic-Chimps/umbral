@@ -86,7 +86,6 @@ let private schema =
         -- additive rather than a migration on every deployed instance.
         client_secret_ref       TEXT    NOT NULL,
         client_secret_hint      TEXT    NOT NULL,
-        extra_scopes            TEXT        NULL,
         is_enabled              INTEGER NOT NULL DEFAULT 1,
         -- A shared connector is offered to every app set to "all shared
         -- connectors" (FR-014). A database from schema version 1 gets this

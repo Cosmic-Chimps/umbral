@@ -50,7 +50,7 @@ type ProviderEndpoints =
       /// Empty for Fake, which never leaves the process.
       UserInfoUrl: string
       /// The minimum needed for a stable id, an email, a display name and an
-      /// avatar. Anything beyond this is the operator's `extra_scopes`.
+      /// avatar. These are all the scopes Umbral requests.
       Scopes: string list
       /// Discord does not document PKCE support; two third-party sources say
       /// S256-only. Shipped on, with this flag so a provider that rejects the
@@ -125,7 +125,6 @@ type Connector =
       /// "<store>:<locator>" — opaque outside the ISecretStore that wrote it.
       ClientSecretRef: string
       ClientSecretHint: string
-      ExtraScopes: string list
       IsEnabled: bool
       /// A shared connector is offered to every app set to "all shared
       /// connectors". One that is not shared is offered only to the apps whose
@@ -137,9 +136,7 @@ type Connector =
     member this.Endpoints = endpointsFor this.Kind
 
     member this.ScopeString =
-        (this.Endpoints.Scopes @ this.ExtraScopes)
-        |> List.distinct
-        |> String.concat " "
+        this.Endpoints.Scopes |> List.distinct |> String.concat " "
 
 /// An app's connector choice (FR-005). No row in `app_connector_choices` means
 /// AllShared, which is also the default for a new app.

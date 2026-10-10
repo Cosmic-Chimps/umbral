@@ -588,7 +588,6 @@ let create: EndpointHandler =
                       ClientId = clientId
                       ClientSecretRef = ""
                       ClientSecretHint = ""
-                      ExtraScopes = []
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
@@ -658,7 +657,6 @@ let save (slug: string) : EndpointHandler =
                           ClientId = clientId
                           ClientSecretRef = ""
                           ClientSecretHint = ""
-                          ExtraScopes = []
                           // A connector arrives enabled: the operator came here to
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true

@@ -13,6 +13,7 @@
     <Compile Include="Infrastructure/Journeys.fs" />
     <Compile Include="IdsTests.fs" />
     <Compile Include="LinkingRuleTests.fs" />
+    <Compile Include="RedirectUriTests.fs" />
     <Compile Include="ProviderAdapterTests.fs" />
     <Compile Include="AdminAuthTests.fs" />
     <Compile Include="UserStoreTests.fs" />
@@ -26,7 +27,6 @@
     <Compile Include="AdminScreenTests.fs" />
     <Compile Include="FakeConnectorGuardTests.fs" />
     <Compile Include="FirstLoginTests.fs" />
-    <Compile Include="ConfigFileTests.fs" />
     <Compile Include="CredentialTests.fs" />
     <Compile Include="ConnectorRuntimeTests.fs" />
     <Compile Include="ConnectorDeleteTests.fs" />
@@ -47,6 +47,7 @@
     <Compile Include="SignInAppNameTests.fs" />
     <Compile Include="AppConnectorChoiceTests.fs" />
     <Compile Include="MultipleConnectorsTests.fs" />
+    <Compile Include="NoConfigFileTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 
@@ -54,6 +55,7 @@
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageReference Include="xunit.v3" Version="4.0.1" />
+    <PackageReference Include="YamlDotNet" Version="16.*" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
   </ItemGroup>
 

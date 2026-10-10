@@ -128,7 +128,6 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
                   ClientId = "fake"
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = "used"
-                  ExtraScopes = []
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

@@ -133,7 +133,6 @@ let seedFakeConnector (app: Fixtures.TestApp) =
                   ClientId = "fake"
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = "used"
-                  ExtraScopes = []
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
