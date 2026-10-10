@@ -69,5 +69,12 @@ ENV DOTNET_gcServer=0
 # UMBRAL__PUBLIC_ORIGIN (required, https) says where people reach it from.
 EXPOSE 8080
 
+# `healthcheck` is a subcommand of the app (Program.fs), not curl: the aspnet
+# image has neither curl nor wget, and adding one only to ask localhost a
+# question would grow the image. It GETs /healthz on the listener's own port and
+# exits 0 or 1. The start period covers first-run key generation and migrations.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD ["/app/Umbral", "healthcheck"]
+
 USER $APP_UID
 ENTRYPOINT ["/app/Umbral"]

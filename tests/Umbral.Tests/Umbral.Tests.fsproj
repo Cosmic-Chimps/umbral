@@ -34,6 +34,7 @@
     <Compile Include="RateLimitTests.fs" />
     <Compile Include="AdminLandingTests.fs" />
     <Compile Include="MessagePageTests.fs" />
+    <Compile Include="SubcommandTests.fs" />
     <Compile Include="MetaTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>

@@ -400,12 +400,24 @@ let buildApp (args: string array) (customize: WebApplicationBuilder -> unit) : W
 /// door, and this product has exactly one on purpose.
 ///
 ///     docker exec -it umbral /app/Umbral reset-credential
-let private resetCredential (app: WebApplication) =
+///
+/// Takes only what it needs. `initialize` is not run: it would print the
+/// first-run setup banner, with a token that nothing is waiting to receive,
+/// above the very credential this prints, and it would apply the configuration
+/// file for no reason. The schema is ensured here because the settings table
+/// must exist, which on an instance that never started is not a given.
+///
+/// On an instance nobody has claimed yet this claims it. That is acceptable:
+/// being able to run this process is more authority than the setup token
+/// represents, and refusing would only send the operator to a page that wants a
+/// token from a log they may not have kept. The output says which happened.
+let resetCredential (app: WebApplication) (write: string -> unit) =
     task {
         let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
-        let dataDirectory = app.Services.GetRequiredService<DataDirectory.DataDirectory>()
-        let config = app.Services.GetRequiredService<IConfiguration>()
         let clock = app.Services.GetRequiredService<TimeProvider>()
+
+        do! Database.initializeSchema dbConfig
+        let! wasConfigured = AdminAuth.isConfigured dbConfig
 
         // Generated rather than prompted: a reset run non-interactively through
         // `docker exec` has nowhere to read a typed value from, and a generated
@@ -422,23 +434,29 @@ let private resetCredential (app: WebApplication) =
                           SecurityEvents.OperatorCredentialChanged
                           SecurityEvents.Success
                           SecurityEvents.Actor.System with
-                        Detail = Some "offline_reset" }
+                        Detail = Some(if wasConfigured then "offline_reset" else "offline_claim") }
 
             let line = String.replicate 64 "="
 
-            Console.WriteLine(
+            let headline =
+                if wasConfigured then
+                    [ "  The operator credential has been replaced." ]
+                else
+                    [ "  This instance had no operator yet. It is now claimed:"
+                      "  the first-run setup page will no longer ask for a token." ]
+
+            write (
                 String.concat
                     Environment.NewLine
-                    [ ""
-                      line
-                      "  The operator credential has been replaced."
-                      ""
-                      $"  New credential   {replacement}"
-                      ""
-                      "  Sign in with it, then change it from the admin area."
-                      "  This is the only time it is shown."
-                      line
-                      "" ]
+                    ([ ""; line ]
+                     @ headline
+                     @ [ ""
+                         $"  New credential   {replacement}"
+                         ""
+                         "  Sign in with it, then change it from the admin area."
+                         "  This is the only time it is shown."
+                         line
+                         "" ])
             )
 
             return 0
@@ -448,13 +466,43 @@ let private resetCredential (app: WebApplication) =
             return 1
     }
 
+/// The container health check: `/app/Umbral healthcheck`, exit 0 when this
+/// instance's own /healthz answers 200 and 1 otherwise.
+///
+/// A subcommand of the app rather than curl or wget because the aspnet image
+/// ships neither, and installing one only to probe localhost would grow the
+/// image and its attack surface. Nothing is built here: no web host, no data
+/// directory, no database — only a request to the one that is already running.
+/// The port is the one the image already sets for the listener
+/// (ASPNETCORE_HTTP_PORTS), so there is no second setting to keep in step.
+let healthcheck () =
+    let port =
+        match Environment.GetEnvironmentVariable "ASPNETCORE_HTTP_PORTS" with
+        | null -> "8080"
+        | ports ->
+            ports.Split([| ';'; ',' |], StringSplitOptions.RemoveEmptyEntries ||| StringSplitOptions.TrimEntries)
+            |> Array.tryHead
+            |> Option.defaultValue "8080"
+
+    try
+        use client = new HttpClient(Timeout = TimeSpan.FromSeconds 5.0)
+        use response = client.GetAsync($"http://localhost:{port}/healthz").GetAwaiter().GetResult()
+        if response.IsSuccessStatusCode then 0 else 1
+    with _ ->
+        1
+
 [<EntryPoint>]
 let main args =
-    let app = buildApp args ignore
-    (initialize app).GetAwaiter().GetResult()
-
-    if args |> Array.contains "reset-credential" then
-        (resetCredential app).GetAwaiter().GetResult()
+    // Subcommands are decided before anything is built, so that none of them
+    // can start a second web host or print the first-run banner.
+    if args |> Array.contains "healthcheck" then
+        healthcheck ()
     else
-        app.Run()
-        0
+        let app = buildApp args ignore
+
+        if args |> Array.contains "reset-credential" then
+            (resetCredential app Console.WriteLine).GetAwaiter().GetResult()
+        else
+            (initialize app).GetAwaiter().GetResult()
+            app.Run()
+            0
