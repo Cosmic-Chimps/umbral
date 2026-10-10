@@ -78,7 +78,12 @@ let private schema =
         kind                    TEXT    NOT NULL,
         display_name            TEXT    NOT NULL,
         client_id               TEXT    NOT NULL,
-        client_secret_protected BLOB    NOT NULL,
+        -- Not a ciphertext column. `client_secret_ref` is "<store>:<locator>",
+        -- opaque to everything but the ISecretStore that wrote it: for the
+        -- local store the Data-Protection ciphertext, for an external manager
+        -- an ARN or URI. Shaped this way now so adding a backend later is
+        -- additive rather than a migration on every deployed instance.
+        client_secret_ref       TEXT    NOT NULL,
         client_secret_hint      TEXT    NOT NULL,
         extra_scopes            TEXT        NULL,
         is_enabled              INTEGER NOT NULL DEFAULT 1,

@@ -24,6 +24,7 @@
     <Compile Include="Domains/Ids.fs" />
     <Compile Include="Infrastructure/PublicOrigin.fs" />
     <Compile Include="Infrastructure/Keys.fs" />
+    <Compile Include="Infrastructure/Secrets.fs" />
     <Compile Include="Infrastructure/Database.fs" />
     <Compile Include="Views/Texts.fs" />
     <Compile Include="Views/Theme.fs" />
