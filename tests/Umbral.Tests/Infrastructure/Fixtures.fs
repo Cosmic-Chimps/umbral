@@ -126,3 +126,31 @@ let createAppIn (dataDirectory: string) (settings: (string * string) list) (cust
 let freshDataDirectory () = newTempDirectory ()
 
 let createApp () = createAppWith [] ignore
+
+/// Hands the provider client a handler the factory must not dispose: the
+/// factory rebuilds its handler chain every couple of minutes and disposes the
+/// old one, and the test still owns the stub.
+type private Borrowed(inner: HttpMessageHandler) =
+    inherit HttpMessageHandler()
+
+    let invoker = new HttpMessageInvoker(inner, false)
+
+    override _.SendAsync(request, cancellationToken) = invoker.SendAsync(request, cancellationToken)
+
+/// Start the real app with `handler` behind every upstream provider call.
+///
+/// Goes through the product's own seam (`ProviderAdapters.PrimaryHandler`, specs/002
+/// research R9), registered before `configureServices` runs so its `TryAddSingleton`
+/// leaves it alone. The adapters, the discovery cache and the admin screens are the
+/// real ones; only the network is replaced.
+let createAppWithProviderHandler
+    (handler: HttpMessageHandler)
+    (settings: (string * string) list)
+    (customize: WebApplicationBuilder -> unit)
+    : Task<TestApp> =
+    createAppWith settings (fun builder ->
+        builder.Services.AddSingleton<Umbral.Infrastructure.ProviderAdapters.PrimaryHandler>(
+            Umbral.Infrastructure.ProviderAdapters.PrimaryHandler(fun () -> new Borrowed(handler) :> HttpMessageHandler))
+        |> ignore
+
+        customize builder)

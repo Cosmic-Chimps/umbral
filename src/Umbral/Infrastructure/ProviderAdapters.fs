@@ -11,6 +11,7 @@
 module Umbral.Infrastructure.ProviderAdapters
 
 open System
+open System.Net.Http
 open System.Threading.Tasks
 open Umbral.Domains.Connectors
 
@@ -82,6 +83,19 @@ type IProviderAdapter =
 /// otherwise carry an authorization code somewhere we never meant to send it.
 [<Literal>]
 let HttpClientName = "umbral-provider"
+
+/// Builds the primary handler under the named client above.
+///
+/// A registered factory rather than an inline `new HttpClientHandler` so a test
+/// can put a stub identity provider in the handler's place and still go through
+/// the real adapters, the real DI and the real pipeline — the seam lives in the
+/// product, not in a mock (specs/002 research R9). A delegate rather than a
+/// function type so no other registration can collide with it.
+type PrimaryHandler = delegate of unit -> HttpMessageHandler
+
+/// What production uses. AllowAutoRedirect = false and why: see `HttpClientName`.
+let defaultPrimaryHandler () : HttpMessageHandler =
+    new HttpClientHandler(AllowAutoRedirect = false, MaxAutomaticRedirections = 1)
 
 /// Query-string building, shared so every adapter escapes identically.
 let buildUrl (baseUrl: string) (parameters: (string * string) list) =
