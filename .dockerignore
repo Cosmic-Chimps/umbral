@@ -14,3 +14,7 @@ tests
 data
 *.db
 *.pfx
+.data
+.DS_Store
+TestResults
+design

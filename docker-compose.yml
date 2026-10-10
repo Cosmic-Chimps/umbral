@@ -1,0 +1,65 @@
+# Umbral behind Caddy, which terminates TLS and fetches its own certificate.
+#
+#   UMBRAL_DOMAIN=auth.example.com docker compose up -d
+#   docker compose logs umbral      # the one-time setup URL and token are printed here
+#
+# (or put UMBRAL_DOMAIN=... in a .env file next to this one; .env is git-ignored)
+#
+# Three things operators get wrong:
+#
+# 1. The origin must be exactly the https address people use. Umbral builds the
+#    issuer and every connector redirect URI from UMBRAL__PUBLIC_ORIGIN and never
+#    from the request, so scheme, host and port must match what you register in
+#    the Discord, GitHub or Google console. No path, no trailing slash. A mismatch
+#    shows up as `redirect_uri_mismatch` at the provider. Here the origin and
+#    Caddy's site address are both built from UMBRAL_DOMAIN, so they cannot drift.
+#
+# 2. Caddy can only get a certificate if DNS for UMBRAL_DOMAIN already points at
+#    this host and ports 80 and 443 reach it. Until then the browser sees a TLS
+#    error, not an Umbral one.
+#
+# 3. Back up the umbral-data volume. Losing it means re-entering every secret:
+#    connector and app secrets are encrypted with a key ring stored there, and
+#    the token signing keys live there too. Backup is copying that directory.
+#    (caddy-data only holds certificates, which Caddy re-issues if lost.)
+
+services:
+  umbral:
+    # No image is published yet, so compose builds it from this checkout.
+    build: .
+    image: umbral
+    restart: unless-stopped
+    environment:
+      UMBRAL__PUBLIC_ORIGIN: https://${UMBRAL_DOMAIN:?Set UMBRAL_DOMAIN to the public host name, e.g. auth.example.com}
+    volumes:
+      - umbral-data:/data
+    # No ports: Umbral listens on 8080 inside the compose network only, so
+    # everything reaches it through Caddy. Do not publish 8080 on a public host.
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - umbral
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+
+# reverse_proxy sends X-Forwarded-For, -Proto and -Host by default, which is all
+# Umbral reads. Compose fills in ${UMBRAL_DOMAIN} before Caddy sees this file.
+configs:
+  caddyfile:
+    content: |
+      ${UMBRAL_DOMAIN} {
+        reverse_proxy umbral:8080
+      }
+
+volumes:
+  umbral-data:
+  caddy-data:
