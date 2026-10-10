@@ -35,6 +35,7 @@
     <Compile Include="AdminLandingTests.fs" />
     <Compile Include="MessagePageTests.fs" />
     <Compile Include="SubcommandTests.fs" />
+    <Compile Include="LoggingDefaultsTests.fs" />
     <Compile Include="MetaTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
