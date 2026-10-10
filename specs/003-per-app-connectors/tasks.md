@@ -82,19 +82,19 @@ Files: `src/Umbral/Handlers/Connect/Authorize.fs`, `src/Umbral/Handlers/Admin/Ap
 
 **Wave 1 — independent (different files):**
 
-- [ ] **T013** [P] [US2] An app limited to one connector offers only it on `/signin` while another app offers all shared ones. A session through a connector the app does not offer leads to the picker, or `login_required` with `prompt=none`, and is not signed out. A session through an offered connector is honoured. The Apps screen saves both choices, shows `data-app-choice` and `data-app-connector`, and warns with `data-stranded-app` before an empty or all-disabled set. Disabling the only connector of a limited app warns, naming it. Deleting an app removes its choice rows · `tests/Umbral.Tests/AppConnectorChoiceTests.fs`
-- [ ] **T014** [P] [US2] Deleting a connector removes it from every chosen set and leaves those apps limited (FR-011). Deleting a limited app's only connector warns with `connector-delete-strands-apps` and needs `confirm=yes` · `tests/Umbral.Tests/ConnectorDeleteTests.fs`
+- [x] **T013** [P] [US2] An app limited to one connector offers only it on `/signin` while another app offers all shared ones. A session through a connector the app does not offer leads to the picker, or `login_required` with `prompt=none`, and is not signed out. A session through an offered connector is honoured. The Apps screen saves both choices, shows `data-app-choice` and `data-app-connector`, and warns with `data-stranded-app` before an empty or all-disabled set. Disabling the only connector of a limited app warns, naming it. Deleting an app removes its choice rows · `tests/Umbral.Tests/AppConnectorChoiceTests.fs`
+- [x] **T014** [P] [US2] Deleting a connector removes it from every chosen set and leaves those apps limited (FR-011). Deleting a limited app's only connector warns with `connector-delete-strands-apps` and needs `confirm=yes` · `tests/Umbral.Tests/ConnectorDeleteTests.fs`
 - [ ] **T015** [P] [US2] `shared` and `connectors` parse with their defaults. `connectors: []` is distinct from absent. An unknown slug or a repeated slug in an app's list is refused with its path (FR-018). Applying twice writes no second event. Export then apply on a fresh instance reproduces both settings (FR-017) · `tests/Umbral.Tests/ConfigFileTests.fs`
 
 ### Implementation
 
 **Wave 1 — independent (different files):**
 
-- [ ] **T016** [P] [US2] FR-008: in the session branch, load the app's choice and honour the session only if `Sessions.currentConnector` is in `offeredTo`. Otherwise redirect to `/signin?returnUrl=…`, or `forbid` with `login_required` for `prompt=none`. Never sign out · `src/Umbral/Handlers/Connect/Authorize.fs`
-- [ ] **T017** [P] [US2] Connector choice as radio cards on create (`connectorChoice`, `connectors`). Add `POST /admin/apps/{clientId}/connectors` to `endpoint`. Show the choice on each app row. Run the `strandedApps` warning with `confirm=yes`. Base the "add a connector first" gate on `offeredTo AllShared` (FR-005, FR-009, FR-010) · `src/Umbral/Handlers/Admin/Apps.fs`
-- [ ] **T018** [P] [US2] Delete the app's choice rows with `AppConnectors.deleteFor` · `src/Umbral/Handlers/Admin/AppDelete.fs`
-- [ ] **T019** [P] [US2] Before disabling, compute `strandedApps`. Warn with `connector-strands-apps` and the slug unless `confirm=yes`. Keep `connector-last-enabled` for when no app is stranded (FR-010) · `src/Umbral/Handlers/Admin/ConnectorToggle.fs`
-- [ ] **T020** [P] [US2] Same guard for delete with `connector-delete-strands-apps`. Update the header comment: deleting also removes the connector from every chosen set (FR-010, FR-011) · `src/Umbral/Handlers/Admin/ConnectorDelete.fs`
+- [x] **T016** [P] [US2] FR-008: in the session branch, load the app's choice and honour the session only if `Sessions.currentConnector` is in `offeredTo`. Otherwise redirect to `/signin?returnUrl=…`, or `forbid` with `login_required` for `prompt=none`. Never sign out · `src/Umbral/Handlers/Connect/Authorize.fs`
+- [x] **T017** [P] [US2] Connector choice as radio cards on create (`connectorChoice`, `connectors`). Add `POST /admin/apps/{clientId}/connectors` to `endpoint`. Show the choice on each app row. Run the `strandedApps` warning with `confirm=yes`. Base the "add a connector first" gate on `offeredTo AllShared` (FR-005, FR-009, FR-010) · `src/Umbral/Handlers/Admin/Apps.fs`
+- [x] **T018** [P] [US2] Delete the app's choice rows with `AppConnectors.deleteFor` · `src/Umbral/Handlers/Admin/AppDelete.fs`
+- [x] **T019** [P] [US2] Before disabling, compute `strandedApps`. Warn with `connector-strands-apps` and the slug unless `confirm=yes`. Keep `connector-last-enabled` for when no app is stranded (FR-010) · `src/Umbral/Handlers/Admin/ConnectorToggle.fs`
+- [x] **T020** [P] [US2] Same guard for delete with `connector-delete-strands-apps`. Update the header comment: deleting also removes the connector from every chosen set (FR-010, FR-011) · `src/Umbral/Handlers/Admin/ConnectorDelete.fs`
 - [ ] **T021** [P] [US2] `ConnectorEntry.Shared`, `AppEntry.Connectors: string list option`, and the FR-018 and repeated-slug checks in `validate` (R7) · `src/Umbral/Domains/ConfigDocument.fs`
 
 **⟶ Wait for T021, then:**

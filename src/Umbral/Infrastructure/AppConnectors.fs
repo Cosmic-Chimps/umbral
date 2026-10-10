@@ -12,6 +12,7 @@ module Umbral.Infrastructure.AppConnectors
 
 open System.Collections.Generic
 open System.Threading.Tasks
+open OpenIddict.Abstractions
 open Umbral.Domains.Connectors
 
 /// One app's choice. No marker row means AllShared, whether or not the app
@@ -127,3 +128,47 @@ let setChoice (config: Database.DbConfig) (clientId: string) (choice: AppChoice)
 /// itself; deleting the marker cascades to the set.
 let deleteFor (config: Database.DbConfig) (clientId: string) : Task<unit> =
     setChoice config clientId AllShared
+
+/// Every registered app as (client id, name, choice), the input `strandedApps`
+/// takes. The names come from OpenIddict, the choices from `allChoices`, and an
+/// app with no choice row is AllShared. Shared by every FR-010 warning so no
+/// handler builds this list for itself.
+let appsWithChoices
+    (config: Database.DbConfig)
+    (applications: IOpenIddictApplicationManager)
+    : Task<(string * string * AppChoice) list> =
+    task {
+        let! choices = allChoices config
+        let enumerator = applications.ListAsync().GetAsyncEnumerator()
+        let apps = ResizeArray<string * string * AppChoice>()
+        let mutable go = true
+
+        while go do
+            let! hasNext = enumerator.MoveNextAsync()
+
+            if hasNext then
+                let! clientId = applications.GetClientIdAsync enumerator.Current
+                let! name = applications.GetDisplayNameAsync enumerator.Current
+
+                match Option.ofObj clientId with
+                | Some id ->
+                    let choice = choices |> Map.tryFind id |> Option.defaultValue AllShared
+                    apps.Add((id, Option.ofObj name |> Option.defaultValue id, choice))
+                | None -> ()
+            else
+                go <- false
+
+        do! enumerator.DisposeAsync()
+        return List.ofSeq apps
+    }
+
+/// The apps a change would strand that were not already stranded: the apps
+/// the FR-010 warnings name. An app that already offers nothing is not the
+/// change's doing, so it is not listed.
+let strandedByChange
+    (apps: (string * string * AppChoice) list)
+    (before: Connector list)
+    (after: Connector list)
+    : (string * string) list =
+    let already = strandedApps apps before |> List.map fst |> Set.ofList
+    strandedApps apps after |> List.filter (fun (clientId, _) -> not (Set.contains clientId already))

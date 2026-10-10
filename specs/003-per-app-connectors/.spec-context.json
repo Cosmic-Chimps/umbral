@@ -170,6 +170,62 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-10T20:12:40.078Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T013",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:40.920Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T014",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.011Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T016",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.092Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T017",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.177Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T018",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.266Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T019",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.355Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T020",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.439Z"
     }
   ],
   "last_action": "living specs evaluated — skipped (not configured)",
@@ -416,7 +472,7 @@
     }
   },
   "approach": "An app's connector choice lives in two Umbral tables and connectors gain is_shared (schema v2). One pure offeredTo rule drives the sign-in page (which reads the app from returnUrl), the FR-008 session check in authorize, and admin warnings. The Connectors screen shows one card per connector with an add form; the YAML document gets two optional keys; apps keep idp as the provider kind.",
-  "currentTask": "T012",
+  "currentTask": "T020",
   "task_summaries": {
     "T001": {
       "status": "DONE",
@@ -507,6 +563,59 @@
       "did": "Picker reads client_id from the sanitized authorize returnUrl, names the app, offers offeredTo of its choice",
       "files": [
         "src/Umbral/Handlers/Connect/Picker.fs"
+      ]
+    },
+    "T013": {
+      "status": "DONE",
+      "did": "Tests for per-app choice: sign-in filtering, session honour/not-honour, Apps screen markers, strand warnings, app delete, antiforgery",
+      "files": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs",
+        "tests/Umbral.Tests/Infrastructure/Flows.fs"
+      ]
+    },
+    "T014": {
+      "status": "DONE",
+      "did": "Tests: deleting a connector leaves chosen sets, apps stay limited, strand warning needs confirm",
+      "files": [
+        "tests/Umbral.Tests/ConnectorDeleteTests.fs"
+      ]
+    },
+    "T016": {
+      "status": "DONE",
+      "did": "Authorize honours a session only through a connector offeredTo the app; else signin redirect or login_required, never signs out",
+      "files": [
+        "src/Umbral/Handlers/Connect/Authorize.fs"
+      ]
+    },
+    "T017": {
+      "status": "DONE",
+      "did": "Apps screen: connector choice radio cards, POST /admin/apps/{id}/connectors, row markers, strand warning with confirm, AllShared gate",
+      "files": [
+        "src/Umbral/Handlers/Admin/Apps.fs",
+        "src/Umbral/Infrastructure/AppConnectors.fs",
+        "src/Umbral/Infrastructure/WebForms.fs"
+      ]
+    },
+    "T018": {
+      "status": "DONE",
+      "did": "App delete removes the choice rows",
+      "files": [
+        "src/Umbral/Handlers/Admin/AppDelete.fs"
+      ]
+    },
+    "T019": {
+      "status": "DONE",
+      "did": "Toggle warns with connector-strands-apps naming apps; Connectors screen renders the warning",
+      "files": [
+        "src/Umbral/Handlers/Admin/ConnectorToggle.fs",
+        "src/Umbral/Handlers/Admin/Connectors.fs"
+      ]
+    },
+    "T020": {
+      "status": "DONE",
+      "did": "Delete warns with connector-delete-strands-apps; header comment updated (FR-011)",
+      "files": [
+        "src/Umbral/Handlers/Admin/ConnectorDelete.fs"
       ]
     }
   }

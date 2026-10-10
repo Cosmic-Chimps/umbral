@@ -249,3 +249,88 @@ let ``an anonymous request cannot delete a connector`` () =
         let! stillThere = connectorExists app "discord"
         Assert.True(stillThere)
     }
+
+// ---------------------------------------------------------------------------
+// Feature 003, User Story 2: what deleting does to apps limited to a set.
+// ---------------------------------------------------------------------------
+
+/// Fake and Discord enabled and shared, and one app limited to the chosen set.
+let private limitedApp (app: Fixtures.TestApp) (operator: Browser) (chosen: string list) =
+    task {
+        do! claimOperator app operator
+        do! seedFakeConnector app
+        do! seedDiscord app true
+        let! clientId, _ = registerApp operator "Photos"
+        do! AppConnectors.setChoice app.DbConfig clientId (Only(Set.ofList chosen))
+        return clientId
+    }
+
+let private chosenSlugs (app: Fixtures.TestApp) (clientId: string) =
+    task {
+        let! choice = AppConnectors.choiceFor app.DbConfig clientId
+
+        return
+            match choice with
+            | Only slugs -> Some(Set.toList slugs)
+            | AllShared -> None
+    }
+
+[<Fact>]
+let ``deleting a connector removes it from every chosen set and the apps stay limited`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let operator = Browser(app.Client)
+        let! photos = limitedApp app operator [ "discord"; "fake" ]
+        let! recipes, _ = registerApp operator "Recipes"
+        do! AppConnectors.setChoice app.DbConfig recipes (Only(Set.ofList [ "discord"; "fake" ]))
+
+        // Both apps keep the fake connector, so nobody is stranded and no
+        // confirmation is asked for.
+        let! response = operator.PostForm("/admin/connectors", "/admin/connectors/discord/delete", [])
+        Assert.Contains("connector-deleted", location response)
+
+        let! afterPhotos = chosenSlugs app photos
+        let! afterRecipes = chosenSlugs app recipes
+        Assert.Equal(Some [ "fake" ], afterPhotos)
+        Assert.Equal(Some [ "fake" ], afterRecipes)
+    }
+
+[<Fact>]
+let ``deleting the only connector of a limited app warns, then leaves the app limited with an empty set`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let operator = Browser(app.Client)
+        let! photos = limitedApp app operator [ "discord" ]
+
+        let! warned = operator.PostForm("/admin/connectors", "/admin/connectors/discord/delete", [])
+        let back = location warned
+        Assert.Contains("connector-delete-strands-apps", back)
+        Assert.Contains("slug=discord", back)
+
+        let! stillThere = connectorExists app "discord"
+        Assert.True(stillThere, "nothing may be deleted before the confirmation")
+        let! recorded = eventCount app "connector_deleted"
+        Assert.Equal(0, recorded)
+
+        // The screen names the app and carries the button that goes ahead.
+        let! screen = operator.GetHtml back
+        Assert.Contains($"data-stranded-app=\"{photos}\"", screen)
+        Assert.Contains("action=\"/admin/connectors/discord/delete?confirm=yes\"", screen)
+
+        let! confirmed = operator.PostForm("/admin/connectors", "/admin/connectors/discord/delete?confirm=yes", [])
+        Assert.Contains("connector-deleted", location confirmed)
+
+        // FR-011: still limited, now to nothing. Not widened to the shared
+        // fake connector.
+        let! after = chosenSlugs app photos
+        Assert.Equal(Some [], after)
+
+        let! apps = operator.GetHtml "/admin/apps"
+        let row = apps.Substring(apps.IndexOf $"data-app=\"{photos}\"")
+        Assert.Contains("data-app-choice=\"chosen\"", row)
+        Assert.DoesNotContain("data-app-connector=", row)
+
+        let! page = (Browser app.Client).GetHtml("/signin?returnUrl=" + Uri.EscapeDataString(Journeys.authorizeUrl photos "openid"))
+        Assert.Contains("data-no-connectors", page)
+        Assert.DoesNotContain("data-connector=\"fake\"", page)
+    }

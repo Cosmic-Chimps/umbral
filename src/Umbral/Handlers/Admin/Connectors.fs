@@ -9,6 +9,7 @@ module Umbral.Handlers.Admin.Connectors
 
 open System
 open Microsoft.AspNetCore.Http
+open OpenIddict.Abstractions
 open Oxpecker
 open Oxpecker.ViewEngine
 open Umbral.Domains.Connectors
@@ -185,16 +186,58 @@ let private card
 // Screen
 // ---------------------------------------------------------------------------
 
-let private view ctx (t: Texts.Texts) origin (rows: Row list) (enabledCount: int) (notice: string option) =
+/// The apps a disable or a delete would leave with no way to sign in, named,
+/// with the button that goes ahead anyway (FR-010). Recomputed from the slug the
+/// redirect carried, so the redirect never has to carry app names.
+type private StrandWarning =
+    { Slug: string
+      Deleting: bool
+      Apps: (string * string) list }
+
+let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWarning) =
+    let action = if warning.Deleting then "delete" else "toggle"
+
+    div(class' = "space-y-2") {
+        p() { t.StrandedAppsTitle }
+
+        ul() {
+            for clientId, name in warning.Apps do
+                li().data("stranded-app", clientId) { name }
+        }
+
+        form(method = "post", action = $"/admin/connectors/{warning.Slug}/{action}?confirm=yes", class' = "inline") {
+            ctx.GetAntiforgeryInput()
+
+            button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                if warning.Deleting then t.ConnectorDeleteStrandsConfirm else t.ConnectorDisableStrandsConfirm
+            }
+        }
+    }
+
+let private view
+    ctx
+    (t: Texts.Texts)
+    origin
+    (rows: Row list)
+    (enabledCount: int)
+    (notice: string option)
+    (strand: StrandWarning option)
+    =
     div(class' = "space-y-6").data("screen", "connectors") {
         Components.pageHeading t.ConnectorsTitle (Some t.ConnectorsLead)
         originBanner ctx t origin
 
-        match notice with
-        | Some code ->
+        match notice, strand with
+        | Some code, Some warning ->
+            (div().data("notice", code) {
+                Components.alert Components.Warning (t.Notice code)
+                strandWarning ctx t warning
+            })
+            :> HtmlElement
+        | Some code, None ->
             (div().data("notice", code) { Components.alert Components.Success (t.Notice code) })
             :> HtmlElement
-        | None -> Fragment() :> HtmlElement
+        | None, _ -> Fragment() :> HtmlElement
 
         for row in rows do
             card ctx t origin enabledCount row
@@ -223,7 +266,35 @@ let page: EndpointHandler =
             let enabledCount = existing |> List.filter (fun c -> c.IsEnabled) |> List.length
 
             let notice = ctx.TryGetQueryValue "msg"
-            return! ctx.WriteHtmlView(view ctx t (ctx.GetService<PublicOrigin.PublicOrigin>()) rows enabledCount notice)
+
+            // The strand warnings carry the slug they are about. The apps are
+            // recomputed here, with the connector as the action would leave it.
+            let! strand =
+                match notice, ctx.TryGetQueryValue "slug" with
+                | Some("connector-strands-apps" | "connector-delete-strands-apps" as code), Some slug ->
+                    task {
+                        let config = ctx.GetService<Database.DbConfig>()
+                        let deleting = code = "connector-delete-strands-apps"
+                        let! apps = AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
+
+                        let after =
+                            if deleting then
+                                existing |> List.filter (fun c -> c.Slug <> slug)
+                            else
+                                existing |> List.map (fun c -> if c.Slug = slug then { c with IsEnabled = false } else c)
+
+                        return
+                            Some
+                                { Slug = slug
+                                  Deleting = deleting
+                                  Apps = AppConnectors.strandedByChange apps existing after }
+                    }
+                | _ -> System.Threading.Tasks.Task.FromResult None
+
+            return!
+                ctx.WriteHtmlView(
+                    view ctx t (ctx.GetService<PublicOrigin.PublicOrigin>()) rows enabledCount notice strand
+                )
         })
 
 let save (slug: string) : EndpointHandler =
