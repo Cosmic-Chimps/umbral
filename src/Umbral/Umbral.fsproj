@@ -4,6 +4,18 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>Umbral</AssemblyName>
     <RootNamespace>Umbral</RootNamespace>
+    <!--
+      Development only. ASP.NET Core adds user secrets to IConfiguration in the
+      Development environment and nowhere else, which is exactly the boundary we
+      want: a developer keeps upstream connector credentials out of the repo
+      without inventing a mechanism, and nothing changes for a deployment, where
+      the same values arrive as environment variables.
+
+      User secrets are PLAINTEXT in ~/.microsoft/usersecrets. That is fine for a
+      developer's own machine and never acceptable for an instance serving real
+      logins — the secret an operator saves goes through ISecretStore (Secrets.fs).
+    -->
+    <UserSecretsId>umbral-dev-0ddb1e71</UserSecretsId>
     <!-- SC-007 puts a 150 MB ceiling on idle residency; workstation GC is how we get there. -->
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>

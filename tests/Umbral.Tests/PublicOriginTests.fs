@@ -111,3 +111,24 @@ let ``the callback uri is right when the origin carries a port`` () =
 [<Fact>]
 let ``reading from an empty environment reports NotSet`` () =
     Assert.Equal(Error NotSet, fromEnvironment (fun _ -> null))
+
+[<Fact>]
+let ``configuration is read by section key or by variable name`` () =
+    // An operator sets UMBRAL__PUBLIC_ORIGIN; a developer runs
+    // `dotnet user-secrets set "UMBRAL:PUBLIC_ORIGIN"`. .NET maps `__` to `:`,
+    // so both are the same setting and both must resolve.
+    let only (key: string) (value: string) : string -> string | null =
+        fun k -> if k = key then value else null
+
+    let bySection = fromConfiguration (only ConfigurationKey "https://auth.example.com")
+    let byVariable = fromConfiguration (only EnvironmentVariable "https://auth.example.com")
+
+    match bySection, byVariable with
+    | Ok a, Ok b ->
+        Assert.Equal("https://auth.example.com", a.Text)
+        Assert.Equal("https://auth.example.com", b.Text)
+    | _ -> failwith "both spellings of the setting must resolve"
+
+[<Fact>]
+let ``configuration with neither key set reports NotSet`` () =
+    Assert.Equal(Error NotSet, fromConfiguration (fun _ -> null))

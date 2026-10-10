@@ -19,8 +19,18 @@ module Umbral.Infrastructure.PublicOrigin
 
 open System
 
+/// What an operator sets in a container or a shell.
 [<Literal>]
 let EnvironmentVariable = "UMBRAL__PUBLIC_ORIGIN"
+
+/// The same setting seen through `IConfiguration`. .NET maps `__` in an
+/// environment variable to its section separator, so `UMBRAL__PUBLIC_ORIGIN`
+/// and `UMBRAL:PUBLIC_ORIGIN` are one value reached two ways — and reading the
+/// configuration rather than the environment directly is what lets
+/// `dotnet user-secrets` supply it during development without a second code
+/// path or a second name to document.
+[<Literal>]
+let ConfigurationKey = "UMBRAL:PUBLIC_ORIGIN"
 
 /// A validated, normalised public origin: scheme, host and optional port, with
 /// no path, query or fragment, and no trailing slash.
@@ -117,10 +127,23 @@ let parse (raw: string) : Result<PublicOrigin, OriginError> =
 
     Ok { Value = builder.Uri }
 
-/// Read from the environment, or fail with a message naming the variable.
+/// Read through a lookup, or fail with a message naming the variable.
+///
+/// The lookup is a parameter rather than a direct `Environment.GetEnvironmentVariable`
+/// so that `Program.fs` can hand over `IConfiguration` — which already layers
+/// environment variables over user secrets in Development — and so that a test
+/// can hand over a dictionary without touching process state.
 let fromEnvironment (read: string -> string | null) : Result<PublicOrigin, OriginError> =
     match read EnvironmentVariable with
     | null -> Error NotSet
+    | value -> parse value
+
+/// Read from configuration, trying the section form first and the raw
+/// environment-variable name second. Both are documented, both must work, and
+/// an operator should never have to know which one this build happens to read.
+let fromConfiguration (read: string -> string | null) : Result<PublicOrigin, OriginError> =
+    match read ConfigurationKey with
+    | null -> fromEnvironment read
     | value -> parse value
 
 /// Compose a path onto the origin. The single place that concatenation happens,
