@@ -21,6 +21,28 @@ let sanitizeReturnUrl (candidate: string | null) =
     | Some url when url.StartsWith "/" && not (url.StartsWith "//") -> url
     | _ -> "/"
 
+/// Everything an end user sees when a sign-in fails is one of these codes,
+/// turned into text below. FR-037: never the provider's own words, and never
+/// anything about how Umbral is configured.
+let failureCode (error: ProviderAdapters.ConnectorError) =
+    match error with
+    | ProviderAdapters.ProviderDeclined _ -> "access-denied"
+    | ProviderAdapters.ProviderRejected _ -> "sign-in-failed"
+    | ProviderAdapters.ProviderUnreachable _ -> "provider-unreachable"
+    | ProviderAdapters.MalformedResponse _ -> "sign-in-failed"
+
+/// Back to the sign-in page with a failure code. With a `returnUrl` it goes
+/// back to the page of the app the person started from, so the page still names
+/// that app and offers its connectors (FR-001, research.md R4); without one
+/// there is no round trip to return to, and the bare page is all there is.
+/// Shared by the two handlers that can fail a sign-in: the start of the round
+/// trip and its callback.
+let redirectWithFailure (ctx: Microsoft.AspNetCore.Http.HttpContext) (returnUrl: string option) (code: string) =
+    match returnUrl with
+    | Some returnUrl ->
+        ctx.Response.Redirect $"/signin?returnUrl={Uri.EscapeDataString returnUrl}&msg={Uri.EscapeDataString code}"
+    | None -> ctx.Response.Redirect $"/signin?msg={Uri.EscapeDataString code}"
+
 /// The app a sign-in belongs to, learned from the authorize request it will be
 /// sent back to and from nowhere else (FR-001, FR-002). A `client_id` on
 /// `/signin` itself is deliberately never read: it could disagree with

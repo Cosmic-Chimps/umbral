@@ -88,6 +88,7 @@ let private testConnector (kind: ProviderKind) : Connector =
 
 let private authorizeRequestFor (connector: Connector) : AuthorizeRequest =
     { Connector = connector
+      Endpoints = connector.Endpoints
       RedirectUri = Uri $"https://umbral.test/connect/{connector.Slug}/callback"
       State = "STATE123"
       CodeChallenge = "CHALLENGE123"

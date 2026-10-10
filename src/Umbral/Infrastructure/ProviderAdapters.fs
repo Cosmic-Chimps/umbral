@@ -53,6 +53,11 @@ type ConnectorError =
 /// than read, so BuildAuthorizeUrl stays pure and golden-testable.
 type AuthorizeRequest =
     { Connector: Connector
+      /// Where the provider's authorization endpoint is, as `IProviderAdapter.Resolve`
+      /// said. Read from here and not from `Connector.Endpoints`: for an OpenID
+      /// Connect provider the static entry has no URLs, they are the provider's
+      /// to give (specs/002 research R3).
+      Endpoints: ProviderEndpoints
       RedirectUri: Uri
       State: string
       CodeChallenge: string
@@ -68,6 +73,14 @@ type ExchangeRequest =
 
 type IProviderAdapter =
     abstract Kind: ProviderKind
+
+    /// Where this connector's provider keeps its endpoints, asked before every
+    /// authorize URL is built. The built-in kinds answer from their compiled-in
+    /// entry and never fail; an OpenID Connect provider is asked for its
+    /// discovery document (cached), which can be unreachable or wrong, hence
+    /// the `Result`. The failure is the operator's to see, like any other
+    /// connector error.
+    abstract Resolve: Connector -> Task<Result<ProviderEndpoints, ConnectorError>>
 
     /// Pure. A golden test can assert the exact URL — scope string,
     /// code_challenge_method, redirect_uri — which is what catches the typo
@@ -109,7 +122,7 @@ let buildUrl (baseUrl: string) (parameters: (string * string) list) =
 
 /// The authorize parameters every provider shares. An adapter adds its own.
 let commonAuthorizeParameters (request: AuthorizeRequest) =
-    let endpoints = request.Connector.Endpoints
+    let endpoints = request.Endpoints
 
     [ "client_id", request.Connector.ClientId
       "redirect_uri", request.RedirectUri.ToString()
