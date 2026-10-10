@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5173",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+
+        "UMBRAL__PUBLIC_ORIGIN": "http://localhost:5173",
+
+        "UMBRAL__DATA_DIRECTORY": ".data"
+      }
+    }
+  }
+}
