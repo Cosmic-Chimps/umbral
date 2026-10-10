@@ -325,10 +325,6 @@ let initialize (app: WebApplication) =
         let context = scope.ServiceProvider.GetRequiredService<UmbralContext>()
         do! context.Database.MigrateAsync()
 
-        // An unconfigured instance is claimable by whoever reaches /admin/setup
-        // first, so claiming it also needs a token only someone who can read
-        // the container log has. Printed last, after EF Core's migration
-        // chatter, so it is the final thing on screen.
         // Apply the configuration file, if the operator supplied one. Before
         // the fake-connector check, so a file that adds one is caught by it.
         //
@@ -392,6 +388,11 @@ let initialize (app: WebApplication) =
 
         let! configured = AdminAuth.isConfigured dbConfig
 
+        // An unconfigured instance is claimable by whoever reaches /admin/setup
+        // first, so claiming it also needs a token only someone who can read
+        // the container log has. Printed after the configuration file, which
+        // may claim the instance itself; appsettings.json keeps the startup
+        // chatter quiet enough that it stays near the end of the log.
         if not configured then
             let origin = app.Services.GetRequiredService<PublicOrigin.PublicOrigin>()
             let token = app.Services.GetRequiredService<AdminAuth.SetupToken>()

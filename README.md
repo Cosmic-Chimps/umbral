@@ -106,8 +106,8 @@ There is no default password. Read the one-time setup token from the log:
 docker logs umbral
 ```
 
-The first start prints a long run of database-setup lines. The token is in the
-box of `=====` lines at the **end** of the log. To show just that:
+The token is in the box of `=====` lines near the end of the log. To show just
+that:
 
 ```bash
 docker logs umbral 2>&1 | grep -A6 "not configured yet"
@@ -132,8 +132,9 @@ a password manager: there is no recovery screen (but see
 later while signed in, open **Credential** in the top bar: it asks for the
 current one and the new one twice, and signs every other admin session out.
 
-> Umbral has no front page: `/` and `/admin` answer "Not found". The admin area
-> starts at `/admin/setup` the first time and `/admin/signin` afterwards.
+> `/admin` always takes you to the right place: the setup page the first time,
+> the sign-in page afterwards. Umbral has no front page, so `/` answers
+> "Not found".
 
 You land on the **Connectors** screen. The admin area has three screens:
 **Apps**, **Connectors**, **Users**.
@@ -328,6 +329,10 @@ step 3 with the **https** address.
 Umbral itself is never published on a port, so everything reaches it through
 Caddy. **Do not publish port 8080 on a public host.**
 
+The image has a built-in health check: `docker compose ps` shows `healthy` once
+Umbral answers and can open its database. For another orchestrator, probe
+`GET /healthz` on port 8080 (`200 ok`, or `503` when the database is unusable).
+
 > Compose names the container after the folder you cloned into, so
 > `docker exec umbral …` and `docker logs umbral` may not find it. Use
 > `docker compose logs umbral`, `docker compose exec umbral …` and so on.
@@ -356,15 +361,17 @@ be a bare host.
 nginx, Traefik and others work, if the proxy:
 
 - terminates TLS and talks to `umbral:8080` over plain HTTP;
-- sends **`X-Forwarded-Proto`** (and `X-Forwarded-For`). Without
-  `X-Forwarded-Proto: https`, Umbral sees plain http and answers
-  `This server only accepts HTTPS requests.`;
-- passes the original **`Host`** (or sets `X-Forwarded-Host`). The endpoint URLs in
-  the discovery document follow it.
+- sends **`X-Forwarded-Proto`**. Without `X-Forwarded-Proto: https`, Umbral
+  sees plain http and answers `This server only accepts HTTPS requests.`;
+- sends **`X-Forwarded-For`**, and replaces rather than trusts a value the
+  client sent. Umbral rate-limits sign-in attempts per client address, and
+  without it every visitor looks like the proxy and shares one limit.
 
-Caddy's `reverse_proxy` does all three by default. nginx needs
-`proxy_set_header Host $host;` and `proxy_set_header X-Forwarded-Proto $scheme;`
-written out.
+Every URL Umbral publishes comes from `UMBRAL__PUBLIC_ORIGIN`, never from the
+`Host` header, so the proxy's host handling does not matter. Caddy's
+`reverse_proxy` does both of the above by default. nginx needs
+`proxy_set_header X-Forwarded-Proto $scheme;` and
+`proxy_set_header X-Forwarded-For $remote_addr;` written out.
 
 ## Your data: back it up
 
@@ -577,9 +584,8 @@ or is `http://` with a host other than `localhost`; or `/data` is not writable. 
 `chown -R 1654:1654 ./data`. A broken `umbral.yaml` also stops startup and names
 the line.
 
-**`/` or `/admin` shows "Not found".**
-That is expected: Umbral has no front page and no `/admin` page. Use
-`/admin/setup` (first time) or `/admin/signin`.
+**`/` shows "Not found".**
+That is expected: Umbral has no front page. Go to `/admin`.
 
 **I cannot find the setup token, or it is rejected.**
 `docker logs umbral 2>&1 | grep -A6 "not configured yet"` and take the *latest*

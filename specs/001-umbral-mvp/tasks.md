@@ -205,7 +205,7 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 
 - [x] T087 [US5] Create `src/Umbral/Domains/ConfigDocument.fs` — the YAML document types and **whole-document** validation per [contracts/admin-and-config.md](./contracts/admin-and-config.md). Each error names the offending entry and the fix. **A literal secret is an error, not a warning**: that rule is what keeps a secret out of the operator's git repository, and a warning would be ignored.
 - [x] T088 [US5] Create `src/Umbral/Infrastructure/ConfigFile.fs` — load from `UMBRAL__CONFIG_FILE` or `/data/umbral.yaml`, resolve `${VAR}` references from the environment, and apply idempotently keyed on `slug` and `client_id`. Validate everything before writing anything, so a bad file never half-applies.
-- [x] T089 [US5] Create `src/Umbral/Handlers/Admin/ConfigExport.fs` (`GET /admin/config`) emitting exactly the accepted format with `${UMBRAL_<SLUG>_SECRET}` placeholders, plus a comment stating that **app secrets cannot be exported** — OpenIddict hashes them — so an imported app gets a fresh secret. That asymmetry is forced, and must be documented rather than discovered.
+- [x] T089 [US5] Create `src/Umbral/Handlers/Admin/ConfigExport.fs` (`GET /admin/config`) emitting exactly the accepted format with `${UMBRAL_<SLUG>_SECRET}` placeholders, plus a comment stating that **app secrets cannot be exported** — OpenIddict hashes them — so the export carries a `${UMBRAL_<CLIENT_ID>_SECRET}` reference and the operator supplies the secret through that variable on import (T107 settled this; the earlier wording here said an imported app gets a fresh secret, but nobody is at a screen to see one when a container starts). That asymmetry is forced, and must be documented rather than discovered.
 - [x] T090 [US5] Write `tests/Umbral.Tests/ConfigFileTests.fs`: apply twice changes nothing and creates no duplicates; a literal secret fails validation; a missing environment variable fails naming the variable; a malformed document fails with **nothing partly applied**; export → import round-trips; a UI change appears in a later export.
 
 ---
@@ -226,6 +226,19 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 - [x] T102 Write `tests/Umbral.Tests/MetaTests.fs`: **every handler module's `endpoint` appears in `Program.endpoints`** (the silent-404 trap); no committed settings file holds a non-empty secret; SQL text is literal with no interpolated values.
 - [x] T103 Review every operator-facing string in `src/Umbral/Views/Texts.fs` against SC-010 — each must name the next action, not only what went wrong.
 - [ ] T104 **A real third-party app has now completed a login (FrunchyBackend, 2026-10-10), so SC-002 is evidenced.** What remains here is the provider side. **Capture the provider fixtures from real calls and diff them against the authored ones** — the committed fixtures match each provider's documented shape but were never captured live, so they encode our belief and cannot catch a wrong belief. Then run the [quickstart.md](./quickstart.md) scenarios end to end against a real container, **with a timer on Scenario 1**, and record the measured time against SC-001.
+
+### Converge: work marked done that was not (found 2026-10-10 during Phase 8)
+
+Each of these was checked off, or required by the spec, with nothing in the code behind it. Found while writing the README and the container, verified in the code, and closed in this phase.
+
+- [x] T077 (re-done) `Handlers/Admin/ConnectorDelete.fs` did not exist: no route, `ConnectorStore.delete` had no caller, `connector_deleted` was never emitted. Built with T092.
+- [x] T106 `GET /healthz` (FR-032) did not exist, although T014 was checked and `SmokeTests.fs` asserted `true`. Now a `SELECT 1` probe, a real smoke test, and `/app/Umbral healthcheck` behind the image's `HEALTHCHECK`.
+- [x] T107 The YAML `apps:` section was validated but never applied (FR-027; T088 said "keyed on `slug` and `client_id`"). Now applied idempotently; a confidential app's secret comes from a `${VAR}` reference and is re-hashed only when it changes.
+- [x] T108 FR-017a had no task: the operator credential can now be replaced while signed in (`/admin/credential`, every other admin session ended through a session stamp) and set from the file as a hash (`operator.credential_hash`, made with `/app/Umbral hash-credential`).
+- [x] T109 FR-031 / D4: the discovery document's endpoint URLs followed the request's `Host` / `X-Forwarded-Host`; only `issuer` used the configured origin. Rebased onto the issuer by an OpenIddict configuration handler.
+- [x] T110 `GET /admin`, the target of every message page's back link, was a 404. It now routes to setup, sign-in or the Connectors screen; end-user message pages no longer link to the operator area.
+- [x] T111 T040 said a replayed code records `authorization_code_replayed`; nothing emitted it and the test did not check. Recorded from OpenIddict's `ID2010` rejection, asserted by the replay test (part of T092).
+- [x] T112 Operability found by running the container: EF Core's SQL logging buried the setup banner (now quieted in `appsettings.json`, still raisable by `Logging__LogLevel__*`), and `reset-credential` ran the whole startup and printed a fresh setup banner (now it only ensures the schema).
 
 ---
 
@@ -285,5 +298,5 @@ Ship in this order and each checkpoint is demonstrable:
 | 5 US3 — Runtime changes | 7 |
 | 6 US4 — User control | 4 |
 | 7 US5 — Config as code | 4 |
-| 8 Polish | 14 |
-| **Total** | **105** |
+| 8 Polish | 14 + 7 converge |
+| **Total** | **112** |
