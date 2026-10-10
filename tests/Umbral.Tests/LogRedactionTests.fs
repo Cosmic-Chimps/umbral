@@ -31,8 +31,12 @@ open Umbral.Infrastructure
 open Umbral.Tests.Infrastructure
 open Umbral.Tests.Infrastructure.Journeys
 
+// `Captured`, `CapturingProvider`, `Secret`, `leaksIn` and `securityEventRows` are
+// public so the OpenID Connect end-to-end test (OidcConnectorTests) searches its
+// own sign-in with this same capture and the same rules.
+
 /// One log call, flattened to every string it carries.
-type private Captured =
+type Captured =
     { Category: string
       Level: LogLevel
       /// The formatted message, the structured state's keys and values, every
@@ -78,7 +82,7 @@ type private CapturingLogger(category: string, sink: ConcurrentQueue<Captured>, 
                   Level = level
                   Everything = text.ToString() }
 
-type private CapturingProvider() =
+type CapturingProvider() =
     let sink = ConcurrentQueue<Captured>()
     let mutable scopes: (IExternalScopeProvider | null) = null
     member _.Entries = sink.ToArray()
@@ -93,25 +97,25 @@ type private CapturingProvider() =
         member _.SetScopeProvider provider = scopes <- provider
 
 [<Literal>]
-let private MinimumSecretLength = 16
+let MinimumSecretLength = 16
 
 /// A secret the test saw, and what to call it when it turns up where it must not.
-type private Secret = { Label: string; Value: string }
+type Secret = { Label: string; Value: string }
 
 /// Where a value may legitimately travel in a different spelling: a query
 /// string percent-encodes it, so a log line quoting a URL carries the encoded
 /// form and a plain `Contains` on the raw one would miss it.
-let private spellings (value: string) =
+let spellings (value: string) =
     [ value; Uri.EscapeDataString value; WebUtility.UrlEncode value |> Option.ofObj |> Option.defaultValue value ]
     |> List.distinct
 
-let private leaksIn (secrets: Secret list) (haystack: string) =
+let leaksIn (secrets: Secret list) (haystack: string) =
     secrets
     |> List.filter (fun s -> spellings s.Value |> List.exists (fun v -> haystack.Contains(v, StringComparison.Ordinal)))
     |> List.map _.Label
 
 /// Every column of every `security_events` row, as one string per row.
-let private securityEventRows (app: Fixtures.TestApp) =
+let securityEventRows (app: Fixtures.TestApp) =
     task {
         use! connection = Database.openConnection app.DbConfig
         use command = connection.CreateCommand()

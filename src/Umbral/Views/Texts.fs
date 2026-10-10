@@ -175,6 +175,28 @@ type Texts =
       ConnectorAddSlugLabel: string
       ConnectorAddSlugHint: string
       ConnectorAddButton: string
+      // OpenID Connect providers (specs/002): the add form's kind and issuer, the
+      // email-trust warning (FR-009), the immutability sentence (FR-004) and every
+      // way the form is refused, each naming what to do next (spec 001 SC-010).
+      ConnectorAddOidcOption: string
+      ConnectorIssuerLabel: string
+      ConnectorIssuerHint: string
+      ConnectorIssuerFixedNote: string
+      ConnectorEmailTrustWarning: string
+      ConnectorOidcClientIdHint: string
+      ConnectorOidcSecretAgainHint: string
+      /// What the operator calls the provider where a built-in kind's name would
+      /// read wrongly ("OpenID Connect's developer console").
+      ConnectorOidcProviderName: string
+      ConnectorAddOidcDisplayNameRequired: string
+      ConnectorAddOidcSlugInvalid: string
+      ConnectorAddOidcSlugTaken: string
+      ConnectorAddOidcClientIdRequired: string
+      ConnectorAddOidcSecretRequired: string
+      /// The display name of the connector that already holds the issuer.
+      ConnectorAddOidcIssuerTaken: string -> string
+      /// Issuer, then the reason it could not be reached.
+      ConnectorAddOidcUnreachable: string -> string -> string
 
       // The origin-mismatch banner (D4), naming both origins
       OriginMismatchBanner: string -> string -> string
@@ -382,11 +404,40 @@ let en: Texts =
       ConnectorNotSharedBadge = "Not shared"
       ConnectorOfferedNowhere = "Not shared, and no app has chosen it, so nobody sees it yet. Choose it on an app's Sign-in methods, or tick Shared."
       ConnectorAddTitle = "Add another connector"
-      ConnectorAddLead = "A second Discord, GitHub or Google application, for example one with its own name for a single app. The first connector of each kind needs no form here: use its card below."
+      ConnectorAddLead = "A second Discord, GitHub or Google application, for example one with its own name for a single app, or an OpenID Connect provider such as Authentik, Keycloak or Pocket ID. The first connector of Discord, GitHub and Google needs no form here: use its card below."
       ConnectorAddKindLabel = "Provider"
       ConnectorAddSlugLabel = "Identifier"
       ConnectorAddSlugHint = "Lower-case letters, digits and hyphens, up to 32. It becomes part of the callback URL you register with the provider, so it can't be changed once saved."
       ConnectorAddButton = "Add connector"
+      ConnectorAddOidcOption = "OpenID Connect provider"
+      ConnectorIssuerLabel = "Issuer URL"
+      ConnectorIssuerHint =
+        "Only for an OpenID Connect provider (Authentik, Keycloak, Pocket ID, Authelia…): the address it calls its issuer, "
+        + "like https://auth.example.com/application/o/umbral. Umbral reads everything else from it. Leave it empty for Discord, GitHub and Google."
+      ConnectorIssuerFixedNote =
+        "The identifier and the issuer can't be changed, because people's accounts are tied to the issuer and the callback URL is registered with the provider. "
+        + "To change either, delete this provider and add it again: the same issuer brings everyone back to their account."
+      ConnectorEmailTrustWarning =
+        "Umbral trusts an email address that an OpenID Connect provider marks as verified, and uses it to recognise the same person across providers. "
+        + "Add only a provider you run or trust. One that lets people claim email addresses they don't control would let them sign in as someone else."
+      ConnectorOidcClientIdHint = "From the client you created for Umbral in your provider's admin area."
+      ConnectorOidcSecretAgainHint = "Type the client secret again: Umbral never sends a secret back to your browser."
+      ConnectorOidcProviderName = "your identity provider"
+      ConnectorAddOidcDisplayNameRequired =
+        "Give the provider a name people will recognise on the sign-in page, up to 64 characters."
+      ConnectorAddOidcSlugInvalid =
+        "Use up to 32 lowercase letters, digits or hyphens, like home or club-keycloak, for the identifier."
+      ConnectorAddOidcSlugTaken =
+        "Another connector already has that identifier, or it is the name of a built-in provider. Choose a different one, like home or club-keycloak."
+      ConnectorAddOidcClientIdRequired = "Enter the client ID from your provider's admin area, then add the provider again."
+      ConnectorAddOidcSecretRequired =
+        "Umbral signs in as a confidential client, so it needs the client secret your provider generated. Paste it, then add the provider again."
+      ConnectorAddOidcIssuerTaken =
+        fun name ->
+            $"{name} already uses this issuer, and two connectors for one provider would share every person under two names. Use that one, or delete it first."
+      ConnectorAddOidcUnreachable =
+        fun issuer reason ->
+            $"Umbral could not reach {issuer}: {reason}. Check the address, and that Umbral can reach your provider, then add it again."
       GoogleLimitationNotice = "Google refuses a redirect URI that is a raw IP address or that isn't https (except localhost) — so a typical \"http://192.168.x.x\" homelab address can't be registered with Google at all. Either put Umbral behind a domain name with HTTPS, or skip Google and use Discord or GitHub instead."
 
       OriginMismatchBanner =
@@ -477,6 +528,8 @@ let en: Texts =
             | "connector-delete-last-enabled" ->
                 "This is the only enabled connector. Nothing was deleted. Deleting it means nobody can sign in to any app — use Delete and confirm to go ahead."
 
+            | "connector-added-oidc" ->
+                "OpenID Connect provider added and enabled. Copy its callback URL from its card into your provider's admin area, then people can sign in with it."
             | "connector-added" ->
                 "Connector added. Copy its callback URL into the provider's console, then enable it to offer it."
             | "connector-slug-invalid" ->

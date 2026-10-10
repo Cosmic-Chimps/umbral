@@ -227,13 +227,25 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     // per issuer, built over the same named client, so a provider's discovery
     // and keys are fetched once per refresh and not once per sign-in. The same
     // Development-only flag that admits plain http for OpenIddict admits it for
-    // a loopback issuer, and nothing else does.
+    // a loopback issuer, and nothing else does. The client is the cache's own — it
+    // sets a response size cap on it — so it is not shared with an adapter.
     services.AddSingleton<OidcDiscovery.OidcDiscovery>(fun sp ->
         OidcDiscovery.OidcDiscovery(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName,
             allowInsecureHttp,
             TimeSpan.FromSeconds 10.0,
             sp.GetRequiredService<TimeProvider>()))
+    |> ignore
+
+    // The adapter for them: its own client from the factory like the others, and
+    // Umbral's clock so token lifetimes are judged on the same time as everything
+    // else (and a test can move it).
+    services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
+        Providers.Oidc.OidcAdapter(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName,
+            sp.GetRequiredService<OidcDiscovery.OidcDiscovery>(),
+            sp.GetRequiredService<TimeProvider>())
+        :> ProviderAdapters.IProviderAdapter)
     |> ignore
 
     services.AddSingleton<ProviderAdapters.Registry>(fun sp ->

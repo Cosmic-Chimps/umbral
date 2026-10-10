@@ -8,6 +8,7 @@ open System
 open System.Net
 open System.Net.Http
 open System.Text.Json.Nodes
+open System.Threading.Tasks
 open Xunit
 open Umbral.Infrastructure.OidcDiscovery
 open Umbral.Tests.Infrastructure
@@ -440,4 +441,90 @@ let ``refreshing an issuer that is not https is wrong and contacts nothing`` () 
         let! result = (ordinary stub).Refresh "http://auth.example.test/o"
         wrongAbout "https://" result
         Assert.Empty stub.Requests
+    }
+
+// ---------------------------------------------------------------------------
+// A provider is untrusted input: its answers are bounded
+// ---------------------------------------------------------------------------
+
+/// A body that never ends and whose length nobody announced, so only a cap on
+/// what is buffered stops it. Without one the read below does not return.
+type private EndlessStream() =
+    inherit IO.Stream()
+    member val Served = 0L with get, set
+    override _.CanRead = true
+    override _.CanSeek = false
+    override _.CanWrite = false
+    override _.Length = raise (NotSupportedException())
+
+    override this.Position
+        with get () = raise (NotSupportedException())
+        and set _ = raise (NotSupportedException())
+
+    override _.Flush() = ()
+    override _.Seek(_, _) = raise (NotSupportedException())
+    override _.SetLength _ = raise (NotSupportedException())
+    override _.Write(_, _, _) = raise (NotSupportedException())
+
+    override this.Read(buffer: byte[], offset: int, count: int) =
+        // Spaces: legal JSON whitespace, so a parser would read on and on.
+        Array.fill buffer offset count (byte ' ')
+        this.Served <- this.Served + int64 count
+        count
+
+/// Answers `path` with the endless body and everything else as the stub does.
+type private Endless(stub: StubOidcProvider, path: string, served: EndlessStream) =
+    inherit HttpMessageHandler()
+    let invoker = new HttpMessageInvoker(stub, false)
+
+    override _.SendAsync(request, cancellationToken) =
+        match request.RequestUri with
+        | null -> invoker.SendAsync(request, cancellationToken)
+        | uri when uri.AbsolutePath.EndsWith path ->
+            let content = new StreamContent(served)
+            content.Headers.ContentType <- Headers.MediaTypeHeaderValue "application/json"
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK, Content = content))
+        | _ -> invoker.SendAsync(request, cancellationToken)
+
+let private endlessAt (path: string) =
+    let stub = create issuer
+    let served = new EndlessStream()
+    let cache = OidcDiscovery(new HttpClient(new Endless(stub, path, served), false), false, TimeSpan.FromSeconds 10.0, TimeProvider.System)
+    cache, served
+
+[<Fact>]
+let ``a discovery document that never ends is cut off at the cap and classified unreachable`` () =
+    task {
+        let cache, served = endlessAt "/.well-known/openid-configuration"
+
+        // Unreachable, not wrong: an answer this size is not a discovery
+        // document at all — a captive portal, a misconfigured proxy — which is
+        // the same family as an HTML page, and is saved disabled, not refused.
+        let! result = cache.Check issuer
+        unreachableAbout "larger than" result
+
+        // It stopped near the cap instead of reading on.
+        Assert.True(served.Served < 4L * MaxDocumentBytes, $"read {served.Served} bytes")
+    }
+
+[<Fact>]
+let ``a key set that never ends is cut off at the cap and classified unreachable`` () =
+    task {
+        let cache, served = endlessAt "/jwks"
+
+        let! result = cache.Check issuer
+        unreachableAbout "larger than" result
+        Assert.True(served.Served < 4L * MaxDocumentBytes, $"read {served.Served} bytes")
+    }
+
+[<Fact>]
+let ``a large but ordinary discovery document is still accepted`` () =
+    task {
+        let stub = create issuer
+        // Well past anything real, well under the cap.
+        stub.Discovery["x_padding"] <- text (String('a', 200_000))
+
+        match! (ordinary stub).Check issuer with
+        | Discovered _ -> ()
+        | other -> failwith $"expected Discovered, got {other}"
     }

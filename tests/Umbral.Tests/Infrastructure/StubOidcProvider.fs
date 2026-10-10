@@ -142,7 +142,9 @@ let defaultDiscovery (issuer: string) =
     document["scopes_supported"] <- strings [ "openid"; "email"; "profile" ]
     document
 
-let private defaultUserInfo =
+/// A fresh object for every provider: a test that edits userinfo must not edit
+/// the next test's.
+let private defaultUserInfo () =
     let claims = JsonObject()
     claims["sub"] <- node ("user-1")
     claims
@@ -194,11 +196,15 @@ type StubOidcProvider(issuer: string) =
     member val TokenResponse: (HttpStatusCode * string) option = None with get, set
 
     /// What userinfo returns. `sub` defaults to the `id_token`'s.
-    member val UserInfo: JsonObject = defaultUserInfo with get, set
+    member val UserInfo: JsonObject = defaultUserInfo () with get, set
 
     member _.SigningKey = signingKey
 
     member _.LastTokenRequest = lastToken
+
+    /// The `id_token` the token endpoint last handed out, for a test that
+    /// searches the logs for it.
+    member val LastIdToken: string option = None with get, set
 
     /// Every request received, as `METHOD /path`, oldest first.
     member _.Requests = requests |> Seq.toList
@@ -351,7 +357,9 @@ type StubOidcProvider(issuer: string) =
             response["expires_in"] <- JsonValue.Create 3600
 
             if not this.OmitIdToken then
-                response["id_token"] <- node (this.MintIdToken(this.IdToken, clientId, issued.Nonce))
+                let idToken = this.MintIdToken(this.IdToken, clientId, issued.Nonce)
+                this.LastIdToken <- Some idToken
+                response["id_token"] <- node idToken
 
             return json HttpStatusCode.OK (response.ToJsonString())
         }
