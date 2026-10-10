@@ -1,0 +1,27 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+TestResults/
+
+# Runtime data — never commit. Holds umbral.db and the key material.
+/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Key material
+*.pfx
+*.p12
+*.pem
+
+# Local settings
+appsettings.*.local.json
+.env
+
+# Tooling
+__pycache__/
+*.pyc
+.DS_Store
