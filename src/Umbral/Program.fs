@@ -26,7 +26,8 @@ open Umbral.Migrations
 // One vertical slice per endpoint, see Handlers/. Every slice exposes `endpoint`
 // (or a list of them, consumed with `yield!`) and it MUST appear here: a handler
 // missing from this list compiles, serves nothing, and reports no error anywhere.
-// T102 turns that into a build failure.
+// MetaTests.fs turns that into a failing test naming the module; `dotnet build`
+// alone stays silent.
 // ---------------------------------------------------------------------------
 
 let endpoints: Endpoint list =

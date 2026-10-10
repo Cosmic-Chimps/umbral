@@ -29,6 +29,7 @@
     <Compile Include="OidcProtocolTests.fs" />
     <Compile Include="OAuthRoundTripTests.fs" />
     <Compile Include="RateLimitTests.fs" />
+    <Compile Include="MetaTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 

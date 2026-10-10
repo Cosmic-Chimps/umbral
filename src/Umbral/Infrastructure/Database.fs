@@ -40,6 +40,7 @@ let openConnection (config: DbConfig) : Task<SqliteConnection> =
 /// convention. Deliberately no migration framework on this side: these are flat
 /// tables with no relationships worth one, and the appliance has a single
 /// writer. A schema change edits this string and data-model.md together.
+[<Literal>]
 let private schema =
     """
     CREATE TABLE IF NOT EXISTS users (
