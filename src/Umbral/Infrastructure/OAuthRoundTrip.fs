@@ -43,6 +43,8 @@ type RoundTripError =
     | StateMissing
     | StateMismatch
     | Expired
+    /// A correlation that has already been redeemed once.
+    | Replayed
     | SlugMismatch of expected: string * actual: string
     | ProviderReturnedError of error: string
     | Corrupt
@@ -53,6 +55,7 @@ type RoundTripError =
         | StateMissing -> "state_missing"
         | StateMismatch -> "state_mismatch"
         | Expired -> "correlation_expired"
+        | Replayed -> "correlation_replayed"
         | SlugMismatch _ -> "slug_mismatch"
         | ProviderReturnedError error -> $"provider_error:{error}"
         | Corrupt -> "correlation_corrupt"
@@ -141,6 +144,39 @@ let start
       CodeChallenge = Ids.codeChallengeS256 verifier }
 
 // ---------------------------------------------------------------------------
+// Single use, enforced by the server
+//
+// Deleting the cookie makes a replay fail for a COOPERATING browser — a
+// refresh of the callback URL, which is the common case. It does nothing about
+// a client that simply keeps the cookie and sends it again, because the
+// correlation is stateless: everything needed to accept it travels in the
+// cookie itself.
+//
+// So the states that have been used are remembered here. One entry per sign-in
+// attempt, expiring with the correlation it belongs to, in a product that is
+// one container by design — the bound is "sign-ins in the last ten minutes",
+// which for this audience is single digits.
+//
+// Without this, "single use" was a claim in a comment rather than a property.
+// ---------------------------------------------------------------------------
+
+let private consumed = Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset>()
+
+let private rememberConsumed (now: DateTimeOffset) (state: string) =
+    // Prune while inserting: no timer, no background service, and the table
+    // cannot outgrow the window.
+    for entry in consumed do
+        if now - entry.Value > Lifetime then
+            consumed.TryRemove entry.Key |> ignore
+
+    consumed.TryAdd(state, now)
+
+let private alreadyConsumed (now: DateTimeOffset) (state: string) =
+    match consumed.TryGetValue state with
+    | true, usedAt -> now - usedAt <= Lifetime
+    | _ -> false
+
+// ---------------------------------------------------------------------------
 // Complete
 // ---------------------------------------------------------------------------
 
@@ -221,16 +257,23 @@ let complete
 
     // Constant time: `state` is attacker-influenced and retryable, and ordinary
     // string equality leaks the position of the first difference through timing.
+    let now = clock.GetUtcNow()
+
     if not (Ids.constantTimeEquals correlation.State returnedState) then
         Error StateMismatch
+    elif alreadyConsumed now correlation.State then
+        // A second callback carrying a correlation that has already been
+        // redeemed. The cookie deletion did not stop it, so the server does.
+        Error Replayed
     elif correlation.Slug <> slug then
         // The response arrived on a different connector's callback route than
         // the one it was minted for. Distinct routes per provider exist so the
         // routing layer catches an IdP mix-up before our own lookup has to.
         Error(SlugMismatch(correlation.Slug, slug))
-    elif clock.GetUtcNow() - correlation.IssuedAtUtc > Lifetime then
+    elif now - correlation.IssuedAtUtc > Lifetime then
         // Checked even though the cookie carries Max-Age: a client controls its
         // own cookie jar, and the server's clock is the one that counts.
         Error Expired
     else
+        rememberConsumed now correlation.State |> ignore
         Ok correlation
