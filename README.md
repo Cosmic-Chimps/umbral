@@ -2,8 +2,9 @@
 
 A self-hosted OpenID Connect provider whose only job is **social login**.
 Your apps talk to Umbral using any standard OIDC library. Umbral talks to
-Discord, GitHub and Google. You wire each provider up once, in one place,
-instead of in every app.
+Discord, GitHub and Google, and to any OpenID Connect provider you already run,
+such as Authentik, Keycloak, Pocket ID or Authelia. You wire each provider up
+once, in one place, instead of in every app.
 
 It ships as **one container with an embedded SQLite database**: no Postgres, no
 Redis, no sidecar. It is meant for a homelab or a small project: a Raspberry Pi
@@ -14,7 +15,7 @@ It has three concepts, and that is the whole product:
 | Concept | What it is |
 | --- | --- |
 | **App** | A program that signs people in through Umbral. It gets a client ID and a client secret. |
-| **Connector** | Umbral's identity at a social provider (Discord, GitHub or Google): the OAuth application you create there, with its credentials. There can be several per provider. |
+| **Connector** | Umbral's identity at an upstream provider (Discord, GitHub, Google, or an OpenID Connect provider of your own): the OAuth application you create there, with its credentials. There can be several per provider. |
 | **User** | A person who has signed in at least once. |
 
 **What Umbral is not.** It has no realms, tenants, groups, roles or permissions,
@@ -37,7 +38,8 @@ which are good at it.
 - [Troubleshooting](#troubleshooting)
 
 Provider walkthroughs: [Discord](docs/connectors/discord.md) ·
-[GitHub](docs/connectors/github.md) · [Google](docs/connectors/google.md)
+[GitHub](docs/connectors/github.md) · [Google](docs/connectors/google.md) ·
+[Your own OpenID Connect provider](docs/connectors/oidc.md)
 
 ## Requirements
 
@@ -50,7 +52,8 @@ Provider walkthroughs: [Discord](docs/connectors/discord.md) ·
   [Run it for real](#run-it-for-real-behind-https). To try Umbral first, the
   quick start below needs neither.
 - **An account with at least one provider** (GitHub is the least friction) to
-  create an OAuth app in. Umbral cannot do that for you.
+  create an OAuth app in, or an OpenID Connect provider of your own. Umbral
+  cannot do that for you.
 
 No image is published to a registry yet, so you build it from this repository.
 
@@ -285,7 +288,8 @@ What an app can count on:
   email private, and a Discord account can be unverified. Handle both.
 - **`name`, `preferred_username`, `picture`** come with the `profile` scope when
   the provider supplied them. **`idp`** is Umbral's one extra claim: the
-  provider the person used (`github`, `discord`, `google`). It is the provider's
+  provider the person used (`github`, `discord`, `google`, or `oidc` for any
+  OpenID Connect provider you added). It is the provider's
   kind, never a connector's identifier: with several Discord connectors it is
   still `discord`. Ignore it freely.
 - **Access tokens are opaque.** They are not JWTs: do not try to decode them.
@@ -346,8 +350,11 @@ Signing in with the same provider account always gives the same Umbral user. If
 someone then signs in through a **second provider** and both providers assert
 the **same, verified email address**, Umbral links the two to one user. An email
 a provider has not verified is never used to link anyone. If no email is
-available, a new user is created. You can disable or delete users on the
-**Users** screen.
+available, a new user is created. For an OpenID Connect provider you added, a
+person is identified by that provider's issuer address together with their id
+there, so two providers never merge people, and adding a provider back with the
+same issuer returns everyone to the same user. You can disable or delete users on
+the **Users** screen.
 
 ## Run it for real, behind HTTPS
 
