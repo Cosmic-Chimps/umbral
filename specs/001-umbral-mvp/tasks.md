@@ -225,7 +225,7 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 - [ ] T101 [P] Write `docs/connectors/discord.md`, `docs/connectors/github.md` and `docs/connectors/google.md` (FR-039): where to create the upstream OAuth app, which redirect URI to register, which scopes to request. The Google page carries the raw-IP limitation prominently.
 - [ ] T102 Write `tests/Umbral.Tests/MetaTests.fs`: **every handler module's `endpoint` appears in `Program.endpoints`** (the silent-404 trap); no committed settings file holds a non-empty secret; SQL text is literal with no interpolated values.
 - [ ] T103 Review every operator-facing string in `src/Umbral/Views/Texts.fs` against SC-010 — each must name the next action, not only what went wrong.
-- [ ] T104 **Capture the provider fixtures from real calls and diff them against the authored ones** — the committed fixtures match each provider's documented shape but were never captured live, so they encode our belief and cannot catch a wrong belief. Then run the [quickstart.md](./quickstart.md) scenarios end to end against a real container, **with a timer on Scenario 1**, and record the measured time against SC-001.
+- [ ] T104 **A real third-party app has now completed a login (FrunchyBackend, 2026-10-10), so SC-002 is evidenced.** What remains here is the provider side. **Capture the provider fixtures from real calls and diff them against the authored ones** — the committed fixtures match each provider's documented shape but were never captured live, so they encode our belief and cannot catch a wrong belief. Then run the [quickstart.md](./quickstart.md) scenarios end to end against a real container, **with a timer on Scenario 1**, and record the measured time against SC-001.
 
 ---
 

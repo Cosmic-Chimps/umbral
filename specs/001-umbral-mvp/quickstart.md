@@ -59,6 +59,17 @@ if they are not, that banner is broken, and that is a bug in its own right.
 
 Proves there is nothing Umbral-specific in the integration.
 
+> **Validated for real on 2026-10-10.** FrunchyBackend — an existing F# app
+> with its own Google and Discord sign-in — added Umbral as a third provider
+> using `Microsoft.AspNetCore.Authentication.OpenIdConnect`, the framework's
+> own handler, and signed a person in. No Umbral-specific library, no
+> Umbral-specific code: a package reference, a registration block, and three
+> configuration values.
+>
+> That is the first evidence for SC-002 that does not come from Umbral's own
+> test harness, and it is worth more than the rest of this file. Everything
+> below still runs; this is the thing that proved it.
+
 ```bash
 curl -s https://auth.example.com/.well-known/openid-configuration | jq
 ```
