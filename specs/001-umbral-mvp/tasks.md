@@ -59,19 +59,19 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 
 ### Configuration and storage
 
-- [ ] T015 Create `src/Umbral/Domains/Ids.fs`: subject generation (128 random bits, base64url — **not** derived from any provider identifier, per FR-004) and slug validation (`^[a-z0-9-]{1,32}$`).
-- [ ] T016 [P] Create `src/Umbral/Infrastructure/PublicOrigin.fs`: parse and validate `UMBRAL__PUBLIC_ORIGIN` — absolute URI, scheme `https` or `http` only for `localhost`/`127.0.0.1`/`[::1]`, no path, no query, no fragment, trailing slash normalised away, host lowercased. **Refuse to start when unset**, with a message naming the variable and giving an example.
-- [ ] T017 [P] Write `tests/Umbral.Tests/PublicOriginTests.fs` covering: unset, trailing slash, uppercase host, a path component, `http` on a non-localhost host, and an IPv6 literal.
-- [ ] T018 Create `src/Umbral/Infrastructure/Database.fs`: connection factory, `PRAGMA journal_mode=WAL` and `PRAGMA busy_timeout=5000` on open, and an idempotent `initializeSchema` creating the six Umbral tables from [data-model.md](./data-model.md) — `users`, `linked_accounts`, `connectors`, `settings`, `security_events`, plus indexes including `INDEX(email) WHERE email_verified = 1`.
+- [x] T015 Create `src/Umbral/Domains/Ids.fs`: subject generation (128 random bits, base64url — **not** derived from any provider identifier, per FR-004) and slug validation (`^[a-z0-9-]{1,32}$`).
+- [x] T016 [P] Create `src/Umbral/Infrastructure/PublicOrigin.fs`: parse and validate `UMBRAL__PUBLIC_ORIGIN` — absolute URI, scheme `https` or `http` only for `localhost`/`127.0.0.1`/`[::1]`, no path, no query, no fragment, trailing slash normalised away, host lowercased. **Refuse to start when unset**, with a message naming the variable and giving an example.
+- [x] T017 [P] Write `tests/Umbral.Tests/PublicOriginTests.fs` covering: unset, trailing slash, uppercase host, a path component, `http` on a non-localhost host, and an IPv6 literal.
+- [x] T018 Create `src/Umbral/Infrastructure/Database.fs`: connection factory, `PRAGMA journal_mode=WAL` and `PRAGMA busy_timeout=5000` on open, and an idempotent `initializeSchema` creating the six Umbral tables from [data-model.md](./data-model.md) — `users`, `linked_accounts`, `connectors`, `settings`, `security_events`, plus indexes including `INDEX(email) WHERE email_verified = 1`.
 - [ ] T019 Create `src/Umbral/Infrastructure/UmbralDbContext.fs` (EF Core) calling `options.UseOpenIddict()`, and wire `AddDbContext` plus `AddScoped<UmbralDbContext>` — OpenIddict 7.0 no longer auto-registers the context.
 - [ ] T020 Generate the initial EF migration into `src/Umbral.Migrations` and apply it at startup with `MigrateAsync()`. Safe here because one container is one writer.
-- [ ] T021 [P] Write `tests/Umbral.Tests/DatabaseTests.fs`: `initializeSchema` is idempotent across two runs; WAL is active; migrations create OpenIddict's four tables.
+- [x] T021 [P] Write `tests/Umbral.Tests/DatabaseTests.fs`: `initializeSchema` is idempotent across two runs; WAL is active; migrations create OpenIddict's four tables.
 
 ### Keys and secrets
 
-- [ ] T022 Create `src/Umbral/Infrastructure/Keys.fs`: `loadOrCreate path subject usage` — load a PFX if present, otherwise generate a self-signed 4096-bit RSA certificate with a five-year validity via `CertificateRequest`, write it to `/data/keys` with Unix mode 0600, and return it. **Never `AddDevelopmentSigningCertificate`**: it stores keys in the container's writable layer, so the first `docker compose pull` would invalidate every issued token and log every user out.
+- [x] T022 Create `src/Umbral/Infrastructure/Keys.fs`: `loadOrCreate path subject usage` — load a PFX if present, otherwise generate a self-signed 4096-bit RSA certificate with a five-year validity via `CertificateRequest`, write it to `/data/keys` with Unix mode 0600, and return it. **Never `AddDevelopmentSigningCertificate`**: it stores keys in the container's writable layer, so the first `docker compose pull` would invalidate every issued token and log every user out.
 - [ ] T023 Persist the Data Protection key ring with `PersistKeysToFileSystem(/data/keys)` and `SetApplicationName("Umbral")`. It protects the admin cookie, the antiforgery tokens and the connector secrets — a different concern from T022 with the same failure mode.
-- [ ] T024 [P] Write `tests/Umbral.Tests/KeyPersistenceTests.fs`: two successive boots against the same directory produce the same certificate thumbprint, and a token issued before a simulated restart still validates after it.
+- [x] T024 [P] Write `tests/Umbral.Tests/KeyPersistenceTests.fs`: two successive boots against the same directory produce the same certificate thumbprint, and a token issued before a simulated restart still validates after it.
 - [ ] T025 [P] Create `src/Umbral/Infrastructure/Secrets.fs`: an `IDataProtector` wrapper under the purpose `Umbral.ConnectorSecrets.v1`, a `ProtectedSecret` type, and a redacting converter so a stray structured-log call cannot serialise a secret.
 - [ ] T026 [P] Create `src/Umbral/Infrastructure/SecurityEvents.fs` with a `record` function and the closed event-type union listed in [data-model.md](./data-model.md). The `detail` field must never carry a secret, token or authorization code.
 

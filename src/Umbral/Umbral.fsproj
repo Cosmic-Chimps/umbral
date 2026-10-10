@@ -21,6 +21,14 @@
     T102's meta-test turns a missed step 3 into a build failure. Until then, check by hand.
   -->
   <ItemGroup>
+    <Compile Include="Domains/Ids.fs" />
+    <Compile Include="Infrastructure/PublicOrigin.fs" />
+    <Compile Include="Infrastructure/Keys.fs" />
+    <Compile Include="Infrastructure/Database.fs" />
+    <Compile Include="Views/Texts.fs" />
+    <Compile Include="Views/Theme.fs" />
+    <Compile Include="Views/Components.fs" />
+    <Compile Include="Views/Layout.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
