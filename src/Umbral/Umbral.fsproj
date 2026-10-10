@@ -35,6 +35,7 @@
   <ItemGroup>
     <Compile Include="Domains/Ids.fs" />
     <Compile Include="Infrastructure/PublicOrigin.fs" />
+    <Compile Include="Infrastructure/DataDirectory.fs" />
     <Compile Include="Infrastructure/Keys.fs" />
     <Compile Include="Infrastructure/Secrets.fs" />
     <Compile Include="Infrastructure/Database.fs" />
@@ -44,6 +45,15 @@
     <Compile Include="Views/Components.fs" />
     <Compile Include="Views/Layout.fs" />
     <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      For the DbContext and its migrations, which MigrateAsync needs at RUNTIME
+      and not only at design time. One-way: nothing in Umbral.Migrations refers
+      back here.
+    -->
+    <ProjectReference Include="../Umbral.Migrations/Umbral.Migrations.csproj" />
   </ItemGroup>
 
   <ItemGroup>

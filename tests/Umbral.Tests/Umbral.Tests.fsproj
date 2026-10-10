@@ -8,12 +8,14 @@
 
   <!-- Same compile-order constraint as the web project: helpers before the tests that use them. -->
   <ItemGroup>
+    <Compile Include="Infrastructure/Fixtures.fs" />
     <Compile Include="IdsTests.fs" />
     <Compile Include="PublicOriginTests.fs" />
     <Compile Include="KeyPersistenceTests.fs" />
     <Compile Include="SecretsTests.fs" />
     <Compile Include="DatabaseTests.fs" />
     <Compile Include="SecurityEventsTests.fs" />
+    <Compile Include="BootstrapTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 
