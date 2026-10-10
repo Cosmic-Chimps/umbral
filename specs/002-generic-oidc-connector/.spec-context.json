@@ -2,8 +2,8 @@
   "workflow": "speckit",
   "specName": "Generic OpenID Connect Connector",
   "branch": "002-generic-oidc-connector",
-  "currentStep": "specify",
-  "status": "specified",
+  "currentStep": "plan",
+  "status": "planned",
   "history": [
     {
       "step": "specify",
@@ -11,6 +11,13 @@
       "kind": "start",
       "by": "extension",
       "at": "2026-10-10T18:40:12.445Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-10-10T21:40:07.159Z"
     }
   ]
 }
