@@ -80,6 +80,7 @@ let private testConnector (kind: ProviderKind) : Connector =
       ClientSecretRef = "local:unused"
       ClientSecretHint = "1234"
       ExtraScopes = []
+      IssuerUrl = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch

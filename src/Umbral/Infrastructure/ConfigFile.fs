@@ -248,6 +248,10 @@ let applyConnectors
         for entry in document.Connectors do
             match Connectors.parseKind entry.Kind with
             | None -> ()
+            // Validation refuses `kind: oidc` while the file has no `issuer`
+            // (specs/002 Phase 5); this is the same refusal, so a document that
+            // somehow got here cannot write an OpenID Connect row without one.
+            | Some Connectors.Oidc -> ()
             | Some kind ->
                 let! existing = ConnectorStore.findBySlug config entry.Slug
                 let! reference = secrets.Put($"connector/{entry.Slug}/client_secret", entry.ClientSecret)
@@ -260,6 +264,7 @@ let applyConnectors
                       ClientSecretRef = reference.Encoded
                       ClientSecretHint = Secrets.hint entry.ClientSecret
                       ExtraScopes = entry.ExtraScopes
+                      IssuerUrl = None
                       IsEnabled = entry.Enabled
                       // Applying sets it to what the file says, back to the
                       // default when the key is removed (FR-016).

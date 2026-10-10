@@ -129,6 +129,7 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = "used"
                   ExtraScopes = []
+                  IssuerUrl = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

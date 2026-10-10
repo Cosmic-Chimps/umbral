@@ -528,10 +528,20 @@ let private putSecret (ctx: HttpContext) (slug: string) (plaintext: string) =
         return reference.Encoded, Secrets.hint plaintext
     }
 
-/// Whether this instance may hold a connector of `kind`. Only the fake kind is
-/// ever refused, and only where the fake connector is not allowed.
+/// Whether this instance may hold a connector of `kind`. The fake kind is
+/// refused where the fake connector is not allowed.
+///
+/// `Oidc` is refused outright for now: it is added by issuer, and this handler
+/// has no issuer field yet (specs/002 T022/T023). Until it does, posting
+/// `kind=oidc`, or saving the empty `oidc` card path, must not create an
+/// OpenID Connect connector with no issuer.
 let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
-    kind <> Fake || (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed
+    match kind with
+    | Fake -> (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed
+    | Oidc -> false
+    | Discord
+    | GitHub
+    | Google -> true
 
 /// Add a connector of a kind under a slug the operator chose (FR-012).
 let create: EndpointHandler =
@@ -589,6 +599,7 @@ let create: EndpointHandler =
                       ClientSecretRef = ""
                       ClientSecretHint = ""
                       ExtraScopes = []
+                      IssuerUrl = None
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
@@ -596,7 +607,7 @@ let create: EndpointHandler =
                       UpdatedUtc = clock.GetUtcNow() }
                     secret
 
-            if not added then
+            if added <> ConnectorStore.Created then
                 return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
             else
 
@@ -659,6 +670,7 @@ let save (slug: string) : EndpointHandler =
                           ClientSecretRef = ""
                           ClientSecretHint = ""
                           ExtraScopes = []
+                          IssuerUrl = None
                           // A connector arrives enabled: the operator came here to
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true
@@ -667,7 +679,7 @@ let save (slug: string) : EndpointHandler =
                           UpdatedUtc = clock.GetUtcNow() }
                         secret
 
-                if not added then
+                if added <> ConnectorStore.Created then
                     return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
                 else
                     do! recordEvent ctx SecurityEvents.ConnectorCreated slug
