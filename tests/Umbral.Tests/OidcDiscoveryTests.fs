@@ -163,6 +163,20 @@ let ``a plain-http jwks_uri is refused before the keys are fetched`` () =
     }
 
 [<Fact>]
+let ``a provider that only signs with EdDSA is wrong, and is not told it uses a shared secret`` () =
+    task {
+        let stub = create issuer
+        stub.Discovery["id_token_signing_alg_values_supported"] <- strings [ "EdDSA" ]
+
+        let! result = (ordinary stub).Check issuer
+        wrongAbout "EdDSA" result
+
+        match result with
+        | Wrong reason -> Assert.DoesNotContain("shared secret", reason)
+        | other -> failwith $"expected Wrong, got {other}"
+    }
+
+[<Fact>]
 let ``a provider that only signs with a shared secret is wrong`` () =
     task {
         let stub = create issuer

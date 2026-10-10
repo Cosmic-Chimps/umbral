@@ -118,7 +118,13 @@ let private validate (allowLocalhostHttp: bool) (issuer: string) (document: Open
           None
 
       if not algorithms.IsEmpty && not (algorithms |> List.exists (fun a -> List.contains a asymmetricAlgorithms)) then
-          Some "This provider only signs with a shared secret. Switch its signing key to RS256 or ES256 — see the walkthrough."
+          // HS* means the client secret is the signing key; anything else
+          // (EdDSA, say) is a key pair Umbral does not accept yet, and calling
+          // that a shared secret would send the operator looking for the wrong fix.
+          if algorithms |> List.forall (fun a -> a.StartsWith "HS") then
+              Some "This provider only signs with a shared secret. Switch its signing key to RS256 or ES256 — see the walkthrough."
+          else
+              Some $"""The provider signs identity tokens only with {String.concat ", " algorithms}, and Umbral accepts RS256, PS256 or ES256 (or their 384/512 variants). Give it an RSA or EC signing key — see the walkthrough."""
       else
           None
 

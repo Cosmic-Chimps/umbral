@@ -31,8 +31,9 @@ the clock while in the provider's console.
 
 1. In the provider, create an OAuth2/OpenID application: **confidential**,
    redirect URI left for later. Note its **issuer**, client ID and secret.
-2. Umbral → Connectors → **Add an OpenID Connect provider**: display name
-   `Home`, short name `home`, the issuer, client ID, secret. Save.
+2. Umbral → Connectors → **Add another connector**: Provider "OpenID Connect
+   provider", Identifier `home`, Button label `Home`, the Issuer URL, client
+   ID, client secret. Save.
 3. Copy the callback URL shown (`<origin>/connect/home/callback`) into the
    provider's redirect URI field.
 4. Start a sign-in at a registered app; choose **Sign in with Home**.

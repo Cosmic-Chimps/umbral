@@ -12,7 +12,7 @@ behaviour not listed here are as in spec 001's
 
 | Method | Path | Change |
 | --- | --- | --- |
-| GET | `/admin/connectors` | Adds the **OpenID Connect providers** section: one card per `oidc` connector, then the Add form. |
+| GET | `/admin/connectors` | An `oidc` connector is a card like any other, with its issuer read-only; the kind has no empty card and is added through spec 003's **Add another connector** form (Provider → "OpenID Connect provider"). |
 | POST | `/admin/connectors` | **Extended** (spec 003's add route): accepts `kind = oidc` with an `issuer` field and runs the discovery check (below). For `oidc`, errors re-render the form with the input kept. |
 | POST | `/admin/connectors/{slug}` | Unchanged route. For an `oidc` slug, updates display name, client ID, client secret (replace only) and extra scopes. Slug and issuer are not accepted fields. |
 | POST | `/admin/connectors/{slug}/toggle` | For an `oidc` connector, **enabling** runs the discovery check first and refuses with the reason. Disabling never checks. |
@@ -20,7 +20,7 @@ behaviour not listed here are as in spec 001's
 
 All are operator-only, antiforgery-protected, htmx-optional (spec 001 rules).
 
-### The Add form
+### The add form (spec 003's "Add another connector", kind OpenID Connect provider)
 
 | Field | Rule | Error shown (input kept) |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ the short name is typed or after save, the callback URL
 | Provider unreachable (network error, timeout, non-2xx, not a JSON object) | Saved **disabled**; warning: "Umbral could not reach `<issuer>`: `<reason>`. The provider was saved but is disabled — enable it once `<issuer>/.well-known/openid-configuration` opens in a browser." | Refused with the same reason |
 | Reachable but `issuer` differs | Refused: "That address describes itself as `<actual>`, not `<typed>`. Use exactly the issuer your provider shows, including any path." | Refused (same text) |
 | Reachable but a required endpoint is missing or not https | Refused, naming the field | Refused |
-| No asymmetric signing algorithm advertised | Refused: "This provider only signs with a shared secret. Switch its signing key to RS256 or ES256 — see the walkthrough." | Refused |
+| No asymmetric signing algorithm advertised | Refused. HS-only: "This provider only signs with a shared secret. Switch its signing key to RS256 or ES256 — see the walkthrough." Anything else (e.g. EdDSA): names the advertised algorithms and the accepted ones. | Refused |
 | Neither `client_secret_basic` nor `client_secret_post` supported | Refused, naming the capability | Refused |
 
 Every outcome records a `connector_created`/`connector_updated`/`connector_enabled`
