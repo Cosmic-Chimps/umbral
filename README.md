@@ -14,7 +14,7 @@ It has three concepts, and that is the whole product:
 | Concept | What it is |
 | --- | --- |
 | **App** | A program that signs people in through Umbral. It gets a client ID and a client secret. |
-| **Connector** | A social provider Umbral signs people in with: Discord, GitHub or Google. |
+| **Connector** | Umbral's identity at a social provider (Discord, GitHub or Google): the OAuth application you create there, with its credentials. There can be several per provider. |
 | **User** | A person who has signed in at least once. |
 
 **What Umbral is not.** It has no realms, tenants, groups, roles or permissions,
@@ -149,8 +149,11 @@ You land on the **Connectors** screen. The admin area has three screens:
    (bottom of the left menu) → **OAuth Apps** → **New OAuth App**
    (`https://github.com/settings/applications/new`).
 3. Fill in:
-   - **Application name**: anything, for example `Umbral`. People see it when
-     GitHub asks them to authorize.
+   - **Application name**: the name of your Umbral instance, for example
+     `Umbral` or `Cosmic Chimps Login`. People see it when GitHub asks them to
+     authorize, whichever of your apps they are signing in to. Do not name it
+     after one of your apps. (See
+     [Naming the provider's application](#naming-the-providers-application).)
    - **Homepage URL**: anything, for example `http://localhost:8080`.
    - **Authorization callback URL**: the URL you copied in step 1.
    - Leave **Enable Device Flow** unchecked.
@@ -176,6 +179,12 @@ Open **Apps** and fill in:
   secret). Pick **Single-page or native app** only for an app that cannot.
   It gets no secret and relies on PKCE alone.
 
+- **Sign-in methods**: leave **All shared connectors** (the default). The app
+  then offers every enabled connector that is shared, including ones you add
+  later. Choose **Only the connectors I choose** to tick the ones this app
+  offers; see [Giving one app its own name](#giving-one-app-its-own-name). You
+  can change it later with **Save sign-in methods**.
+
 Click **Create app**. A card appears with the **client ID** and **client
 secret**. **Copy the secret now.** Umbral stores only a hash of it and shows it
 this once. If you lose it, use **Regenerate secret**.
@@ -188,7 +197,8 @@ Open this address in your browser (replace `CLIENT_ID`):
 http://localhost:8080/connect/authorize?client_id=CLIENT_ID&response_type=code&redirect_uri=http://localhost:3000/callback&scope=openid%20email%20profile&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256&state=test
 ```
 
-You get Umbral's **Sign in** page with a **Sign in with GitHub** button. Click it,
+You get Umbral's sign-in page, titled **Sign in to** and the name of your app,
+with a **Sign in with GitHub** button. Click it,
 approve in GitHub, and the browser ends up on
 `http://localhost:3000/callback?code=…&state=test&iss=…`. The page itself will
 fail to load because nothing listens on port 3000, and that is fine: **a
@@ -275,7 +285,9 @@ What an app can count on:
   email private, and a Discord account can be unverified. Handle both.
 - **`name`, `preferred_username`, `picture`** come with the `profile` scope when
   the provider supplied them. **`idp`** is Umbral's one extra claim: the
-  connector the person used (`github`, `discord`, `google`). Ignore it freely.
+  provider the person used (`github`, `discord`, `google`). It is the provider's
+  kind, never a connector's identifier: with several Discord connectors it is
+  still `discord`. Ignore it freely.
 - **Access tokens are opaque.** They are not JWTs: do not try to decode them.
   Validate them by calling `/connect/userinfo`. Disabling a user cuts their
   tokens off immediately.
@@ -287,7 +299,46 @@ What an app can count on:
 Limits of the Apps screen today: an app has **one redirect URI** (plus an
 optional post-logout one), chosen when you create it, and the app's client ID is
 generated. To change a redirect URI, delete the app and register it again. You
-get a new client ID and secret.
+get a new client ID and secret. The app's **Sign-in methods** are different: you
+can change them at any time on its card, without touching the client ID or the
+secret.
+
+### Naming the provider's application
+
+Umbral is the one login for all your apps, so the application you create at a
+provider represents **Umbral**, not one app. The provider shows that
+application's name on its consent screen ("*Name* wants to access your
+account") to people signing in to **every** app that uses the connector. Name it
+after your Umbral instance, for example `Cosmic Chimps Login`. If you name it
+after one app, people signing in to your other apps see that app's name and
+think they are in the wrong place. Umbral's own sign-in page says which app
+people are signing in to, so they still know where they are heading.
+
+### Giving one app its own name
+
+Most apps are fine with the shared name. When one app needs its own name on the
+consent screen, give it its own connector:
+
+1. Create another application at the provider, named as you want people to see
+   it (for example `Frunchy`).
+2. On **Connectors**, under **Add another connector**, pick the **Provider**,
+   choose an **Identifier** (for example `discord-frunchy`), set the **Button
+   label**, paste the **Client ID** and **Client secret**, untick **Shared with
+   every app**, and click **Add connector**. The identifier is fixed once saved.
+   It is part of the callback URL, `<origin>/connect/discord-frunchy/callback`,
+   which the new card shows: register that URL at the provider. The first
+   connector of a provider keeps the provider's name as its identifier (`discord`);
+   only additional ones need one.
+3. On **Apps**, set the app's **Sign-in methods** to **Only the connectors I
+   choose**, tick the new connector, and click **Save sign-in methods**.
+
+Now that app's sign-in page offers only that connector, and every other app
+keeps the shared one. A person who signs in to both apps with the same provider
+account is **one** Umbral user, with the same `sub`. A session counts for an app
+only if it came through a connector that app offers; otherwise the person sees
+that app's sign-in page (they stay signed in to Umbral for the other apps). If a
+change (disabling or deleting a connector, or changing an app's choice) would
+leave an app with no way to sign in, Umbral warns first and names the apps.
 
 ### How people are identified
 
@@ -461,6 +512,15 @@ connectors:
     client_secret: ${UMBRAL_GITHUB_SECRET}
     enabled: true
     # extra_scopes: []                 # optional, added to the scopes Umbral requests
+    # shared: true                     # optional, default true; false = offered only to apps that choose it
+
+  - slug: discord-frunchy              # a second connector of one kind: pick its slug
+    kind: discord
+    display_name: Discord (Frunchy)
+    client_id: "9876543210"
+    client_secret: ${UMBRAL_DISCORD_FRUNCHY_SECRET}   # the slug upper-cased, non-alphanumerics as _
+    enabled: true
+    shared: false                      # only apps that list it below see it
 
 apps:
   - client_id: grafana                 # identifies the app; applying twice is a no-op
@@ -470,6 +530,15 @@ apps:
       - https://grafana.example.com/login/generic_oauth
     post_logout_redirect_uris:         # optional
       - https://grafana.example.com/
+    # connectors: [discord-frunchy]    # optional: a chosen set of connector slugs; absent = all shared connectors
+
+  - client_id: frunchy
+    name: Frunchy
+    client_secret: ${UMBRAL_FRUNCHY_SECRET}
+    redirect_uris:
+      - https://frunchy.example.com/callback
+    connectors:                        # offers only these; [] offers nothing (not "all")
+      - discord-frunchy
 ```
 
 - **Secrets are never written in the file.** `client_secret` must be a
@@ -492,14 +561,22 @@ apps:
   no duplicates.
 - **The file wins on every start.** A connector or app in the file is re-applied
   each time Umbral starts, overwriting what you changed in the admin UI for that
-  slug or client ID (client ID, secret, redirect URIs, enabled). Connectors and
-  apps that are not in the file are left alone.
+  slug or client ID (client ID, secret, redirect URIs, enabled, `shared` and
+  `connectors`). A `shared` or `connectors` key you remove from the file goes
+  back to its default (shared; all shared connectors) on the next start.
+  Connectors and apps that are not in the file are left alone.
+- **`connectors` must name connectors defined in the same file.** An app whose
+  list names a slug that the file does not define under `connectors` refuses the
+  whole file, naming the app entry and the slug. Add the connector to the file or
+  remove it from the app. Writing `connectors: []` on an app is deliberate: it
+  offers no sign-in method at all.
 - **A bad file stops Umbral from starting**, naming the entry and what to do
   (`docker logs umbral`). Nothing is partly applied.
 - **Export what you have clicked.** Signed in as the operator, open
   `https://auth.example.com/admin/config` in your browser. It downloads
   `umbral.yaml` in exactly this format, with `${UMBRAL_<SLUG>_SECRET}`
-  placeholders in place of secrets. There is no button for it in the admin UI
+  placeholders in place of secrets. It includes `shared: false` and each app's
+  `connectors` list wherever they are set. There is no button for it in the admin UI
   yet; it is only that address.
 - **App secrets cannot be exported**, because Umbral stores only a hash of them.
   An export lists each web app with a `${UMBRAL_<CLIENT_ID>_SECRET}` reference
@@ -583,6 +660,24 @@ Commands below use the quick-start container name. With compose, write
 or is `http://` with a host other than `localhost`; or `/data` is not writable. For a bind mount, run
 `chown -R 1654:1654 ./data`. A broken `umbral.yaml` also stops startup and names
 the line.
+
+**I added a connector and nobody sees it.**
+A connector that is **not shared** and that **no app has chosen** is offered
+nowhere. The connector's card says so. Either tick **Shared with every app** on
+the card, or open **Apps**, set an app's **Sign-in methods** to **Only the
+connectors I choose**, tick the connector and click **Save sign-in methods**. A
+disabled connector is not offered either.
+
+**An app's sign-in page says no sign-in method is available.**
+That app has no enabled connector it can offer: its chosen set is empty, or every
+connector in it is disabled or deleted, or it is on **All shared connectors** and
+none is shared and enabled. Fix it on **Apps** (**Sign-in methods**) or on
+**Connectors**.
+
+**Someone signed in, but the app shows its sign-in page again.**
+A session counts for an app only if it came through a connector that app offers.
+They signed in to Umbral through a connector this app does not offer, so they
+must pick one it does. They are still signed in to Umbral for other apps.
 
 **`/` shows "Not found".**
 That is expected: Umbral has no front page. Go to `/admin`.

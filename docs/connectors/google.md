@@ -54,8 +54,11 @@ button:
 ```
 
 for example `https://auth.example.com/connect/google/callback`. The part before
-`/callback` is the connector's **slug**. In the admin UI it is always the
-provider's name (`google`). Do not type it by hand: Google compares it exactly.
+`/callback` is the connector's **slug**, its identifier. The first Google
+connector always has the provider's name (`google`) as its slug. A second one
+has the slug you choose (see [Giving one app its own name](#giving-one-app-its-own-name)),
+and its card shows its own callback URL. Do not type it by hand: Google
+compares it exactly.
 
 ## 2. Create the OAuth client in Google
 
@@ -65,8 +68,11 @@ provider's name (`google`). Do not type it by hand: Google compares it exactly.
 2. Open the **Google Auth Platform** (`https://console.cloud.google.com/auth`;
    in older consoles this is **APIs & Services → OAuth consent screen**). On
    first use it asks you to **Get started** and then for:
-   - **App information**: an app name (people see it on Google's consent page)
-     and a support email;
+   - **App information**: an app name and a support email. People see the name
+     on Google's consent page for **every** app that signs in through this
+     connector, so use the name of your Umbral instance, for example
+     `Cosmic Chimps Login`, not the name of one of your apps. To give one app
+     its own name, see [Giving one app its own name](#giving-one-app-its-own-name);
    - **Audience**: choose **External** (unless every person who will sign in is
      in your own Google Workspace organization, in which case **Internal**);
    - **Contact information**: an email address.
@@ -109,12 +115,74 @@ connectors:
     client_id: "1234567890-abcdefg.apps.googleusercontent.com"
     client_secret: ${UMBRAL_GOOGLE_SECRET}
     enabled: true
+    # shared: true                     # optional, default true; false = offered only to apps that choose it
 ```
 
 Set `UMBRAL_GOOGLE_SECRET` in the container's environment. See
 [Configuration as code](../../README.md#configuration-as-code). Remember that
 the file is re-applied on every start and overwrites UI changes to this
 connector.
+
+## Giving one app its own name
+
+The Google application you created above stands for your Umbral instance, so
+people see its name for **every** app that uses this connector. That is the
+right default. When one app needs its own name on Google's consent screen, give
+it a connector of its own:
+
+> **Google needs a separate Cloud project.** The name people see on Google's
+> consent screen belongs to the whole Google Cloud project (its **Branding**
+> page), not to one OAuth client. A second OAuth client in the same project would
+> show the same name. *(Unverified against the live console.)* So for a Google connector with its own name, create a new
+> Google Cloud project, set up its consent screen with the name you want, and
+> create the OAuth client there (steps 1 to 3 of "Create the OAuth client in
+> Google"), all over again.
+
+1. Create a new Google Cloud project (the project picker at the top → **New
+   project**). Name it, and later its consent screen (**Branding** → app name),
+   as you want people to see it, for example `Frunchy`.
+2. In Umbral, open **Connectors**. Under **Add another connector**, pick
+   **Provider** Google, type an **Identifier** such as `google-frunchy`
+   (lower-case letters, digits and hyphens; it cannot be changed later), a
+   **Button label**, and the new application's **Client ID** and **Client
+   secret**. Untick **Shared with every app**, then click **Add connector**.
+3. The new card shows its own **Redirect URI to register with the provider**,
+   `<UMBRAL__PUBLIC_ORIGIN>/connect/google-frunchy/callback`. Register
+   that URL in the new project's OAuth client, not the first one.
+4. Open **Apps**, set that app's **Sign-in methods** to **Only the connectors I
+   choose**, tick the new connector, and click **Save sign-in methods**.
+
+That app's sign-in page now offers only the new connector. Every other app keeps
+the shared one. A person who signs in to both apps with the same Google account
+is still **one** Umbral user. Disabling or deleting a connector, or changing an
+app's choice, warns you first if an app would be left with no way to sign in. A
+connector that is not shared and that no app has chosen is offered nowhere. See
+[Troubleshooting](../../README.md#troubleshooting).
+
+In the configuration file, the second connector gets its own slug and its own
+secret variable, `UMBRAL_GOOGLE_FRUNCHY_SECRET` (the slug upper-cased, anything
+that is not a letter or digit as `_`), and the app lists it:
+
+```yaml
+connectors:
+  - slug: google-frunchy             # fixed once created: it is in the callback URL
+    kind: google
+    display_name: Google
+    client_id: "…"
+    client_secret: ${UMBRAL_GOOGLE_FRUNCHY_SECRET}
+    enabled: true
+    shared: false                      # offered only to apps that choose it
+apps:
+  - client_id: frunchy
+    name: Frunchy
+    client_secret: ${UMBRAL_FRUNCHY_SECRET}   # web app; leave out for a single-page or native app
+    redirect_uris:
+      - https://frunchy.example.com/callback
+    connectors:                        # a chosen set; absent = all shared connectors
+      - google-frunchy
+```
+
+An app listing a connector the file does not define refuses the whole file.
 
 ## Scopes Umbral requests
 
@@ -180,7 +248,9 @@ them is fine.
   documentation; not measured here.)*
 - **"Access blocked" or `access_denied`** for a person who is not you: the client
   is in Testing and they are not a listed test user. See above.
-- **The consent page shows the app name** you gave on the **Branding** page, so
-  name it for your users, not for you.
+- **The consent page shows the app name** you gave on the **Branding** page, for
+  every app that signs in through this connector. Name it after your Umbral
+  instance, not after one app. The name belongs to the whole Cloud project, so a
+  second OAuth client in the same project shows the same name.
 - **Changing your Umbral address** means editing the redirect URI in the Google
   console.
