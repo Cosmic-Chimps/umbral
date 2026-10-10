@@ -432,7 +432,11 @@ let ``deleting a user is confirmed on the page and removes the row`` () =
         let! browser = signedInOperator app
         let! usersPage = browser.GetAsync "/admin/users"
         let! usersHtml = usersPage.Content.ReadAsStringAsync()
-        Assert.Contains("confirm(", usersHtml)
+        // The confirmation travels as data-confirm (umbral.js shows it): an inline
+        // onsubmit would be refused by the page's Content-Security-Policy. It must
+        // name what breaks, here the linked accounts the delete removes.
+        Assert.Contains("data-confirm=\"Delete Alex Doe?", usersHtml)
+        Assert.DoesNotContain("onsubmit", usersHtml)
 
         let! fieldName, fieldValue = tokenFrom browser "/admin/users"
         let! deleted = browser.PostFormAsync $"/admin/users/{userId}/delete" [ fieldName, fieldValue ]

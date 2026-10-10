@@ -32,6 +32,7 @@ open Umbral.Migrations
 
 let endpoints: Endpoint list =
     [ Umbral.Handlers.Health.endpoint
+      Umbral.Handlers.Assets.endpoint
       Umbral.Handlers.Admin.Landing.endpoint
       yield! Umbral.Handlers.Admin.Setup.endpoint
       yield! Umbral.Handlers.Admin.SignIn.endpoint

@@ -1,8 +1,8 @@
 /// Shared components of the admin UI and the end-user picker. Styles live in
-/// Theme.componentCss; these functions only put markup and accessibility
-/// attributes in place. Every function takes the text it shows as a
-/// parameter — no view, here or above it, holds a literal (Views/Texts.fs is
-/// the only home for those).
+/// Assets/umbral.input.css (the `.um-*` classes) and Assets/tailwind.config.js;
+/// these functions only put markup and accessibility attributes in place.
+/// Every function takes the text it shows as a parameter — no view, here or
+/// above it, holds a literal (Views/Texts.fs is the only home for those).
 ///
 /// Components here carry no `data-*` test hooks: the hook table in
 /// contracts/admin-and-config.md (data-screen, data-app, data-connector,
@@ -18,8 +18,11 @@ module Umbral.Views.Components
 open Oxpecker.ViewEngine
 open Umbral.Views.Theme
 
+/// An inline SVG, sized and aligned by `.um-icon` and coloured by the text
+/// colour around it (`currentColor`). `raw` is safe here: the only input is a
+/// closed union whose path data is constants in Theme.fs, never user text.
 let icon (i: Icon) =
-    span(class' = "material-symbols-outlined").attr("aria-hidden", "true") { i.Name }
+    raw $"""<svg class="um-icon" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true" focusable="false"><path d="{i.Path}"/></svg>"""
 
 /// The mark (an inline SVG) next to the wordmark, linking to the Apps screen
 let brand (siteName: string) =
@@ -206,52 +209,13 @@ let emptyState (i: Icon) (title: string) (body: string) (action: HtmlElement opt
         | None -> Fragment() :> HtmlElement
     }
 
-/// A JavaScript single-quoted string literal. Newlines matter as much as
-/// quotes here: a raw newline inside a JS string is a syntax error, and these
-/// messages interpolate operator-supplied names (an app called "Grafana\nProd"
-/// is unlikely but costs nothing to survive). A broken handler fails open — the
-/// form submits without confirming — which is the wrong direction for a
-/// destructive action.
-let private jsStringLiteral (s: string) =
-    "'"
-    + s
-        .Replace("\\", "\\\\")
-        .Replace("'", "\\'")
-        .Replace("\r", "\\r")
-        .Replace("\n", "\\n")
-    + "'"
-
-/// Wires a native `confirm()` dialog onto a destructive form, naming what
-/// breaks (contract: "destructive actions confirm, and the confirmation
-/// names what breaks"). Works identically with and without JavaScript
-/// disabled further up the stack — if JS is off, the confirm is skipped and
-/// the POST goes through as normal, same as every other form here (D11).
+/// Marks a destructive form to be confirmed before it is sent, naming what
+/// breaks (contract: "destructive actions confirm, and the confirmation names
+/// what breaks"). The message travels as `data-confirm` and Assets/umbral.js
+/// shows the native `confirm()` — an inline `onsubmit` would be refused by the
+/// Content-Security-Policy. With JavaScript off the confirm is skipped and the
+/// POST goes through as normal, same as every other form here (D11). Oxpecker
+/// encodes the attribute value, so an operator-supplied name in the message
+/// cannot break out of it.
 let confirmSubmit (message: string) (formEl: form) =
-    formEl.attr("onsubmit", $"return confirm({jsStringLiteral message})")
-
-/// Wires `navigator.clipboard` onto every `[data-copy-trigger]` button,
-/// copying the value of the `<input>` next to it and swapping the button's
-/// label for `copiedLabel` for two seconds. Plain JavaScript: Umbral loads no
-/// client framework, only htmx for the three interactions research.md D11
-/// names, and this isn't one of them.
-let copyScript =
-    """
-document.addEventListener('click', function (event) {
-  var trigger = event.target.closest('[data-copy-trigger]');
-  if (!trigger) return;
-  var field = trigger.closest('div');
-  var source = field ? field.querySelector('input') : null;
-  if (!source || !navigator.clipboard) return;
-  navigator.clipboard.writeText(source.value).then(function () {
-    var idle = trigger.querySelector('[data-copy-label-idle]');
-    var done = trigger.querySelector('[data-copy-label-done]');
-    if (!idle || !done) return;
-    idle.classList.add('hidden');
-    done.classList.remove('hidden');
-    setTimeout(function () {
-      idle.classList.remove('hidden');
-      done.classList.add('hidden');
-    }, 2000);
-  });
-});
-"""
+    formEl.data("confirm", message)

@@ -24,7 +24,7 @@
   <!--
     F# compiles in this order and a file sees only what comes before it, so this
     list IS the dependency graph. Keep it: Domains -> Infrastructure -> Views
-    (Texts -> Theme -> Components -> Layout) -> Handlers -> Program.fs last.
+    (Texts -> Theme -> Assets -> Components -> Layout) -> Handlers -> Program.fs last.
 
     Adding an endpoint is three steps and missing the third is silent:
       1. the file under Handlers/
@@ -64,9 +64,11 @@
     <Compile Include="Infrastructure/OpenIddictSetup.fs" />
     <Compile Include="Views/Texts.fs" />
     <Compile Include="Views/Theme.fs" />
+    <Compile Include="Views/Assets.fs" />
     <Compile Include="Views/Components.fs" />
     <Compile Include="Views/Layout.fs" />
     <Compile Include="Handlers/Health.fs" />
+    <Compile Include="Handlers/Assets.fs" />
     <Compile Include="Handlers/Admin/Landing.fs" />
     <Compile Include="Handlers/Admin/Setup.fs" />
     <Compile Include="Handlers/Admin/SignIn.fs" />
@@ -92,6 +94,18 @@
     <Compile Include="Handlers/Connect/Authorize.fs" />
     <Compile Include="Handlers/Connect/Token.fs" />
     <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <!--
+    The stylesheet and scripts every page loads, served by Umbral itself
+    (Views/Assets.fs, Handlers/Assets.fs). Embedded rather than wwwroot, so the
+    app stays one assembly and TestServer-hosted tests need no content root.
+    umbral.css is generated: run Assets/build-css.sh after changing a view.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets/umbral.css" LogicalName="umbral.css" />
+    <EmbeddedResource Include="Assets/umbral.js" LogicalName="umbral.js" />
+    <EmbeddedResource Include="Assets/htmx-4.0.0.min.js" LogicalName="htmx.min.js" />
   </ItemGroup>
 
   <ItemGroup>
