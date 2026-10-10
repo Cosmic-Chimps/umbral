@@ -45,12 +45,16 @@ let ``EF Core statements are not logged by default`` () =
     }
 
 [<Fact>]
-let ``per-request framework chatter and scheduler startup are quiet by default`` () =
+let ``per-request framework and OpenIddict chatter and scheduler startup are quiet by default`` () =
     task {
         let! request = enabled [] "Microsoft.AspNetCore.Hosting.Diagnostics" LogLevel.Information
         let! scheduler = enabled [] "Quartz.Core.QuartzScheduler" LogLevel.Information
+        // Six Information lines for every protocol request, with the request's
+        // parameters in them.
+        let! dispatcher = enabled [] "OpenIddict.Server.OpenIddictServerDispatcher" LogLevel.Information
         Assert.False request
         Assert.False scheduler
+        Assert.False dispatcher
     }
 
 [<Fact>]
