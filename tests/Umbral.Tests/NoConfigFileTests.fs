@@ -34,17 +34,17 @@ connectors:
     enabled: true
 """
 
-/// What the old version applied on every start, with `enabled: true` as the
-/// last word on a connector. The admin screen below adds a different one, so
-/// that what this file says cannot be what the assertions read.
+/// What the old version applied on every start: `enabled: true` on the same
+/// connector the operator turns off below. The old version put it back on at
+/// the next start; the facts below need it to stay off.
 let private appliedDocument =
     """version: 1
 
 connectors:
-  - slug: discord
-    kind: discord
-    client_id: "1234567890"
-    client_secret: ${UMBRAL_DISCORD_SECRET}
+  - slug: github
+    kind: github
+    client_id: "Iv1.0123456789abcdef"
+    client_secret: ${UMBRAL_GITHUB_SECRET}
     enabled: true
 """
 
@@ -58,7 +58,7 @@ let private withOldFile (document: string) (body: string -> string -> (string * 
         File.WriteAllText(path, document)
 
         try
-            do! body directory path [ "UMBRAL:CONFIG_FILE", path; "UMBRAL_DISCORD_SECRET", "a-secret-from-the-environment" ]
+            do! body directory path [ "UMBRAL:CONFIG_FILE", path; "UMBRAL_GITHUB_SECRET", "a-secret-from-the-environment" ]
         finally
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
 
