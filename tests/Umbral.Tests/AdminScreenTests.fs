@@ -242,6 +242,72 @@ let ``a public app gets no client secret at all`` () =
         Assert.DoesNotContain("secret=", location)
     }
 
+[<Fact>]
+let ``the app type is two radio choices with Web preselected, not a select`` () =
+    task {
+        // The create form only shows once there is an enabled connector.
+        use! app = Fixtures.createAppWith Journeys.fakeSettings ignore
+        do! Journeys.addFakeConnector app "fake-connector-secret-value"
+        let! browser = signedInOperator app
+        let! page = browser.GetAsync "/admin/apps"
+        let! html = page.Content.ReadAsStringAsync()
+
+        Assert.DoesNotContain("<select", html)
+
+        // One fieldset with a legend, two real radios sharing the name.
+        Assert.Contains("<fieldset", html)
+        Assert.Contains("<legend", html)
+
+        let radios = Regex.Matches(html, "<input[^>]*name=\"appType\"[^>]*>")
+        Assert.Equal(2, radios.Count)
+
+        let webRadio = radios |> Seq.find (fun m -> m.Value.Contains "value=\"web\"")
+        let spaRadio = radios |> Seq.find (fun m -> m.Value.Contains "value=\"spa\"")
+        Assert.Contains("type=\"radio\"", webRadio.Value)
+        Assert.Contains("checked", webRadio.Value)
+        Assert.Contains("type=\"radio\"", spaRadio.Value)
+        Assert.DoesNotContain("checked", spaRadio.Value)
+
+        // Each choice says which one is the operator's.
+        Assert.Contains("Web application", html)
+        Assert.Contains("Single-page or native app", html)
+        Assert.Contains("client secret", html)
+        Assert.Contains("no secret", html)
+    }
+
+[<Fact>]
+let ``each app type is listed under its own name once created`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! browser = signedInOperator app
+
+        for name, appType in [ "Web One", "web"; "Spa One", "spa" ] do
+            let! fieldName, fieldValue = tokenFrom browser "/admin/apps"
+
+            let! created =
+                browser.PostFormAsync
+                    "/admin/apps"
+                    [ fieldName, fieldValue
+                      "name", name
+                      "redirectUri", "https://app.example.com/callback"
+                      "postLogoutRedirectUri", ""
+                      "appType", appType ]
+
+            Assert.Equal(HttpStatusCode.Redirect, created.StatusCode)
+            Assert.Contains("msg=app-created", created.Headers.Location |> string)
+
+        let! page = browser.GetAsync "/admin/apps"
+        let! html = page.Content.ReadAsStringAsync()
+
+        let cardOf (name: string) =
+            let start = html.IndexOf $">{name}<"
+            Assert.True(start >= 0, $"no card for {name}")
+            html.Substring(start, 400)
+
+        Assert.Contains("Web application", cardOf "Web One")
+        Assert.Contains("Single-page or native app", cardOf "Spa One")
+    }
+
 // ---------------------------------------------------------------------------
 // Apps: redirect URI validation
 // ---------------------------------------------------------------------------
