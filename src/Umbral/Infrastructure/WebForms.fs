@@ -67,6 +67,18 @@ let redirectWithNotice (ctx: HttpContext) (path: string) (notice: string) : Task
     ctx.Response.Redirect $"{path}?msg={Uri.EscapeDataString notice}"
     Task.CompletedTask
 
+/// The same, plus what the notice is about (`slug=...`, `app=...`), so the
+/// screen can recompute a warning and draw the button that confirms it. Values
+/// are ids and slugs, never names or secrets.
+let redirectWithNoticeAbout (ctx: HttpContext) (path: string) (notice: string) (about: (string * string) list) : Task =
+    let extra =
+        about
+        |> List.map (fun (name, value) -> $"&{name}={Uri.EscapeDataString value}")
+        |> String.concat ""
+
+    ctx.Response.Redirect $"{path}?msg={Uri.EscapeDataString notice}{extra}"
+    Task.CompletedTask
+
 let redirect (ctx: HttpContext) (path: string) : Task =
     ctx.Response.Redirect path
     Task.CompletedTask

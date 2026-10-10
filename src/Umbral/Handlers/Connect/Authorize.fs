@@ -19,6 +19,7 @@ open OpenIddict.Abstractions
 open OpenIddict.Server.AspNetCore
 open type OpenIddict.Abstractions.OpenIddictConstants
 open Oxpecker
+open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 
 // ---------------------------------------------------------------------------
@@ -186,8 +187,28 @@ let handler: EndpointHandler =
             let signedIn =
                 if session.Succeeded then Option.ofObj session.Principal else None
 
+            // FR-008: a session is honoured for this app only if it was
+            // established through a connector the app offers. A session
+            // through any other connector is not signed out — the person may
+            // still use it for another app — it simply does not count here, so
+            // the request falls to the same branch as "no session".
+            let! sessionOffered =
+                match signedIn with
+                | Some principal when not (request.HasPromptValue PromptValues.Login) ->
+                    task {
+                        let config = ctx.GetService<Database.DbConfig>()
+                        let! choice = AppConnectors.choiceFor config (Option.ofObj request.ClientId |> Option.defaultValue "")
+                        let! connectors = ConnectorStore.listAll config
+                        let offered = offeredTo choice connectors
+
+                        return
+                            Sessions.currentConnector principal
+                            |> Option.exists (fun slug -> offered |> List.exists (fun c -> c.Slug = slug))
+                    }
+                | _ -> Task.FromResult false
+
             match signedIn with
-            | Some principal when not (request.HasPromptValue PromptValues.Login) ->
+            | Some principal when sessionOffered ->
                 let subject = Sessions.currentSubject principal
                 let idp = Sessions.currentIdp principal |> Option.defaultValue "unknown"
 
@@ -279,8 +300,9 @@ let handler: EndpointHandler =
 
             | _ ->
                 if request.HasPromptValue PromptValues.None then
-                    // prompt=none means "show no UI". With no session, saying so
-                    // is the only correct answer.
+                    // prompt=none means "show no UI". With no session, or one
+                    // this app does not honour (FR-008), saying so is the only
+                    // correct answer.
                     return! forbid ctx Errors.LoginRequired "No user is signed in."
                 else
                     // Send them to the connector picker carrying the whole

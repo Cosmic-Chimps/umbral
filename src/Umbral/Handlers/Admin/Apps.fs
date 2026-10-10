@@ -16,6 +16,7 @@ open OpenIddict.Abstractions
 open type OpenIddict.Abstractions.OpenIddictConstants
 open Oxpecker
 open Oxpecker.ViewEngine
+open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 open Umbral.Views
 
@@ -191,12 +192,113 @@ type private Row =
       DisplayName: string
       ClientType: string
       RedirectUris: string list
-      PostLogoutRedirectUris: string list }
+      PostLogoutRedirectUris: string list
+      Choice: AppChoice }
 
-let private appRow (ctx: HttpContext) (t: Texts.Texts) (origin: PublicOrigin.PublicOrigin) (row: Row) =
+// ---------------------------------------------------------------------------
+// The connector choice (FR-005, FR-009)
+// ---------------------------------------------------------------------------
+
+/// The choice as the form names it: `all-shared` or `chosen`.
+let private choiceValue (choice: AppChoice) =
+    match choice with
+    | AllShared -> "all-shared"
+    | Only _ -> "chosen"
+
+/// The choice a posted form or a warning redirect describes. Absent, blank or
+/// unrecognised means `all-shared`; `connectors` is read only for `chosen`
+/// (contracts/admin-and-config.md). Zero values with `chosen` is a chosen set
+/// with nothing in it.
+let private choiceFrom (kind: string) (slugs: string seq) : AppChoice =
+    match kind with
+    | "chosen" ->
+        slugs
+        |> Seq.map (fun slug -> slug.Trim())
+        |> Seq.filter (fun slug -> slug <> "")
+        |> Set.ofSeq
+        |> Only
+    | _ -> AllShared
+
+let private choiceFromForm (form: IFormCollection) : AppChoice =
+    let slugs =
+        match form.TryGetValue "connectors" with
+        | true, values -> values |> Seq.choose Option.ofObj |> List.ofSeq
+        | _ -> []
+
+    choiceFrom (WebForms.value form "connectorChoice") slugs
+
+/// The connector choice as two radio cards, like the app type, with a tick box
+/// per connector under the second. Every stored connector is listed, shared or
+/// not, enabled or not: a chosen set may name a connector that is off today.
+/// `idPrefix` keeps the ids unique when the form appears once per app.
+let private connectorChoices
+    (t: Texts.Texts)
+    (idPrefix: string)
+    (connectors: Connector list)
+    (selected: AppChoice)
+    =
+    let members =
+        match selected with
+        | Only slugs -> slugs
+        | AllShared -> Set.empty
+
+    fieldset(class' = "um-choice-group").attr("aria-describedby", $"{idPrefix}-hint") {
+        legend(class' = "um-label") { t.AppConnectorsLabel }
+
+        div(class' = "grid gap-3 md:grid-cols-2") {
+            for value, title, description in
+                [ "all-shared", t.AppConnectorChoiceAllSharedTitle, t.AppConnectorChoiceAllSharedDescription
+                  "chosen", t.AppConnectorChoiceChosenTitle, t.AppConnectorChoiceChosenDescription ] do
+                label(class' = "um-choice") {
+                    let radio =
+                        input(type' = "radio", name = "connectorChoice", value = value, class' = "um-choice-radio")
+
+                    if value = choiceValue selected then
+                        radio.attr("checked", "checked") |> ignore
+
+                    radio
+
+                    span(class' = "um-choice-body") {
+                        span(class' = "um-choice-title") { title }
+                        span(class' = "um-choice-desc") { description }
+                    }
+                }
+        }
+
+        if connectors.IsEmpty then
+            p(class' = "um-hint") { t.AppConnectorChoiceNoneToChoose }
+        else
+            div(class' = "space-y-1").data("connector-options", "") {
+                for connector in connectors do
+                    label(class' = "flex items-center gap-2 text-body-sm text-on-surface") {
+                        let box =
+                            input(type' = "checkbox", name = "connectors", value = connector.Slug)
+
+                        if Set.contains connector.Slug members then
+                            box.attr("checked", "checked") |> ignore
+
+                        box
+
+                        span() { $"{connector.DisplayName} " }
+                        span(class' = "um-mono") { connector.Slug }
+                    }
+            }
+
+        p(id = $"{idPrefix}-hint", class' = "um-hint") { t.AppConnectorChoiceHint }
+    }
+
+let private appRow
+    (ctx: HttpContext)
+    (t: Texts.Texts)
+    (origin: PublicOrigin.PublicOrigin)
+    (connectors: Connector list)
+    (row: Row)
+    =
     let isPublic = row.ClientType = ClientTypes.Public
 
-    article(class' = "um-card space-y-4").data("app", row.ClientId) {
+    article(class' = "um-card space-y-4")
+        .data("app", row.ClientId)
+        .data("app-choice", choiceValue row.Choice) {
         div(class' = "flex items-center justify-between gap-3") {
             h2(class' = "text-headline-md text-on-surface") { row.DisplayName }
             Components.pill Components.MutedTone (if isPublic then SpaOrNative.Label t else Web.Label t)
@@ -223,6 +325,38 @@ let private appRow (ctx: HttpContext) (t: Texts.Texts) (origin: PublicOrigin.Pub
         div(class' = "space-y-1 text-body-sm text-on-surface-variant") {
             for uri in row.RedirectUris do
                 p(class' = "um-mono") { uri }
+        }
+
+        // FR-009: which connectors this app offers, readable at a glance, with
+        // a small form to change it.
+        div(class' = "space-y-2") {
+            match row.Choice with
+            | AllShared -> p(class' = "text-body-sm text-on-surface-variant") { t.AppConnectorsAllSharedSummary }
+            | Only slugs when slugs.IsEmpty ->
+                p(class' = "text-body-sm text-on-surface-variant") { t.AppConnectorsChosenNone }
+            | Only slugs ->
+                div(class' = "flex flex-wrap items-center gap-2") {
+                    span(class' = "text-body-sm text-on-surface-variant") { t.AppConnectorsChosenSummary }
+
+                    for slug in slugs do
+                        let label =
+                            connectors
+                            |> List.tryFind (fun c -> c.Slug = slug)
+                            |> Option.map (fun c -> c.DisplayName)
+                            |> Option.defaultValue slug
+
+                        (span().data("app-connector", slug) { Components.pill Components.MutedTone label })
+                        :> HtmlElement
+                }
+
+            form(method = "post", action = $"/admin/apps/{row.ClientId}/connectors", class' = "space-y-3") {
+                ctx.GetAntiforgeryInput()
+                connectorChoices t $"connectors-{row.ClientId}" connectors row.Choice
+
+                button(type' = "submit", class' = Components.btnSm Components.Secondary) {
+                    t.AppConnectorsSaveButton
+                }
+            }
         }
 
         div(class' = "flex flex-wrap items-center gap-2") {
@@ -299,7 +433,7 @@ let private appTypeChoices (t: Texts.Texts) (selected: AppType) =
         p(id = "appType-hint", class' = "um-hint") { t.AppTypeHint }
     }
 
-let private createForm (ctx: HttpContext) (t: Texts.Texts) =
+let private createForm (ctx: HttpContext) (t: Texts.Texts) (connectors: Connector list) =
     form(method = "post", action = "/admin/apps", class' = "um-card space-y-4") {
         ctx.GetAntiforgeryInput()
 
@@ -308,10 +442,43 @@ let private createForm (ctx: HttpContext) (t: Texts.Texts) =
         Components.field t.AppPostLogoutRedirectUriLabel "postLogoutRedirectUri" "" None None
 
         appTypeChoices t Web
+        connectorChoices t "connectors-new" connectors AllShared
 
         button(type' = "submit", class' = Components.btn Components.Primary) {
             Components.icon Theme.Add
             t.AppCreateButton
+        }
+    }
+
+/// An attempted change of an app's choice that would leave it with nothing
+/// offered (FR-010). The redirect carries the choice it was attempting, so the
+/// confirming button can post exactly that.
+type private StrandWarning =
+    { ClientId: string
+      Name: string
+      Choice: AppChoice }
+
+let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWarning) =
+    let slugs =
+        match warning.Choice with
+        | Only slugs -> Set.toList slugs
+        | AllShared -> []
+
+    div(class' = "space-y-2") {
+        p() { t.StrandedAppsTitle }
+
+        ul() {
+            li().data("stranded-app", warning.ClientId) { warning.Name }
+        }
+
+        form(method = "post", action = $"/admin/apps/{warning.ClientId}/connectors?confirm=yes", class' = "inline") {
+            ctx.GetAntiforgeryInput()
+            input(type' = "hidden", name = "connectorChoice", value = choiceValue warning.Choice)
+
+            for slug in slugs do
+                input(type' = "hidden", name = "connectors", value = slug)
+
+            button(type' = "submit", class' = Components.btnSm Components.Danger) { t.AppConnectorsStrandConfirm }
         }
     }
 
@@ -320,16 +487,25 @@ let private view
     (t: Texts.Texts)
     (origin: PublicOrigin.PublicOrigin)
     (rows: Row list)
+    (connectors: Connector list)
     (hasEnabledConnector: bool)
     (revealed: RevealedSecret option)
     (notice: string option)
+    (strand: StrandWarning option)
     =
     div(class' = "space-y-6").data("screen", "apps") {
         Components.pageHeading t.AppsTitle (Some t.AppsLead)
 
-        match notice with
-        | Some code -> (div().data("notice", code) { Components.alert Components.Success (t.Notice code) }) :> HtmlElement
-        | None -> Fragment() :> HtmlElement
+        match notice, strand with
+        | Some code, Some warning ->
+            (div().data("notice", code) {
+                Components.alert Components.Warning (t.Notice code)
+                strandWarning ctx t warning
+            })
+            :> HtmlElement
+        | Some code, None ->
+            (div().data("notice", code) { Components.alert Components.Success (t.Notice code) }) :> HtmlElement
+        | None, _ -> Fragment() :> HtmlElement
 
         match revealed with
         | Some r -> secretRevealCard t r
@@ -342,13 +518,13 @@ let private view
                 t.AppsNeedConnectorBody
                 (Some(a (href = "/admin/connectors", class' = Components.btn Components.Primary) { t.NavConnectors }))
         else
-            createForm ctx t
+            createForm ctx t connectors
 
         if rows.IsEmpty then
             Components.emptyState Theme.ExploreOff t.AppsEmptyTitle t.AppsEmptyBody None
         else
             for row in rows do
-                appRow ctx t origin row
+                appRow ctx t origin connectors row
     }
     |> Layout.page ctx t t.AppsTitle
 
@@ -369,7 +545,7 @@ let private toListAsync (source: Collections.Generic.IAsyncEnumerable<'a>) =
         return List.ofSeq results
     }
 
-let private toRow (applications: IOpenIddictApplicationManager) (app: obj) =
+let private toRow (applications: IOpenIddictApplicationManager) (choices: Map<string, AppChoice>) (app: obj) =
     task {
         let! clientId = applications.GetClientIdAsync app
         let! displayName = applications.GetDisplayNameAsync app
@@ -377,13 +553,23 @@ let private toRow (applications: IOpenIddictApplicationManager) (app: obj) =
         let! redirectUris = applications.GetRedirectUrisAsync app
         let! postLogoutUris = applications.GetPostLogoutRedirectUrisAsync app
 
+        let clientId = clientId |> Option.ofObj |> Option.defaultValue ""
+
         return
-            { ClientId = clientId |> Option.ofObj |> Option.defaultValue ""
+            { ClientId = clientId
+              Choice = choices |> Map.tryFind clientId |> Option.defaultValue AllShared
               DisplayName = displayName |> Option.ofObj |> Option.defaultValue ""
               ClientType = clientType |> Option.ofObj |> Option.defaultValue ClientTypes.Confidential
               RedirectUris = redirectUris |> List.ofSeq
               PostLogoutRedirectUris = postLogoutUris |> List.ofSeq }
     }
+
+/// Every slug in a chosen set names a stored connector. `setChoice` would hit
+/// a foreign key on an unknown one, so it is refused with a notice first.
+let private knownSlugs (choice: AppChoice) (connectors: Connector list) =
+    match choice with
+    | AllShared -> true
+    | Only slugs -> slugs |> Set.forall (fun slug -> connectors |> List.exists (fun c -> c.Slug = slug))
 
 let page: EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
@@ -394,19 +580,42 @@ let page: EndpointHandler =
             let applications = ctx.GetService<IOpenIddictApplicationManager>()
 
             let! apps = toListAsync (applications.ListAsync())
+            let! choices = AppConnectors.allChoices config
             let rows = ResizeArray()
 
             for app in apps do
-                let! row = toRow applications app
+                let! row = toRow applications choices app
                 rows.Add row
 
             let! connectors = ConnectorStore.listAll config
-            let hasEnabledConnector = connectors |> List.exists (fun c -> c.IsEnabled)
+
+            // An app made now starts on "all shared connectors" (FR-005), so
+            // the create form is useful only when that offers something.
+            let hasEnabledConnector = not (List.isEmpty (offeredTo AllShared connectors))
 
             let notice = ctx.TryGetQueryValue "msg"
             let revealed = SecretReveal.consume ctx
 
-            return! ctx.WriteHtmlView(view ctx t origin (List.ofSeq rows) hasEnabledConnector revealed notice)
+            // `app-connectors-strand` carries the app and the choice that was
+            // attempted; the app's name is looked up here, never in the URL.
+            let strand =
+                match notice, ctx.TryGetQueryValue "app" with
+                | Some "app-connectors-strand", Some clientId ->
+                    rows
+                    |> Seq.tryFind (fun r -> r.ClientId = clientId)
+                    |> Option.map (fun r ->
+                        let slugs =
+                            (ctx.TryGetQueryValue "connectors" |> Option.defaultValue "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+
+                        { ClientId = clientId
+                          Name = r.DisplayName
+                          Choice = choiceFrom (ctx.TryGetQueryValue "choice" |> Option.defaultValue "") slugs })
+                | _ -> None
+
+            return!
+                ctx.WriteHtmlView(
+                    view ctx t origin (List.ofSeq rows) connectors hasEnabledConnector revealed notice strand
+                )
         })
 
 let create: EndpointHandler =
@@ -450,6 +659,15 @@ let create: EndpointHandler =
             | None -> return! fail "app-type-invalid"
             | Some appType ->
 
+            // The connector choice is validated before the app exists, so a
+            // refused slug leaves nothing half made (FR-005).
+            let choice = choiceFromForm form
+            let! connectors = ConnectorStore.listAll config
+
+            if not (knownSlugs choice connectors) then
+                return! fail "app-connector-unknown"
+            else
+
             let clientId = Umbral.Domains.Ids.newClientId ()
 
             let secret =
@@ -460,6 +678,11 @@ let create: EndpointHandler =
             let descriptor = buildDescriptor clientId name appType redirectUri postLogoutUri secret
             let applications = ctx.GetService<IOpenIddictApplicationManager>()
             let! _ = applications.CreateAsync descriptor
+
+            // No row means "all shared connectors", so the default writes none.
+            match choice with
+            | Only _ -> do! AppConnectors.setChoice config clientId choice
+            | AllShared -> ()
 
             do!
                 SecurityEvents.record
@@ -476,6 +699,65 @@ let create: EndpointHandler =
             return! WebForms.redirectWithNotice ctx "/admin/apps" "app-created"
         })
 
+/// Change an existing app's connector choice (FR-005, FR-009). Warns, naming
+/// the app, before a choice that leaves it with nothing to offer (FR-010), and
+/// goes ahead once the button on that warning posts `?confirm=yes`.
+let setConnectors (clientId: string) : EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let! form = WebForms.readValidated ctx
+
+            let applications = ctx.GetService<IOpenIddictApplicationManager>()
+            let! application = applications.FindByClientIdAsync clientId
+
+            match application with
+            | null -> return! WebForms.redirectWithNotice ctx "/admin/apps" "app-not-found"
+            | application ->
+
+            let choice = choiceFromForm form
+            let! connectors = ConnectorStore.listAll config
+
+            if not (knownSlugs choice connectors) then
+                return! WebForms.redirectWithNotice ctx "/admin/apps" "app-connector-unknown"
+            else
+
+            let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
+            let! name = applications.GetDisplayNameAsync application
+            let named = Option.ofObj name |> Option.defaultValue clientId
+
+            if not confirmed && not (List.isEmpty (strandedApps [ clientId, named, choice ] connectors)) then
+                let slugs =
+                    match choice with
+                    | Only slugs -> Set.toList slugs
+                    | AllShared -> []
+
+                return!
+                    WebForms.redirectWithNoticeAbout
+                        ctx
+                        "/admin/apps"
+                        "app-connectors-strand"
+                        [ "app", clientId
+                          "choice", choiceValue choice
+                          "connectors", String.Join(",", slugs) ]
+            else
+
+            do! AppConnectors.setChoice config clientId choice
+
+            do!
+                SecurityEvents.record
+                    config
+                    clock
+                    { SecurityEvents.event SecurityEvents.AppUpdated SecurityEvents.Success SecurityEvents.Actor.Operator with
+                        ClientId = Some clientId
+                        RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+                        Detail = Some "connector_choice" }
+
+            return! WebForms.redirectWithNotice ctx "/admin/apps" "app-connectors-saved"
+        })
+
 let endpoint =
     [ GET [ route "/admin/apps" page ]
-      POST [ route "/admin/apps" create ] ]
+      POST [ route "/admin/apps" create ]
+      POST [ routef "/admin/apps/{%s}/connectors" setConnectors ] ]

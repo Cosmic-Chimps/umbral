@@ -81,7 +81,13 @@ type Browser(client: HttpClient) =
         task {
             let! token = this.TokenFrom formPage
             let message = new HttpRequestMessage(HttpMethod.Post, action)
-            message.Content <- new FormUrlEncodedContent(dict (("__RequestVerificationToken", token) :: fields))
+            // A list of pairs, not a dictionary: a field may repeat, as the
+            // `connectors` tick boxes of an app do.
+            let pairs =
+                (("__RequestVerificationToken", token) :: fields)
+                |> List.map (fun (name, value) -> Collections.Generic.KeyValuePair(name, value))
+
+            message.Content <- new FormUrlEncodedContent(pairs)
             return! this.Send message
         }
 
@@ -129,6 +135,7 @@ let seedFakeConnector (app: Fixtures.TestApp) =
                   ClientSecretHint = "used"
                   ExtraScopes = []
                   IsEnabled = true
+                  IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
                   UpdatedUtc = app.Clock.GetUtcNow() }
                 None

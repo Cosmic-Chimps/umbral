@@ -23,16 +23,21 @@ Copy button:
 ```
 
 for example `https://auth.example.com/connect/discord/callback`. The part before
-`/callback` is the connector's **slug**. In the admin UI it is always the
-provider's name (`discord`). Do not type it by hand: Discord compares it
-exactly, down to a trailing slash and upper/lower case.
+`/callback` is the connector's **slug**, its identifier. The first Discord
+connector always has the provider's name (`discord`) as its slug. A second one
+has the slug you choose (see [Giving one app its own name](#giving-one-app-its-own-name)),
+and its card shows its own callback URL. Do not type it by hand: Discord
+compares it exactly, down to a trailing slash and upper/lower case.
 
 ## 2. Create the application in Discord
 
 1. Go to the Developer Portal, `https://discord.com/developers/applications`,
    sign in, and click **New Application**.
-2. Name it, accept the terms, and click **Create**. The name is what people see
-   on Discord's authorization page, so pick one they will recognize.
+2. Name it after your Umbral instance, for example `Cosmic Chimps Login`, accept
+   the terms, and click **Create**. People see this name on Discord's
+   authorization page for **every** app that signs in through this connector, so
+   do not name it after one of your apps. To give one app its own name, see
+   [Giving one app its own name](#giving-one-app-its-own-name).
 3. In the left menu open **OAuth2**.
 4. Under **Redirects**, click **Add Redirect**, paste the URL from step 1, and
    click **Save Changes** at the bottom of the page. It is easy to miss: the
@@ -74,12 +79,65 @@ connectors:
     client_id: "123456789012345678"
     client_secret: ${UMBRAL_DISCORD_SECRET}
     enabled: true
+    # shared: true                     # optional, default true; false = offered only to apps that choose it
 ```
 
 Set `UMBRAL_DISCORD_SECRET` in the container's environment. See
 [Configuration as code](../../README.md#configuration-as-code). Remember that
 the file is re-applied on every start and overwrites UI changes to this
 connector.
+
+## Giving one app its own name
+
+The Discord application you created above stands for your Umbral instance, so
+people see its name for **every** app that uses this connector. That is the
+right default. When one app needs its own name on Discord's consent screen, give
+it a connector of its own:
+
+1. Create another application in the Discord Developer Portal, the same way as above. Name it as you want people to see it, for example
+   `Frunchy`.
+2. In Umbral, open **Connectors**. Under **Add another connector**, pick
+   **Provider** Discord, type an **Identifier** such as `discord-frunchy`
+   (lower-case letters, digits and hyphens; it cannot be changed later), a
+   **Button label**, and the new application's **Client ID** and **Client
+   secret**. Untick **Shared with every app**, then click **Add connector**.
+3. The new card shows its own **Redirect URI to register with the provider**,
+   `<UMBRAL__PUBLIC_ORIGIN>/connect/discord-frunchy/callback`. Register
+   that URL in the new Discord application, not the first one.
+4. Open **Apps**, set that app's **Sign-in methods** to **Only the connectors I
+   choose**, tick the new connector, and click **Save sign-in methods**.
+
+That app's sign-in page now offers only the new connector. Every other app keeps
+the shared one. A person who signs in to both apps with the same Discord account
+is still **one** Umbral user. Disabling or deleting a connector, or changing an
+app's choice, warns you first if an app would be left with no way to sign in. A
+connector that is not shared and that no app has chosen is offered nowhere. See
+[Troubleshooting](../../README.md#troubleshooting).
+
+In the configuration file, the second connector gets its own slug and its own
+secret variable, `UMBRAL_DISCORD_FRUNCHY_SECRET` (the slug upper-cased, anything
+that is not a letter or digit as `_`), and the app lists it:
+
+```yaml
+connectors:
+  - slug: discord-frunchy             # fixed once created: it is in the callback URL
+    kind: discord
+    display_name: Discord
+    client_id: "…"
+    client_secret: ${UMBRAL_DISCORD_FRUNCHY_SECRET}
+    enabled: true
+    shared: false                      # offered only to apps that choose it
+apps:
+  - client_id: frunchy
+    name: Frunchy
+    client_secret: ${UMBRAL_FRUNCHY_SECRET}   # web app; leave out for a single-page or native app
+    redirect_uris:
+      - https://frunchy.example.com/callback
+    connectors:                        # a chosen set; absent = all shared connectors
+      - discord-frunchy
+```
+
+An app listing a connector the file does not define refuses the whole file.
 
 ## Scopes Umbral requests
 
@@ -98,7 +156,7 @@ does not need them. Umbral sends PKCE (`S256`) with the request.
 
 1. They click **Sign in with Discord** on Umbral's page.
 2. Discord asks them to sign in if they are not, then shows an authorization page
-   for your application name, saying it will know who they are and see their
+   for your application's name (the one you chose above), saying it will know who they are and see their
    email. They click **Authorize**.
 3. They are sent back to Umbral, which sends them on to the app they came from.
 

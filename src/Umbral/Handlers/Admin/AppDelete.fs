@@ -26,6 +26,11 @@ let handler (clientId: string) : EndpointHandler =
             // what makes "every token stops working immediately" true.
             do! applications.DeleteAsync application
 
+            // No foreign key points into OpenIddict's tables, so the app's
+            // connector choice is removed here (FR-005). A later app never
+            // inherits it: client ids are generated and never reused.
+            do! AppConnectors.deleteFor config clientId
+
             let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
 
             do!

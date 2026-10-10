@@ -159,3 +159,147 @@ let ``the verified email index does not cover unverified rows`` () =
             // The index being partial is what makes the safe query the easy one.
             Assert.Contains("WHERE email_verified = 1", sql)
         })
+
+// ---------------------------------------------------------------------------
+// Schema version 2 (feature 003): the `is_shared` column and the two choice
+// tables, and the upgrade from a version 1 database.
+// ---------------------------------------------------------------------------
+
+let private exec (config: DbConfig) (sql: string) =
+    task {
+        use! connection = openConnection config
+        use command = connection.CreateCommand()
+        command.CommandText <- sql
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
+    }
+
+/// A database as version 1 left it: `connectors` has no `is_shared`, the choice
+/// tables do not exist, and the stored schema version is 1. Written by hand
+/// rather than by calling `initializeSchema`, which now builds version 2.
+let private seedVersionOne (config: DbConfig) =
+    exec
+        config
+        "CREATE TABLE connectors (
+             slug                    TEXT    NOT NULL PRIMARY KEY,
+             kind                    TEXT    NOT NULL,
+             display_name            TEXT    NOT NULL,
+             client_id               TEXT    NOT NULL,
+             client_secret_ref       TEXT    NOT NULL,
+             client_secret_hint      TEXT    NOT NULL,
+             extra_scopes            TEXT        NULL,
+             is_enabled              INTEGER NOT NULL DEFAULT 1,
+             created_utc             TEXT    NOT NULL,
+             updated_utc             TEXT    NOT NULL
+         );
+         CREATE TABLE settings (
+             key         TEXT NOT NULL PRIMARY KEY,
+             value       TEXT NOT NULL,
+             updated_utc TEXT NOT NULL
+         );
+         INSERT INTO connectors
+             (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint, is_enabled, created_utc, updated_utc)
+         VALUES
+             ('discord', 'discord', 'Discord', 'd-id', 'local:x', 'abcd', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+             ('github',  'github',  'GitHub',  'g-id', 'local:y', 'efgh', 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+         INSERT INTO settings (key, value, updated_utc) VALUES ('schema_version', '1', '2026-01-01T00:00:00Z');"
+
+[<Fact>]
+let ``a version 1 database comes up as version 2 with every connector shared`` () =
+    withDb (fun config ->
+        task {
+            do! seedVersionOne config
+            do! initializeSchema config
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("2", version)
+
+            // FR-019: the column default makes every existing connector shared,
+            // including a disabled one, and nothing else about them changed.
+            let! shared = scalar config "SELECT count(*) FROM connectors WHERE is_shared = 1"
+            Assert.Equal("2", shared)
+
+            let! disabled = scalar config "SELECT is_enabled FROM connectors WHERE slug = 'github'"
+            Assert.Equal("0", disabled)
+
+            let! clientId = scalar config "SELECT client_id FROM connectors WHERE slug = 'discord'"
+            Assert.Equal("d-id", clientId)
+
+            // No choice rows: every existing app stays on "all shared connectors".
+            let! choices = scalar config "SELECT count(*) FROM app_connector_choices"
+            Assert.Equal("0", choices)
+
+            let! members = scalar config "SELECT count(*) FROM app_connectors"
+            Assert.Equal("0", members)
+        })
+
+[<Fact>]
+let ``a fresh database is version 2 and has the column and both choice tables`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("2", version)
+
+            let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('connectors')"
+            Assert.Contains("is_shared", columns)
+
+            let! tables =
+                scalar
+                    config
+                    "SELECT group_concat(name, ',') FROM (SELECT name FROM sqlite_master WHERE type='table' ORDER BY name)"
+
+            Assert.Contains("app_connector_choices", tables)
+            Assert.Contains("app_connectors", tables)
+
+            let! index = scalar config "SELECT count(*) FROM sqlite_master WHERE name = 'ix_app_connectors_slug'"
+            Assert.Equal("1", index)
+        })
+
+[<Fact>]
+let ``a second start after the upgrade changes nothing`` () =
+    withDb (fun config ->
+        task {
+            do! seedVersionOne config
+            do! initializeSchema config
+
+            let! first = scalar config "SELECT value || '|' || updated_utc FROM settings WHERE key = 'schema_version'"
+            let! connectors = scalar config "SELECT group_concat(slug || is_shared || updated_utc) FROM connectors"
+
+            // Running the ALTER again would throw "duplicate column name".
+            do! initializeSchema config
+
+            let! second = scalar config "SELECT value || '|' || updated_utc FROM settings WHERE key = 'schema_version'"
+            let! after = scalar config "SELECT group_concat(slug || is_shared || updated_utc) FROM connectors"
+            let! rows = scalar config "SELECT count(*) FROM settings WHERE key = 'schema_version'"
+
+            Assert.Equal(first, second)
+            Assert.Equal(connectors, after)
+            Assert.Equal("1", rows)
+        })
+
+[<Fact>]
+let ``deleting a connector removes it from every chosen set and keeps the app limited`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+
+            do!
+                exec
+                    config
+                    "INSERT INTO connectors
+                         (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint, created_utc, updated_utc)
+                     VALUES ('discord', 'discord', 'Discord', 'id', 'ref', 'hint', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+                     INSERT INTO app_connector_choices (client_id) VALUES ('app-1');
+                     INSERT INTO app_connectors (client_id, connector_slug) VALUES ('app-1', 'discord');"
+
+            do! exec config "DELETE FROM connectors WHERE slug = 'discord'"
+
+            // FR-011: the set empties through the cascade, the marker stays.
+            let! members = scalar config "SELECT count(*) FROM app_connectors"
+            Assert.Equal("0", members)
+
+            let! markers = scalar config "SELECT count(*) FROM app_connector_choices"
+            Assert.Equal("1", markers)
+        })

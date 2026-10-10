@@ -1,0 +1,882 @@
+{
+  "workflow": "companion",
+  "specName": "Federated Login for Every App, with Optional Per-App Connectors",
+  "branch": "003-per-app-connectors",
+  "currentStep": "implement",
+  "status": "completed",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-10T18:51:51.193Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-10-10T18:54:23.969Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-10T19:05:35.831Z"
+    },
+    {
+      "step": "plan",
+      "substep": "research",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T19:08:24.770Z"
+    },
+    {
+      "step": "plan",
+      "substep": "design",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T19:11:14.485Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T19:11:17.521Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-10T19:52:28.723Z"
+    },
+    {
+      "step": "tasks",
+      "substep": "generate",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T19:54:30.490Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T19:54:33.550Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-10T19:59:31.614Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T001",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:53.131Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T002",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:53.231Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T003",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:53.337Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T004",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:53.436Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T005",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:53.540Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T006",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:53.640Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T007",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:53.733Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T008",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:53.825Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T009",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:53.915Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T010",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:07:54.016Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T011",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:12:39.975Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T012",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:12:40.078Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T013",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:40.920Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T014",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.011Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T016",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.092Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T017",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.177Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T018",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.266Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T019",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.355Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T020",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:23:41.439Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T015",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:43:56.604Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T021",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:43:56.697Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T022",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T20:43:56.792Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T023",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:05:21.440Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T024",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:05:21.535Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T025",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:07:40.636Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T026",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:07:40.756Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T027",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:13:41.999Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-10T21:13:42.052Z"
+    }
+  ],
+  "last_action": "all tasks done, dotnet build clean, dotnet test 423/423",
+  "coverage": {
+    "FR-001": {
+      "title": "Sign-in page names the app being signed in to",
+      "tasks": [
+        "T004",
+        "T010",
+        "T011",
+        "T012"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/SignInAppNameTests.fs",
+        "tests/Umbral.Tests/SignInFlowTests.fs"
+      ]
+    },
+    "FR-002": {
+      "title": "Sign-in page without an app shows the general title",
+      "tasks": [
+        "T011",
+        "T012"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/SignInAppNameTests.fs"
+      ]
+    },
+    "FR-003": {
+      "title": "Connectors screen advises naming the upstream app after the instance",
+      "tasks": [
+        "T007",
+        "T023",
+        "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
+      ]
+    },
+    "FR-004": {
+      "title": "README, quickstart and provider guides give the same advice",
+      "tasks": [
+        "T025",
+        "T026"
+      ]
+    },
+    "FR-005": {
+      "title": "Each App has a connector choice, default all shared connectors",
+      "tasks": [
+        "T005",
+        "T009",
+        "T013",
+        "T017"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs"
+      ]
+    },
+    "FR-006": {
+      "title": "All-shared app offers every enabled shared connector",
+      "tasks": [
+        "T002",
+        "T005",
+        "T012"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppChoiceRuleTests.fs",
+        "tests/Umbral.Tests/SignInAppNameTests.fs"
+      ]
+    },
+    "FR-007": {
+      "title": "Chosen-set app offers exactly its enabled chosen connectors",
+      "tasks": [
+        "T002",
+        "T005",
+        "T012",
+        "T013"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppChoiceRuleTests.fs",
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs"
+      ]
+    },
+    "FR-008": {
+      "title": "Session honoured for an app only if established through a connector it offers",
+      "tasks": [
+        "T004",
+        "T010",
+        "T013",
+        "T016"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs",
+        "tests/Umbral.Tests/SignInFlowTests.fs"
+      ]
+    },
+    "FR-009": {
+      "title": "Apps screen sets and shows each app connector choice",
+      "tasks": [
+        "T013",
+        "T017"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs"
+      ]
+    },
+    "FR-010": {
+      "title": "Warn before leaving an app with no enabled connector, naming apps",
+      "tasks": [
+        "T002",
+        "T005",
+        "T013",
+        "T014",
+        "T017",
+        "T019",
+        "T020",
+        "T023",
+        "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs",
+        "tests/Umbral.Tests/ConnectorDeleteTests.fs",
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
+      ]
+    },
+    "FR-011": {
+      "title": "Deleting a connector removes it from chosen sets; app stays limited",
+      "tasks": [
+        "T006",
+        "T014",
+        "T020"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/ConnectorDeleteTests.fs",
+        "tests/Umbral.Tests/DatabaseTests.fs"
+      ]
+    },
+    "FR-012": {
+      "title": "Several connectors of the same kind, each with own callback address",
+      "tasks": [
+        "T008",
+        "T023",
+        "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
+      ]
+    },
+    "FR-013": {
+      "title": "Connector identifier fixed at creation; first of a kind defaults to kind name",
+      "tasks": [
+        "T008",
+        "T023",
+        "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
+      ]
+    },
+    "FR-014": {
+      "title": "Connectors are shared or not shared, default shared",
+      "tasks": [
+        "T005",
+        "T006",
+        "T008",
+        "T023",
+        "T024"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs",
+        "tests/Umbral.Tests/AppChoiceRuleTests.fs"
+      ]
+    },
+    "FR-015": {
+      "title": "Same provider account through different connectors of a kind is one user",
+      "tasks": [
+        "T010",
+        "T023"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
+      ]
+    },
+    "FR-016": {
+      "title": "Config document expresses connector choice and shared setting with defaults",
+      "tasks": [
+        "T015",
+        "T021",
+        "T022"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/ConfigFileTests.fs"
+      ]
+    },
+    "FR-017": {
+      "title": "Export then apply reproduces connector choices and shared settings",
+      "tasks": [
+        "T015",
+        "T022"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/ConfigFileTests.fs"
+      ]
+    },
+    "FR-018": {
+      "title": "Config refused when an app names an unknown connector",
+      "tasks": [
+        "T015",
+        "T021"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/ConfigFileTests.fs"
+      ]
+    },
+    "FR-019": {
+      "title": "Upgrade keeps existing apps all-shared and connectors shared",
+      "tasks": [
+        "T003",
+        "T006",
+        "T022"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/DatabaseTests.fs"
+      ]
+    },
+    "FR-020": {
+      "title": "Connector choice is not authorization; FR-025 stands",
+      "tasks": [
+        "T013",
+        "T016"
+      ],
+      "tests": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs"
+      ]
+    },
+    "FR-021": {
+      "title": "No new admin screen or top-level concept",
+      "tasks": [
+        "T017",
+        "T024"
+      ]
+    }
+  },
+  "size": "normal",
+  "classification": {
+    "projectedFiles": 18,
+    "projectedTasks": 20,
+    "scopeSignal": "none",
+    "verdict": "normal"
+  },
+  "expectations": [
+    "per-app sign-in page branding beyond the app name",
+    "providers with per-application subject identifiers (feature 002)",
+    "per-app user allowlists"
+  ],
+  "context": [
+    "area: src/Umbral/Handlers/Connect (Picker, Authorize, Start, Callback)",
+    "area: src/Umbral/Handlers/Admin (Apps, Connectors, ConnectorToggle, ConnectorDelete)",
+    "area: src/Umbral/Domains/ConfigDocument.fs and Infrastructure/ConfigFile.fs",
+    "area: docs/connectors, README.md, specs/001-umbral-mvp/quickstart.md",
+    "constraint: 001 FR-015 three concepts only",
+    "constraint: 001 FR-025 no authorization model",
+    "constraint: linked accounts keyed on provider kind + subject"
+  ],
+  "intent": "Make Umbral the clear federated login for all apps, with optional per-app connector choice and several connectors per provider kind",
+  "decisions": [
+    {
+      "decision": "Store an app connector choice in two Umbral tables (app_connector_choices marker + app_connectors pairs with FK cascade to connectors)",
+      "why": "Cascade gives FR-011; marker keeps an emptied app limited; queryable for FR-010",
+      "rejected": "OpenIddict Properties JSON on the application"
+    },
+    {
+      "decision": "Schema v2: ALTER TABLE connectors ADD COLUMN is_shared DEFAULT 1 when stored version is 1",
+      "why": "Existing connectors become shared and apps all-shared with no data rewrite (FR-019)",
+      "rejected": "A migration framework for Umbral tables"
+    },
+    {
+      "decision": "Apps keep receiving the provider kind in idp; session gains a connector claim with the slug",
+      "why": "README promises kind; a second connector of a kind would otherwise change idp for the same person",
+      "rejected": "Send the slug in idp as the code does today"
+    },
+    {
+      "decision": "Sign-in page reads client_id from the sanitized returnUrl authorize request",
+      "why": "Page cannot name one app while returning to another",
+      "rejected": "A separate client_id query value on /signin"
+    },
+    {
+      "decision": "One pure offeredTo/strandedApps rule in Domains/Connectors.fs used by picker, authorize, admin warnings and Apps screen",
+      "why": "Four callers would drift; current global count misses stranded limited apps",
+      "rejected": "Each handler computing its own rule"
+    },
+    {
+      "decision": "Connectors screen: one card per stored connector, empty card per kind with none, new POST /admin/connectors add form",
+      "why": "Keeps the five-minute first-run path with no add step",
+      "rejected": "Always require an add step"
+    },
+    {
+      "decision": "FR-018 validates chosen sets only against the document",
+      "why": "Pure validation; document is due for removal",
+      "rejected": "Also accept slugs that exist only in the database"
+    },
+    {
+      "decision": "Every phase implemented by Sonnet workers run one at a time in the 003 worktree, docs in a separate worktree cherry-picked",
+      "why": "User rule: coding goes to Sonnet, Opus reviews; parallel builds in one worktree would collide",
+      "rejected": "Building Foundational inline as dispatch-briefs suggested"
+    },
+    {
+      "decision": "OAuthRoundTrip.returnUrlOf reads the correlation cookie without consuming it",
+      "why": "A provider decline fails before complete returns the correlation, and FR-001 needs the app after a failure",
+      "rejected": "Losing the app context on access_denied"
+    },
+    {
+      "decision": "Strand warnings name only apps the change newly strands; app-connectors-strand redirect carries the attempted choice",
+      "why": "An app already offering nothing is not the change doing; the confirm button must post what was tried",
+      "rejected": "Listing every app with nothing offered"
+    },
+    {
+      "decision": "A connector card post without a displayName field keeps the stored display name and shared flag",
+      "why": "Older scripted posts of the card form keep working and an absent checkbox is not read as not shared",
+      "rejected": "Refusing posts without displayName"
+    },
+    {
+      "decision": "A slug equal to another kind name is refused when adding a connector",
+      "why": "That path is where the empty card of that kind posts",
+      "rejected": "Allowing it"
+    }
+  ],
+  "step_summaries": {
+    "plan": {
+      "summary": "Plan, research, data model and contracts for per-app connector choice, shared flag and several connectors per kind",
+      "key_finding": "The schema already allows several connectors per kind; only the Connectors screen limits it, and the session already carries the connector slug in idp"
+    },
+    "tasks": {
+      "summary": "27 tasks: Setup 1, Foundational 9 (2 waves), US1 2, US2 10 (2 waves), US3 2, Polish 3; every file owned by one phase"
+    },
+    "implement": {
+      "summary": "27/27 tasks: per-app connector choice, shared flag, several connectors per kind, sign-in page names the app, FR-008 session check, YAML keys, docs; 423/423 tests"
+    }
+  },
+  "approach": "An app's connector choice lives in two Umbral tables and connectors gain is_shared (schema v2). One pure offeredTo rule drives the sign-in page (which reads the app from returnUrl), the FR-008 session check in authorize, and admin warnings. The Connectors screen shows one card per connector with an add form; the YAML document gets two optional keys; apps keep idp as the provider kind.",
+  "currentTask": "T027",
+  "task_summaries": {
+    "T001": {
+      "status": "DONE",
+      "did": "Added empty test modules for the three stories and registered them with AppChoiceRuleTests before SmokeTests",
+      "files": [
+        "tests/Umbral.Tests/Umbral.Tests.fsproj",
+        "tests/Umbral.Tests/SignInAppNameTests.fs",
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs",
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs",
+        "tests/Umbral.Tests/AppChoiceRuleTests.fs"
+      ]
+    },
+    "T002": {
+      "status": "DONE",
+      "did": "Unit tests for offeredTo and strandedApps (13 cases)",
+      "files": [
+        "tests/Umbral.Tests/AppChoiceRuleTests.fs"
+      ]
+    },
+    "T003": {
+      "status": "DONE",
+      "did": "Upgrade tests: v1 database to v2, fresh database, second start, connector delete cascade",
+      "files": [
+        "tests/Umbral.Tests/DatabaseTests.fs"
+      ]
+    },
+    "T004": {
+      "status": "DONE",
+      "did": "Sign-in flow tests: idp is the kind, connector claim, pre-upgrade cookie honoured, failed callback keeps returnUrl",
+      "files": [
+        "tests/Umbral.Tests/SignInFlowTests.fs"
+      ]
+    },
+    "T005": {
+      "status": "DONE",
+      "did": "Added IsShared, AppChoice, offeredTo and strandedApps",
+      "files": [
+        "src/Umbral/Domains/Connectors.fs"
+      ]
+    },
+    "T006": {
+      "status": "DONE",
+      "did": "Schema v2: is_shared column, two choice tables and index, v1 to v2 ALTER inside the schema transaction",
+      "files": [
+        "src/Umbral/Infrastructure/Database.fs"
+      ]
+    },
+    "T007": {
+      "status": "DONE",
+      "did": "Added every new text and the nine notice codes from both contracts",
+      "files": [
+        "src/Umbral/Views/Texts.fs"
+      ]
+    },
+    "T008": {
+      "status": "DONE",
+      "did": "ConnectorStore reads and writes is_shared; added create and update",
+      "files": [
+        "src/Umbral/Infrastructure/ConnectorStore.fs"
+      ]
+    },
+    "T009": {
+      "status": "DONE",
+      "did": "New AppConnectors module: choiceFor, allChoices, setChoice, deleteFor; registered in the fsproj",
+      "files": [
+        "src/Umbral/Infrastructure/AppConnectors.fs",
+        "src/Umbral/Umbral.fsproj"
+      ]
+    },
+    "T010": {
+      "status": "DONE",
+      "did": "Sessions.signIn writes idp kind and connector slug, currentConnector with fallback; Callback signs in with both and fail keeps returnUrl",
+      "files": [
+        "src/Umbral/Infrastructure/Sessions.fs",
+        "src/Umbral/Handlers/Connect/Callback.fs",
+        "src/Umbral/Infrastructure/OAuthRoundTrip.fs"
+      ]
+    },
+    "T011": {
+      "status": "DONE",
+      "did": "Seven sign-in page scenarios on data-signin-app / data-connector markers (four fail without T012)",
+      "files": [
+        "tests/Umbral.Tests/SignInAppNameTests.fs"
+      ]
+    },
+    "T012": {
+      "status": "DONE",
+      "did": "Picker reads client_id from the sanitized authorize returnUrl, names the app, offers offeredTo of its choice",
+      "files": [
+        "src/Umbral/Handlers/Connect/Picker.fs"
+      ]
+    },
+    "T013": {
+      "status": "DONE",
+      "did": "Tests for per-app choice: sign-in filtering, session honour/not-honour, Apps screen markers, strand warnings, app delete, antiforgery",
+      "files": [
+        "tests/Umbral.Tests/AppConnectorChoiceTests.fs",
+        "tests/Umbral.Tests/Infrastructure/Flows.fs"
+      ]
+    },
+    "T014": {
+      "status": "DONE",
+      "did": "Tests: deleting a connector leaves chosen sets, apps stay limited, strand warning needs confirm",
+      "files": [
+        "tests/Umbral.Tests/ConnectorDeleteTests.fs"
+      ]
+    },
+    "T016": {
+      "status": "DONE",
+      "did": "Authorize honours a session only through a connector offeredTo the app; else signin redirect or login_required, never signs out",
+      "files": [
+        "src/Umbral/Handlers/Connect/Authorize.fs"
+      ]
+    },
+    "T017": {
+      "status": "DONE",
+      "did": "Apps screen: connector choice radio cards, POST /admin/apps/{id}/connectors, row markers, strand warning with confirm, AllShared gate",
+      "files": [
+        "src/Umbral/Handlers/Admin/Apps.fs",
+        "src/Umbral/Infrastructure/AppConnectors.fs",
+        "src/Umbral/Infrastructure/WebForms.fs"
+      ]
+    },
+    "T018": {
+      "status": "DONE",
+      "did": "App delete removes the choice rows",
+      "files": [
+        "src/Umbral/Handlers/Admin/AppDelete.fs"
+      ]
+    },
+    "T019": {
+      "status": "DONE",
+      "did": "Toggle warns with connector-strands-apps naming apps; Connectors screen renders the warning",
+      "files": [
+        "src/Umbral/Handlers/Admin/ConnectorToggle.fs",
+        "src/Umbral/Handlers/Admin/Connectors.fs"
+      ]
+    },
+    "T020": {
+      "status": "DONE",
+      "did": "Delete warns with connector-delete-strands-apps; header comment updated (FR-011)",
+      "files": [
+        "src/Umbral/Handlers/Admin/ConnectorDelete.fs"
+      ]
+    },
+    "T015": {
+      "status": "DONE",
+      "did": "Config tests: shared/connectors defaults, [] vs absent, unknown and repeated slug, idempotent apply, export/apply round trip",
+      "files": [
+        "tests/Umbral.Tests/ConfigFileTests.fs"
+      ]
+    },
+    "T021": {
+      "status": "DONE",
+      "did": "ConnectorEntry.Shared, AppEntry.Connectors option, FR-018 and repeated-slug checks in validate",
+      "files": [
+        "src/Umbral/Domains/ConfigDocument.fs"
+      ]
+    },
+    "T022": {
+      "status": "DONE",
+      "did": "shared and connectors DTO keys, applied and in change lists, exported only off defaults, listApps carries the choice",
+      "files": [
+        "src/Umbral/Infrastructure/ConfigFile.fs",
+        "src/Umbral/Handlers/Admin/ConfigExport.fs"
+      ]
+    },
+    "T023": {
+      "status": "DONE",
+      "did": "16 tests for the Connectors screen: add form, slug rules, card markers, not-shared offer, unshare strand warning, FR-015 one sub and idp",
+      "files": [
+        "tests/Umbral.Tests/MultipleConnectorsTests.fs"
+      ]
+    },
+    "T024": {
+      "status": "DONE",
+      "did": "Connectors screen: a card per stored connector plus empty kind cards, add form and POST /admin/connectors, display name and shared on the card, unshare strand warning",
+      "files": [
+        "src/Umbral/Handlers/Admin/Connectors.fs"
+      ]
+    },
+    "T025": {
+      "status": "DONE",
+      "did": "README: connectors per kind, naming advice, sign-in methods, idp is the kind, YAML keys, troubleshooting (reviewed, cherry-picked edf2998)",
+      "files": [
+        "README.md"
+      ]
+    },
+    "T026": {
+      "status": "DONE",
+      "did": "Three guides: naming advice, slug wording, Giving one app its own name, shared in YAML; Google needs its own Cloud project",
+      "files": [
+        "docs/connectors/discord.md",
+        "docs/connectors/github.md",
+        "docs/connectors/google.md"
+      ]
+    },
+    "T027": {
+      "status": "DONE",
+      "did": "dotnet build 0 warnings 0 errors; dotnet test 423/423; SC-001,003,004,005,006 mapped to tests; SC-002 is a manual docs check",
+      "files": [
+        "-"
+      ]
+    }
+  },
+  "verified": [
+    {
+      "what": "build",
+      "command": "dotnet build",
+      "source": "derived",
+      "exitCode": 0,
+      "durationSeconds": 12.4,
+      "result": "    0 Warning(s) ·     0 Error(s) · Time Elapsed 00:00:12.14"
+    },
+    {
+      "what": "full test suite",
+      "command": "dotnet test",
+      "source": "derived",
+      "exitCode": 0,
+      "durationSeconds": 318.3,
+      "result": "  succeeded: 423 ·   skipped: 0 ·   duration: 5m 17s 010ms"
+    },
+    {
+      "what": "SC-002 (operator gives one app its own consent name in under 10 minutes)",
+      "command": "manual",
+      "result": "not run against a real provider; covered only by the docs walkthrough"
+    }
+  ],
+  "concerns": [
+    {
+      "note": "One full test run (US2b worker) failed once with OpenIddict at least one of the registered certificates must be valid in SignInAppNameTests; it passed alone and in every later full run (407, 423, 423). Cause not found; possibly a pre-existing flaky test.",
+      "step": "implement"
+    },
+    {
+      "note": "Sessions from before the upgrade keep their old idp value (the slug) until the person signs in again; for a YAML-configured connector whose slug differs from its kind, apps see that slug until then.",
+      "step": "implement"
+    },
+    {
+      "note": "Database.fs says a downgrade fails loudly but nothing compares the stored schema_version with the build; pre-existing, proposed as a follow-up task.",
+      "step": "implement"
+    }
+  ]
+}

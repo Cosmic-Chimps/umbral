@@ -6,6 +6,7 @@
 module Umbral.Handlers.Connect.Picker
 
 open System
+open OpenIddict.Abstractions
 open Oxpecker
 open Oxpecker.ViewEngine
 open Umbral.Domains.Connectors
@@ -20,6 +21,28 @@ let sanitizeReturnUrl (candidate: string | null) =
     | Some url when url.StartsWith "/" && not (url.StartsWith "//") -> url
     | _ -> "/"
 
+/// The app a sign-in belongs to, learned from the authorize request it will be
+/// sent back to and from nowhere else (FR-001, FR-002). A `client_id` on
+/// `/signin` itself is deliberately never read: it could disagree with
+/// `returnUrl` and let a crafted link say "Sign in to A" while signing in to B.
+let private clientIdOf (returnUrl: string) =
+    match returnUrl.IndexOf '?' with
+    | -1 -> None
+    | at ->
+        let path = returnUrl.Substring(0, at)
+
+        if path = "/connect/authorize" then
+            let query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(returnUrl.Substring(at))
+
+            match query.TryGetValue "client_id" with
+            | true, values when values.Count > 0 && not (String.IsNullOrEmpty values[0]) -> Some(string values[0])
+            | _ -> None
+        else
+            None
+
+/// A registered app: its client id and the name people know it by.
+type private NamedApp = { ClientId: string; Name: string }
+
 let private button (t: Texts.Texts) (returnUrl: string) (connector: Connector) =
     let href =
         $"/connect/{Uri.EscapeDataString connector.Slug}/start?returnUrl={Uri.EscapeDataString returnUrl}"
@@ -30,10 +53,28 @@ let private button (t: Texts.Texts) (returnUrl: string) (connector: Connector) =
         t.SignInWith connector.DisplayName
     }
 
-let view (ctx: Microsoft.AspNetCore.Http.HttpContext) (t: Texts.Texts) (returnUrl: string) (connectors: Connector list) (notice: string option) =
+let private view
+    (ctx: Microsoft.AspNetCore.Http.HttpContext)
+    (t: Texts.Texts)
+    (returnUrl: string)
+    (app: NamedApp option)
+    (connectors: Connector list)
+    (notice: string option)
+    =
+    let title =
+        match app with
+        | Some app -> t.PickerTitleForApp app.Name
+        | None -> t.PickerTitle
+
     div(class' = "flex min-h-[60vh] items-center justify-center") {
         div(class' = "um-card w-full max-w-sm space-y-5").data("screen", "signin") {
-            Components.pageHeading t.PickerTitle (Some t.PickerLead)
+            // The marker sits on the element that names the app, so a test reads
+            // WHICH app the page serves without asserting on the wording.
+            match app with
+            | Some app ->
+                (div().data("signin-app", app.ClientId) { Components.pageHeading title (Some t.PickerLead) })
+                :> HtmlElement
+            | None -> Components.pageHeading title (Some t.PickerLead) :> HtmlElement
 
             match notice with
             | Some code -> Components.alert Components.Failure (t.Notice code) :> HtmlElement
@@ -43,9 +84,12 @@ let view (ctx: Microsoft.AspNetCore.Http.HttpContext) (t: Texts.Texts) (returnUr
             | [] ->
                 // Nobody can sign in anywhere. The end user cannot fix this, so
                 // the message points at the person who can rather than
-                // pretending something went wrong on their side.
+                // pretending something went wrong on their side. With an app
+                // named, it says which app has nothing (FR-007, FR-011).
                 (p(class' = "text-body-md text-on-surface-variant").data("no-connectors", "") {
-                    t.PickerNoConnectors
+                    match app with
+                    | Some app -> t.PickerNoConnectorsForApp app.Name
+                    | None -> t.PickerNoConnectors
                 })
                 :> HtmlElement
 
@@ -57,7 +101,7 @@ let view (ctx: Microsoft.AspNetCore.Http.HttpContext) (t: Texts.Texts) (returnUr
                 :> HtmlElement
         }
     }
-    |> Layout.page ctx t t.PickerTitle
+    |> Layout.page ctx t title
 
 let handler: EndpointHandler =
     fun ctx ->
@@ -66,10 +110,42 @@ let handler: EndpointHandler =
             let returnUrl = sanitizeReturnUrl (ctx.TryGetQueryValue "returnUrl" |> Option.toObj)
             let notice = ctx.TryGetQueryValue "msg"
 
-            // Enabled only. An option that cannot work should not be offered.
-            let! connectors = ConnectorStore.listEnabled (ctx.GetService<Database.DbConfig>())
+            let config = ctx.GetService<Database.DbConfig>()
 
-            return! ctx.WriteHtmlView(view ctx t returnUrl connectors notice)
+            // An unknown `client_id` is "no app", never an error: the page is
+            // reachable by anyone with a link and must not confirm which apps
+            // exist (FR-002).
+            let! app =
+                task {
+                    match clientIdOf returnUrl with
+                    | None -> return None
+                    | Some clientId ->
+                        let applications = ctx.GetService<IOpenIddictApplicationManager>()
+                        let! found = applications.FindByClientIdAsync clientId
+
+                        match found with
+                        | null -> return None
+                        | application ->
+                            let! name = applications.GetDisplayNameAsync application
+
+                            return
+                                Some
+                                    { ClientId = clientId
+                                      Name = (if String.IsNullOrEmpty name then clientId else string name) }
+                }
+
+            // `offeredTo` keeps enabled connectors only, so an option that
+            // cannot work is not offered. No app means every shared one.
+            let! all = ConnectorStore.listAll config
+
+            let! choice =
+                task {
+                    match app with
+                    | Some app -> return! AppConnectors.choiceFor config app.ClientId
+                    | None -> return AllShared
+                }
+
+            return! ctx.WriteHtmlView(view ctx t returnUrl app (offeredTo choice all) notice)
         }
 
 let endpoint = GET [ route "/signin" handler ]

@@ -130,6 +130,7 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
                   ClientSecretHint = "used"
                   ExtraScopes = []
                   IsEnabled = true
+                  IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
                   UpdatedUtc = app.Clock.GetUtcNow() }
                 None

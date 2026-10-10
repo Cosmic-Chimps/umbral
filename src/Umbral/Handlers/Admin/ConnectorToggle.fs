@@ -5,6 +5,7 @@
 /// identically with htmx absent — which is what lets one test drive both paths.
 module Umbral.Handlers.Admin.ConnectorToggle
 
+open OpenIddict.Abstractions
 open Oxpecker
 open Umbral.Infrastructure
 
@@ -29,7 +30,26 @@ let handler (slug: string) : EndpointHandler =
             let! remaining = ConnectorStore.enabledCountExcluding config slug
             let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
 
-            if turningOff && remaining = 0 && not confirmed then
+            // FR-010: the sharper warning, which names the apps that would be
+            // left with no way to sign in. It wins over the last-door one when
+            // both apply, because it says who is affected.
+            let! connectors = ConnectorStore.listAll config
+            let! apps = AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
+
+            let after =
+                connectors
+                |> List.map (fun c -> if c.Slug = slug then { c with IsEnabled = false } else c)
+
+            let stranded = if turningOff then AppConnectors.strandedByChange apps connectors after else []
+
+            if not stranded.IsEmpty && not confirmed then
+                return!
+                    WebForms.redirectWithNoticeAbout
+                        ctx
+                        "/admin/connectors"
+                        "connector-strands-apps"
+                        [ "slug", slug ]
+            elif turningOff && remaining = 0 && not confirmed then
                 return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-last-enabled"
             else
 

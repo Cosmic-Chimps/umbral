@@ -263,7 +263,8 @@ let ``an export round-trips through parse`` () =
                         Name = "Grafana"
                         Confidential = true
                         RedirectUris = [ "https://grafana.example.com/cb" ]
-                        PostLogoutRedirectUris = [] } ]
+                        PostLogoutRedirectUris = []
+                        Choice = Umbral.Domains.Connectors.AllShared } ]
 
             // FR-029: what comes out must be something that can go back in.
             let reparsed = parseOk yaml
@@ -295,7 +296,8 @@ let ``an export says that app secrets are not included`` () =
                 Name = "Grafana"
                 Confidential = true
                 RedirectUris = [ "https://g.example.com/cb" ]
-                PostLogoutRedirectUris = [] } ]
+                PostLogoutRedirectUris = []
+                Choice = Umbral.Domains.Connectors.AllShared } ]
 
     // The one asymmetry in the round trip, and it is forced: OpenIddict hashes
     // an app secret on write, so there is nothing to read back. Said where
@@ -614,6 +616,248 @@ let ``an export of apps from the product round-trips back through the file`` () 
             let! changed = applyAgain app yaml [ "UMBRAL_GRAFANA_SECRET", grafanaSecret ]
             Assert.Equal(0, changed)
         })
+
+// ---------------------------------------------------------------------------
+// The two optional keys of feature 003: `shared` and `connectors` (FR-016 to
+// FR-018). Nothing else about the document changed, and `version` stays 1.
+// ---------------------------------------------------------------------------
+
+/// Two fake connectors, one of them not shared, and three public apps: one
+/// with no `connectors` key, one with a chosen set, one with an empty set.
+/// Public apps keep the file free of secret variables beyond the connectors'.
+let private choicesFile =
+    """version: 1
+
+connectors:
+  - slug: fake
+    kind: fake
+    client_id: fake
+    client_secret: ${UMBRAL_FAKE_SECRET}
+  - slug: fake-private
+    kind: fake
+    display_name: Private
+    client_id: fake-private
+    client_secret: ${UMBRAL_FAKE_PRIVATE_SECRET}
+    shared: false
+
+apps:
+  - client_id: everyone
+    name: Everyone
+    redirect_uris:
+      - https://everyone.example.com/cb
+  - client_id: chosen
+    name: Chosen
+    redirect_uris:
+      - https://chosen.example.com/cb
+    connectors:
+      - fake-private
+  - client_id: nothing
+    name: Nothing
+    redirect_uris:
+      - https://nothing.example.com/cb
+    connectors: []
+"""
+
+let private choicesVariables = [ "UMBRAL_FAKE_PRIVATE_SECRET", "unused-private-secret" ]
+
+[<Fact>]
+let ``shared and connectors default when the keys are left out`` () =
+    let document = parseOk valid
+
+    // FR-016: a document written before the feature means what it meant then.
+    Assert.True document.Connectors.Head.Shared
+    Assert.Equal(None, document.Apps.Head.Connectors)
+
+[<Fact>]
+let ``shared and connectors are read when the keys are there`` () =
+    let document = parseOk choicesFile
+    Assert.Equal<bool list>([ true; false ], document.Connectors |> List.map _.Shared)
+
+    Assert.Equal<string list option list>(
+        [ None; Some [ "fake-private" ]; Some [] ],
+        document.Apps |> List.map _.Connectors
+    )
+
+[<Fact>]
+let ``an empty connectors list is a chosen set, not the absence of one`` () =
+    let document = parseOk choicesFile
+    let byId = document.Apps |> List.map (fun a -> a.ClientId, a) |> Map.ofList
+
+    // The two must never be confused: the second would widen an app that was
+    // deliberately limited to nothing.
+    Assert.Equal(Some [], byId["nothing"].Connectors)
+    Assert.NotEqual(byId["everyone"].Connectors, byId["nothing"].Connectors)
+
+[<Fact>]
+let ``a connectors entry that names no connector of the file is refused, with its path`` () =
+    let message =
+        parseErr (choicesFile.Replace("    connectors:\n      - fake-private", "    connectors:\n      - fake\n      - discord-frunchy"))
+
+    // FR-018: the app entry and the connector, and what to do about it.
+    Assert.Contains("apps[1].connectors[1]", message)
+    Assert.Contains("\"discord-frunchy\"", message)
+    Assert.Contains("not a connector defined in this file", message)
+    Assert.Contains("Nothing has been changed", message)
+
+[<Fact>]
+let ``a slug repeated in one app's connectors is refused, with its path`` () =
+    let message =
+        parseErr (choicesFile.Replace("    connectors:\n      - fake-private", "    connectors:\n      - fake-private\n      - fake-private"))
+
+    Assert.Contains("apps[1].connectors", message)
+    Assert.Contains("\"fake-private\" appears more than once", message)
+
+[<Fact>]
+let ``the same slug in two different apps is fine`` () =
+    let twice =
+        choicesFile.Replace("    connectors: []", "    connectors:\n      - fake-private")
+
+    Assert.Equal(Some [ "fake-private" ], (parseOk twice).Apps[2].Connectors)
+
+[<Fact>]
+let ``applying the connectors sets shared, and a removed key sets it back`` () =
+    withDb (fun config secrets ->
+        task {
+            let resolve yaml =
+                match ConfigFile.resolveSecrets (fun _ -> ("a-real-secret": string | null)) (parseOk yaml) with
+                | Ok document -> document
+                | Error _ -> failwith "unreachable"
+
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolve choicesFile)
+
+            let! before = ConnectorStore.findBySlug config "fake-private"
+            Assert.False before.Value.IsShared
+
+            // The key removed from the file: the setting goes back to the
+            // default rather than being left where the last file put it.
+            let! _ =
+                ConfigFile.applyConnectors config TimeProvider.System secrets (resolve (choicesFile.Replace("    shared: false\n", "")))
+
+            let! after = ConnectorStore.findBySlug config "fake-private"
+            Assert.True after.Value.IsShared
+        })
+
+[<Fact>]
+let ``applying the choices twice writes no second event and rewrites nothing`` () =
+    withFile choicesFile choicesVariables (fun app ->
+        task {
+            // The first apply ran at startup. A restart applies the file again,
+            // with the same environment.
+            let! eventsBefore = scalar app "SELECT COUNT(*) FROM security_events" []
+
+            let environment = ("UMBRAL_FAKE_SECRET", "unused-fake-secret") :: choicesVariables
+
+            let read (name: string) : string | null =
+                environment |> List.tryFind (fst >> (=) name) |> Option.map snd |> Option.toObj
+
+            let resolved =
+                match ConfigFile.resolveSecrets read (parseOk choicesFile) with
+                | Ok document -> document
+                | Error _ -> failwith "unreachable"
+
+            let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
+            let! _ = ConfigFile.applyConnectors app.DbConfig app.Clock secrets resolved
+            let! changed = applyAgain app choicesFile choicesVariables
+
+            Assert.Equal(0, changed)
+
+            // `shared` and `connectors` are in the change lists, and an
+            // unchanged value must not be what makes them fire.
+            let! eventsAfter = scalar app "SELECT COUNT(*) FROM security_events" []
+            Assert.Equal(eventsBefore, eventsAfter)
+
+            let! choices = AppConnectors.allChoices app.DbConfig
+            Assert.Equal(2, choices.Count)
+        })
+
+[<Fact>]
+let ``a changed choice is applied, recorded once, and a removed key goes back to all shared`` () =
+    withFile choicesFile choicesVariables (fun app ->
+        task {
+            let! initial = AppConnectors.allChoices app.DbConfig
+            Assert.Equal(Umbral.Domains.Connectors.Only(set [ "fake-private" ]), initial["chosen"])
+            Assert.Equal(Umbral.Domains.Connectors.Only Set.empty, initial["nothing"])
+            Assert.False(initial.ContainsKey "everyone")
+
+            let edited =
+                choicesFile
+                    .Replace("    connectors:\n      - fake-private", "    connectors:\n      - fake")
+                    .Replace("    connectors: []\n", "")
+
+            let! changed = applyAgain app edited choicesVariables
+            Assert.Equal(2, changed)
+
+            let! choices = AppConnectors.allChoices app.DbConfig
+            Assert.Equal(Umbral.Domains.Connectors.Only(set [ "fake" ]), choices["chosen"])
+            Assert.False(choices.ContainsKey "nothing")
+
+            let! details = scalar app "SELECT GROUP_CONCAT(detail, '|') FROM security_events WHERE event_type = 'app_updated'" []
+            Assert.Equal("source=config_file;changed=connectors|source=config_file;changed=connectors", details)
+        })
+
+[<Fact>]
+let ``an export leaves both keys out at their defaults`` () =
+    withDb (fun config secrets ->
+        task {
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolved ())
+            let! connectors = ConnectorStore.listAll config
+
+            let yaml =
+                ConfigFile.export
+                    connectors
+                    [ { ClientId = "grafana"
+                        Name = "Grafana"
+                        Confidential = false
+                        RedirectUris = [ "https://grafana.example.com/cb" ]
+                        PostLogoutRedirectUris = []
+                        Choice = Umbral.Domains.Connectors.AllShared } ]
+
+            // Nothing new appears for an instance that never used the feature.
+            Assert.DoesNotContain("shared:", yaml)
+            Assert.DoesNotContain("    connectors:", yaml)
+        })
+
+[<Fact>]
+let ``an export then apply on a fresh instance reproduces both settings`` () =
+    task {
+        let mutable exported = ""
+
+        // The first instance: configured from the file, exported from the product.
+        do!
+            withFile choicesFile choicesVariables (fun app ->
+                task {
+                    let operator = Browser(app.Client)
+                    do! claimOperator app operator
+                    let! response = operator.Get "/admin/config"
+                    let! yaml = response.Content.ReadAsStringAsync()
+                    exported <- yaml
+                })
+
+        // Written only where it differs from the default; `[]` is kept.
+        Assert.Contains("    shared: false", exported)
+        Assert.Contains("    connectors: []", exported)
+        Assert.Equal(1, exported.Split("shared:").Length - 1)
+
+        let reparsed = parseOk exported
+        let bySlug = reparsed.Connectors |> List.map (fun c -> c.Slug, c.Shared) |> Map.ofList
+        Assert.Equal<bool list>([ true; false ], [ bySlug["fake"]; bySlug["fake-private"] ])
+
+        // FR-017: a fresh instance applying the export ends up with the same choices.
+        do!
+            withFile exported choicesVariables (fun app ->
+                task {
+                    let! priv = ConnectorStore.findBySlug app.DbConfig "fake-private"
+                    Assert.False priv.Value.IsShared
+
+                    let! shared = ConnectorStore.findBySlug app.DbConfig "fake"
+                    Assert.True shared.Value.IsShared
+
+                    let! choices = AppConnectors.allChoices app.DbConfig
+                    Assert.Equal(Umbral.Domains.Connectors.Only(set [ "fake-private" ]), choices["chosen"])
+                    Assert.Equal(Umbral.Domains.Connectors.Only Set.empty, choices["nothing"])
+                    Assert.False(choices.ContainsKey "everyone")
+                })
+    }
 
 // ---------------------------------------------------------------------------
 // The shared redirect-URI rule

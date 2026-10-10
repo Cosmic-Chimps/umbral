@@ -19,14 +19,21 @@ type ConnectorEntry =
       /// As written in the file: always a `${VAR}` reference, never a literal.
       ClientSecret: string
       ExtraScopes: string list
-      Enabled: bool }
+      Enabled: bool
+      /// Offered to every app that has not chosen its own set (FR-016). Absent
+      /// from the file means true.
+      Shared: bool }
 
 type AppEntry =
     { ClientId: string
       Name: string
       ClientSecret: string option
       RedirectUris: string list
-      PostLogoutRedirectUris: string list }
+      PostLogoutRedirectUris: string list
+      /// The connectors this app offers (FR-016). `None` is "all shared
+      /// connectors", which is what leaving the key out means; `Some []` is a
+      /// chosen set with nothing in it, and is NOT the same thing.
+      Connectors: string list option }
 
 /// The operator credential, as a verification value (FR-017a).
 type OperatorEntry =
@@ -163,7 +170,17 @@ let private validateConnector (index: int) (entry: ConnectorEntry) =
 
       yield! validateSecret (at "client_secret") entry.ClientSecret ]
 
-let private validateApp (index: int) (entry: AppEntry) =
+let private duplicates (selector: 'a -> string) (items: 'a list) =
+    items
+    |> List.map selector
+    |> List.countBy id
+    |> List.filter (fun (_, count) -> count > 1)
+    |> List.map fst
+
+/// `defined` is every connector slug the same document declares: a chosen set
+/// is judged against the document alone, never the database, so whether a file
+/// is valid does not depend on the instance it is applied to (FR-018).
+let private validateApp (defined: Set<string>) (index: int) (entry: AppEntry) =
     let at field = $"apps[{index}].{field}"
 
     [ if String.IsNullOrWhiteSpace entry.ClientId then
@@ -185,14 +202,19 @@ let private validateApp (index: int) (entry: AppEntry) =
 
       match entry.ClientSecret with
       | Some secret -> yield! validateSecret (at "client_secret") secret
-      | None -> () ]
+      | None -> ()
 
-let private duplicates (selector: 'a -> string) (items: 'a list) =
-    items
-    |> List.map selector
-    |> List.countBy id
-    |> List.filter (fun (_, count) -> count > 1)
-    |> List.map fst
+      match entry.Connectors with
+      | None -> ()
+      | Some slugs ->
+          for i, slug in List.indexed slugs do
+              if not (defined.Contains slug) then
+                  problem
+                      (at $"connectors[{i}]")
+                      $"\"{slug}\" is not a connector defined in this file. Add it under connectors, or remove it from this app."
+
+          for slug in duplicates id slugs do
+              problem (at "connectors") $"\"{slug}\" appears more than once." ]
 
 /// Every problem in the document, not just the first. An operator fixing a file
 /// by hand should get the whole list, not discover the next one on each restart.
@@ -215,8 +237,10 @@ let validate (document: Document) : Problem list =
       for i, connector in List.indexed document.Connectors do
           yield! validateConnector i connector
 
+      let defined = document.Connectors |> List.map _.Slug |> Set.ofList
+
       for i, app in List.indexed document.Apps do
-          yield! validateApp i app ]
+          yield! validateApp defined i app ]
 
 /// One message an operator can act on, listing every problem found.
 let describe (problems: Problem list) =

@@ -24,9 +24,11 @@ button:
 ```
 
 for example `https://auth.example.com/connect/github/callback`. The part before
-`/callback` is the connector's **slug**. In the admin UI it is always the
-provider's name (`github`). Do not type the URL by hand: GitHub compares it
-exactly.
+`/callback` is the connector's **slug**, its identifier. The first GitHub
+connector always has the provider's name (`github`) as its slug. A second one
+has the slug you choose (see [Giving one app its own name](#giving-one-app-its-own-name)),
+and its card shows its own callback URL. Do not type the URL by hand: GitHub
+compares it exactly.
 
 ## 2. Create the OAuth app in GitHub
 
@@ -40,7 +42,7 @@ Create an **OAuth App** (not a "GitHub App").
 
    | Field | Value |
    | --- | --- |
-   | Application name | Anything people will recognize, for example `My Umbral`. GitHub shows it on the authorization page. |
+   | Application name | The name of your Umbral instance, for example `Cosmic Chimps Login`. GitHub shows it on the authorization page for **every** app that signs in through this connector, so do not name it after one of your apps. To give one app its own name, see [Giving one app its own name](#giving-one-app-its-own-name). |
    | Homepage URL | Anything. Your Umbral address is fine. |
    | Application description | Optional. |
    | Authorization callback URL | The URL from step 1. |
@@ -75,12 +77,65 @@ connectors:
     client_id: "Ov23liXXXXXXXXXXXXXX"
     client_secret: ${UMBRAL_GITHUB_SECRET}
     enabled: true
+    # shared: true                     # optional, default true; false = offered only to apps that choose it
 ```
 
 Set `UMBRAL_GITHUB_SECRET` in the container's environment. See
 [Configuration as code](../../README.md#configuration-as-code). Remember that
 the file is re-applied on every start and overwrites UI changes to this
 connector.
+
+## Giving one app its own name
+
+The GitHub application you created above stands for your Umbral instance, so
+people see its name for **every** app that uses this connector. That is the
+right default. When one app needs its own name on GitHub's consent screen, give
+it a connector of its own:
+
+1. Create another **OAuth App** in GitHub, the same way as above. Name it as you want people to see it, for example
+   `Frunchy`.
+2. In Umbral, open **Connectors**. Under **Add another connector**, pick
+   **Provider** GitHub, type an **Identifier** such as `github-frunchy`
+   (lower-case letters, digits and hyphens; it cannot be changed later), a
+   **Button label**, and the new application's **Client ID** and **Client
+   secret**. Untick **Shared with every app**, then click **Add connector**.
+3. The new card shows its own **Redirect URI to register with the provider**,
+   `<UMBRAL__PUBLIC_ORIGIN>/connect/github-frunchy/callback`. Register
+   that URL in the new GitHub application, not the first one.
+4. Open **Apps**, set that app's **Sign-in methods** to **Only the connectors I
+   choose**, tick the new connector, and click **Save sign-in methods**.
+
+That app's sign-in page now offers only the new connector. Every other app keeps
+the shared one. A person who signs in to both apps with the same GitHub account
+is still **one** Umbral user. Disabling or deleting a connector, or changing an
+app's choice, warns you first if an app would be left with no way to sign in. A
+connector that is not shared and that no app has chosen is offered nowhere. See
+[Troubleshooting](../../README.md#troubleshooting).
+
+In the configuration file, the second connector gets its own slug and its own
+secret variable, `UMBRAL_GITHUB_FRUNCHY_SECRET` (the slug upper-cased, anything
+that is not a letter or digit as `_`), and the app lists it:
+
+```yaml
+connectors:
+  - slug: github-frunchy             # fixed once created: it is in the callback URL
+    kind: github
+    display_name: GitHub
+    client_id: "…"
+    client_secret: ${UMBRAL_GITHUB_FRUNCHY_SECRET}
+    enabled: true
+    shared: false                      # offered only to apps that choose it
+apps:
+  - client_id: frunchy
+    name: Frunchy
+    client_secret: ${UMBRAL_FRUNCHY_SECRET}   # web app; leave out for a single-page or native app
+    redirect_uris:
+      - https://frunchy.example.com/callback
+    connectors:                        # a chosen set; absent = all shared connectors
+      - github-frunchy
+```
+
+An app listing a connector the file does not define refuses the whole file.
 
 ## Scopes Umbral requests
 
@@ -99,7 +154,7 @@ Umbral sends PKCE (`S256`) with the request.
 
 1. They click **Sign in with GitHub** on Umbral's page.
 2. GitHub asks them to sign in if they are not, then shows an authorization page
-   for your application name, listing what it can read. The first time only, they
+   for your application's name (the one you chose above), listing what it can read. The first time only, they
    click **Authorize**.
 3. They are sent back to Umbral, which sends them on to the app they came from.
 
