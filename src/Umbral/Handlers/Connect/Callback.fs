@@ -23,8 +23,15 @@ let private failureCode (error: ConnectorError) =
     | ProviderUnreachable _ -> "provider-unreachable"
     | MalformedResponse _ -> "sign-in-failed"
 
-let private fail (ctx: Microsoft.AspNetCore.Http.HttpContext) (code: string) =
-    ctx.Response.Redirect $"/signin?msg={Uri.EscapeDataString code}"
+/// Back to the sign-in page with a failure code. With a `returnUrl` it goes
+/// back to the page of the app the person started from, so the page still names
+/// that app and offers its connectors (FR-001, research.md R4); without one
+/// there is no round trip to return to, and the bare page is all there is.
+let private fail (ctx: Microsoft.AspNetCore.Http.HttpContext) (returnUrl: string option) (code: string) =
+    match returnUrl with
+    | Some returnUrl ->
+        ctx.Response.Redirect $"/signin?returnUrl={Uri.EscapeDataString returnUrl}&msg={Uri.EscapeDataString code}"
+    | None -> ctx.Response.Redirect $"/signin?msg={Uri.EscapeDataString code}"
 
 let handler (slug: string) : EndpointHandler =
     fun ctx ->
@@ -50,18 +57,28 @@ let handler (slug: string) : EndpointHandler =
             // Validates state, checks the slug and expiry, and DELETES the
             // correlation cookie before any of it — so a replayed callback
             // finds nothing to work with.
-            let completion =
-                OAuthRoundTrip.complete (ctx.GetService<IDataProtectionProvider>()) clock ctx slug
+            let protectors = ctx.GetService<IDataProtectionProvider>()
+
+            // Read before `complete` consumes the cookie, so the failures that
+            // `complete` itself reports can still return to the app's page.
+            let earlyReturnUrl = OAuthRoundTrip.returnUrlOf protectors clock ctx
+
+            let completion = OAuthRoundTrip.complete protectors clock ctx slug
 
             match completion with
             | Error error ->
                 do! record Failure SignInFailed (Some error.Detail)
 
                 match error with
-                | OAuthRoundTrip.ProviderReturnedError "access_denied" -> return fail ctx "access-denied"
-                | _ -> return fail ctx "sign-in-failed"
+                | OAuthRoundTrip.ProviderReturnedError "access_denied" ->
+                    return fail ctx earlyReturnUrl "access-denied"
+                | _ -> return fail ctx earlyReturnUrl "sign-in-failed"
 
             | Ok correlation ->
+
+            // Every failure from here on has a correlation, so it returns to
+            // the page the person started from.
+            let fail ctx code = fail ctx (Some correlation.ReturnUrl) code
 
             let! connector = ConnectorStore.findBySlug config slug
 
@@ -155,7 +172,7 @@ let handler (slug: string) : EndpointHandler =
                 return fail ctx "account-disabled"
             else
 
-            do! Sessions.signIn ctx resolution.User.Id connector.Slug
+            do! Sessions.signIn ctx resolution.User.Id connector.Kind.Value connector.Slug
             do! recordFor userId Success SignInSucceeded None
 
             // Back to the authorization request this all started for, replayed

@@ -49,6 +49,11 @@ type Texts =
       PickerLead: string
       SignInWith: string -> string
       PickerNoConnectors: string
+      /// The title once the page serves a registered app (FR-001).
+      PickerTitleForApp: string -> string
+      /// Used instead of `PickerNoConnectors` when an app is named and offers
+      /// nothing: it says whose sign-in is affected and who can fix it.
+      PickerNoConnectorsForApp: string -> string
       PickerSignInFailed: string
       PickerAccessDenied: string
       PickerProviderUnreachable: string
@@ -85,6 +90,27 @@ type Texts =
       AppDeleteButton: string
       AppDeleteConfirm: string -> string
       AppDeletedNotice: string
+
+      // Which connectors an app offers (FR-005, FR-009, FR-010)
+      AppConnectorsLabel: string
+      AppConnectorChoiceHint: string
+      AppConnectorChoiceAllSharedTitle: string
+      AppConnectorChoiceAllSharedDescription: string
+      AppConnectorChoiceChosenTitle: string
+      AppConnectorChoiceChosenDescription: string
+      AppConnectorChoiceNoneToChoose: string
+      AppConnectorsAllSharedSummary: string
+      AppConnectorsChosenSummary: string
+      AppConnectorsChosenNone: string
+      AppConnectorsSaveButton: string
+      /// Heading over the list of apps a change would leave with no way to
+      /// sign in; each app follows with `data-stranded-app` (FR-010).
+      StrandedAppsTitle: string
+      /// The confirming button on a stranded-apps warning, one per action.
+      ConnectorDisableStrandsConfirm: string
+      ConnectorNotSharedStrandsConfirm: string
+      ConnectorDeleteStrandsConfirm: string
+      AppConnectorsStrandConfirm: string
 
       // Screen 2 — Connectors
       ConnectorsTitle: string
@@ -129,6 +155,26 @@ type Texts =
       ConnectorDeletedNotice: string
       ConnectorCredentialsRejected: string -> string
       GoogleLimitationNotice: string
+
+      // Several connectors of one kind, and which apps see them (FR-003,
+      // FR-012, FR-013, FR-014)
+      /// The advice to name the provider's application after this Umbral
+      /// instance, and why. Takes the provider's name.
+      ConnectorNamingAdvice: string -> string
+      ConnectorDisplayNameLabel: string
+      ConnectorDisplayNameHint: string
+      ConnectorSharedLabel: string
+      ConnectorSharedHint: string
+      ConnectorSharedBadge: string
+      ConnectorNotSharedBadge: string
+      /// Shown on a connector that is not shared and that no app has chosen.
+      ConnectorOfferedNowhere: string
+      ConnectorAddTitle: string
+      ConnectorAddLead: string
+      ConnectorAddKindLabel: string
+      ConnectorAddSlugLabel: string
+      ConnectorAddSlugHint: string
+      ConnectorAddButton: string
 
       // The origin-mismatch banner (D4), naming both origins
       OriginMismatchBanner: string -> string -> string
@@ -224,6 +270,8 @@ let en: Texts =
       PickerLead = "Choose how you'd like to sign in."
       SignInWith = fun provider -> $"Sign in with {provider}"
       PickerNoConnectors = "No sign-in option is available right now. Contact the operator of this service."
+      PickerTitleForApp = fun app -> $"Sign in to {app}"
+      PickerNoConnectorsForApp = fun app -> $"{app} has no sign-in method available right now. Contact whoever runs {app}, who can fix this."
       PickerSignInFailed = "Sign-in was cancelled or didn't complete. Try again, or choose a different option below."
       PickerAccessDenied = "Your account is disabled. Contact the operator if you believe this is a mistake."
       PickerProviderUnreachable = "That provider isn't responding right now. Try again in a moment, or choose a different option below."
@@ -259,6 +307,23 @@ let en: Texts =
       AppDeleteButton = "Delete app"
       AppDeleteConfirm = fun name -> $"Delete \"{name}\"? Every token already issued to it stops working immediately, and this can't be undone."
       AppDeletedNotice = "App deleted. Its tokens no longer work."
+
+      AppConnectorsLabel = "Sign-in methods"
+      AppConnectorChoiceHint = "Which connectors this app offers on its sign-in page. This only decides how people sign in. It never decides who may."
+      AppConnectorChoiceAllSharedTitle = "All shared connectors"
+      AppConnectorChoiceAllSharedDescription = "The app offers every enabled connector marked shared, including ones you add later. This is the right choice for most apps."
+      AppConnectorChoiceChosenTitle = "Only the connectors I choose"
+      AppConnectorChoiceChosenDescription = "The app offers just the ticked connectors, shared or not. Use it when this app has its own provider application, for example so the consent screen shows its own name."
+      AppConnectorChoiceNoneToChoose = "No connectors yet. Add one on the Connectors screen, then come back and choose."
+      AppConnectorsAllSharedSummary = "All shared connectors"
+      AppConnectorsChosenSummary = "Chosen connectors"
+      AppConnectorsChosenNone = "None chosen. This app offers no sign-in method until you choose one."
+      AppConnectorsSaveButton = "Save sign-in methods"
+      StrandedAppsTitle = "These apps would be left with no way to sign in:"
+      ConnectorDisableStrandsConfirm = "Disable anyway"
+      ConnectorNotSharedStrandsConfirm = "Stop sharing anyway"
+      ConnectorDeleteStrandsConfirm = "Delete anyway"
+      AppConnectorsStrandConfirm = "Save anyway"
 
       ConnectorsTitle = "Connectors"
       AppTypeWebOption = "Web application"
@@ -306,6 +371,22 @@ let en: Texts =
       ConnectorSavedNotice = "Connector saved. The new credentials are used on the next sign-in — no restart needed."
       ConnectorDeletedNotice = "Connector deleted."
       ConnectorCredentialsRejected = fun provider -> $"{provider} rejected these credentials. Double-check the client ID and secret you pasted, then save again."
+      ConnectorNamingAdvice =
+        fun provider ->
+            $"Name the application you create in {provider}'s developer console after this Umbral instance (for example \"Umbral — home\"). People see that name on {provider}'s consent screen, and an instance name they recognise is one they trust. A name that belongs to another app makes it look as if they are signing in to that app."
+      ConnectorDisplayNameLabel = "Button label"
+      ConnectorDisplayNameHint = "Shown on the sign-in button as \"Sign in with …\". When two connectors of one kind exist, make the labels different so people can tell them apart."
+      ConnectorSharedLabel = "Shared with every app"
+      ConnectorSharedHint = "Shared connectors are offered to every app set to \"all shared connectors\". Untick it to offer this one only to the apps that choose it."
+      ConnectorSharedBadge = "Shared"
+      ConnectorNotSharedBadge = "Not shared"
+      ConnectorOfferedNowhere = "Not shared, and no app has chosen it, so nobody sees it yet. Choose it on an app's Sign-in methods, or tick Shared."
+      ConnectorAddTitle = "Add another connector"
+      ConnectorAddLead = "A second Discord, GitHub or Google application, for example one with its own name for a single app. The first connector of each kind needs no form here: use its card below."
+      ConnectorAddKindLabel = "Provider"
+      ConnectorAddSlugLabel = "Identifier"
+      ConnectorAddSlugHint = "Lower-case letters, digits and hyphens, up to 32. It becomes part of the callback URL you register with the provider, so it can't be changed once saved."
+      ConnectorAddButton = "Add connector"
       GoogleLimitationNotice = "Google refuses a redirect URI that is a raw IP address or that isn't https (except localhost) — so a typical \"http://192.168.x.x\" homelab address can't be registered with Google at all. Either put Umbral behind a domain name with HTTPS, or skip Google and use Discord or GitHub instead."
 
       OriginMismatchBanner =
@@ -396,6 +477,22 @@ let en: Texts =
             | "connector-delete-last-enabled" ->
                 "This is the only enabled connector. Nothing was deleted. Deleting it means nobody can sign in to any app — use Delete and confirm to go ahead."
 
+            | "connector-added" ->
+                "Connector added. Copy its callback URL into the provider's console, then enable it to offer it."
+            | "connector-slug-invalid" ->
+                "The identifier can use only lower-case letters, digits and hyphens, up to 32 characters. Change it and add the connector again."
+            | "connector-slug-taken" ->
+                "Another connector already has that identifier. Choose a different one and add the connector again."
+            | "connector-display-name-required" -> "Enter the label for the sign-in button, then save again."
+            | "connector-strands-apps" ->
+                "Nothing was changed. The apps listed would be left with no way to sign in. Give them another connector first, or confirm to go ahead."
+            | "connector-delete-strands-apps" ->
+                "Nothing was deleted. The apps listed would be left with no way to sign in. Give them another connector first, or confirm to delete it anyway."
+            | "app-connectors-strand" ->
+                "Nothing was saved. With that choice the app would have no enabled connector to sign in with. Choose at least one enabled connector, or confirm to save it anyway."
+            | "app-connector-unknown" ->
+                "One of the ticked connectors no longer exists. Reload the page, tick from the list shown, and save again."
+            | "app-connectors-saved" -> "Sign-in methods saved. The app's next sign-in page uses them."
             | "connector-enabled" -> "Connector enabled."
             | "connector-disabled" -> "Connector disabled."
             | "connector-deleted" -> "Connector deleted."

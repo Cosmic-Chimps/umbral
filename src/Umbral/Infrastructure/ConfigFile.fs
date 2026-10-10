@@ -39,6 +39,8 @@ type ConnectorDto() =
     member val ClientSecret: string = "" with get, set
     member val ExtraScopes: List<string> | null = null with get, set
     member val Enabled: bool = true with get, set
+    /// Absent means shared (FR-016), like `Enabled`.
+    member val Shared: bool = true with get, set
 
 [<AllowNullLiteral>]
 type AppDto() =
@@ -47,6 +49,10 @@ type AppDto() =
     member val ClientSecret: string = "" with get, set
     member val RedirectUris: List<string> | null = null with get, set
     member val PostLogoutRedirectUris: List<string> | null = null with get, set
+    /// Null is "all shared connectors"; an empty list is a chosen set with
+    /// nothing in it (FR-016). Read with `Option.ofObj`, never `listOf`, which
+    /// would turn the one into the other.
+    member val Connectors: List<string> | null = null with get, set
 
 [<AllowNullLiteral>]
 type OperatorDto() =
@@ -117,7 +123,8 @@ let parse (yaml: string) : Result<Document, ParseError> =
                   ClientId = c.ClientId
                   ClientSecret = c.ClientSecret
                   ExtraScopes = listOf c.ExtraScopes
-                  Enabled = c.Enabled })
+                  Enabled = c.Enabled
+                  Shared = c.Shared })
           Apps =
             listOf dto.Apps
             |> List.map (fun a ->
@@ -125,7 +132,8 @@ let parse (yaml: string) : Result<Document, ParseError> =
                   Name = a.Name
                   ClientSecret = optional a.ClientSecret
                   RedirectUris = listOf a.RedirectUris
-                  PostLogoutRedirectUris = listOf a.PostLogoutRedirectUris }) }
+                  PostLogoutRedirectUris = listOf a.PostLogoutRedirectUris
+                  Connectors = Option.ofObj a.Connectors |> Option.map List.ofSeq }) }
 
     // Whole-document, before anything is written. A file that half-applies
     // leaves an instance in a state the operator did not ask for and cannot
@@ -253,6 +261,9 @@ let applyConnectors
                       ClientSecretHint = Secrets.hint entry.ClientSecret
                       ExtraScopes = entry.ExtraScopes
                       IsEnabled = entry.Enabled
+                      // Applying sets it to what the file says, back to the
+                      // default when the key is removed (FR-016).
+                      IsShared = entry.Shared
                       CreatedUtc = existing |> Option.map (fun c -> c.CreatedUtc) |> Option.defaultValue (clock.GetUtcNow())
                       UpdatedUtc = clock.GetUtcNow() }
 
@@ -296,6 +307,7 @@ let applyConnectors
                           if before.DisplayName <> connector.DisplayName then "display_name"
                           if before.ExtraScopes <> connector.ExtraScopes then "extra_scopes"
                           if before.IsEnabled <> connector.IsEnabled then "enabled"
+                          if before.IsShared <> connector.IsShared then "shared"
                           if secretChanged then "secret" ]
 
                     if not changed.IsEmpty then
@@ -383,6 +395,15 @@ let applyApps
                     Detail = Some("source=config_file" + (if changed.IsEmpty then "" else ";changed=" + String.concat "," changed)) }
 
         for index, entry in List.indexed document.Apps do
+            // What the file says an app offers: no key is "all shared", a list
+            // is a chosen set, empty or not (FR-016). `validate` has already
+            // checked every slug against the document's own connectors, and
+            // those were applied first, so the foreign key is satisfied.
+            let choice =
+                match entry.Connectors with
+                | None -> Connectors.AllShared
+                | Some slugs -> Connectors.Only(Set.ofList slugs)
+
             let desired =
                 AppClients.buildDescriptor
                     entry.ClientId
@@ -396,6 +417,10 @@ let applyApps
             | null ->
                 let! _ = applications.CreateAsync desired
                 applied <- applied + 1
+
+                if choice <> Connectors.AllShared then
+                    do! AppConnectors.setChoice config entry.ClientId choice
+
                 do! record SecurityEvents.AppCreated entry []
 
             | existing ->
@@ -403,6 +428,7 @@ let applyApps
                 do! applications.PopulateAsync(current, existing)
 
                 let uriSet (set: ISet<Uri>) = set |> Seq.map _.OriginalString |> Set.ofSeq
+                let! currentChoice = AppConnectors.choiceFor config entry.ClientId
 
                 let changed =
                     [ if current.DisplayName <> desired.DisplayName then "name"
@@ -412,7 +438,8 @@ let applyApps
                           "post_logout_redirect_uris"
                       if Set.ofSeq current.Permissions <> Set.ofSeq desired.Permissions
                          || Set.ofSeq current.Requirements <> Set.ofSeq desired.Requirements then
-                          "permissions" ]
+                          "permissions"
+                      if currentChoice <> choice then "connectors" ]
 
                 // Verified against the hash rather than compared: the stored
                 // value is a salted PBKDF2 hash, so there is nothing to
@@ -437,6 +464,10 @@ let applyApps
 
                     do! applications.UpdateAsync(existing, desired)
                     applied <- applied + 1
+
+                    // Only when it differs: an unchanged choice is not rewritten.
+                    if currentChoice <> choice then
+                        do! AppConnectors.setChoice config entry.ClientId choice
 
                     if not changed.IsEmpty then
                         do! record SecurityEvents.AppUpdated entry changed
@@ -467,7 +498,9 @@ type ExportedApp =
       Name: string
       Confidential: bool
       RedirectUris: string list
-      PostLogoutRedirectUris: string list }
+      PostLogoutRedirectUris: string list
+      /// Written only when the app has a chosen set (FR-017).
+      Choice: Connectors.AppChoice }
 
 /// Emit the same format `parse` accepts, so export and import round-trip
 /// (FR-029).
@@ -509,6 +542,11 @@ let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
             lines.Add $"    client_secret: ${{{variableFor c.Slug}}}"
             lines.Add $"    enabled: {enabled}"
 
+            // Only off the default, so an export of an instance that never
+            // used the setting reads the same as it always did (FR-016).
+            if not c.IsShared then
+                lines.Add "    shared: false"
+
             if not c.ExtraScopes.IsEmpty then
                 let scopes = String.concat ", " c.ExtraScopes
                 lines.Add $"    extra_scopes: [{scopes}]"
@@ -537,6 +575,17 @@ let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
 
                 for uri in app.PostLogoutRedirectUris do
                     lines.Add $"      - {uri}"
+
+            // A chosen set, `[]` included: an empty set is not "all shared",
+            // so it has to survive the round trip (FR-017).
+            match app.Choice with
+            | Connectors.AllShared -> ()
+            | Connectors.Only slugs when slugs.IsEmpty -> lines.Add "    connectors: []"
+            | Connectors.Only slugs ->
+                lines.Add "    connectors:"
+
+                for slug in slugs do
+                    lines.Add $"      - {slug}"
 
     String.concat Environment.NewLine lines + Environment.NewLine
 

@@ -5,12 +5,21 @@
 /// the exact callback URL rather than let them guess at one, and to warn about
 /// the two things that otherwise fail an hour later with an error naming
 /// neither cause.
+///
+/// One card per stored connector, so a second Discord application is a second
+/// card (FR-012), plus today's empty card for each kind with none, which creates
+/// the first connector of its kind with the kind's name as its slug: the
+/// first-run path has no "add" step. The add form is for the second and later
+/// ones, where the operator picks the slug. Every card says to name the provider's
+/// application after the Umbral instance (FR-003).
 module Umbral.Handlers.Admin.Connectors
 
 open System
 open Microsoft.AspNetCore.Http
+open OpenIddict.Abstractions
 open Oxpecker
 open Oxpecker.ViewEngine
+open Umbral.Domains
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 open Umbral.Views
@@ -41,6 +50,24 @@ let originBanner (ctx: HttpContext) (t: Texts.Texts) (origin: PublicOrigin.Publi
 // One connector card
 // ---------------------------------------------------------------------------
 
+/// The shared setting as a tick box with its hint. A ticked box posts
+/// `shared=true`; an unticked one posts nothing, and on a full form that means
+/// not shared (FR-014).
+let private sharedBox (t: Texts.Texts) (isShared: bool) =
+    div(class' = "space-y-1") {
+        label(class' = "flex items-center gap-2 text-body-md text-on-surface") {
+            let box = input(type' = "checkbox", name = "shared", value = "true")
+
+            if isShared then
+                box.attr("checked", "checked") |> ignore
+
+            box
+            span() { t.ConnectorSharedLabel }
+        }
+
+        p(class' = "um-hint") { t.ConnectorSharedHint }
+    }
+
 type private Row =
     { Kind: ProviderKind
       Existing: Connector option }
@@ -55,12 +82,19 @@ let private card
     (t: Texts.Texts)
     (origin: PublicOrigin.PublicOrigin)
     (enabledCount: int)
+    (chosenSlugs: Set<string>)
     (row: Row)
     =
     let slug = row.Slug
     let callbackUrl = (PublicOrigin.callbackUri origin slug).ToString()
     let isConfigured = row.Existing.IsSome
     let isEnabled = row.Existing |> Option.map (fun c -> c.IsEnabled) |> Option.defaultValue false
+    // An empty card is offered as shared, like the add form (FR-014).
+    let isShared = row.Existing |> Option.map (fun c -> c.IsShared) |> Option.defaultValue true
+
+    // FR-014: not shared and in no app's chosen set means nobody sees it, which
+    // is a puzzle to meet at sign-in rather than here.
+    let offeredNowhere = isConfigured && not isShared && not (Set.contains slug chosenSlugs)
 
     // FR-023: the one enabled connector is the one whose removal closes the
     // door. The screen knows that when it draws the buttons, so it can ask for
@@ -69,18 +103,58 @@ let private card
     let isLastEnabled = isEnabled && enabledCount = 1
     let confirmed (path: string) = if isLastEnabled then path + "?confirm=yes" else path
 
-    article(class' = "um-card space-y-4")
-        .data("connector", slug)
-        .data("connector-state", (if isEnabled then "enabled" else "disabled")) {
+    let element =
+        article(class' = "um-card space-y-4")
+            .data("connector", slug)
+            .data("connector-kind", row.Kind.Value)
+            .data("connector-shared", (if isShared then "shared" else "not-shared"))
+            .data("connector-state", (if isEnabled then "enabled" else "disabled"))
+
+    if offeredNowhere then
+        element.data("offered-nowhere", "") |> ignore
+
+    element {
 
         div(class' = "flex items-center justify-between gap-3") {
-            h2(class' = "text-headline-md text-on-surface") { row.Kind.DisplayName }
+            div() {
+                h2(class' = "text-headline-md text-on-surface") {
+                    match row.Existing with
+                    | Some c -> c.DisplayName
+                    | None -> row.Kind.DisplayName
+                }
 
-            if isConfigured then
-                Components.stateBadge isEnabled t.Enabled t.Disabled
-            else
-                Components.pill Components.MutedTone t.NotConfigured
+                if isConfigured then
+                    p(class' = "um-hint um-mono") { slug }
+            }
+
+            div(class' = "flex flex-wrap items-center gap-2") {
+                if isConfigured then
+                    Components.pill
+                        Components.MutedTone
+                        (if isShared then t.ConnectorSharedBadge else t.ConnectorNotSharedBadge)
+
+                if isConfigured then
+                    Components.stateBadge isEnabled t.Enabled t.Disabled
+                else
+                    Components.pill Components.MutedTone t.NotConfigured
+            }
         }
+
+        if offeredNowhere then
+            (div(class' = "um-alert um-alert-warning").attr("role", "note") {
+                Components.icon Theme.Warning
+                span() { t.ConnectorOfferedNowhere }
+            })
+            :> HtmlElement
+
+        // FR-003: said on every card, because the first time an operator
+        // learns what the name matters for should not be a person asking
+        // "what is this app?" on a consent screen.
+        (div(class' = "um-alert um-alert-info").attr("role", "note").data("naming-advice", "") {
+            Components.icon Theme.Info
+            span() { t.ConnectorNamingAdvice row.Kind.DisplayName }
+        })
+        :> HtmlElement
 
         // THE field. Without it the operator invents a URL, the provider
         // rejects the callback, and the error names neither the URL nor Umbral.
@@ -108,6 +182,18 @@ let private card
         form(method = "post", action = $"/admin/connectors/{slug}", class' = "space-y-4") {
             ctx.GetAntiforgeryInput()
 
+            // FR-013: the slug and the kind are not fields. Neither ever
+            // changes, so the form has nothing to edit them with.
+            Components.fieldWith
+                "text"
+                []
+                (fun i -> i.attr("required", "required") |> ignore)
+                t.ConnectorDisplayNameLabel
+                "displayName"
+                (row.Existing |> Option.map (fun c -> c.DisplayName) |> Option.defaultValue row.Kind.DisplayName)
+                (Some t.ConnectorDisplayNameHint)
+                None
+
             Components.field
                 t.ClientIdLabel
                 "clientId"
@@ -131,6 +217,8 @@ let private card
                 "clientSecret"
                 (Some (if isConfigured then t.ReplaceSecretHint else t.ClientSecretHint))
                 None
+
+            sharedBox t isShared
 
             div(class' = "flex flex-wrap items-center gap-2") {
                 button(type' = "submit", class' = Components.btn Components.Primary) {
@@ -185,47 +273,340 @@ let private card
 // Screen
 // ---------------------------------------------------------------------------
 
-let private view ctx (t: Texts.Texts) origin (rows: Row list) (enabledCount: int) (notice: string option) =
+/// What a warning is about: the action the apps would be stranded by.
+type private StrandAction =
+    | Disabling
+    | Deleting
+    /// Saving a card that turns a shared connector to not shared (FR-014).
+    | Unsharing
+
+/// The apps a disable, a delete or an unshare would leave with no way to sign
+/// in, named, with the button that goes ahead anyway (FR-010). Recomputed from
+/// the slug the redirect carried, so the redirect never has to carry app names.
+type private StrandWarning =
+    { Slug: string
+      Action: StrandAction
+      /// What the stored connector holds, which the unshare confirmation posts
+      /// back: the warning said nothing was changed, so what was typed on the
+      /// card is not carried through it.
+      Stored: Connector option
+      Apps: (string * string) list }
+
+let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWarning) =
+    div(class' = "space-y-2") {
+        p() { t.StrandedAppsTitle }
+
+        ul() {
+            for clientId, name in warning.Apps do
+                li().data("stranded-app", clientId) { name }
+        }
+
+        match warning.Action, warning.Stored with
+        | Unsharing, Some stored ->
+            // The card's own save, with the stored values and the box
+            // unticked: the card form cannot be re-posted from here.
+            form(method = "post", action = $"/admin/connectors/{warning.Slug}?confirm=yes", class' = "inline") {
+                ctx.GetAntiforgeryInput()
+                input(type' = "hidden", name = "displayName", value = stored.DisplayName)
+                input(type' = "hidden", name = "clientId", value = stored.ClientId)
+
+                button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                    t.ConnectorNotSharedStrandsConfirm
+                }
+            }
+        | Unsharing, None -> ()
+        | action, _ ->
+            let path = if action = Deleting then "delete" else "toggle"
+
+            form(method = "post", action = $"/admin/connectors/{warning.Slug}/{path}?confirm=yes", class' = "inline") {
+                ctx.GetAntiforgeryInput()
+
+                button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                    if action = Deleting then t.ConnectorDeleteStrandsConfirm else t.ConnectorDisableStrandsConfirm
+                }
+            }
+    }
+
+/// The add form (FR-012): a connector of a kind with a slug the operator
+/// chooses. Ticked as shared by default, like the first connector of a kind
+/// (FR-014). The kind is a real select: with four options and a label there is
+/// nothing to explain that a radio card would add.
+let private addForm (ctx: HttpContext) (t: Texts.Texts) (kinds: ProviderKind list) =
+    section(class' = "um-card space-y-4").data("add-connector-section", "") {
+        h2(class' = "text-headline-md text-on-surface") { t.ConnectorAddTitle }
+        p(class' = "max-w-prose text-body-md text-on-surface-variant") { t.ConnectorAddLead }
+
+        form(method = "post", action = "/admin/connectors", class' = "space-y-4").data("add-connector", "") {
+            ctx.GetAntiforgeryInput()
+
+            div() {
+                label(for' = "add-kind", class' = "um-label") { t.ConnectorAddKindLabel }
+
+                select(id = "add-kind", name = "kind", class' = "um-input") {
+                    for kind in kinds do
+                        option(value = kind.Value) { kind.DisplayName }
+                }
+            }
+
+            Components.fieldWith
+                "text"
+                []
+                (fun i -> i.attr("required", "required").attr("maxlength", "32").attr("pattern", "[a-z0-9\\-]+") |> ignore)
+                t.ConnectorAddSlugLabel
+                "slug"
+                ""
+                (Some t.ConnectorAddSlugHint)
+                None
+
+            Components.fieldWith
+                "text"
+                []
+                (fun i -> i.attr("required", "required") |> ignore)
+                t.ConnectorDisplayNameLabel
+                "displayName"
+                ""
+                (Some t.ConnectorDisplayNameHint)
+                None
+
+            Components.field t.ClientIdLabel "clientId" "" None None
+            Components.passwordField t.ClientSecretLabel "clientSecret" (Some t.ClientSecretHint) None
+
+            sharedBox t true
+
+            button(type' = "submit", class' = Components.btn Components.Primary) {
+                Components.icon Theme.CheckCircle
+                t.ConnectorAddButton
+            }
+        }
+    }
+
+let private view
+    ctx
+    (t: Texts.Texts)
+    origin
+    (rows: Row list)
+    (enabledCount: int)
+    (chosenSlugs: Set<string>)
+    (addableKinds: ProviderKind list)
+    (notice: string option)
+    (strand: StrandWarning option)
+    =
     div(class' = "space-y-6").data("screen", "connectors") {
         Components.pageHeading t.ConnectorsTitle (Some t.ConnectorsLead)
         originBanner ctx t origin
 
-        match notice with
-        | Some code ->
+        match notice, strand with
+        | Some code, Some warning ->
+            (div().data("notice", code) {
+                Components.alert Components.Warning (t.Notice code)
+                strandWarning ctx t warning
+            })
+            :> HtmlElement
+        | Some code, None ->
             (div().data("notice", code) { Components.alert Components.Success (t.Notice code) })
             :> HtmlElement
-        | None -> Fragment() :> HtmlElement
+        | None, _ -> Fragment() :> HtmlElement
 
         for row in rows do
-            card ctx t origin enabledCount row
+            card ctx t origin enabledCount chosenSlugs row
+
+        addForm ctx t addableKinds
     }
     |> Layout.page ctx t t.ConnectorsTitle
+
+/// The kinds the add form offers: the three real providers, and the fake one
+/// only where the fake connector is allowed to exist (see `FakeGate`). A fake
+/// connector stored elsewhere would stop the next start.
+let private addableKinds (ctx: HttpContext) =
+    if (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed then
+        allKinds @ [ Fake ]
+    else
+        allKinds
+
+/// Every stored connector gets a card, then an empty card for each kind with
+/// none. Stored ones in the order Discord, GitHub, Google (the two easy wins
+/// first, since Google is the one that can refuse a homelab address outright),
+/// then by slug; a stored fake one last.
+let private rowsFor (existing: Connector list) =
+    let kindOrder kind =
+        allKinds |> List.tryFindIndex ((=) kind) |> Option.defaultValue allKinds.Length
+
+    let stored =
+        existing
+        |> List.sortBy (fun c -> kindOrder c.Kind, c.Slug)
+        |> List.map (fun c -> { Kind = c.Kind; Existing = Some c })
+
+    let empty =
+        allKinds
+        |> List.filter (fun kind -> not (existing |> List.exists (fun c -> c.Kind = kind)))
+        |> List.map (fun kind -> { Kind = kind; Existing = None })
+
+    stored @ empty |> List.sortBy (fun row -> kindOrder row.Kind, row.Slug)
 
 let page: EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
         task {
             let t = Texts.current ()
-            let! existing = ConnectorStore.listAll (ctx.GetService<Database.DbConfig>())
+            let config = ctx.GetService<Database.DbConfig>()
+            let! existing = ConnectorStore.listAll config
+            let! choices = AppConnectors.allChoices config
 
-            // Every supported provider gets a card whether or not it is
-            // configured, so "add a connector" is not a thing to go looking for.
-            // Ordered Discord, GitHub, Google: the two easy wins first, since
-            // Google is the one that can refuse a homelab address outright.
-            let rows =
-                allKinds
-                |> List.map (fun kind ->
-                    { Kind = kind
-                      Existing = existing |> List.tryFind (fun c -> c.Kind = kind) })
-
-            // Counted over every stored connector, not over the cards: a fake
-            // one has no card but still keeps the door open, and the handlers
-            // count it the same way.
+            // Counted over every stored connector, not over the cards, exactly
+            // as the handlers count it.
             let enabledCount = existing |> List.filter (fun c -> c.IsEnabled) |> List.length
 
+            // Every slug some app's chosen set names, for `data-offered-nowhere`.
+            let chosenSlugs =
+                choices
+                |> Map.toSeq
+                |> Seq.collect (fun (_, choice) ->
+                    match choice with
+                    | Only slugs -> Set.toSeq slugs
+                    | AllShared -> Seq.empty)
+                |> Set.ofSeq
+
             let notice = ctx.TryGetQueryValue "msg"
-            return! ctx.WriteHtmlView(view ctx t (ctx.GetService<PublicOrigin.PublicOrigin>()) rows enabledCount notice)
+
+            // The strand warnings carry the slug they are about. The apps are
+            // recomputed here, with the connector as the action would leave it.
+            let! strand =
+                match notice, ctx.TryGetQueryValue "slug" with
+                | Some("connector-strands-apps" | "connector-delete-strands-apps" as code), Some slug ->
+                    task {
+                        let! apps = AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
+
+                        let action =
+                            if code = "connector-delete-strands-apps" then Deleting
+                            elif ctx.TryGetQueryValue "change" = Some "unshare" then Unsharing
+                            else Disabling
+
+                        let after =
+                            match action with
+                            | Deleting -> existing |> List.filter (fun c -> c.Slug <> slug)
+                            | Unsharing ->
+                                existing |> List.map (fun c -> if c.Slug = slug then { c with IsShared = false } else c)
+                            | Disabling ->
+                                existing |> List.map (fun c -> if c.Slug = slug then { c with IsEnabled = false } else c)
+
+                        return
+                            Some
+                                { Slug = slug
+                                  Action = action
+                                  Stored = existing |> List.tryFind (fun c -> c.Slug = slug)
+                                  Apps = AppConnectors.strandedByChange apps existing after }
+                    }
+                | _ -> System.Threading.Tasks.Task.FromResult None
+
+            return!
+                ctx.WriteHtmlView(
+                    view
+                        ctx
+                        t
+                        (ctx.GetService<PublicOrigin.PublicOrigin>())
+                        (rowsFor existing)
+                        enabledCount
+                        chosenSlugs
+                        (addableKinds ctx)
+                        notice
+                        strand
+                )
         })
 
+let private recordEvent (ctx: HttpContext) (kind: SecurityEvents.EventType) (slug: string) =
+    SecurityEvents.record
+        (ctx.GetService<Database.DbConfig>())
+        (ctx.GetService<TimeProvider>())
+        { SecurityEvents.event kind SecurityEvents.Success SecurityEvents.Actor.Operator with
+            ConnectorSlug = Some slug
+            RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string }
+
+/// Store a secret under the connector's own slug, returning what the store
+/// keeps: the encoded reference and the hint the screen shows.
+let private putSecret (ctx: HttpContext) (slug: string) (plaintext: string) =
+    task {
+        let! reference = ctx.GetService<Secrets.ISecretStore>().Put($"connector/{slug}/client_secret", plaintext)
+        return reference.Encoded, Secrets.hint plaintext
+    }
+
+/// Whether this instance may hold a connector of `kind`. Only the fake kind is
+/// ever refused, and only where the fake connector is not allowed.
+let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
+    kind <> Fake || (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed
+
+/// Add a connector of a kind under a slug the operator chose (FR-012).
+let create: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let! form = WebForms.readValidated ctx
+
+            let slug = WebForms.value form "slug"
+            let displayName = WebForms.value form "displayName"
+            let clientId = WebForms.value form "clientId"
+            let newSecret = WebForms.optional form "clientSecret"
+            let! taken = ConnectorStore.findBySlug config slug
+
+            match parseKind (WebForms.value form "kind") with
+            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+            | Some kind when not (mayCreate ctx kind) ->
+                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+            | Some kind ->
+
+            // A kind's own name is where its empty card posts, so a connector
+            // of another kind under it would be edited as the wrong provider.
+            let reservedForOtherKind =
+                match parseKind slug with
+                | Some named -> named <> kind
+                | None -> false
+
+            if not (Ids.isValidSlug slug) then
+                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-invalid"
+            elif taken.IsSome || reservedForOtherKind then
+                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
+            elif displayName = "" then
+                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-display-name-required"
+            elif clientId = "" then
+                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-client-id-required"
+            else
+
+            match newSecret with
+            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-required"
+            | Some plaintext ->
+
+            // The slug was just checked free, so writing the secret under it
+            // cannot replace another connector's.
+            let! secret = putSecret ctx slug plaintext
+
+            let! added =
+                ConnectorStore.create
+                    config
+                    clock
+                    { Slug = slug
+                      Kind = kind
+                      DisplayName = displayName
+                      ClientId = clientId
+                      ClientSecretRef = ""
+                      ClientSecretHint = ""
+                      ExtraScopes = []
+                      // A connector arrives enabled, as the first of a kind does.
+                      IsEnabled = true
+                      IsShared = WebForms.checkbox form "shared"
+                      CreatedUtc = clock.GetUtcNow()
+                      UpdatedUtc = clock.GetUtcNow() }
+                    secret
+
+            if not added then
+                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
+            else
+
+            do! recordEvent ctx SecurityEvents.ConnectorCreated slug
+            return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added"
+        })
+
+/// Save a card. The kind comes from the stored row, never from the slug
+/// (FR-012); a slug with no row is the first connector of the kind it names,
+/// which is the empty card's path.
 let save (slug: string) : EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
         task {
@@ -237,66 +618,110 @@ let save (slug: string) : EndpointHandler =
             let newSecret = WebForms.optional form "clientSecret"
             let! existing = ConnectorStore.findBySlug config slug
 
-            match parseKind slug with
+            // A card posts its display name and its shared box every time. A
+            // post without a display name field is an older client of this
+            // endpoint (a script, a saved form): it leaves both as they are
+            // rather than reading an absent box as "not shared".
+            let fullForm = form.ContainsKey "displayName"
+            let displayName = WebForms.value form "displayName"
+            let isShared = WebForms.checkbox form "shared"
+            let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
+
+            let kind =
+                match existing with
+                | Some c -> Some c.Kind
+                | None -> parseKind slug |> Option.filter (mayCreate ctx)
+
+            match kind with
             | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
-            | Some kind when clientId = "" ->
-                ignore kind
+            | Some _ when clientId = "" ->
                 return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-client-id-required"
+            | Some _ when fullForm && displayName = "" ->
+                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-display-name-required"
             | Some kind ->
 
+            match existing, newSecret with
             // A new connector needs a secret; an existing one does not, because
             // the screen cannot show the saved value back for retyping.
-            match existing, newSecret with
             | None, None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-required"
-            | _ ->
 
-            let secrets = ctx.GetService<Secrets.ISecretStore>()
+            | None, Some plaintext ->
+                let! secret = putSecret ctx slug plaintext
 
-            let! secretUpdate =
-                match newSecret with
-                | Some plaintext ->
+                let! added =
+                    ConnectorStore.create
+                        config
+                        clock
+                        { Slug = slug
+                          Kind = kind
+                          DisplayName = (if fullForm then displayName else kind.DisplayName)
+                          ClientId = clientId
+                          ClientSecretRef = ""
+                          ClientSecretHint = ""
+                          ExtraScopes = []
+                          // A connector arrives enabled: the operator came here to
+                          // turn it on, and a saved-but-off connector is a puzzle.
+                          IsEnabled = true
+                          IsShared = (not fullForm) || isShared
+                          CreatedUtc = clock.GetUtcNow()
+                          UpdatedUtc = clock.GetUtcNow() }
+                        secret
+
+                if not added then
+                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
+                else
+                    do! recordEvent ctx SecurityEvents.ConnectorCreated slug
+                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
+
+            | Some stored, _ ->
+                let newName = if fullForm then displayName else stored.DisplayName
+                let newShared = if fullForm then isShared else stored.IsShared
+
+                // FR-010: turning sharing off can leave an all-shared app with
+                // nothing to offer. Nothing changes until the operator confirms.
+                let! stranded =
                     task {
-                        let! reference = secrets.Put($"connector/{slug}/client_secret", plaintext)
-                        return Some(reference.Encoded, Secrets.hint plaintext)
+                        if stored.IsShared && not newShared && not confirmed then
+                            let! connectors = ConnectorStore.listAll config
+                            let! apps = AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
+
+                            let after =
+                                connectors
+                                |> List.map (fun c -> if c.Slug = slug then { c with IsShared = false } else c)
+
+                            return AppConnectors.strandedByChange apps connectors after
+                        else
+                            return []
                     }
-                | None -> System.Threading.Tasks.Task.FromResult None
 
-            let connector =
-                match existing with
-                | Some c -> { c with ClientId = clientId }
-                | None ->
-                    { Slug = slug
-                      Kind = kind
-                      DisplayName = kind.DisplayName
-                      ClientId = clientId
-                      ClientSecretRef = ""
-                      ClientSecretHint = ""
-                      ExtraScopes = []
-                      // A connector arrives enabled: the operator came here to
-                      // turn it on, and a saved-but-off connector is a puzzle.
-                      IsEnabled = true
-                      CreatedUtc = clock.GetUtcNow()
-                      UpdatedUtc = clock.GetUtcNow() }
+                if not stranded.IsEmpty then
+                    return!
+                        WebForms.redirectWithNoticeAbout
+                            ctx
+                            "/admin/connectors"
+                            "connector-strands-apps"
+                            [ "slug", slug; "change", "unshare" ]
+                else
 
-            do! ConnectorStore.save config clock connector secretUpdate
+                let! secretUpdate =
+                    match newSecret with
+                    | Some plaintext ->
+                        task {
+                            let! secret = putSecret ctx slug plaintext
+                            return Some secret
+                        }
+                    | None -> System.Threading.Tasks.Task.FromResult None
 
-            do!
-                SecurityEvents.record
-                    config
-                    clock
-                    { SecurityEvents.event
-                          (if existing.IsSome then
-                               SecurityEvents.ConnectorUpdated
-                           else
-                               SecurityEvents.ConnectorCreated)
-                          SecurityEvents.Success
-                          SecurityEvents.Actor.Operator with
-                        ConnectorSlug = Some slug
-                        RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string }
+                let! updated = ConnectorStore.update config clock slug newName clientId newShared secretUpdate
 
-            return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
+                if not updated then
+                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+                else
+                    do! recordEvent ctx SecurityEvents.ConnectorUpdated slug
+                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
         })
 
 let endpoint =
     [ GET [ route "/admin/connectors" page ]
+      POST [ route "/admin/connectors" create ]
       POST [ routef "/admin/connectors/{%s}" save ] ]

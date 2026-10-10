@@ -110,6 +110,7 @@ let private seedConnector (app: Fixtures.TestApp) (enabled: bool) =
                   ClientSecretHint = Secrets.hint "the-first-secret"
                   ExtraScopes = []
                   IsEnabled = enabled
+                  IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
                   UpdatedUtc = app.Clock.GetUtcNow() }
                 None
@@ -289,6 +290,7 @@ let ``the connector toggle works identically with and without htmx`` () =
                   ClientSecretHint = "cret"
                   ExtraScopes = []
                   IsEnabled = true
+                  IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
                   UpdatedUtc = app.Clock.GetUtcNow() }
                 None

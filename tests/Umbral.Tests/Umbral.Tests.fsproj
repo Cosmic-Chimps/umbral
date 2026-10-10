@@ -43,6 +43,10 @@
     <Compile Include="CsrfTests.fs" />
     <Compile Include="RestartTests.fs" />
     <Compile Include="IdleMemoryTests.fs" />
+    <Compile Include="AppChoiceRuleTests.fs" />
+    <Compile Include="SignInAppNameTests.fs" />
+    <Compile Include="AppConnectorChoiceTests.fs" />
+    <Compile Include="MultipleConnectorsTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 

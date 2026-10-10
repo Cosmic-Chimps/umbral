@@ -136,6 +136,7 @@ let private claimAndConfigure (app: Fixtures.TestApp) (browser: Browser) : Task<
                   ClientSecretHint = "cret"
                   ExtraScopes = []
                   IsEnabled = true
+                  IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
                   UpdatedUtc = app.Clock.GetUtcNow() }
                 None

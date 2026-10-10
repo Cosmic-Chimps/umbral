@@ -88,9 +88,34 @@ let private schema =
         client_secret_hint      TEXT    NOT NULL,
         extra_scopes            TEXT        NULL,
         is_enabled              INTEGER NOT NULL DEFAULT 1,
+        -- A shared connector is offered to every app set to "all shared
+        -- connectors" (FR-014). A database from schema version 1 gets this
+        -- column from the ALTER in `initializeSchema`, with the same default.
+        is_shared               INTEGER NOT NULL DEFAULT 1,
         created_utc             TEXT    NOT NULL,
         updated_utc             TEXT    NOT NULL
     );
+
+    -- A marker: one row per app limited to a chosen set. No row means "all
+    -- shared connectors". Separate from the set so an app stays limited when
+    -- its set empties (FR-011). `client_id` is an OpenIddict application's id,
+    -- with no foreign key: OpenIddict's tables belong to its EF migrations, so
+    -- AppDelete removes this row itself.
+    CREATE TABLE IF NOT EXISTS app_connector_choices (
+        client_id TEXT NOT NULL PRIMARY KEY
+    );
+
+    -- The chosen set. Deleting a connector removes it from every set through
+    -- the cascade and leaves the marker, so the app stays limited (FR-011).
+    CREATE TABLE IF NOT EXISTS app_connectors (
+        client_id      TEXT NOT NULL REFERENCES app_connector_choices (client_id) ON DELETE CASCADE,
+        connector_slug TEXT NOT NULL REFERENCES connectors (slug) ON DELETE CASCADE,
+        PRIMARY KEY (client_id, connector_slug)
+    );
+
+    -- The lookup the FR-010 warning performs when a connector is about to be
+    -- disabled or deleted.
+    CREATE INDEX IF NOT EXISTS ix_app_connectors_slug ON app_connectors (connector_slug);
 
     CREATE TABLE IF NOT EXISTS settings (
         key         TEXT NOT NULL PRIMARY KEY,
@@ -117,7 +142,7 @@ let private schema =
 /// The version this build understands. Bumped when `schema` changes in a way an
 /// older build could not read, so a downgrade fails loudly instead of corrupting.
 [<Literal>]
-let SchemaVersion = 1
+let SchemaVersion = 2
 
 let initializeSchema (config: DbConfig) : Task<unit> =
     task {
@@ -128,6 +153,31 @@ let initializeSchema (config: DbConfig) : Task<unit> =
         create.Transaction <- transaction
         create.CommandText <- schema
         let! _ = create.ExecuteNonQueryAsync()
+
+        // The stored version decides whether the v1 -> v2 column is added:
+        // SQLite has no `ADD COLUMN IF NOT EXISTS`, and the CREATE TABLE above
+        // is a no-op on a database that already has `connectors`. No row means
+        // a fresh database, which got the column from CREATE TABLE.
+        use stored = connection.CreateCommand()
+        stored.Transaction <- transaction
+        stored.CommandText <- "SELECT value FROM settings WHERE key = 'schema_version'"
+        let! storedVersion = stored.ExecuteScalarAsync()
+
+        if string storedVersion = "1" then
+            // Every existing connector becomes shared through the default and
+            // no app has a choice row, so every app offers what it offered
+            // before (FR-019). No data is rewritten.
+            use upgrade = connection.CreateCommand()
+            upgrade.Transaction <- transaction
+
+            upgrade.CommandText <-
+                "ALTER TABLE connectors ADD COLUMN is_shared INTEGER NOT NULL DEFAULT 1;
+                 UPDATE settings SET value = @version, updated_utc = @now WHERE key = 'schema_version';"
+
+            upgrade.Parameters.AddWithValue("@version", string SchemaVersion) |> ignore
+            upgrade.Parameters.AddWithValue("@now", System.DateTimeOffset.UtcNow.ToString "o") |> ignore
+            let! _ = upgrade.ExecuteNonQueryAsync()
+            ()
 
         use version = connection.CreateCommand()
         version.Transaction <- transaction
