@@ -178,11 +178,15 @@ never run and nothing reports it.
 
 ## Phase 7: Polish & validation
 
-- [ ] T042 Run the quickstart V0 grep. The only hits left are the superseded notes in `specs/001-*`, `specs/002-*` and `specs/003-*`, this feature's folder, and the constitution and vision records. `YamlDotNet` appears only in `tests/Umbral.Tests/Umbral.Tests.fsproj` and `tests/Umbral.Tests/MetaTests.fs`. Fix anything else.
-- [ ] T043 Run `dotnet build` and `dotnet test` from the repo root: green. Record the final count under "Baseline" beside T003's, with the difference explained.
-- [ ] T044 Build the container image and run quickstart V2 to V7 against it. In V2, check that the log never mentions the file. Record the outcome of each step in [quickstart.md](./quickstart.md) or here.
-- [ ] T045 Run `tests/Umbral.Tests/IdleMemoryTests.fs` (Principle II, under 150 MB idle). Expect the same or lower than before, since YamlDotNet is no longer loaded. Record the number.
-- [ ] T046 Self-review the full diff against [spec.md](./spec.md). Check each FR-001 to FR-014 and SC-001 to SC-005, and that every new comment and doc sentence reads like its neighbours. Set this feature's status in [plan.md](./plan.md) and `.spec-context.json` through the companion hooks.
+- [X] T042 Run the quickstart V0 grep. The only hits left are the superseded notes in `specs/001-*`, `specs/002-*` and `specs/003-*`, this feature's folder, and the constitution and vision records. `YamlDotNet` appears only in `tests/Umbral.Tests/Umbral.Tests.fsproj` and `tests/Umbral.Tests/MetaTests.fs`. Fix anything else.
+  Result: the only hits are `tests/Umbral.Tests/DatabaseTests.fs:190` (the literal v1 schema, kept on purpose) and `NoConfigFileTests.fs`, which has to name what it asserts is gone. YamlDotNet is only in the test project and `MetaTests.fs`.
+- [X] T043 Run `dotnet build` and `dotnet test` from the repo root: green. Record the final count under "Baseline" beside T003's, with the difference explained.
+- [X] T044 Build the container image and run quickstart V2 to V7 against it. In V2, check that the log never mentions the file. Record the outcome of each step in [quickstart.md](./quickstart.md) or here.
+  Result (image `umbral:004`, Docker 29.8.1): **V2** passes. The container stays up with a literal secret and a literal hash in `/data/umbral.yaml` and `UMBRAL__CONFIG_FILE` set; the log never mentions the file; the setup banner shows the instance unclaimed; the file's sha256 is unchanged. **V4** passes: anonymous `GET /admin/config` gives 404; signed in is covered by `NoConfigFileTests`. **V5** passes: `reset-credential` prints "This instance had no operator yet. It is now claimed", `/admin/setup` then redirects to `/admin/signin`, and after `docker restart` no banner is printed. **V3, V6, V7** were not run by hand. They are covered by `NoConfigFileTests` (restart), the authorize URLs in `ProviderAdapterTests` (scopes) and the data-directory copy fact in `RestartTests`.
+- [X] T045 Run `tests/Umbral.Tests/IdleMemoryTests.fs` (Principle II, under 150 MB idle). Expect the same or lower than before, since YamlDotNet is no longer loaded. Record the number.
+  Result: measured in containers on the same Docker host after 60 s idle, since `IdleMemoryTests` on macOS only checks a sanity ceiling. VmRSS was 142,868 kB for the pre-004 image (`ddf3370`) and 143,144 kB for `umbral:004`, the same within noise (`docker stats`: 58.5 against 59.4 MiB). Dropping YamlDotNet saved nothing measurable, against the plan's "can only help". It is still under the 150 MB ceiling with about 7 MiB to spare: see the pending idle-RSS task.
+- [X] T046 Self-review the full diff against [spec.md](./spec.md). Check each FR-001 to FR-014 and SC-001 to SC-005, and that every new comment and doc sentence reads like its neighbours. Set this feature's status in [plan.md](./plan.md) and `.spec-context.json` through the companion hooks.
+  Result: every commit since `13d9262` was reviewed by the parent. FR-001 to FR-013 and SC-001 to SC-005 are met. One gap was fixed in review (`60df0bb`: the restart fact now disables the connector the file enables). FR-014: spec 001 carries the notes; specs 002 and 003 are left to the in-progress task `2026-10-10-drop-the-configuration-file-requirements-from-specs-002-and-tnch`. No operator-facing string in `src` mentions the file; every README anchor resolves.
 
 ---
 
@@ -236,4 +240,4 @@ There is no smaller MVP than the whole change set: see "One change set" above.
 | When | Tests passing | Note |
 | --- | --- | --- |
 | T003 | 423 / 423 | After merging 003 (`13d9262`); 7 min 9 s |
-| T043 | | |
+| T043 | 379 / 379 | 423 − 55 (ConfigFileTests 43 including the 7 moved cases, credential-file 8, apply-event 3, `umbral.yaml` scan case 1) + 12 (7 moved redirect URI cases, 4 NoConfigFileTests, 1 workflow scan case) = 380; then − 2 `hash-credential` + 1 data-directory copy = 379. Build 0 warnings; 1 min 48 s, against 7 min 9 s at T003. |
