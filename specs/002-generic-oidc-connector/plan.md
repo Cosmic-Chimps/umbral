@@ -19,6 +19,32 @@ It slots into spec 001's design rather than around it: one more
 builder, one nullable column, and the first real use of the schema version row
 that 001 created and never read.
 
+## Built on spec 003 (amendment, 2026-10-10)
+
+Spec 003 (per-app connectors) is complete and was merged into this branch
+before implementation (`6484e86`), because spec 004 records the owner's order
+"003 first". 003 already provides several connectors per kind, an
+operator-chosen immutable slug (`Ids.isValidSlug`, plus "not another kind's
+name"), `POST /admin/connectors` to add a connector, an editable display name,
+a per-connector `is_shared` flag, per-app connector choices, and schema
+version 2. This plan therefore **extends** those rather than adding parallel
+ones:
+
+- **Slug**: 003's rule, unchanged (spec FR-003 amended). No separate validator.
+- **Create**: 003's `create` handler in `Handlers/Admin/Connectors.fs` gains the
+  `oidc` kind and an `issuer` field. There is no `OidcConnectorCreate.fs`. For
+  `oidc`, a validation or discovery error **re-renders the add form with the
+  operator's input** (spec FR-005) instead of 003's redirect-with-notice.
+- **Screen**: an `oidc` connector is a card like any other (with its issuer
+  read-only); the kind has no "empty card" — the add form offers
+  "OpenID Connect provider" as a kind, with the issuer field and the FR-009
+  warning.
+- **Shared and per-app choice**: apply to `oidc` connectors as to every kind
+  (default shared); no extra work beyond tests.
+- **Schema**: the next version is **3**. 003's inline 1→2 upgrade becomes the
+  first of an ordered list of steps; this feature adds step 3 (`issuer_url`)
+  and the downgrade guard (research R8).
+
 ## Technical Context
 
 **Language/Version**: F# on .NET 10 (`net10.0`), unchanged
@@ -106,10 +132,10 @@ offers `findByIssuer`. `UserStore`'s linked-account display maps `oidc` rows to
 the matching connector's display name, else the issuer host.
 
 ### 5. Admin UI
-`Handlers/Admin/Connectors.fs` renders the OpenID Connect section and the Add
-form (contract); a new create handler at `POST /admin/connectors`
-(`Handlers/Admin/OidcConnectorCreate.fs`, added to the fsproj and
-`Program.endpoints`); the existing update route accepts `oidc` slugs without
+`Handlers/Admin/Connectors.fs` renders `oidc` connectors as cards and offers
+the kind on spec 003's add form (contract); spec 003's add handler at
+`POST /admin/connectors` accepts `kind = oidc` with an `issuer` field; the
+existing update route accepts `oidc` slugs without
 slug/issuer fields; `ConnectorToggle.fs` runs the discovery check before
 enabling an `oidc` connector. All messages live in `Views/Texts.fs` and name
 the next action (spec 001 SC-010).
@@ -175,8 +201,7 @@ src/Umbral/
 │   ├── UserStore.fs                          # oidc linked-account display
 │   └── ConfigFile.fs                         # apply/refuse issuer change
 ├── Handlers/Admin/
-│   ├── Connectors.fs                         # OIDC section + Add form
-│   ├── OidcConnectorCreate.fs                # NEW: POST /admin/connectors
+│   ├── Connectors.fs                         # oidc cards, add-form kind + issuer, discovery on create
 │   ├── ConnectorToggle.fs                    # check before enabling oidc
 │   └── ConfigExport.fs                       # emit issuer
 ├── Handlers/Connect/Start.fs                 # Resolve before BuildAuthorizeUrl

@@ -239,10 +239,10 @@ yes/no value, and confirm a new, separate user.
 - **FR-002**: Everything else Umbral needs about the provider MUST come from
   the provider's own published self-description under its issuer URL. No other
   provider detail MUST be operator-editable.
-- **FR-003**: The short name MUST be lowercase letters, digits and hyphens,
-  between 2 and 32 characters, MUST NOT equal a built-in provider's name, the
-  development provider's, or the name of the connector kind itself (`oidc`),
-  and MUST be unique among connectors.
+- **FR-003**: The short name MUST follow the connector short-name rule of spec
+  003 (lower-case letters, digits and hyphens, up to 32 characters, unique
+  among connectors) and MUST NOT equal the name of another connector kind
+  (`discord`, `github`, `google`, `fake`), where that kind's empty card posts.
 - **FR-004**: The short name and the issuer MUST be immutable after creation.
   The admin UI MUST say so and that changing either means deleting and adding
   the provider again.

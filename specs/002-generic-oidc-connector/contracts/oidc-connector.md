@@ -13,7 +13,7 @@ behaviour not listed here are as in spec 001's
 | Method | Path | Change |
 | --- | --- | --- |
 | GET | `/admin/connectors` | Adds the **OpenID Connect providers** section: one card per `oidc` connector, then the Add form. |
-| POST | `/admin/connectors` | **New.** Create an `oidc` connector from the Add form. Runs the discovery check (below). |
+| POST | `/admin/connectors` | **Extended** (spec 003's add route): accepts `kind = oidc` with an `issuer` field and runs the discovery check (below). For `oidc`, errors re-render the form with the input kept. |
 | POST | `/admin/connectors/{slug}` | Unchanged route. For an `oidc` slug, updates display name, client ID, client secret (replace only) and extra scopes. Slug and issuer are not accepted fields. |
 | POST | `/admin/connectors/{slug}/toggle` | For an `oidc` connector, **enabling** runs the discovery check first and refuses with the reason. Disabling never checks. |
 | POST | `/admin/connectors/{slug}/delete` | Unchanged. Deleting leaves users and linked accounts in place (spec 001 behaviour), so re-adding the same issuer reconnects them. |
@@ -25,11 +25,12 @@ All are operator-only, antiforgery-protected, htmx-optional (spec 001 rules).
 | Field | Rule | Error shown (input kept) |
 | --- | --- | --- |
 | Display name | required, ≤ 64 chars | "Give the provider a name people will recognise on the sign-in page." |
-| Short name | `^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$`, not `discord`/`github`/`google`/`fake`/`oidc`, unused | names the rule broken and the allowed form, e.g. "Use 2–32 lowercase letters, digits or hyphens, like `home` or `club-keycloak`." |
+| Short name | spec 003's rule: `Ids.isValidSlug`, unused, not another kind's name | names the rule broken and the allowed form, e.g. "Use up to 32 lowercase letters, digits or hyphens, like `home` or `club-keycloak`." |
 | Issuer URL | absolute https, no query or fragment (localhost exception) | "The issuer must start with https://. Put the provider behind https — the walkthrough shows how with the reverse proxy that already fronts Umbral." |
 | Client ID | required | |
 | Client secret | required (Clarification Q3) | "Umbral signs in as a confidential client, so it needs the client secret your provider generated." |
-| Extra scopes | optional, space-separated | |
+| Extra scopes | optional, space-separated (⟨scopes⟩ — dropped if spec 004 is confirmed) | |
+| Shared | spec 003's checkbox, ticked by default | |
 
 The form shows, before submission, the email-trust warning (FR-009) and, once
 the short name is typed or after save, the callback URL

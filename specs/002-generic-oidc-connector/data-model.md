@@ -9,13 +9,13 @@ Changes only. Everything not listed here is as in
 
 | Column | Type | Change | Notes |
 | --- | --- | --- | --- |
-| `slug` | TEXT PK | rule extended | Built-in kinds: equals the kind, as before. `oidc`: chosen by the operator, `^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$`, 2–32 chars, not `discord`/`github`/`google`/`fake`/`oidc`. Immutable. |
+| `slug` | TEXT PK | unchanged from spec 003 | Chosen by the operator under 003's rule (`Ids.isValidSlug`, not another kind's name). Immutable. |
 | `kind` | TEXT NOT NULL | value added | `discord` \| `github` \| `google` \| `fake` \| **`oidc`**. |
 | `issuer_url` | TEXT NULL | **new** | Required for `oidc`, NULL for every other kind. Absolute https URL, no query, no fragment, stored normalised (one trailing slash removed, host lowercased). **Immutable.** `UNIQUE` where not NULL (`ux_connectors_issuer`). |
 
 All other columns (`display_name`, `client_id`, `client_secret_ref`,
-`client_secret_hint`, `extra_scopes`, `is_enabled`, timestamps) apply to `oidc`
-unchanged. `client_secret_ref` is required for `oidc` (Clarification Q3).
+`client_secret_hint`, `extra_scopes`, `is_enabled`, spec 003's `is_shared`,
+timestamps) apply to `oidc` unchanged. `client_secret_ref` is required for `oidc` (Clarification Q3).
 
 **State transitions for an `oidc` connector**
 
@@ -63,7 +63,7 @@ does (the connector was deleted).
 
 | Key | Change |
 | --- | --- |
-| `schema_version` | Now read at startup. `1` → upgraded to `2` in place (adds `issuer_url` and its index). Higher than the build's version → startup refused with both versions named. |
+| `schema_version` | Upgraded through an ordered list of steps: `1 → 2` is spec 003's (`is_shared`), `2 → 3` is this feature's (`issuer_url` and its index). Higher than the build's version → startup refused with both versions named. |
 
 ## Provider self-description *(not stored)*
 

@@ -261,6 +261,22 @@ for `oidc` entries.
 
 ---
 
+## R12 — Built on spec 003
+
+**Decision**: implement on top of spec 003 (merged into this branch before
+implementation). Reuse its slug rule (`Ids.isValidSlug` + "not another kind's
+name"), its add route `POST /admin/connectors`, its card form, `is_shared` and
+per-app choice. Supersedes the parts of R8 and R10 that assumed spec 001's
+model: the schema step this feature adds is **version 3**, chained after 003's
+version 2 in an ordered list of upgrade steps; the slug regex in R10 is
+replaced by 003's rule; there is no separate create handler.
+
+**Rationale**: spec 004's clarification records the owner's order (003 first).
+Building 002 on the 001 base would have produced a second "add connector"
+route, a second slug rule and a conflicting schema version 2.
+
+---
+
 ## Constitution Check answers (for plan.md)
 
 | Gate | Answer |
