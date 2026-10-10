@@ -223,6 +223,19 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
         :> ProviderAdapters.IProviderAdapter)
     |> ignore
 
+    // One discovery cache for every `oidc` connector (research R2): a manager
+    // per issuer, built over the same named client, so a provider's discovery
+    // and keys are fetched once per refresh and not once per sign-in. The same
+    // Development-only flag that admits plain http for OpenIddict admits it for
+    // a loopback issuer, and nothing else does.
+    services.AddSingleton<OidcDiscovery.OidcDiscovery>(fun sp ->
+        OidcDiscovery.OidcDiscovery(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName,
+            allowInsecureHttp,
+            TimeSpan.FromSeconds 10.0,
+            sp.GetRequiredService<TimeProvider>()))
+    |> ignore
+
     services.AddSingleton<ProviderAdapters.Registry>(fun sp ->
         ProviderAdapters.Registry(sp.GetServices<ProviderAdapters.IProviderAdapter>()))
     |> ignore

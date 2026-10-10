@@ -48,6 +48,7 @@
     <Compile Include="Infrastructure/LogRedaction.fs" />
     <Compile Include="Infrastructure/OAuthRoundTrip.fs" />
     <Compile Include="Infrastructure/ProviderAdapters.fs" />
+    <Compile Include="Infrastructure/OidcDiscovery.fs" />
     <Compile Include="Infrastructure/Providers/Fake.fs" />
     <Compile Include="Infrastructure/Providers/Discord.fs" />
     <Compile Include="Infrastructure/Providers/GitHub.fs" />
