@@ -185,6 +185,16 @@ let ``an idle instance stays under 150 MB resident`` () =
             Console.WriteLine report
             TestContext.Current.SendDiagnosticMessage report
 
+            // A passing test prints nothing under `dotnet test`, so on GitHub
+            // Actions the number goes to the job summary: that is how the x64
+            // and arm64 figures are read off a run without opening its log.
+            match Environment.GetEnvironmentVariable "GITHUB_STEP_SUMMARY" with
+            | null
+            | "" -> ()
+            | summary ->
+                let arch = RuntimeInformation.OSArchitecture
+                File.AppendAllText(summary, $"- {arch}: **{mebibytes resident:F1} MiB** idle resident set, ceiling {mebibytes ceiling:F0} MiB{Environment.NewLine}")
+
             Assert.True(
                 resident < ceiling,
                 $"idle resident set was {mebibytes resident:F1} MiB, over the {mebibytes ceiling:F0} MiB ceiling (SC-007)"
