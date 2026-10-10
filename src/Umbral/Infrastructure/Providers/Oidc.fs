@@ -145,22 +145,38 @@ let private exchangeCode
         use! response = http.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cts.Token)
         let! body = readBounded response.Content
 
-        use doc = JsonDocument.Parse body
-        let root = doc.RootElement
+        let parsed =
+            try
+                Some(JsonDocument.Parse body)
+            with :? JsonException ->
+                None
 
-        if root.ValueKind <> JsonValueKind.Object then
-            return Error(MalformedResponse "token response was not a JSON object")
-        else
-
-        match optString root "error" with
-        | Some error -> return Error(ProviderRejected error)
-        | None ->
-            if not response.IsSuccessStatusCode then
-                return Error(ProviderRejected $"token request failed with status {int response.StatusCode}")
+        match parsed with
+        // An error page where the token response should be: a provider that is
+        // down (5xx) or refusing us (4xx), not one that sent a bad identity.
+        | None when not response.IsSuccessStatusCode ->
+            if int response.StatusCode >= 500 then
+                return Error(ProviderUnreachable $"the token endpoint answered with status {int response.StatusCode}")
             else
-                match optString root "access_token" with
-                | None -> return Error(MalformedResponse "token response had no access_token")
-                | Some accessToken -> return Ok { AccessToken = accessToken; IdToken = optString root "id_token" }
+                return Error(ProviderRejected $"token request failed with status {int response.StatusCode}")
+        | None -> return Error(MalformedResponse "token response was not JSON")
+        | Some doc ->
+            use doc = doc
+            let root = doc.RootElement
+
+            if root.ValueKind <> JsonValueKind.Object then
+                return Error(MalformedResponse "token response was not a JSON object")
+            else
+
+            match optString root "error" with
+            | Some error -> return Error(ProviderRejected error)
+            | None ->
+                if not response.IsSuccessStatusCode then
+                    return Error(ProviderRejected $"token request failed with status {int response.StatusCode}")
+                else
+                    match optString root "access_token" with
+                    | None -> return Error(MalformedResponse "token response had no access_token")
+                    | Some accessToken -> return Ok { AccessToken = accessToken; IdToken = optString root "id_token" }
     }
 
 /// What the validated `id_token` says. Read from its payload after the signature

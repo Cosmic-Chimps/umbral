@@ -269,6 +269,23 @@ let ``a token endpoint that rejects the code is a provider rejection, not an ide
         | other -> failwith $"expected ProviderRejected, got {other}"
     }
 
+[<Fact>]
+let ``a token endpoint that is down is unreachable, one that refuses without saying why is rejected`` () =
+    task {
+        let rig = newRig ()
+        rig.Stub.TokenResponse <- Some(Net.HttpStatusCode.BadGateway, "<html>Bad gateway</html>")
+
+        match! login rig with
+        | Error(ProviderUnreachable reason) -> Assert.Contains("502", reason)
+        | other -> failwith $"expected ProviderUnreachable, got {other}"
+
+        rig.Stub.TokenResponse <- Some(Net.HttpStatusCode.Forbidden, "<html>Forbidden</html>")
+
+        match! login rig with
+        | Error(ProviderRejected reason) -> Assert.Contains("403", reason)
+        | other -> failwith $"expected ProviderRejected, got {other}"
+    }
+
 // ---------------------------------------------------------------------------
 // What is accepted
 // ---------------------------------------------------------------------------

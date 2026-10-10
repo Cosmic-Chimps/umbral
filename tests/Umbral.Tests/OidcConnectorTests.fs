@@ -538,7 +538,7 @@ let ``a forged id_token fails the sign-in with the usual notice and a recorded r
     }
 
 [<Fact>]
-let ``a provider that goes down after it was added fails the sign-in with the provider-unreachable notice`` () =
+let ``a token endpoint that is down fails the sign-in with the provider-unreachable notice`` () =
     task {
         let stub = create issuer
         let! app, operator = start [ stub ] ignore []
@@ -554,7 +554,7 @@ let ``a provider that goes down after it was added fails the sign-in with the pr
         let! outcome = signInThroughProvider (Browser app.Client) stub clientId "home"
 
         match outcome with
-        | Error landed -> Assert.Contains("msg=sign-in-failed", landed)
+        | Error landed -> Assert.Contains("msg=provider-unreachable", landed)
         | Ok _ -> failwith "expected the sign-in to fail"
     }
 
