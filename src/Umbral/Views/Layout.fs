@@ -79,6 +79,25 @@ let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement
         }
     }
 
+/// Where a message page sends the person reading it, which depends on who that is.
+///
+/// Under `/admin` it is the operator, and `/admin` itself routes them to setup,
+/// sign-in or their landing screen. Everywhere else it is an end user in the
+/// middle of an app's sign-in (a rate limit on `/connect/...`, a protocol error,
+/// an expired form), and the operator sign-in is the wrong place for them —
+/// they cannot use it and should not learn it exists. There is no Umbral page
+/// to send them to either: `/signin` without a pending authorize request has
+/// nowhere to return to afterwards. What they can act on is the app they came
+/// from, so the page says so in words instead of offering a link.
+let private backLink (ctx: HttpContext) (t: Texts) : HtmlElement =
+    if ctx.Request.Path.StartsWithSegments(PathString "/admin") then
+        a(href = "/admin", class' = Components.btn Components.Primary) {
+            Components.icon Home
+            t.BackHome
+        }
+    else
+        p(class' = "text-body-md text-on-surface-variant").data("back-to-app", "") { t.BackToApp }
+
 /// Short message page whose body is composed by the caller, for the cases that
 /// need more than a sentence — a protocol error showing the detail a developer
 /// integrating an app actually needs.
@@ -91,11 +110,7 @@ let messagePageWith (ctx: HttpContext) (t: Texts) (heading: string) (body: HtmlE
 
             h1(class' = "text-headline-lg text-on-surface") { heading }
             body
-
-            a(href = "/admin", class' = Components.btn Components.Primary) {
-                Components.icon Home
-                t.BackHome
-            }
+            backLink ctx t
         }
     }
     |> page ctx t heading
