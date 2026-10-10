@@ -10,6 +10,7 @@ open Umbral.Views
 open Microsoft.AspNetCore.Authentication.Cookies
 open Microsoft.AspNetCore.DataProtection
 open Microsoft.AspNetCore.Http
+open Microsoft.AspNetCore.RateLimiting
 open Microsoft.AspNetCore.HttpOverrides
 open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.Configuration
@@ -213,6 +214,27 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
         ProviderAdapters.Registry(sp.GetServices<ProviderAdapters.IProviderAdapter>()))
     |> ignore
 
+    // Limits are attached to endpoints one by one (RateLimits.fs), so adding
+    // the service limits nothing until a route asks for a policy.
+    services.AddRateLimiter(fun options ->
+        options.RejectionStatusCode <- StatusCodes.Status429TooManyRequests
+        RateLimits.configure options
+
+        options.OnRejected <-
+            fun context ct ->
+                let ctx = context.HttpContext
+                let seconds = RateLimits.retryAfterSeconds context
+                ctx.Response.Headers.RetryAfter <- string seconds
+                ctx.GetLogger().LogWarning("Rate limit reached on {Path}", ctx.Request.Path)
+                let t = Texts.current ()
+                // Whole minutes, rounded up: "about 1 minute" for 40 seconds
+                // is truer than "0 minutes".
+                let minutes = int (Math.Ceiling(float seconds / 60.0))
+
+                ctx.WriteHtmlView(Layout.messagePage ctx t t.RateLimitedTitle (t.RateLimitedBody minutes))
+                |> ValueTask)
+    |> ignore
+
     services.AddAntiforgery() |> ignore
     services.AddRouting().AddOxpecker() |> ignore
 
@@ -247,6 +269,10 @@ let private errorHandler (ctx: HttpContext) (next: RequestDelegate) =
 
 /// Middleware order is load-bearing. Each line is here for a reason:
 ///   UseForwardedHeaders  first, so scheme and client IP are right before anything reads them
+///   UseRateLimiter       after routing, because the limits are endpoint metadata and
+///                        there is nothing to read until a route has been chosen; before
+///                        authentication and antiforgery, so a refused request costs no
+///                        cookie decryption and no password hash
 ///   UseAuthentication    OpenIddict's server integration runs INSIDE this as an
 ///                        IAuthenticationRequestHandler, so it must precede UseOxpecker
 ///   UseAntiforgery       must sit between routing and the endpoints
@@ -254,6 +280,7 @@ let configureApp (app: WebApplication) =
     app
         .UseForwardedHeaders()
         .UseRouting()
+        .UseRateLimiter()
         .UseAuthentication()
         // No UseAuthorization. Umbral has no authorization model by design
         // (Principle VII): admin access is the `requireOperator` handler

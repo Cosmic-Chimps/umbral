@@ -33,7 +33,6 @@ type Texts =
       SignInLead: string
       SignInButton: string
       SignInIncorrect: string
-      SignInRateLimited: string
 
       // Replacing the operator credential once signed in (FR-017a)
       CredentialReplaceTitle: string
@@ -166,7 +165,7 @@ type Texts =
       ErrorTitle: string
       ErrorBody: string
       RateLimitedTitle: string
-      RateLimitedBody: string
+      RateLimitedBody: int -> string
       BackToSignIn: string
       BackHome: string
 
@@ -204,7 +203,6 @@ let en: Texts =
       SignInLead = "Sign in with the operator credential to manage Apps, Connectors and Users."
       SignInButton = "Sign in"
       SignInIncorrect = "That credential wasn't right. Check it and try again."
-      SignInRateLimited = "Too many failed attempts. Wait a few minutes before trying again."
 
       CredentialReplaceTitle = "Replace the operator credential"
       CredentialReplaceLead = "Enter your current credential, then the new one. Every other admin session is signed out immediately."
@@ -336,7 +334,10 @@ let en: Texts =
       ErrorTitle = "Something went wrong"
       ErrorBody = "Umbral couldn't complete that request. Try again, and contact the operator if it keeps happening."
       RateLimitedTitle = "Too many attempts"
-      RateLimitedBody = "Wait a few minutes, then try again."
+      RateLimitedBody =
+        fun minutes ->
+            let unit = if minutes = 1 then "minute" else "minutes"
+            $"Wait about {minutes} {unit}, then try again. Nothing was lost; the limit lifts by itself."
       BackToSignIn = "Back to sign-in"
       BackHome = "Back to sign-in"
 

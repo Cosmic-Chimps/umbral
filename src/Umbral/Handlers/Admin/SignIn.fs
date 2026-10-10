@@ -2,6 +2,7 @@
 module Umbral.Handlers.Admin.SignIn
 
 open Microsoft.AspNetCore.Http
+open Microsoft.AspNetCore.Builder
 open Oxpecker
 open Oxpecker.ViewEngine
 open Umbral.Infrastructure
@@ -81,4 +82,4 @@ let submit: EndpointHandler =
 
 let endpoint =
     [ GET [ route "/admin/signin" page ]
-      POST [ route "/admin/signin" submit ] ]
+      POST [ route "/admin/signin" submit |> configureEndpoint _.RequireRateLimiting(RateLimits.AdminAuth) ] ]

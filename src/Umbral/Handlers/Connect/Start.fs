@@ -7,6 +7,7 @@
 module Umbral.Handlers.Connect.Start
 
 open Microsoft.AspNetCore.DataProtection
+open Microsoft.AspNetCore.Builder
 open Oxpecker
 open Umbral.Infrastructure
 
@@ -63,4 +64,5 @@ let handler (slug: string) : EndpointHandler =
                     return ()
         }
 
-let endpoint = GET [ routef "/connect/{%s}/start" handler ]
+let endpoint =
+    GET [ routef "/connect/{%s}/start" handler |> configureEndpoint _.RequireRateLimiting(RateLimits.SignIn) ]

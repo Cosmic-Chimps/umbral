@@ -55,6 +55,7 @@
     <Compile Include="Infrastructure/ConfigFile.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
     <Compile Include="Infrastructure/WebForms.fs" />
+    <Compile Include="Infrastructure/RateLimits.fs" />
     <Compile Include="Infrastructure/Sessions.fs" />
     <Compile Include="Infrastructure/OpenIddictSetup.fs" />
     <Compile Include="Views/Texts.fs" />
