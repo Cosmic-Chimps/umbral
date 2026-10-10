@@ -4,7 +4,8 @@ Lets people sign in to your apps with their Discord account. A good fit for a
 community that already lives on Discord.
 
 Back to the [README](../../README.md). Other providers:
-[GitHub](github.md) · [Google](google.md).
+[GitHub](github.md) · [Google](google.md) ·
+[OpenID Connect](oidc.md).
 
 ## Before you start
 

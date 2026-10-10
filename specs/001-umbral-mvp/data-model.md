@@ -62,6 +62,11 @@ lookup FR-012 performs on every first sign-in from a new provider account.
 One upstream provider account. A user may hold several (FR-012a). This is shown
 inside a User in the admin UI, not as a top-level concept.
 
+> **Extended by [spec 002](../002-generic-oidc-connector/data-model.md):** for
+> `provider_kind = 'oidc'`, `provider_subject` is `<issuer>#<sub>` (the issuer
+> normalised, then the provider's `sub`), so the identity does not depend on the
+> connector's slug.
+
 | Column | Type | Notes |
 | --- | --- | --- |
 | `user_id` | TEXT NOT NULL | FK → `users.id` ON DELETE CASCADE. |
@@ -121,6 +126,10 @@ Two things this deliberately does not do:
 ## `connectors`
 
 A configured upstream provider.
+
+> **Extended by [spec 002](../002-generic-oidc-connector/data-model.md):** a
+> fourth `kind`, `oidc`, and an immutable `issuer_url` column (required for
+> `oidc`, NULL for every other kind). Read that file for the current column list.
 
 | Column | Type | Notes |
 | --- | --- | --- |

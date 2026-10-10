@@ -5,7 +5,8 @@ demanding of the three providers to set up, and it has one limit that decides
 whether you can use it at all. Read the next section first.
 
 Back to the [README](../../README.md). Other providers:
-[Discord](discord.md) · [GitHub](github.md).
+[Discord](discord.md) · [GitHub](github.md) ·
+[OpenID Connect](oidc.md).
 
 ## Read this first: Google will not accept a raw IP address
 

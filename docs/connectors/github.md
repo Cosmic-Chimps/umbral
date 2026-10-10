@@ -5,7 +5,8 @@ easiest of the three providers to set up: no review, no consent screen to
 publish, and `http://localhost` callbacks are accepted for a laptop trial.
 
 Back to the [README](../../README.md). Other providers:
-[Discord](discord.md) · [Google](google.md).
+[Discord](discord.md) · [Google](google.md) ·
+[OpenID Connect](oidc.md).
 
 ## Before you start
 
