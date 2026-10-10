@@ -1,0 +1,501 @@
+/// The contract an integrating app depends on (T037–T041).
+///
+/// The one that matters most is the claim-content test. The T001 spike proved
+/// that a claim without a destination vanishes from both tokens in TOTAL
+/// silence — HTTP 200, a syntactically valid JWT, a valid signature, nothing in
+/// any log. The only way to notice is to decode a real token and look, so that
+/// is what this does.
+module Umbral.Tests.OidcProtocolTests
+
+open System
+open System.Net
+open System.Net.Http
+open System.Text
+open System.Text.Json
+open System.Text.RegularExpressions
+open System.Threading.Tasks
+open Microsoft.Extensions.DependencyInjection
+open Xunit
+open Umbral.Domains.Connectors
+open Umbral.Infrastructure
+open Umbral.Tests.Infrastructure
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+let private json (response: HttpResponseMessage) =
+    task {
+        let! body = response.Content.ReadAsStringAsync()
+        return JsonDocument.Parse(body).RootElement
+    }
+
+/// JsonElement.GetString() is nullable; narrow once here rather than at every
+/// assertion.
+let private text (element: JsonElement) =
+    element.GetString() |> Option.ofObj |> Option.defaultValue ""
+
+let private strOf (element: JsonElement) (name: string) = text (element.GetProperty name)
+
+let private strings (element: JsonElement) (name: string) =
+    element.GetProperty(name).EnumerateArray() |> Seq.map text |> List.ofSeq
+
+/// Decode a JWT payload without verifying it. The point here is what the token
+/// SAYS, not whether it is trustworthy — the signature has its own test.
+let private payloadOf (jwt: string) =
+    let part = jwt.Split('.')[1]
+    let padded = part.Replace('-', '+').Replace('_', '/') + String('=', (4 - part.Length % 4) % 4)
+    JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String padded)).RootElement
+
+[<Literal>]
+let private Verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+[<Literal>]
+let private Challenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+
+[<Literal>]
+let private RedirectUri = "https://grafana.example.com/callback"
+
+type private Client(http: HttpClient) =
+    let cookies = Collections.Generic.Dictionary<string, string>()
+
+    member _.Send(message: HttpRequestMessage) =
+        task {
+            if cookies.Count > 0 then
+                let header = cookies |> Seq.map (fun kv -> $"{kv.Key}={kv.Value}") |> String.concat "; "
+                message.Headers.Add("Cookie", header)
+
+            let! response = http.SendAsync message
+
+            match response.Headers.TryGetValues "Set-Cookie" with
+            | true, values ->
+                for value in Option.defaultValue Seq.empty (Option.ofObj values) do
+                    match value.Split(';').[0].Split('=', 2) with
+                    | [| name; v |] -> cookies[name] <- v
+                    | _ -> ()
+            | _ -> ()
+
+            return response
+        }
+
+    member this.Get(url: string) = this.Send(new HttpRequestMessage(HttpMethod.Get, url))
+
+    member this.TokenFrom(url: string) =
+        task {
+            let! response = this.Get url
+            let! html = response.Content.ReadAsStringAsync()
+            let m = Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"")
+            return if m.Success then m.Groups[1].Value else failwith $"no antiforgery token on {url}"
+        }
+
+    member this.PostForm(formPage: string, action: string, fields: (string * string) list) =
+        task {
+            let! token = this.TokenFrom formPage
+            let message = new HttpRequestMessage(HttpMethod.Post, action)
+            message.Content <- new FormUrlEncodedContent(dict (("__RequestVerificationToken", token) :: fields))
+            return! this.Send message
+        }
+
+let private fakeSettings =
+    [ "ASPNETCORE_ENVIRONMENT", "Development"
+      "UMBRAL:ALLOW_FAKE_CONNECTOR", "true" ]
+
+/// Claim the instance, add a fake connector, register an app. Returns the
+/// generated client id and secret.
+let private prepare (app: Fixtures.TestApp) (client: Client) =
+    task {
+        let token = app.Services.GetRequiredService<AdminAuth.SetupToken>()
+
+        let! _ =
+            client.PostForm(
+                "/admin/setup",
+                "/admin/setup",
+                [ "token", token.Value
+                  "credential", "a-very-good-credential"
+                  "confirm", "a-very-good-credential" ]
+            )
+
+        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
+        let! reference = secrets.Put("connector/fake/client_secret", "unused")
+
+        do!
+            ConnectorStore.save
+                app.DbConfig
+                app.Clock
+                { Slug = "fake"
+                  Kind = ProviderKind.Fake
+                  DisplayName = "Fake"
+                  ClientId = "fake"
+                  ClientSecretRef = reference.Encoded
+                  ClientSecretHint = "used"
+                  ExtraScopes = []
+                  IsEnabled = true
+                  CreatedUtc = app.Clock.GetUtcNow()
+                  UpdatedUtc = app.Clock.GetUtcNow() }
+                None
+
+        let! created =
+            client.PostForm(
+                "/admin/apps",
+                "/admin/apps",
+                [ "name", "Grafana"
+                  "redirectUri", RedirectUri
+                  "postLogoutRedirectUri", ""
+                  "appType", "web" ]
+            )
+
+        // The secret is shown exactly once, on the page the redirect lands on.
+        let! revealResponse = client.Get(created.Headers.Location |> string)
+        let! revealHtml = revealResponse.Content.ReadAsStringAsync()
+
+        // Anchored to each field's id. Matching on the value shape alone picks
+        // up the antiforgery token, which the layout renders first and which
+        // looks exactly like a long opaque secret.
+        let field (id: string) =
+            let m = Regex.Match(revealHtml, "id=\"" + id + "\"[^>]*value=\"([^\"]+)\"")
+            if m.Success then m.Groups[1].Value else failwith $"no {id} on the reveal page"
+
+        return field "revealed-client-id", field "revealed-secret"
+    }
+
+/// Sign in through the fake provider and return the authorization code.
+let private authorizationCode (client: Client) (clientId: string) (scope: string) =
+    task {
+        let authorizeUrl =
+            "/connect/authorize?client_id=" + Uri.EscapeDataString clientId
+            + "&response_type=code&redirect_uri=" + Uri.EscapeDataString RedirectUri
+            + "&scope=" + Uri.EscapeDataString scope
+            + "&code_challenge=" + Challenge
+            + "&code_challenge_method=S256&state=app-state"
+
+        let! toPicker = client.Get authorizeUrl
+        let picker = toPicker.Headers.Location |> string
+        let! toProvider = client.Get(picker.Replace("/signin", "/connect/fake/start"))
+
+        let providerUrl = toProvider.Headers.Location |> string
+        let decoded = Uri.UnescapeDataString providerUrl
+        let redirect = Regex.Match(decoded, "redirect_uri=([^&]+)").Groups[1].Value
+        let state = Regex.Match(decoded, "state=([^&]+)").Groups[1].Value
+
+        let! approved =
+            client.PostForm(
+                providerUrl,
+                "/dev/fake-provider/authorize",
+                [ "redirect_uri", redirect
+                  "state", state
+                  "subject", "fake-user-1"
+                  "email", "sam@example.com"
+                  "displayName", "Sam Rivera"
+                  "emailVerified", "on" ]
+            )
+
+        let! back = client.Get(approved.Headers.Location |> string)
+        let! issued = client.Get(back.Headers.Location |> string)
+        let final = issued.Headers.Location |> string
+
+        return Regex.Match(final, "code=([^&]+)").Groups[1].Value
+    }
+
+let private exchange (app: Fixtures.TestApp) (clientId: string) (secret: string) (code: string) =
+    task {
+        let message = new HttpRequestMessage(HttpMethod.Post, "/connect/token")
+
+        message.Content <-
+            new FormUrlEncodedContent(
+                dict
+                    [ "grant_type", "authorization_code"
+                      "code", Uri.UnescapeDataString code
+                      "redirect_uri", RedirectUri
+                      "code_verifier", Verifier
+                      "client_id", clientId
+                      "client_secret", secret ]
+            )
+
+        return! app.Client.SendAsync message
+    }
+
+// ---------------------------------------------------------------------------
+// T037 — discovery
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``the discovery document promises exactly what Umbral accepts`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! response = app.Client.GetAsync "/.well-known/openid-configuration"
+        let! document = json response
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+
+        // Derived from UMBRAL__PUBLIC_ORIGIN and nothing else. Every client
+        // library compares the iss claim against this.
+        Assert.StartsWith(Fixtures.TestOrigin, strOf document "issuer")
+
+        let grants = strings document "grant_types_supported"
+        Assert.Contains("authorization_code", grants)
+        Assert.Contains("refresh_token", grants)
+        // FR-002.
+        Assert.DoesNotContain("implicit", grants)
+        Assert.DoesNotContain("password", grants)
+
+        // T105: rejecting `plain` is only half the job — a client library that
+        // read this and chose it would fail for a reason nothing explains.
+        let methods = strings document "code_challenge_methods_supported"
+        Assert.Equal<string list>([ "S256" ], methods)
+
+        Assert.Equal<string list>([ "code" ], strings document "response_types_supported")
+    }
+
+[<Fact>]
+let ``the key set is published and usable`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! response = app.Client.GetAsync "/.well-known/jwks"
+        let! document = json response
+
+        let keys = document.GetProperty("keys").EnumerateArray() |> List.ofSeq
+        Assert.NotEmpty keys
+        Assert.Equal("RSA", strOf keys.Head "kty")
+    }
+
+// ---------------------------------------------------------------------------
+// T038, T039 — a real token, and what it carries
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``an authorization code exchanges for tokens`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid email profile"
+
+        let! response = exchange app clientId secret code
+        let! body = json response
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+        Assert.Equal("Bearer", strOf body "token_type")
+        Assert.True(body.TryGetProperty("id_token") |> fst)
+
+        // D3: the access token is an opaque reference, not a JWT. If this ever
+        // starts parsing as three dot-separated segments, revocation has
+        // quietly stopped being immediate.
+        let accessToken = strOf body "access_token"
+        Assert.DoesNotContain(".", accessToken)
+    }
+
+[<Fact>]
+let ``THE claims test: a real id_token carries what the scopes asked for`` () =
+    task {
+        // The regression test for SetDestinations. Without that one call every
+        // claim below vanishes, with no error anywhere — so this asserts the
+        // content of an issued token rather than how the identity was built.
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid email profile"
+
+        let! response = exchange app clientId secret code
+        let! body = json response
+        let payload = payloadOf (strOf body "id_token")
+
+        Assert.Equal(clientId, strOf payload "aud")
+        Assert.False(String.IsNullOrEmpty(strOf payload "sub"))
+
+        // email scope
+        Assert.Equal("sam@example.com", strOf payload "email")
+
+        // A real JSON boolean, not the string "true". SetClaim has 15+
+        // overloads and the string one is the easy mistake, after which an app
+        // doing `if (claims.email_verified)` treats "false" as true.
+        Assert.Equal(JsonValueKind.True, payload.GetProperty("email_verified").ValueKind)
+
+        // profile scope
+        Assert.Equal("Sam Rivera", strOf payload "name")
+
+        // Umbral's one non-standard claim, and the only honest way for an app
+        // to show "signed in with Discord".
+        Assert.Equal("fake", strOf payload "idp")
+    }
+
+[<Fact>]
+let ``a token requested without the email scope does not carry the email`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid"
+
+        let! response = exchange app clientId secret code
+        let! body = json response
+        let payload = payloadOf (strOf body "id_token")
+
+        // Destinations are scope-gated, so asking for less really gets less.
+        Assert.False(payload.TryGetProperty("email") |> fst)
+        Assert.False(payload.TryGetProperty("name") |> fst)
+        Assert.True(payload.TryGetProperty("sub") |> fst)
+    }
+
+// ---------------------------------------------------------------------------
+// T041 — user info agrees with the token
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``user info returns the same identity as the id_token`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid email profile"
+
+        let! tokenResponse = exchange app clientId secret code
+        let! tokens = json tokenResponse
+        let payload = payloadOf (strOf tokens "id_token")
+
+        let message = new HttpRequestMessage(HttpMethod.Get, "/connect/userinfo")
+        message.Headers.Add("Authorization", "Bearer " + strOf tokens "access_token")
+        let! response = app.Client.SendAsync message
+        let! info = json response
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+        Assert.Equal(strOf payload "sub", strOf info "sub")
+        Assert.Equal(strOf payload "email", strOf info "email")
+    }
+
+[<Fact>]
+let ``user info refuses an unknown token`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let message = new HttpRequestMessage(HttpMethod.Get, "/connect/userinfo")
+        message.Headers.Add("Authorization", "Bearer not-a-real-token")
+        let! response = app.Client.SendAsync message
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode)
+    }
+
+// ---------------------------------------------------------------------------
+// T040 — what the protocol must refuse
+// ---------------------------------------------------------------------------
+
+/// A rejected authorization request has two correct shapes, and which one you
+/// get is itself part of the protocol:
+///
+///   - the client and its redirect_uri are known, so the error goes BACK to
+///     the client as a redirect carrying `error=` — that is how an app learns
+///     it sent something wrong;
+///   - the redirect_uri is not registered, so there is nowhere safe to send
+///     anyone and Umbral answers on its own page.
+///
+/// What must never happen is the request succeeding.
+let private assertRejectedToClient (response: HttpResponseMessage) =
+    let location = response.Headers.Location |> string
+
+    if response.StatusCode = HttpStatusCode.Found then
+        Assert.StartsWith(RedirectUri, location)
+        Assert.Contains("error=", location)
+    else
+        // Answered here instead, which is also fine — but it must not be a
+        // redirect anywhere else, and must not be a success.
+        Assert.NotEqual(HttpStatusCode.OK, response.StatusCode)
+
+[<Fact>]
+let ``an authorization code cannot be used twice`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid"
+
+        let! first = exchange app clientId secret code
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode)
+
+        // FR-008. A replayed code is the classic interception attack.
+        let! second = exchange app clientId secret code
+        let! body = json second
+        Assert.Equal("invalid_grant", strOf body "error")
+    }
+
+[<Fact>]
+let ``the wrong PKCE verifier is refused`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid"
+
+        let message = new HttpRequestMessage(HttpMethod.Post, "/connect/token")
+
+        message.Content <-
+            new FormUrlEncodedContent(
+                dict
+                    [ "grant_type", "authorization_code"
+                      "code", Uri.UnescapeDataString code
+                      "redirect_uri", RedirectUri
+                      "code_verifier", "a-completely-different-verifier-that-is-long-enough"
+                      "client_id", clientId
+                      "client_secret", secret ]
+            )
+
+        let! response = app.Client.SendAsync message
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+    }
+
+[<Fact>]
+let ``an unregistered redirect_uri is refused WITHOUT redirecting there`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, _ = prepare app client
+
+        let! response =
+            client.Get(
+                "/connect/authorize?client_id=" + Uri.EscapeDataString clientId
+                + "&response_type=code&redirect_uri=" + Uri.EscapeDataString "https://evil.example.com/steal"
+                + "&scope=openid&code_challenge=" + Challenge
+                + "&code_challenge_method=S256&state=s"
+            )
+
+        // FR-003, and the assertion that matters: whatever Umbral does, it
+        // must not send the browser to an address the app never registered.
+        // Doing so would hand the code to whoever asked for it.
+        let location = response.Headers.Location |> string
+        Assert.DoesNotContain("evil.example.com", location)
+    }
+
+[<Fact>]
+let ``an authorization request without PKCE is refused`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, _ = prepare app client
+
+        let! response =
+            client.Get(
+                "/connect/authorize?client_id=" + Uri.EscapeDataString clientId
+                + "&response_type=code&redirect_uri=" + Uri.EscapeDataString RedirectUri
+                + "&scope=openid&state=s"
+            )
+
+        // FR-002: PKCE is required of every client, not merely offered.
+        assertRejectedToClient response
+    }
+
+[<Fact>]
+let ``plain PKCE is refused even though a client may ask for it`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, _ = prepare app client
+
+        // OpenIddict accepts `plain` out of the box, and `plain` sends the
+        // verifier AS the challenge — so PKCE protects nothing. T105 is the
+        // custom handler that refuses it; this is the test that it still does.
+        let! response =
+            client.Get(
+                "/connect/authorize?client_id=" + Uri.EscapeDataString clientId
+                + "&response_type=code&redirect_uri=" + Uri.EscapeDataString RedirectUri
+                + "&scope=openid&code_challenge=" + Verifier
+                + "&code_challenge_method=plain&state=s"
+            )
+
+        assertRejectedToClient response
+    }

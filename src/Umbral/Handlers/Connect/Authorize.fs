@@ -128,26 +128,40 @@ let private forbid (ctx: HttpContext) (error: string) (description: string) =
 let handler: EndpointHandler =
     fun ctx ->
         task {
+            // The RESPONSE is checked first, and that ordering is the whole
+            // point.
+            //
+            // When OpenIddict rejects an authorization request — an unknown
+            // client, a missing PKCE challenge, an unregistered redirect_uri —
+            // it sets a response AND leaves the parsed request in place, then
+            // passes the request through. Looking at the request first and only
+            // consulting the response when it is null means a rejected request
+            // sails on into the sign-in picker: Umbral would show a login page
+            // for a client it has never heard of, and only fail later, if at
+            // all.
+            // The RESPONSE is checked first, and that ordering is the point.
+            //
+            // When OpenIddict rejects an authorization request — an unknown
+            // client, a missing PKCE challenge, an unregistered redirect_uri —
+            // it sets a response AND leaves the parsed request in place, then
+            // passes it through. Looking at the request first, and consulting
+            // the response only when the request is null, lets a rejected
+            // request sail on into the sign-in picker: Umbral would show a
+            // login page for a client it has never heard of.
+            if not (isNull (box (ctx.GetOpenIddictServerResponse()))) then
+                // OpenIddict has already decided, and its error names the
+                // protocol fact an integrating developer needs.
+                return! Error.handler ctx
+            else
+
             match ctx.GetOpenIddictServerRequest() with
             | null ->
-                // Two different causes, and telling them apart matters.
-                //
-                // With error passthrough on, a request OpenIddict REJECTED is
-                // handed to this route with no stashed request but with a
-                // response carrying the error — a missing PKCE challenge, an
-                // unregistered redirect_uri, a plain-http request. That is
-                // ordinary operation and belongs on the error page.
-                //
-                // No response either means the route and Set*EndpointUris
-                // genuinely disagree, which is a wiring bug and should say so.
-                match ctx.GetOpenIddictServerResponse() with
-                | null ->
-                    return
-                        failwith
-                            "The OpenID Connect request could not be retrieved and OpenIddict produced no \
-                             response. The Oxpecker route and OpenIddictSetup's endpoint URI disagree."
-                | _ -> return! Error.handler ctx
-
+                // Neither a request nor a response: the Oxpecker route and
+                // Set*EndpointUris genuinely disagree. A wiring bug.
+                return
+                    failwith
+                        "The OpenID Connect request could not be retrieved and OpenIddict produced no \
+                         response. The Oxpecker route and OpenIddictSetup's endpoint URI disagree."
             | request ->
 
             let! session = ctx.AuthenticateAsync Sessions.Scheme
