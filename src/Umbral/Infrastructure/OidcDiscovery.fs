@@ -50,6 +50,14 @@ let asymmetricAlgorithms =
 /// Ten seconds, as every other call to a provider.
 let private defaultTimeout = TimeSpan.FromSeconds 10.0
 
+/// The most a discovery document or a key set may weigh. A provider is untrusted
+/// input, and `HttpDocumentRetriever` buffers whatever it is sent: without a cap a
+/// 200 OK with an endless body is a memory-exhaustion vector. The adapters cap
+/// their own reads at the same size (`readBounded`); this is the same rule for the
+/// one place the library does the reading.
+[<Literal>]
+let MaxDocumentBytes = 1_000_000L
+
 /// The library's own minimum between forced refreshes.
 let private minimumRefreshInterval = TimeSpan.FromMinutes 5.0
 
@@ -143,6 +151,18 @@ let private classify (timeout: TimeSpan) (error: exn) : DiscoveryResult =
     // names a wrong address, not a provider that is down.
     if causes |> List.exists (fun e -> e.Message.Contains "IDX20108") then
         Wrong "The provider's jwks_uri is not an https address. Umbral will not fetch signing keys over plain http."
+    // The cap on what one fetch may buffer (`MaxDocumentBytes`) was hit. Not a
+    // document the provider sent badly but one that is not a document: unreachable,
+    // as a page where JSON should be is. The framework words this as a plain
+    // `HttpRequestException`, so its limit error is how it is recognised.
+    elif causes
+         |> List.exists (fun e ->
+             match e with
+             | :? HttpRequestException as http ->
+                 http.HttpRequestError = HttpRequestError.ConfigurationLimitExceeded
+                 || http.Message.Contains "maximum buffer size"
+             | _ -> false) then
+        Unreachable $"its answer was larger than {MaxDocumentBytes / 1_000_000L} MB, so it is not a discovery document or a key set"
     elif causes |> List.exists (fun e -> e :? OperationCanceledException) then
         Unreachable $"no answer within {timeout.TotalSeconds} seconds"
     // IDX20807 is the library's "the answer was not a success". It hides the
@@ -167,7 +187,14 @@ let private classify (timeout: TimeSpan) (error: exn) : DiscoveryResult =
 /// `timeout` bounds one fetch, discovery document and keys together; production
 /// uses the ten seconds of the other provider calls. `time` is Umbral's clock, so
 /// a test that drives the clock drives the refresh throttle too.
+///
+/// `client` becomes this cache's own: its `MaxResponseContentBufferSize` is set to
+/// `MaxDocumentBytes` here, so it must be an instance made for this purpose, not
+/// one shared with the adapters (the factory hands out a new `HttpClient` on every
+/// `CreateClient`, so the setting stays with this one).
 type OidcDiscovery(client: HttpClient, allowLocalhostHttp: bool, timeout: TimeSpan, time: TimeProvider) =
+    do client.MaxResponseContentBufferSize <- MaxDocumentBytes
+
     let managers = ConcurrentDictionary<string, ConfigurationManager<OpenIdConnectConfiguration>>()
 
     /// When each issuer was last refreshed on demand, for the throttle.
