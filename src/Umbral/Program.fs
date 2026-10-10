@@ -349,6 +349,11 @@ let initialize (app: WebApplication) =
                     let applications = scope.ServiceProvider.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>()
                     let! appsApplied = ConfigFile.applyApps dbConfig clock applications resolved
 
+                    // Before the setup banner below: a file that carries the
+                    // operator credential claims the instance, and an instance
+                    // that is already claimed has no use for the banner.
+                    let! operatorApplied = ConfigFile.applyOperator dbConfig clock resolved
+
                     do!
                         SecurityEvents.record
                             dbConfig
@@ -357,7 +362,13 @@ let initialize (app: WebApplication) =
                                   SecurityEvents.ConfigApplied
                                   SecurityEvents.Success
                                   SecurityEvents.Actor.System with
-                                Detail = Some $"connectors={applied};apps={appsApplied}" }
+                                Detail =
+                                    Some(
+                                        $"connectors={applied};apps={appsApplied}"
+                                        + (match operatorApplied with
+                                           | Some result -> $";operator={string result}".ToLowerInvariant()
+                                           | None -> "")
+                                    ) }
 
         // A fake connector authenticates anyone as whoever they claim to be.
         // If one is configured on an instance that has not explicitly allowed
@@ -453,8 +464,57 @@ let private resetCredential (app: WebApplication) =
             return 1
     }
 
+/// FR-017a: make the verification value the configuration file's
+/// `operator.credential_hash` points at, without Umbral needing a data
+/// directory, an origin or anything else to be configured — it is meant to be
+/// run anywhere, including on the laptop the file is written on.
+///
+///     echo -n 'the credential' | docker run --rm -i umbral hash-credential
+///
+/// Read from standard input rather than taken as an argument, so the credential
+/// is never in a process list or a shell history.
+let private hashCredential () =
+    let typed =
+        if Console.IsInputRedirected then
+            Console.In.ReadLine()
+        else
+            // At a terminal, typed without echo: this is the credential.
+            eprintf "Operator credential: "
+            let typed = Text.StringBuilder()
+            let mutable key = Console.ReadKey true
+
+            while key.Key <> ConsoleKey.Enter do
+                if key.Key = ConsoleKey.Backspace then
+                    if typed.Length > 0 then typed.Length <- typed.Length - 1
+                else
+                    typed.Append key.KeyChar |> ignore
+
+                key <- Console.ReadKey true
+
+            eprintfn ""
+            typed.ToString()
+
+    // Trimmed like every form field is (WebForms.value), so the hash verifies
+    // what the sign-in form will later send.
+    let credential = (match typed with | null -> "" | line -> line).Trim()
+
+    if credential.Length < AdminAuth.MinimumLength then
+        eprintfn $"The credential must be at least {AdminAuth.MinimumLength} characters. Nothing was printed."
+        1
+    else
+        // Standard output carries the hash and nothing else, so it can be
+        // captured. The hash holds `$`, which compose and shells expand: it is
+        // reproduced here quoted for a .env file, the usual place for it.
+        let hash = AdminAuth.hashCredential credential
+        Console.WriteLine hash
+        eprintfn "Put that in the environment variable the file references, in single quotes in a .env file:"
+        eprintfn $"  UMBRAL_OPERATOR_HASH='{hash}'"
+        0
+
 [<EntryPoint>]
 let main args =
+    if args |> Array.contains "hash-credential" then hashCredential () else
+
     let app = buildApp args ignore
     (initialize app).GetAwaiter().GetResult()
 

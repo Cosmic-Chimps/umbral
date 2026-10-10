@@ -128,7 +128,9 @@ Open that address, paste the token, and choose an **operator credential** of at
 least 12 characters. It is the only way into the admin area and it is not tied
 to any provider, so a broken Discord or Google app can never lock you out. Use
 a password manager: there is no recovery screen (but see
-[Forgotten operator credential](#forgotten-operator-credential)).
+[Forgotten operator credential](#forgotten-operator-credential)). To change it
+later while signed in, open **Credential** in the top bar: it asks for the
+current one and the new one twice, and signs every other admin session out.
 
 > Umbral has no front page: `/` and `/admin` answer "Not found". The admin area
 > starts at `/admin/setup` the first time and `/admin/signin` afterwards.
@@ -505,6 +507,36 @@ apps:
   register in the admin UI shows its generated secret once; to manage it from the
   file, put that secret in the variable.
 
+### The operator credential in the file
+
+The file can also claim the instance for you, so there is no setup screen to
+visit. It never holds the credential, only a **hash** of it, and that hash goes
+in an environment variable like any other secret:
+
+```bash
+# on any machine with the image; nothing needs configuring
+echo -n 'a credential of 12+ characters' | docker run --rm -i umbral hash-credential
+```
+
+It prints the hash and a ready `.env` line. Keep the value in **single quotes**:
+it contains `$`, which compose and shells would otherwise expand.
+
+```yaml
+operator:
+  credential_hash: ${UMBRAL_OPERATOR_HASH}
+```
+
+```bash
+# .env
+UMBRAL_OPERATOR_HASH='pbkdf2-sha256$600000$...$...'
+```
+
+On an unclaimed instance this sets the credential and Umbral prints no setup
+banner. After that the file applies **only when its hash changes**: a
+credential you replaced from the admin area is not put back by a restart, and
+editing the hash in the file replaces the credential and signs every admin
+session out. A literal `credential_hash:` is an error, like any literal secret.
+
 ## Forgotten operator credential
 
 Run this on the machine that hosts the container:
@@ -516,9 +548,11 @@ docker compose exec umbral /app/Umbral reset-credential
 ```
 
 It replaces the credential with a freshly generated one and prints it, once.
-Sign in at `/admin/signin` with it and store it in a password manager. There is
-deliberately no "forgot your credential" page: reaching this command needs
-access to the machine, which is more than reaching the web page needs.
+Sign in at `/admin/signin` with it, then choose your own under **Credential**,
+and store it in a password manager. Every admin session open before the reset is
+ended. There is deliberately no "forgot your credential" page: reaching this
+command needs access to the machine, which is more than reaching the web page
+needs.
 
 ## Settings reference
 

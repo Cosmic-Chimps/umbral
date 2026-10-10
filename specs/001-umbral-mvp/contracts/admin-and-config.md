@@ -108,6 +108,9 @@ Supplied as `UMBRAL__CONFIG_FILE` or found at `/data/umbral.yaml`.
 ```yaml
 version: 1
 
+operator:                              # optional (FR-017a)
+  credential_hash: ${UMBRAL_OPERATOR_HASH}   # output of `Umbral hash-credential`
+
 connectors:
   - slug: discord                      # immutable; it is in the callback URL
     kind: discord                      # discord | github | google
@@ -148,9 +151,24 @@ Whole-document, before anything is written, so a bad file never half-applies
 | The referenced variable is set | `connectors[0].client_secret references UMBRAL_DISCORD_SECRET, which is not set` |
 | `redirect_uris` is non-empty, absolute, no wildcards | `apps[1].redirect_uris[0] "https://*.example.com/cb" contains a wildcard` |
 | `client_id` is unique | `apps[3].client_id "grafana" is used twice` |
+| `operator.credential_hash` is `${VAR}`, and the variable holds a hash | `operator.credential_hash is a literal value. The file never holds the credential` |
 
 A literal secret is an **error, not a warning**. That rule is the thing keeping a
 secret out of the operator's git repository, and a warning would be ignored.
+
+### The operator credential
+
+The file may carry the operator credential as a **verification value** — a
+PBKDF2 hash in Umbral's own format, produced offline by `Umbral hash-credential`
+(plaintext on standard input, hash on standard output) — never the credential.
+It must be a `${VAR}` reference like every other secret: a hash is still
+something to brute-force, and the repository-secret scan treats a literal under
+a key that names a credential as an error. Applying it on an unclaimed instance
+claims it (no setup banner). Afterwards it applies **only when the hash in the
+file differs from the one last applied**, so a credential replaced from the admin
+screen is not reverted by a restart, while editing the file replaces it and ends
+every admin session. Export does not emit the `operator:` block: the instance
+cannot know whether its operator wants the credential file-managed.
 
 ### Idempotence and the one asymmetry
 

@@ -28,8 +28,16 @@ type AppEntry =
       RedirectUris: string list
       PostLogoutRedirectUris: string list }
 
+/// The operator credential, as a verification value (FR-017a).
+type OperatorEntry =
+    { /// As written in the file: a `${VAR}` reference to a hash made by
+      /// `Umbral hash-credential`. Never the credential, and — because a hash
+      /// is still something to brute-force — never a literal either.
+      CredentialHash: string }
+
 type Document =
     { Version: int
+      Operator: OperatorEntry option
       Connectors: ConnectorEntry list
       Apps: AppEntry list }
 
@@ -117,6 +125,25 @@ let private validateUri where (value: string) =
     | Ok _ -> []
     | Error what -> [ problem where what ]
 
+let private validateOperator (entry: OperatorEntry) =
+    let where = "operator.credential_hash"
+
+    if String.IsNullOrWhiteSpace entry.CredentialHash then
+        [ problem
+              where
+              "is empty. Give a reference such as ${UMBRAL_OPERATOR_HASH}, holding the output of \
+               `Umbral hash-credential`." ]
+    elif (referencedVariable entry.CredentialHash).IsNone then
+        // Said plainly, because the likeliest cause is the credential itself
+        // pasted into the file, and the message must not echo the value.
+        [ problem
+              where
+              "is a literal value. The file never holds the credential: run `Umbral hash-credential`, \
+               put its output in an environment variable and write a reference such as \
+               ${UMBRAL_OPERATOR_HASH} here, so that this file can be kept in version control." ]
+    else
+        []
+
 let private validateConnector (index: int) (entry: ConnectorEntry) =
     let at field = $"connectors[{index}].{field}"
 
@@ -174,6 +201,10 @@ let validate (document: Document) : Problem list =
           problem
               "version"
               $"is {document.Version}. This build understands version {SupportedVersion}."
+
+      match document.Operator with
+      | Some entry -> yield! validateOperator entry
+      | None -> ()
 
       for slug in duplicates (fun (c: ConnectorEntry) -> c.Slug) document.Connectors do
           problem "connectors" $"\"{slug}\" appears more than once. A slug identifies a connector."

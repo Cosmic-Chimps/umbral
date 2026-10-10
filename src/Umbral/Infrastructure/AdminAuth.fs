@@ -87,6 +87,23 @@ let verifyCredential (stored: string) (candidate: string) =
         | _ -> false
     | _ -> false
 
+/// Whether `value` is a verification value in the format `hashCredential`
+/// writes, and strong enough to be one: the file takes a hash rather than a
+/// credential, and a mistyped plaintext must be refused rather than stored as
+/// something no one can ever sign in with.
+let isCredentialHash (value: string) =
+    match value.Split '$' with
+    | [| "pbkdf2-sha256"; iterations; salt; hash |] ->
+        match Int32.TryParse iterations with
+        | true, iterations when iterations >= 100_000 ->
+            try
+                Convert.FromBase64String(salt).Length >= SaltBytes
+                && Convert.FromBase64String(hash).Length = HashBytes
+            with :? FormatException ->
+                false
+        | _ -> false
+    | _ -> false
+
 /// How long a credential must be. Short enough not to be theatre, long enough
 /// that 600k PBKDF2 iterations are actually protecting something.
 [<Literal>]
@@ -169,6 +186,51 @@ let replaceCredential (config: Database.DbConfig) (clock: TimeProvider) (plainte
             do! writeSetting config clock CredentialSetKey (clock.GetUtcNow().ToString "o")
             do! writeSetting config clock SessionStampKey (Umbral.Domains.Ids.newSubject ())
             return Set
+    }
+
+/// The hash the configuration file last applied, so that a restart which finds
+/// the same value in the file changes nothing — and so a credential the
+/// operator replaced from the admin screen since is not put back by it.
+[<Literal>]
+let private FileCredentialKey = "operator_credential_file_hash"
+
+type FileCredentialResult =
+    /// An unclaimed instance took the file's credential: no setup screen needed.
+    | Claimed
+    /// The file carries a different value from the last one it applied.
+    | Replaced
+    | Unchanged
+
+/// Apply the operator credential a configuration file carries (FR-017a), as a
+/// hash made by `Umbral hash-credential` — the file never holds the credential.
+///
+/// "The file wins on every start" would be wrong here: it would quietly undo
+/// every replacement made from the admin screen at the next restart. So the file
+/// wins when its value CHANGES, which is the only time the operator edited it.
+let applyCredentialHash (config: Database.DbConfig) (clock: TimeProvider) (hash: string) : Task<FileCredentialResult> =
+    task {
+        let! configured = isConfigured config
+        let! lastApplied = readSetting config FileCredentialKey
+        let! stored = readSetting config CredentialKey
+
+        if lastApplied = Some hash then
+            return Unchanged
+        else
+            do! writeSetting config clock FileCredentialKey hash
+
+            if stored = Some hash then
+                // Already the credential, by whichever door: nothing to change
+                // and no one to sign out.
+                return Unchanged
+            else
+                do! writeSetting config clock CredentialKey hash
+                do! writeSetting config clock CredentialSetKey (clock.GetUtcNow().ToString "o")
+
+                if configured then
+                    do! writeSetting config clock SessionStampKey (Umbral.Domains.Ids.newSubject ())
+                    return Replaced
+                else
+                    return Claimed
     }
 
 let verify (config: Database.DbConfig) (candidate: string) : Task<bool> =

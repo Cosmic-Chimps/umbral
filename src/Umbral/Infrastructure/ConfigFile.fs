@@ -49,8 +49,13 @@ type AppDto() =
     member val PostLogoutRedirectUris: List<string> | null = null with get, set
 
 [<AllowNullLiteral>]
+type OperatorDto() =
+    member val CredentialHash: string = "" with get, set
+
+[<AllowNullLiteral>]
 type DocumentDto() =
     member val Version: int = 0 with get, set
+    member val Operator: OperatorDto = null with get, set
     member val Connectors: List<ConnectorDto> | null = null with get, set
     member val Apps: List<AppDto> | null = null with get, set
 
@@ -99,6 +104,10 @@ let parse (yaml: string) : Result<Document, ParseError> =
 
     let document =
         { Version = dto.Version
+          Operator =
+            match dto.Operator with
+            | null -> None
+            | operator -> Some { CredentialHash = operator.CredentialHash }
           Connectors =
             listOf dto.Connectors
             |> List.map (fun c ->
@@ -150,36 +159,53 @@ let MinimumAppSecretLength = 16
 let resolveSecrets (read: string -> string | null) (document: Document) =
     let missing = ResizeArray<ResolveError>()
 
-    let resolve minimumLength where (reference: string) =
+    // `refuse` judges the VALUE and answers with why it will not do, or None.
+    // The reason never quotes the value: for the operator's hash the likeliest
+    // mistake is the credential itself, and an error message is a log line.
+    let resolve (refuse: string -> string option) where (reference: string) =
         match referencedVariable reference with
         | None -> reference
         | Some name ->
             match Option.ofObj (read name) with
-            | Some value when value.Length >= max 1 minimumLength -> value
             | Some value when value.Length > 0 ->
-                missing.Add
-                    { Where = where
-                      Variable = name
-                      Reason = $"is shorter than the {minimumLength} characters an app secret needs" }
-
-                ""
+                match refuse value with
+                | None -> value
+                | Some reason ->
+                    missing.Add { Where = where; Variable = name; Reason = reason }
+                    ""
             | _ ->
                 missing.Add { Where = where; Variable = name; Reason = "is not set" }
                 ""
 
+    let anything (_: string) = None
+
+    let longEnough (value: string) =
+        if value.Length >= MinimumAppSecretLength then
+            None
+        else
+            Some $"is shorter than the {MinimumAppSecretLength} characters an app secret needs"
+
+    let isAHash (value: string) =
+        if AdminAuth.isCredentialHash value then
+            None
+        else
+            Some "does not hold a hash made by `Umbral hash-credential`. Put the hash there, not the credential"
+
     let resolved =
         { document with
+            Operator =
+                document.Operator
+                |> Option.map (fun o ->
+                    { o with CredentialHash = resolve isAHash "operator.credential_hash" o.CredentialHash })
             Connectors =
                 document.Connectors
                 |> List.mapi (fun i c ->
-                    { c with ClientSecret = resolve 1 $"connectors[{i}].client_secret" c.ClientSecret })
+                    { c with ClientSecret = resolve anything $"connectors[{i}].client_secret" c.ClientSecret })
             Apps =
                 document.Apps
                 |> List.mapi (fun i a ->
                     { a with
-                        ClientSecret =
-                            a.ClientSecret
-                            |> Option.map (resolve MinimumAppSecretLength $"apps[{i}].client_secret") }) }
+                        ClientSecret = a.ClientSecret |> Option.map (resolve longEnough $"apps[{i}].client_secret") }) }
 
     if missing.Count = 0 then Ok resolved else Error(List.ofSeq missing)
 
@@ -285,6 +311,31 @@ let applyConnectors
                                     Detail = Some("source=config_file;changed=" + String.concat "," changed) }
 
         return applied
+    }
+
+/// Apply the operator credential the file carries, if it carries one (FR-017a).
+///
+/// Recorded with actor System like the rest of the file's changes, and only
+/// when something changed — a restart that finds the same hash records nothing.
+let applyOperator (config: Database.DbConfig) (clock: TimeProvider) (document: Document) : Task<AdminAuth.FileCredentialResult option> =
+    task {
+        match document.Operator with
+        | None -> return None
+        | Some entry ->
+            let! result = AdminAuth.applyCredentialHash config clock entry.CredentialHash
+
+            if result <> AdminAuth.Unchanged then
+                do!
+                    SecurityEvents.record
+                        config
+                        clock
+                        { SecurityEvents.event
+                              SecurityEvents.OperatorCredentialChanged
+                              SecurityEvents.Success
+                              SecurityEvents.Actor.System with
+                            Detail = Some "source=config_file" }
+
+            return Some result
     }
 
 /// Apply the `apps:` list. Idempotent on `client_id`, like the connectors.

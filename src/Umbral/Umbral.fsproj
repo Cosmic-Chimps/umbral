@@ -54,9 +54,9 @@
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
+    <Compile Include="Infrastructure/AdminAuth.fs" />
     <Compile Include="Infrastructure/AppClients.fs" />
     <Compile Include="Infrastructure/ConfigFile.fs" />
-    <Compile Include="Infrastructure/AdminAuth.fs" />
     <Compile Include="Infrastructure/WebForms.fs" />
     <Compile Include="Infrastructure/RateLimits.fs" />
     <Compile Include="Infrastructure/Sessions.fs" />
