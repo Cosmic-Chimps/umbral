@@ -30,6 +30,7 @@ let endpoints: Endpoint list =
       Umbral.Handlers.Admin.SignOut.endpoint
       yield! Umbral.Handlers.Admin.Connectors.endpoint
       Umbral.Handlers.Admin.ConnectorToggle.endpoint
+      yield! Umbral.Handlers.Dev.FakeProvider.endpoint
       yield! Umbral.Handlers.Admin.Apps.endpoint
       Umbral.Handlers.Admin.AppSecret.endpoint
       Umbral.Handlers.Admin.AppDelete.endpoint
@@ -171,6 +172,20 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
             new HttpClientHandler(AllowAutoRedirect = false, MaxAutomaticRedirections = 1) :> HttpMessageHandler)
     |> ignore
 
+    // Development only, and refused at startup if a fake connector exists
+    // without both gate conditions — see `initialize`.
+    services.AddSingleton<Providers.Fake.FakeGate>() |> ignore
+
+    services.AddSingleton<Providers.Fake.FakeAdapter>(fun sp ->
+        Providers.Fake.FakeAdapter(
+            sp.GetRequiredService<IDataProtectionProvider>(),
+            sp.GetRequiredService<Providers.Fake.FakeGate>()))
+    |> ignore
+
+    services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
+        sp.GetRequiredService<Providers.Fake.FakeAdapter>() :> ProviderAdapters.IProviderAdapter)
+    |> ignore
+
     services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
         Providers.Discord.DiscordAdapter(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName)
@@ -237,6 +252,17 @@ let initialize (app: WebApplication) =
         // first, so claiming it also needs a token only someone who can read
         // the container log has. Printed last, after EF Core's migration
         // chatter, so it is the final thing on screen.
+        // A fake connector authenticates anyone as whoever they claim to be.
+        // If one is configured on an instance that has not explicitly allowed
+        // it, refusing to start is the only safe answer: continuing would mean
+        // serving a live authentication bypass, and a warning in a log nobody
+        // reads is not a mitigation.
+        let! connectors = ConnectorStore.listAll dbConfig
+        let gate = app.Services.GetRequiredService<Providers.Fake.FakeGate>()
+
+        if connectors |> List.exists (fun c -> c.Kind = Umbral.Domains.Connectors.Fake) && not gate.IsAllowed then
+            failwith gate.Explain
+
         let! configured = AdminAuth.isConfigured dbConfig
 
         if not configured then

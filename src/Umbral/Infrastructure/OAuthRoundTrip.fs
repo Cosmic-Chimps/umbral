@@ -9,7 +9,6 @@
 module Umbral.Infrastructure.OAuthRoundTrip
 
 open System
-open System.Text.Json
 open Microsoft.AspNetCore.DataProtection
 open Microsoft.AspNetCore.Http
 open Umbral.Domains
@@ -60,32 +59,39 @@ type RoundTripError =
 
 // ---------------------------------------------------------------------------
 // Serialisation
+//
+// Six strings joined by a unit separator, not JSON.
+//
+// The first version used System.Text.Json over a `type private Stored`. F#
+// compiles a private type as non-public, which the serializer cannot construct,
+// so every correlation came back as a decode failure — indistinguishable from
+// tampering, and reported as such. Joining six values we control needs no
+// serializer at all.
+//
+// None of these values can contain the separator: they are all base64url
+// (state, verifier, nonce), a validated slug, or a local path.
 // ---------------------------------------------------------------------------
 
-[<CLIMutable>]
-type private Stored =
-    { s: string
-      v: string
-      n: string
-      g: string
-      r: string
-      t: string }
+[<Literal>]
+let private Separator = '\u001f'
 
-let private toStored (c: Correlation) =
-    { s = c.State
-      v = c.CodeVerifier
-      n = c.Nonce
-      g = c.Slug
-      r = c.ReturnUrl
-      t = c.IssuedAtUtc.ToString "o" }
+let private encode (c: Correlation) =
+    String.Join(Separator, [| c.State; c.CodeVerifier; c.Nonce; c.Slug; c.ReturnUrl; c.IssuedAtUtc.ToString "o" |])
 
-let private fromStored (s: Stored) =
-    { State = s.s
-      CodeVerifier = s.v
-      Nonce = s.n
-      Slug = s.g
-      ReturnUrl = s.r
-      IssuedAtUtc = DateTimeOffset.Parse(s.t, Globalization.CultureInfo.InvariantCulture) }
+let private decode (payload: string) =
+    match payload.Split Separator with
+    | [| state; verifier; nonce; slug; returnUrl; issuedAt |] ->
+        match DateTimeOffset.TryParse(issuedAt, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.RoundtripKind) with
+        | true, issuedAt ->
+            Some
+                { State = state
+                  CodeVerifier = verifier
+                  Nonce = nonce
+                  Slug = slug
+                  ReturnUrl = returnUrl
+                  IssuedAtUtc = issuedAt }
+        | _ -> None
+    | _ -> None
 
 // ---------------------------------------------------------------------------
 // Begin
@@ -115,7 +121,7 @@ let start
           IssuedAtUtc = clock.GetUtcNow() }
 
     let protector = protectorProvider.CreateProtector ProtectorPurpose
-    let payload = protector.Protect(JsonSerializer.Serialize(toStored correlation))
+    let payload = protector.Protect(encode correlation)
 
     let options = CookieOptions()
     options.HttpOnly <- true
@@ -183,14 +189,7 @@ let complete
     let correlation =
         try
             let protector = protectorProvider.CreateProtector ProtectorPurpose
-            let json = protector.Unprotect payload
-
-            // Deserialize is typed nullable: malformed JSON yields null rather
-            // than throwing for some shapes, and a null correlation must be
-            // treated as tampering, not dereferenced.
-            JsonSerializer.Deserialize<Stored> json
-            |> Option.ofObj
-            |> Option.map fromStored
+            decode (protector.Unprotect payload)
         with _ ->
             // A tampered or undecryptable cookie, or a key ring that changed.
             // Indistinguishable from an attack, and treated as one.

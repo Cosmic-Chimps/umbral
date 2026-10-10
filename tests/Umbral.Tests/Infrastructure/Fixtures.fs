@@ -93,7 +93,15 @@ let createAppWith (settings: (string * string) list) (customize: WebApplicationB
         do! Umbral.Program.initialize app
         do! app.StartAsync()
 
-        return new TestApp(app, app.GetTestClient(), dataDirectory, clock)
+        let client = app.GetTestClient()
+
+        // TestServer takes the request scheme from the URI, and OpenIddict
+        // refuses plain http by default. Pointing the client at the configured
+        // public origin makes the test speak https, as a deployment does,
+        // rather than needing the insecure-http escape hatch switched on.
+        client.BaseAddress <- Uri TestOrigin
+
+        return new TestApp(app, client, dataDirectory, clock)
     }
 
 let createApp () = createAppWith [] ignore

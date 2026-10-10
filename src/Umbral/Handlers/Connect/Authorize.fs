@@ -130,12 +130,23 @@ let handler: EndpointHandler =
         task {
             match ctx.GetOpenIddictServerRequest() with
             | null ->
-                // The route and Set*EndpointUris disagree. Nothing else produces
-                // this, so the message names the cause directly.
-                return
-                    failwith
-                        "The OpenID Connect request could not be retrieved. The Oxpecker route and \
-                         OpenIddictSetup's endpoint URI disagree."
+                // Two different causes, and telling them apart matters.
+                //
+                // With error passthrough on, a request OpenIddict REJECTED is
+                // handed to this route with no stashed request but with a
+                // response carrying the error — a missing PKCE challenge, an
+                // unregistered redirect_uri, a plain-http request. That is
+                // ordinary operation and belongs on the error page.
+                //
+                // No response either means the route and Set*EndpointUris
+                // genuinely disagree, which is a wiring bug and should say so.
+                match ctx.GetOpenIddictServerResponse() with
+                | null ->
+                    return
+                        failwith
+                            "The OpenID Connect request could not be retrieved and OpenIddict produced no \
+                             response. The Oxpecker route and OpenIddictSetup's endpoint URI disagree."
+                | _ -> return! Error.handler ctx
 
             | request ->
 

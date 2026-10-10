@@ -44,6 +44,7 @@
     <Compile Include="Infrastructure/SecurityEvents.fs" />
     <Compile Include="Infrastructure/OAuthRoundTrip.fs" />
     <Compile Include="Infrastructure/ProviderAdapters.fs" />
+    <Compile Include="Infrastructure/Providers/Fake.fs" />
     <Compile Include="Infrastructure/Providers/Discord.fs" />
     <Compile Include="Infrastructure/Providers/GitHub.fs" />
     <Compile Include="Infrastructure/Providers/Google.fs" />
@@ -63,6 +64,7 @@
     <Compile Include="Handlers/Admin/SignOut.fs" />
     <Compile Include="Handlers/Admin/Connectors.fs" />
     <Compile Include="Handlers/Admin/ConnectorToggle.fs" />
+    <Compile Include="Handlers/Dev/FakeProvider.fs" />
     <Compile Include="Handlers/Admin/Apps.fs" />
     <Compile Include="Handlers/Admin/AppSecret.fs" />
     <Compile Include="Handlers/Admin/AppDelete.fs" />
@@ -72,10 +74,10 @@
     <Compile Include="Handlers/Connect/Picker.fs" />
     <Compile Include="Handlers/Connect/Start.fs" />
     <Compile Include="Handlers/Connect/Callback.fs" />
-    <Compile Include="Handlers/Connect/Authorize.fs" />
     <Compile Include="Handlers/Connect/UserInfo.fs" />
     <Compile Include="Handlers/Connect/EndSession.fs" />
     <Compile Include="Handlers/Connect/Error.fs" />
+    <Compile Include="Handlers/Connect/Authorize.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
