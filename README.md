@@ -106,7 +106,14 @@ There is no default password. Read the one-time setup token from the log:
 docker logs umbral
 ```
 
-Near the end you will see:
+The first start prints a long run of database-setup lines. The token is in the
+box of `=====` lines at the **end** of the log. To show just that:
+
+```bash
+docker logs umbral 2>&1 | grep -A6 "not configured yet"
+```
+
+You will see:
 
 ```
 ================================================================
@@ -312,7 +319,9 @@ docker compose logs umbral
 
 (or put `UMBRAL_DOMAIN=auth.example.com` in a `.env` file next to the compose
 file). `docker compose logs umbral` shows the setup URL and token, exactly as in
-the quick start. Continue from step 3 with the **https** address.
+the quick start: look for the `=====` box at the end of the log, or
+`docker compose logs umbral 2>&1 | grep -A6 "not configured yet"`. Continue from
+step 3 with the **https** address.
 
 Umbral itself is never published on a port, so everything reaches it through
 Caddy. **Do not publish port 8080 on a public host.**
@@ -521,7 +530,8 @@ That is expected: Umbral has no front page and no `/admin` page. Use
 `/admin/setup` (first time) or `/admin/signin`.
 
 **I cannot find the setup token, or it is rejected.**
-`docker logs umbral` and take the *latest* `Token` line. The token is regenerated
+`docker logs umbral 2>&1 | grep -A6 "not configured yet"` and take the *latest*
+`Token` line (the `=====` box near the end of the log). The token is regenerated
 each time the container starts, and only matters until you set the credential.
 If the credential is already set, use `/admin/signin`, or
 [reset it](#forgotten-operator-credential).
