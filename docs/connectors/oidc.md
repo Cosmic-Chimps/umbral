@@ -168,10 +168,6 @@ reason. It is not offered to anyone. Once your provider is up and
 on its card: Umbral runs the check again, and enables the connector only if it
 passes.
 
-*This is how Umbral is specified to behave. Until it ships in your version,
-Umbral refuses the form with "Umbral could not reach …" instead, and keeps what
-you typed: fix the address or start the provider, then add it again.*
-
 A provider that **answers wrongly** is never saved: a different issuer in its
 discovery document, an endpoint that is not https, no asymmetric signing, no
 client secret method Umbral can use. The form keeps what you typed and the
