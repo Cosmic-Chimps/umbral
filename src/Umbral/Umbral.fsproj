@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Umbral</AssemblyName>
+    <RootNamespace>Umbral</RootNamespace>
+    <!-- SC-007 puts a 150 MB ceiling on idle residency; workstation GC is how we get there. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <!--
+    F# compiles in this order and a file sees only what comes before it, so this
+    list IS the dependency graph. Keep it: Domains -> Infrastructure -> Views
+    (Texts -> Theme -> Components -> Layout) -> Handlers -> Program.fs last.
+
+    Adding an endpoint is three steps and missing the third is silent:
+      1. the file under Handlers/
+      2. a <Compile Include> here, before Program.fs
+      3. its `endpoint` added to Program.endpoints
+    T102's meta-test turns a missed step 3 into a build failure. Until then, check by hand.
+  -->
+  <ItemGroup>
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Oxpecker" Version="2.1.1" />
+    <PackageReference Include="Oxpecker.ViewEngine" Version="2.1.*" />
+    <PackageReference Include="Oxpecker.Htmx" Version="4.0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenIddict.AspNetCore" Version="7.7.1" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.7.1" />
+    <PackageReference Include="OpenIddict.Quartz" Version="7.7.1" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <PackageReference Include="YamlDotNet" Version="16.*" />
+  </ItemGroup>
+
+</Project>

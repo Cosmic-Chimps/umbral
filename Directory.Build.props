@@ -1,0 +1,21 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    A warning that reaches main is a warning nobody reads again. FS0064 fires on
+    generic code the Oxpecker view DSL produces constantly and says nothing
+    useful; FS3370 is the mutable-shadowing hint, which is noise in handlers.
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>FS0064;FS3370</WarningsNotAsErrors>
+  </PropertyGroup>
+
+</Project>

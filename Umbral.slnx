@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/Umbral/Umbral.fsproj" />
+  <Project Path="src/Umbral.Migrations/Umbral.Migrations.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/Umbral.Tests/Umbral.Tests.fsproj" />
+  </Folder>
+</Solution>

@@ -32,13 +32,13 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 **Purpose**: De-risk the unknowns, then stand up the projects.
 
 - [ ] T001 Build a throwaway C# OpenIddict spike in `/tmp/umbral-spike`: copy the Velusia sample's `Program.cs` and `AuthorizationController.cs`, point them at SQLite, register one client, and obtain an `id_token` via authorization-code + PKCE with `curl`. **There is no production F# + OpenIddict integration anywhere to copy from** — this produces the known-good reference to diff against when the F# port misbehaves. Delete the spike after T030.
-- [ ] T002 [P] Verify Discord's PKCE support empirically against a real Discord OAuth app: send `code_challenge_method=S256` and confirm the exchange succeeds. Discord does not document PKCE; two third-party sources claim `S256`-only. Record the result in [research.md](./research.md) under "Open items".
-- [ ] T003 Create `Umbral.slnx` and `global.json` containing `{"test":{"runner":"Microsoft.Testing.Platform"}}` at the repository root.
-- [ ] T004 Create `src/Umbral/Umbral.fsproj` (`Microsoft.NET.Sdk.Web`, `net10.0`) with pinned packages: `Oxpecker` 2.1.1, `Oxpecker.ViewEngine` 2.1.*, `Oxpecker.Htmx` 4.0.*, `OpenIddict.AspNetCore` 7.7.1, `OpenIddict.EntityFrameworkCore` 7.7.1, `OpenIddict.Quartz` 7.7.1, `Microsoft.EntityFrameworkCore.Sqlite` 10.0.11, `Microsoft.Data.Sqlite`, `YamlDotNet`, `Quartz.Extensions.Hosting`.
-- [ ] T005 [P] Create `tests/Umbral.Tests/Umbral.Tests.fsproj` (`Microsoft.NET.Sdk`, `<OutputType>Exe</OutputType>`) with `xunit.v3` 4.0.1, `Microsoft.NET.Test.Sdk` 18.10.1, `Microsoft.AspNetCore.TestHost` 10.0.*. Set `<DefaultItemExcludes>$(DefaultItemExcludes);tests/**</DefaultItemExcludes>` in `src/Umbral/Umbral.fsproj` if the test project nests under it.
-- [ ] T006 [P] Create `src/Umbral.Migrations/Umbral.Migrations.csproj` (C#, `net10.0`) with `Microsoft.EntityFrameworkCore.Design`. It holds EF migrations for OpenIddict's four tables only and ships no code into the container.
-- [ ] T007 [P] Add `.gitignore` and `.dockerignore` covering `bin/`, `obj/`, `*.db`, `*.db-wal`, `*.db-shm`, `*.pfx`, `/data`.
-- [ ] T008 Add a `Directory.Build.props` setting `TreatWarningsAsErrors` and `WarningsNotAsErrors` for the F# warnings that fight the Oxpecker view DSL.
+- [ ] T002 [P] **BLOCKED — needs a real Discord OAuth app from the project owner.** Verify Discord's PKCE support empirically against a real Discord OAuth app: send `code_challenge_method=S256` and confirm the exchange succeeds. Discord does not document PKCE; two third-party sources claim `S256`-only. Record the result in [research.md](./research.md) under "Open items".
+- [x] T003 Create `Umbral.slnx` and `global.json` containing `{"test":{"runner":"Microsoft.Testing.Platform"}}` at the repository root.
+- [x] T004 Create `src/Umbral/Umbral.fsproj` (`Microsoft.NET.Sdk.Web`, `net10.0`) with pinned packages: `Oxpecker` 2.1.1, `Oxpecker.ViewEngine` 2.1.*, `Oxpecker.Htmx` 4.0.*, `OpenIddict.AspNetCore` 7.7.1, `OpenIddict.EntityFrameworkCore` 7.7.1, `OpenIddict.Quartz` 7.7.1, `Microsoft.EntityFrameworkCore.Sqlite` 10.0.11, `Microsoft.Data.Sqlite`, `YamlDotNet`, `Quartz.Extensions.Hosting`.
+- [x] T005 [P] Create `tests/Umbral.Tests/Umbral.Tests.fsproj` (`Microsoft.NET.Sdk`, `<OutputType>Exe</OutputType>`) with `xunit.v3` 4.0.1, `Microsoft.NET.Test.Sdk` 18.10.1, `Microsoft.AspNetCore.TestHost` 10.0.*. Set `<DefaultItemExcludes>$(DefaultItemExcludes);tests/**</DefaultItemExcludes>` in `src/Umbral/Umbral.fsproj` if the test project nests under it.
+- [x] T006 [P] Create `src/Umbral.Migrations/Umbral.Migrations.csproj` (C#, `net10.0`) with `Microsoft.EntityFrameworkCore.Design`. It holds EF migrations for OpenIddict's four tables only and ships no code into the container.
+- [x] T007 [P] Add `.gitignore` and `.dockerignore` covering `bin/`, `obj/`, `*.db`, `*.db-wal`, `*.db-shm`, `*.pfx`, `/data`.
+- [x] T008 Add a `Directory.Build.props` setting `TreatWarningsAsErrors` and `WarningsNotAsErrors` for the F# warnings that fight the Oxpecker view DSL.
 
 **Checkpoint**: `dotnet build` succeeds on an empty solution.
 
