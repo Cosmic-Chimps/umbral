@@ -1177,3 +1177,90 @@ let ``deleting an oidc provider tells the operator people come back only under t
         Assert.Contains("add it again with the same issuer", screen)
         Assert.Contains(issuer, screen)
     }
+
+// ---------------------------------------------------------------------------
+// Linking by email (T037, spec FR-018, spec 001 FR-012)
+// ---------------------------------------------------------------------------
+
+let private githubProfile : ProviderAdapters.ProviderProfile =
+    { Subject = "gh-77"
+      Email = Some "jane@example.com"
+      EmailVerified = true
+      DisplayName = Some "Jane From GitHub"
+      AvatarUrl = None }
+
+/// A person who first signed in through GitHub with a verified email.
+let private seedGitHubUser (app: Fixtures.TestApp) =
+    task {
+        let! resolution = UserStore.resolve app.DbConfig app.Clock GitHub githubProfile
+        return resolution.User.Id
+    }
+
+[<Fact>]
+let ``a verified email from an oidc provider joins the existing user`` () =
+    task {
+        let stub = create issuer
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! existing = seedGitHubUser app
+        let! _ = addProvider operator "home" issuer
+        let! clientId, _ = createClientApp operator
+
+        // The stub's default token: jane@example.com, email_verified JSON true.
+        let! outcome = signInThroughProvider (Browser app.Client) stub clientId "home"
+        signedIn outcome |> ignore
+
+        let! users = scalarCount app "SELECT COUNT(*) FROM users"
+        Assert.Equal(1, users)
+
+        let! kinds = UserStore.linkedKinds app.DbConfig existing
+        Assert.Equal<string list>([ "github"; "oidc" ], kinds)
+    }
+
+[<Theory>]
+// The string "true" is not the JSON literal: a provider that sends it asserts nothing.
+[<InlineData("string-true")>]
+[<InlineData("false")>]
+[<InlineData("absent")>]
+let ``an email the provider does not assert as verified creates a separate user`` (variant: string) =
+    task {
+        let stub = create issuer
+
+        let verified: (string * obj) list =
+            match variant with
+            | "string-true" -> [ "email_verified", ("true" :> obj) ]
+            | "false" -> [ "email_verified", (false :> obj) ]
+            | _ -> []
+
+        stub.IdToken <-
+            { stub.IdToken with
+                Claims = [ "email", ("jane@example.com" :> obj); "name", ("Jane Doe" :> obj) ] @ verified }
+
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! existing = seedGitHubUser app
+        let! _ = addProvider operator "home" issuer
+        let! clientId, _ = createClientApp operator
+
+        let! outcome = signInThroughProvider (Browser app.Client) stub clientId "home"
+        signedIn outcome |> ignore
+
+        let! users = scalarCount app "SELECT COUNT(*) FROM users"
+        Assert.Equal(2, users)
+
+        let! kinds = UserStore.linkedKinds app.DbConfig existing
+        Assert.Equal<string list>([ "github" ], kinds)
+    }
+
+[<Fact>]
+let ``the add form carries the email-trust warning in full`` () =
+    task {
+        let! app, operator = start [ create issuer ] ignore []
+        use _ = app
+
+        let! screen = operator.GetHtml "/admin/connectors"
+        Assert.Contains("Umbral trusts an email address that an OpenID Connect provider marks as verified", screen)
+        Assert.Contains("Add only a provider you run or trust.", screen)
+    }

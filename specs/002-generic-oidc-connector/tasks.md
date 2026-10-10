@@ -151,11 +151,11 @@ description: "Task list for the generic OpenID Connect connector"
 
 ### Tests for User Story 4
 
-- [ ] T037 [P] [US4] In tests/Umbral.Tests/OidcConnectorTests.fs: verified email (`true`) links to the existing user (one user, two linked accounts); `"true"`, `false` and absent each create a separate user; the Add form contains the FR-009 warning text
+- [x] T037 [P] [US4] In tests/Umbral.Tests/OidcConnectorTests.fs: verified email (`true`) links to the existing user (one user, two linked accounts); `"true"`, `false` and absent each create a separate user; the Add form contains the FR-009 warning text
 
 ### Implementation for User Story 4
 
-- [ ] T038 [US4] Verify no code change is needed in src/Umbral/Infrastructure/Users.fs / src/Umbral/Domains/Linking.fs beyond the adapter's `EmailVerified` mapping (T020); if the linking path special-cases provider kinds, extend it for `oidc` and say so in the commit
+- [x] T038 [US4] Verify no code change is needed in src/Umbral/Infrastructure/Users.fs / src/Umbral/Domains/Linking.fs beyond the adapter's `EmailVerified` mapping (T020); if the linking path special-cases provider kinds, extend it for `oidc` and say so in the commit
 
 **Checkpoint**: all stories pass.
 
