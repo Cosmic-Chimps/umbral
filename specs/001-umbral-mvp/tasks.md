@@ -73,7 +73,7 @@ T102 adds the meta-test that makes a missed step 3 fail the build instead of fai
 - [ ] T023 Persist the Data Protection key ring with `PersistKeysToFileSystem(/data/keys)` and `SetApplicationName("Umbral")`. It protects the admin cookie, the antiforgery tokens and the connector secrets — a different concern from T022 with the same failure mode.
 - [x] T024 [P] Write `tests/Umbral.Tests/KeyPersistenceTests.fs`: two successive boots against the same directory produce the same certificate thumbprint, and a token issued before a simulated restart still validates after it.
 - [x] T025 [P] Create `src/Umbral/Infrastructure/Secrets.fs`: an **`ISecretStore` seam** (Put/Get/Delete over a `SecretRef` of `<store>:<locator>`) with `LocalSecretStore` — `IDataProtector` under the purpose `Umbral.ConnectorSecrets.v1` — as the only implementation, plus `hint`/`masked` and a `Protected` type whose `ToString` is `[redacted]`. The seam is deliberate: an external secret manager must be addable without a schema migration on every deployed instance.
-- [ ] T026 [P] Create `src/Umbral/Infrastructure/SecurityEvents.fs` with a `record` function and the closed event-type union listed in [data-model.md](./data-model.md). The `detail` field must never carry a secret, token or authorization code.
+- [x] T026 [P] Create `src/Umbral/Infrastructure/SecurityEvents.fs` with a `record` function and the closed event-type union listed in [data-model.md](./data-model.md). The `detail` field must never carry a secret, token or authorization code.
 
 ### Views
 

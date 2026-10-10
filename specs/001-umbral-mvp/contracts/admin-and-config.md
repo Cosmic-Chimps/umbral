@@ -64,6 +64,20 @@ These are contract, not styling:
   and whose token exchange fails.
 - **Every error message names the next action** (FR-037, SC-010). All strings live
   in `Views/Texts.fs`, which makes SC-010 auditable by reading one file.
+- **The Users screen stays minimal, and that is a requirement rather than a
+  stylistic preference.** It shows a display name, the linked providers, first
+  and last sign-in, and enabled state. Nothing else.
+
+  A generated mock-up of this screen produced per-user IP addresses, network
+  segment labels, `@alias` handles, an "enrolled" count and a live token
+  introspection stream. Every one of those is either data Umbral does not hold
+  (it records a remote IP against a *security event*, not a user, and has no
+  network awareness at all) or a concept it rejects — nobody *enrols* with
+  Umbral; a user exists because they signed in once.
+
+  Umbral stores the least it can get away with while still being able to answer
+  "who is this" and "cut this person off". The screen must look like that, or it
+  invites the collection that makes it untrue.
 
 ## Test hooks
 
