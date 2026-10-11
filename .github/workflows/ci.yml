@@ -1,0 +1,55 @@
+# Build and test, on both architectures a self-hoster runs Umbral on.
+#
+# The matrix is not decoration: SC-007 (idle resident set under 150 MB) is
+# asserted by tests/Umbral.Tests/IdleMemoryTests.fs on Linux only, and its
+# margin was only ever measured on arm64. The x64 runner is where the number
+# for an ordinary VPS comes from. Each job writes its figure to the job summary
+# (the test appends it when GITHUB_STEP_SUMMARY is set), so it can be read off a
+# run without opening a log.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      # global.json pins the SDK (10.0.400, rolling forward to the latest
+      # feature band) and the Microsoft.Testing.Platform runner.
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Release, because that is what the container runs and what SC-007 is a
+      # promise about; a Debug build is a few MiB bigger.
+      - name: Test
+        run: |
+          echo "### Idle resident set (SC-007)" >> "$GITHUB_STEP_SUMMARY"
+          dotnet test -c Release
+
+      # Not a gate: the same test again with tiered PGO off, to see what that
+      # knob is worth on this architecture before anyone turns it on. The app
+      # inherits the environment, so nothing in the test changes.
+      - name: Idle memory with DOTNET_TieredPGO=0 (comparison)
+        env:
+          DOTNET_TieredPGO: "0"
+        run: |
+          echo "#### With DOTNET_TieredPGO=0" >> "$GITHUB_STEP_SUMMARY"
+          dotnet test -c Release --no-build --filter-class "Umbral.Tests.IdleMemoryTests"
