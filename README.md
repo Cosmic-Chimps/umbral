@@ -513,7 +513,7 @@ version: 1
 
 connectors:
   - slug: github                       # fixed: it is in the callback URL
-    kind: github                       # discord | github | google
+    kind: github                       # discord | github | google | oidc
     display_name: GitHub
     client_id: "Ov23liXXXXXXXXXXXXXX"
     client_secret: ${UMBRAL_GITHUB_SECRET}
@@ -528,6 +528,14 @@ connectors:
     client_secret: ${UMBRAL_DISCORD_FRUNCHY_SECRET}   # the slug upper-cased, non-alphanumerics as _
     enabled: true
     shared: false                      # only apps that list it below see it
+
+  - slug: home                         # your own identity provider (see docs/connectors/oidc.md)
+    kind: oidc
+    issuer: https://auth.example.com/application/o/umbral   # required for oidc, an error for the others; fixed once saved
+    display_name: Home
+    client_id: umbral
+    client_secret: ${UMBRAL_HOME_SECRET}
+    enabled: true
 
 apps:
   - client_id: grafana                 # identifies the app; applying twice is a no-op
@@ -577,6 +585,11 @@ apps:
   whole file, naming the app entry and the slug. Add the connector to the file or
   remove it from the app. Writing `connectors: []` on an app is deliberate: it
   offers no sign-in method at all.
+- **An `oidc` entry needs its `issuer`** and nothing else new. Umbral never
+  contacts the provider when it applies the file, so it starts even if the
+  provider is down. The issuer cannot change: giving an existing slug a different
+  issuer, or one that another connector already has, stops Umbral from starting
+  and names the entry (delete the connector in the admin area, or use a new slug).
 - **A bad file stops Umbral from starting**, naming the entry and what to do
   (`docker logs umbral`). Nothing is partly applied.
 - **Export what you have clicked.** Signed in as the operator, open

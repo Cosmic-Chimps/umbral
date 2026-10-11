@@ -370,7 +370,12 @@ let initialize (app: WebApplication) =
         match ConfigFile.tryRead configPath with
         | None -> ()
         | Some yaml ->
-            match ConfigFile.parse yaml with
+            // The same plain-http setting the admin form's issuer check is
+            // given, so the file and the form accept the same addresses.
+            let allowLocalhostHttp =
+                app.Services.GetRequiredService<OidcDiscovery.OidcDiscovery>().AllowLocalhostHttp
+
+            match ConfigFile.parseWith allowLocalhostHttp yaml with
             | Error e -> failwith $"{configPath}: {e.Describe}"
             | Ok document ->
                 match ConfigFile.resolveSecrets (fun name -> config[name]) document with
@@ -378,6 +383,14 @@ let initialize (app: WebApplication) =
                 | Ok resolved ->
                     let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
                     let clock = app.Services.GetRequiredService<TimeProvider>()
+                    // Before the first write, so a file the instance cannot take
+                    // (an issuer or a kind changed on an existing slug) names the
+                    // file and leaves everything as it was. `applyConnectors`
+                    // asks again, for the callers that do not come through here.
+                    match! ConfigFile.conflicts dbConfig resolved with
+                    | [] -> ()
+                    | problems -> failwith $"{configPath}: {Umbral.Domains.ConfigDocument.describe problems}"
+
                     let! applied = ConfigFile.applyConnectors dbConfig clock secrets resolved
 
                     // Apps through OpenIddict's own manager, the way the Apps

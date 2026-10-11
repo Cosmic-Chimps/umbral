@@ -205,10 +205,11 @@ let create
     }
 
 /// Change what the card form edits on a stored connector: display name, client
-/// id, the shared setting and, when one is supplied, the secret. Slug, kind,
-/// scopes and the enabled flag are left alone: the slug and kind never change
-/// (FR-013) and enabling has its own action. Returns false when no connector has
-/// that slug.
+/// id, the shared setting, the extra scopes (an OpenID Connect card edits them;
+/// every other caller passes the stored list back) and, when one is supplied,
+/// the secret. Slug, kind and the enabled flag are left alone: the slug and kind
+/// never change (FR-013) and enabling has its own action. Returns false when no
+/// connector has that slug.
 let update
     (config: Database.DbConfig)
     (clock: TimeProvider)
@@ -216,6 +217,7 @@ let update
     (displayName: string)
     (clientId: string)
     (isShared: bool)
+    (extraScopes: string list)
     (newSecretRef: (string * string) option)
     : Task<bool> =
     task {
@@ -228,6 +230,7 @@ let update
                  display_name       = @name,
                  client_id          = @clientId,
                  is_shared          = @shared,
+                 extra_scopes       = @scopes,
                  client_secret_ref  = coalesce(@secretRef, client_secret_ref),
                  client_secret_hint = coalesce(@secretHint, client_secret_hint),
                  updated_utc        = @now
@@ -237,6 +240,7 @@ let update
         command.Parameters.AddWithValue("@name", displayName) |> ignore
         command.Parameters.AddWithValue("@clientId", clientId) |> ignore
         command.Parameters.AddWithValue("@shared", (if isShared then 1 else 0)) |> ignore
+        command.Parameters.AddWithValue("@scopes", String.concat " " extraScopes) |> ignore
 
         match newSecretRef with
         | Some(ref, hint) ->

@@ -68,6 +68,17 @@ let private sharedBox (t: Texts.Texts) (isShared: bool) =
         p(class' = "um-hint") { t.ConnectorSharedHint }
     }
 
+/// A refused save of one card, drawn again with what the operator typed on it.
+/// Only the OpenID Connect card can be refused with input to keep (its extra
+/// scopes); the others redirect with a notice, as they always did.
+type private CardProblem =
+    { Slug: string
+      DisplayName: string
+      ClientId: string
+      ExtraScopes: string
+      Shared: bool
+      Message: string }
+
 type private Row =
     { Kind: ProviderKind
       Existing: Connector option }
@@ -83,9 +94,13 @@ let private card
     (origin: PublicOrigin.PublicOrigin)
     (enabledCount: int)
     (chosenSlugs: Set<string>)
+    (refused: CardProblem option)
     (row: Row)
     =
     let slug = row.Slug
+    // What the form fields hold: the stored values, or what the operator typed
+    // when this card's save was refused.
+    let refused = refused |> Option.filter (fun p -> p.Slug = slug)
     let callbackUrl = (PublicOrigin.callbackUri origin slug).ToString()
     let isConfigured = row.Existing.IsSome
 
@@ -117,6 +132,9 @@ let private card
             .data("connector-kind", row.Kind.Value)
             .data("connector-shared", (if isShared then "shared" else "not-shared"))
             .data("connector-state", (if isEnabled then "enabled" else "disabled"))
+
+    if refused.IsSome then
+        element.data("card-error", "extraScopes") |> ignore
 
     if offeredNowhere then
         element.data("offered-nowhere", "") |> ignore
@@ -213,14 +231,18 @@ let private card
                 (fun i -> i.attr("required", "required") |> ignore)
                 t.ConnectorDisplayNameLabel
                 "displayName"
-                (row.Existing |> Option.map (fun c -> c.DisplayName) |> Option.defaultValue row.Kind.DisplayName)
+                (match refused with
+                 | Some p -> p.DisplayName
+                 | None -> row.Existing |> Option.map (fun c -> c.DisplayName) |> Option.defaultValue row.Kind.DisplayName)
                 (Some t.ConnectorDisplayNameHint)
                 None
 
             Components.field
                 t.ClientIdLabel
                 "clientId"
-                (row.Existing |> Option.map (fun c -> c.ClientId) |> Option.defaultValue "")
+                (match refused with
+                 | Some p -> p.ClientId
+                 | None -> row.Existing |> Option.map (fun c -> c.ClientId) |> Option.defaultValue "")
                 (Some(
                     match row.Kind with
                     | Oidc -> t.ConnectorOidcClientIdHint
@@ -245,7 +267,21 @@ let private card
                 (Some (if isConfigured then t.ReplaceSecretHint else t.ClientSecretHint))
                 None
 
-            sharedBox t isShared
+            // Only an OpenID Connect card: the built-in kinds ask for what they
+            // need and nothing else (specs/002 T025).
+            match row.Kind, row.Existing with
+            | Oidc, Some existing ->
+                Components.field
+                    t.ConnectorExtraScopesLabel
+                    "extraScopes"
+                    (match refused with
+                     | Some p -> p.ExtraScopes
+                     | None -> String.concat " " existing.ExtraScopes)
+                    (Some t.ConnectorExtraScopesHint)
+                    (refused |> Option.map _.Message)
+            | _ -> Fragment() :> HtmlElement
+
+            sharedBox t (match refused with Some p -> p.Shared | None -> isShared)
 
             div(class' = "flex flex-wrap items-center gap-2") {
                 button(type' = "submit", class' = Components.btn Components.Primary) {
@@ -368,9 +404,11 @@ type private AddFormState =
       DisplayName: string
       Issuer: string
       ClientId: string
+      /// As typed: scopes separated by spaces. Only an OpenID Connect provider uses it.
+      ExtraScopes: string
       Shared: bool
       /// The field the refusal is about (`slug`, `displayName`, `issuer`,
-      /// `clientId`, `clientSecret`) and what to tell the operator.
+      /// `clientId`, `clientSecret`, `extraScopes`) and what to tell the operator.
       Problem: (string * string) option }
 
 let private emptyAddForm =
@@ -379,8 +417,10 @@ let private emptyAddForm =
       DisplayName = ""
       Issuer = ""
       ClientId = ""
+      ExtraScopes = ""
       Shared = true
       Problem = None }
+
 
 /// The add form (FR-012): a connector of a kind with a slug the operator
 /// chooses. Ticked as shared by default, like the first connector of a kind
@@ -462,6 +502,13 @@ let private addForm (ctx: HttpContext) (t: Texts.Texts) (kinds: ProviderKind lis
                 (Some(if state.Problem.IsSome then t.ConnectorOidcSecretAgainHint else t.ClientSecretHint))
                 (problemAt "clientSecret")
 
+            Components.field
+                t.ConnectorExtraScopesLabel
+                "extraScopes"
+                state.ExtraScopes
+                (Some t.ConnectorExtraScopesHint)
+                (problemAt "extraScopes")
+
             sharedBox t state.Shared
 
             // FR-009, before the operator submits and not after: what they are
@@ -488,6 +535,7 @@ let private view
     (chosenSlugs: Set<string>)
     (addableKinds: ProviderKind list)
     (add: AddFormState)
+    (refused: CardProblem option)
     (notice: string option)
     (strand: StrandWarning option)
     (explained: string option)
@@ -515,7 +563,7 @@ let private view
         | None, _ -> Fragment() :> HtmlElement
 
         for row in rows do
-            card ctx t origin enabledCount chosenSlugs row
+            card ctx t origin enabledCount chosenSlugs refused row
 
         addForm ctx t addableKinds add
     }
@@ -553,7 +601,7 @@ let private rowsFor (existing: Connector list) =
 
 /// The screen, with the add form as given. `page` draws it empty; a refused add
 /// draws it again with the operator's input.
-let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tasks.Task =
+let private renderWith (ctx: HttpContext) (add: AddFormState) (refused: CardProblem option) : System.Threading.Tasks.Task =
         task {
             let t = Texts.current ()
             let config = ctx.GetService<Database.DbConfig>()
@@ -632,11 +680,14 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                         chosenSlugs
                         (addableKinds ctx)
                         add
+                        refused
                         notice
                         strand
                         explained
                 )
         }
+
+let private render (ctx: HttpContext) (add: AddFormState) = renderWith ctx add None
 
 let page: EndpointHandler =
     AdminAuth.requireOperator (fun ctx -> render ctx emptyAddForm)
@@ -721,6 +772,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
               DisplayName = WebForms.value form "displayName"
               Issuer = WebForms.value form "issuer"
               ClientId = WebForms.value form "clientId"
+              ExtraScopes = WebForms.value form "extraScopes"
               Shared = WebForms.checkbox form "shared"
               Problem = None }
 
@@ -755,6 +807,10 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
             return! refuse "clientSecret" t.ConnectorAddOidcSecretRequired
         else
 
+        match parseExtraScopes Oidc state.ExtraScopes with
+        | Error error -> return! refuse "extraScopes" error.Message
+        | Ok extraScopes ->
+
         let! holder = ConnectorStore.findByIssuer config issuer
 
         match holder with
@@ -786,7 +842,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   ClientId = state.ClientId
                   ClientSecretRef = ""
                   ClientSecretHint = ""
-                  ExtraScopes = []
+                  ExtraScopes = extraScopes
                   IssuerUrl = Some issuer
                   IsEnabled = enabled
                   IsShared = state.Shared
@@ -968,6 +1024,32 @@ let save (slug: string) : EndpointHandler =
                 let newName = if fullForm then displayName else stored.DisplayName
                 let newShared = if fullForm then isShared else stored.IsShared
 
+                // Extra scopes belong to the OpenID Connect card alone, and a post
+                // without the field (the unshare confirmation, a script) leaves
+                // them as they are, like the display name above.
+                let extraScopes =
+                    if stored.Kind = Oidc && form.ContainsKey "extraScopes" then
+                        parseExtraScopes Oidc (WebForms.value form "extraScopes")
+                    else
+                        Ok stored.ExtraScopes
+
+                match extraScopes with
+                | Error error ->
+                    ctx.SetStatusCode 422
+
+                    return!
+                        renderWith
+                            ctx
+                            emptyAddForm
+                            (Some
+                                { Slug = slug
+                                  DisplayName = newName
+                                  ClientId = clientId
+                                  ExtraScopes = WebForms.value form "extraScopes"
+                                  Shared = newShared
+                                  Message = error.Message })
+                | Ok extraScopes ->
+
                 // FR-010: turning sharing off can leave an all-shared app with
                 // nothing to offer. Nothing changes until the operator confirms.
                 let! stranded =
@@ -1003,7 +1085,7 @@ let save (slug: string) : EndpointHandler =
                         }
                     | None -> System.Threading.Tasks.Task.FromResult None
 
-                let! updated = ConnectorStore.update config clock slug newName clientId newShared secretUpdate
+                let! updated = ConnectorStore.update config clock slug newName clientId newShared extraScopes secretUpdate
 
                 if not updated then
                     return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
