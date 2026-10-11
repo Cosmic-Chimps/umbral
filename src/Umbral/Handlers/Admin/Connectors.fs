@@ -575,7 +575,7 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                     | AllShared -> Seq.empty)
                 |> Set.ofSeq
 
-            let notice = ctx.TryGetQueryValue "msg"
+            let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
 
             // The strand warnings carry the slug they are about. The apps are
             // recomputed here, with the connector as the action would leave it.
@@ -609,17 +609,27 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
 
             // The OpenID Connect notices that say what the provider answered. The
             // issuer is read from the stored connector, the reason from the
-            // redirect: it is only ever drawn as escaped text.
+            // cookie the refusal wrote (never from the URL). Without both, the
+            // notice's fixed text, still as a warning.
             let explained =
-                match notice, ctx.TryGetQueryValue "slug" |> Option.bind (fun slug -> existing |> List.tryFind (fun c -> c.Slug = slug)) with
-                | Some code, Some { IssuerUrl = Some issuer } ->
-                    let reason = ctx.TryGetQueryValue "reason" |> Option.defaultValue ""
+                match notice with
+                | Some("connector-added-oidc-unreachable" | "connector-enable-oidc-unreachable" | "connector-enable-oidc-wrong" as code) ->
+                    let stored =
+                        ctx.TryGetQueryValue "slug"
+                        |> Option.bind (fun slug -> existing |> List.tryFind (fun c -> c.Slug = slug))
 
-                    match code with
-                    | "connector-added-oidc-unreachable" -> Some(t.ConnectorAddOidcUnreachable issuer reason)
-                    | "connector-enable-oidc-unreachable" -> Some(t.ConnectorEnableOidcUnreachable issuer reason)
-                    | "connector-enable-oidc-wrong" -> Some(t.ConnectorEnableOidcWrong reason)
-                    | _ -> None
+                    let said =
+                        match stored with
+                        | Some { Slug = slug; IssuerUrl = Some issuer } ->
+                            WebForms.NoticeReason.consume ctx code slug
+                            |> Option.map (fun reason ->
+                                match code with
+                                | "connector-added-oidc-unreachable" -> t.ConnectorAddOidcUnreachable issuer reason
+                                | "connector-enable-oidc-unreachable" -> t.ConnectorEnableOidcUnreachable issuer reason
+                                | _ -> t.ConnectorEnableOidcWrong reason)
+                        | _ -> None
+
+                    Some(said |> Option.defaultValue (t.Notice code))
                 | _ -> None
 
             return!
@@ -798,7 +808,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
         match added with
         | ConnectorStore.Created ->
             // The reason is what the provider's address did, never a credential;
-            // it is cut short because it also travels in the redirect.
+            // it is cut short because it also travels in a cookie.
             let reasonShort = unreachable |> Option.map (WebForms.truncate 300)
 
             do!
@@ -812,11 +822,12 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
             | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added-oidc"
             | Some reason ->
                 return!
-                    WebForms.redirectWithNoticeAbout
+                    WebForms.NoticeReason.redirect
                         ctx
                         "/admin/connectors"
                         "connector-added-oidc-unreachable"
-                        [ "slug", state.Slug; "reason", reason ]
+                        state.Slug
+                        reason
         // Lost a race between the checks above and the insert.
         | ConnectorStore.SlugTaken -> return! refuse "slug" t.ConnectorAddOidcSlugTaken
         | ConnectorStore.IssuerTaken -> return! refuse "issuer" (t.ConnectorAddOidcIssuerTaken issuer)

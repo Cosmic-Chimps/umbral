@@ -130,7 +130,7 @@ let handler: EndpointHandler =
         task {
             let t = Texts.current ()
             let returnUrl = sanitizeReturnUrl (ctx.TryGetQueryValue "returnUrl" |> Option.toObj)
-            let notice = ctx.TryGetQueryValue "msg"
+            let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
 
             let config = ctx.GetService<Database.DbConfig>()
 

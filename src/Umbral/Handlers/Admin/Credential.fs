@@ -47,7 +47,7 @@ let private view (ctx: HttpContext) (t: Texts.Texts) (notice: string option) =
     |> Layout.operatorPage ctx t t.CredentialReplaceTitle
 
 let page: EndpointHandler =
-    AdminAuth.requireOperator (fun ctx -> ctx.WriteHtmlView(view ctx (Texts.current ()) (ctx.TryGetQueryValue "msg")))
+    AdminAuth.requireOperator (fun ctx -> ctx.WriteHtmlView(view ctx (Texts.current ()) (ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice)))
 
 let submit: EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
