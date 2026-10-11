@@ -46,4 +46,8 @@ let ``/ stays a 404`` () =
         use! app = Fixtures.createApp ()
         let! response = app.Client.GetAsync "/"
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode)
+
+        // The themed page, not a bare "Not found" (Texts.NotFoundTitle).
+        let! html = response.Content.ReadAsStringAsync()
+        Assert.Contains("Page not found", html)
     }

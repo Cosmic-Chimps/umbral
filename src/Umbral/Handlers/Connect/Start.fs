@@ -11,6 +11,7 @@ open Microsoft.AspNetCore.Builder
 open Oxpecker
 open Umbral.Infrastructure
 open Umbral.Infrastructure.SecurityEvents
+open Umbral.Views
 
 let handler (slug: string) : EndpointHandler =
     fun ctx ->
@@ -23,16 +24,14 @@ let handler (slug: string) : EndpointHandler =
             | Some { IsEnabled = false } ->
                 // Disabled is indistinguishable from absent on purpose: a
                 // turned-off connector should not be discoverable by probing.
-                ctx.SetStatusCode 404
-                return! ctx.WriteText "Not found"
+                return! Layout.notFound ctx
 
             | Some connector ->
                 let registry = ctx.GetService<ProviderAdapters.Registry>()
 
                 match registry.For connector.Kind with
                 | None ->
-                    ctx.SetStatusCode 404
-                    return! ctx.WriteText "Not found"
+                    return! Layout.notFound ctx
 
                 | Some adapter ->
                     let returnUrl =

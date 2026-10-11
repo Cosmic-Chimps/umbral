@@ -531,3 +531,56 @@ let ``the SQL check flags a statement with a value formatted in`` (source: strin
 [<InlineData("let c = '\"'\nlet q = \"SELECT a FROM t\"")>]
 let ``the SQL check lets literal statements and prose through`` (source: string) =
     Assert.Empty(sqlProblems (Set.ofList [ "Columns" ]) source)
+
+// ---------------------------------------------------------------------------
+// 4. Every Texts field is read somewhere
+//
+// Texts.fs is the one file where an operator's or end user's words live, so a
+// field nothing reads is a message that was written, reviewed and never shown —
+// or a screen that quietly stopped using it and now says something else.
+// ---------------------------------------------------------------------------
+
+/// The fields declared in the `Texts` record: lines of the form `Name: type`
+/// inside the braces, before the `let en` value that fills them.
+let private textsFields (textsSource: string) : string list =
+    let declaration = textsSource.Substring(0, textsSource.IndexOf "let en:")
+
+    Regex.Matches(declaration, @"^\s+([A-Z][A-Za-z0-9]*):", RegexOptions.Multiline)
+    |> Seq.map (fun m -> m.Groups[1].Value)
+    |> List.ofSeq
+
+/// The fields no source reads as `.Name`.
+let private unreadFields (fields: string list) (sources: string list) : string list =
+    let read =
+        sources
+        |> List.collect (fun source ->
+            Regex.Matches(source, @"\.([A-Z][A-Za-z0-9]*)\b") |> Seq.map (fun m -> m.Groups[1].Value) |> List.ofSeq)
+        |> Set.ofList
+
+    fields |> List.filter (read.Contains >> not)
+
+[<Fact>]
+let ``every Texts field is read by some source file`` () =
+    let files = sourceFiles ()
+    let isTexts (path: string) = Path.GetFileName path = "Texts.fs" && path.Contains "Views"
+    let textsSource = files |> List.find isTexts |> File.ReadAllText
+    let others = files |> List.filter (isTexts >> not) |> List.map File.ReadAllText
+    let unread = unreadFields (textsFields textsSource) others
+
+    Assert.True(
+        unread.IsEmpty,
+        "These Texts fields are declared and never read; use them or delete them: "
+        + String.concat ", " unread
+    )
+
+[<Fact>]
+let ``the Texts check finds the fields and the readers`` () =
+    let fields = textsFields (File.ReadAllText(Path.Combine(repoRoot.Value, "src", "Umbral", "Views", "Texts.fs")))
+    Assert.True(fields.Length >= 80, $"Only {fields.Length} Texts fields were found.")
+    Assert.Contains("NotFoundTitle", fields)
+
+[<Fact>]
+let ``the Texts check flags a field nothing reads`` () =
+    let fields = [ "Used"; "Orphan" ]
+    Assert.Equal<string list>([ "Orphan" ], unreadFields fields [ "let x = t.Used" ])
+    Assert.Empty(unreadFields fields [ "t.Used + t.Orphan" ])

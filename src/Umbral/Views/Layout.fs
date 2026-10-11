@@ -140,3 +140,11 @@ let messagePageWith (ctx: HttpContext) (t: Texts) (heading: string) (body: HtmlE
 let messagePage (ctx: HttpContext) (t: Texts) (heading: string) (body: string) =
     p(class' = "text-body-md text-on-surface-variant") { body }
     |> messagePageWith ctx t heading
+
+/// The themed 404. Every "there is nothing here" answer goes through this, so a
+/// route that is absent, a connector that is disabled and a fake provider that is
+/// not allowed are all the same page: nothing to tell them apart by probing.
+let notFound (ctx: HttpContext) =
+    let t = Texts.current ()
+    ctx.SetStatusCode 404
+    ctx.WriteHtmlView(messagePage ctx t t.NotFoundTitle t.NotFoundBody)

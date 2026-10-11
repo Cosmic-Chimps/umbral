@@ -336,9 +336,7 @@ let configureApp (app: WebApplication) =
         .UseOxpecker(endpoints)
     |> ignore
 
-    app.Run(fun ctx ->
-        ctx.SetStatusCode 404
-        ctx.WriteText "Not found")
+    app.Run(fun ctx -> Layout.notFound ctx)
 
 /// Everything that must happen before the first request: the schema Umbral owns,
 /// OpenIddict's migrations, and the key material.
