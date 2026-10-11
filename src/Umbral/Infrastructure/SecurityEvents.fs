@@ -43,8 +43,6 @@ type EventType =
     | AppDeleted
     // Protocol
     | AuthorizationCodeReplayed
-    // Configuration
-    | ConfigApplied
 
     /// The stored form. Explicit rather than derived from the case name: these
     /// values end up in a database an operator may query by hand, and renaming
@@ -71,7 +69,6 @@ type EventType =
         | AppSecretRotated -> "app_secret_rotated"
         | AppDeleted -> "app_deleted"
         | AuthorizationCodeReplayed -> "authorization_code_replayed"
-        | ConfigApplied -> "config_applied"
 
 /// Every event type, for the test that asserts each one is emitted somewhere in
 /// the product (T092). A type nobody writes is either a missing call site or a
@@ -96,8 +93,7 @@ let allEventTypes =
       AppUpdated
       AppSecretRotated
       AppDeleted
-      AuthorizationCodeReplayed
-      ConfigApplied ]
+      AuthorizationCodeReplayed ]
 
 type Outcome =
     | Success

@@ -15,7 +15,6 @@ let private connector (slug: string) (kind: ProviderKind) (issuer: string option
       ClientId = "client-id"
       ClientSecretRef = ""
       ClientSecretHint = ""
-      ExtraScopes = []
       IssuerUrl = issuer
       IsEnabled = true
       IsShared = true

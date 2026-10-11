@@ -186,8 +186,6 @@ type Texts =
       ConnectorIssuerHint: string
       ConnectorIssuerFixedNote: string
       /// Extra scopes of an OpenID Connect provider (specs/002 T025).
-      ConnectorExtraScopesLabel: string
-      ConnectorExtraScopesHint: string
       ConnectorEmailTrustWarning: string
       ConnectorOidcClientIdHint: string
       ConnectorOidcSecretAgainHint: string
@@ -235,12 +233,6 @@ type Texts =
       UserDeleteButton: string
       UserDeleteConfirm: string -> string
       UserDeletedNotice: string
-
-      // Config export (GET /admin/config)
-      ConfigExportTitle: string
-      ConfigExportLead: string
-      ConfigExportDownloadButton: string
-      ConfigExportSecretNote: string
 
       // Generic chrome and errors (FR-037: every message names the next action)
       CopyButton: string
@@ -433,10 +425,6 @@ let en: Texts =
       ConnectorIssuerFixedNote =
         "The identifier and the issuer can't be changed, because people's accounts are tied to the issuer and the callback URL is registered with the provider. "
         + "To change either, delete this provider and add it again: the same issuer brings everyone back to their account."
-      ConnectorExtraScopesLabel = "Extra scopes"
-      ConnectorExtraScopesHint =
-        "Optional, only for an OpenID Connect provider: scopes to ask for besides openid, email and profile, separated by spaces, like groups offline_access. "
-        + "Leave it empty if you are not sure your provider needs more."
       ConnectorEmailTrustWarning =
         "Umbral trusts an email address that an OpenID Connect provider marks as verified, and uses it to recognise the same person across providers. "
         + "Add only a provider you run or trust. One that lets people claim email addresses they don't control would let them sign in as someone else."
@@ -488,11 +476,6 @@ let en: Texts =
       UserDeleteButton = "Delete"
       UserDeleteConfirm = fun name -> $"Delete {name}? This removes their account and every linked provider account permanently, and can't be undone."
       UserDeletedNotice = "User deleted."
-
-      ConfigExportTitle = "Export configuration"
-      ConfigExportLead = "The current apps and connectors as one YAML file. Secrets are written as environment-variable references, never in clear text."
-      ConfigExportDownloadButton = "Download umbral.yaml"
-      ConfigExportSecretNote = "App secrets can't be exported — OpenIddict only stores a hash of them. An app imported from this file gets a fresh secret; update its configuration with the new one."
 
       CopyButton = "Copy"
       CopiedNotice = "Copied"

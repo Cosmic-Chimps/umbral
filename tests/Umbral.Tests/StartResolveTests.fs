@@ -46,7 +46,6 @@ let private connector: Connector =
       ClientId = "client-id"
       ClientSecretRef = ""
       ClientSecretHint = ""
-      ExtraScopes = []
       IssuerUrl = None
       IsEnabled = true
       IsShared = true

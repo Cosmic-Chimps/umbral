@@ -128,7 +128,6 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
                   ClientId = "fake"
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = "used"
-                  ExtraScopes = []
                   IssuerUrl = None
                   IsEnabled = true
                   IsShared = true

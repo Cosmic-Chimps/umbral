@@ -141,6 +141,8 @@ With two users signed in:
 
 ## Scenario 5 — Restart and config round-trip *(SC-005, SC-006, User Story 5)*
 
+**Superseded by [004](../004-remove-config-document/spec.md), the configuration export and file half.**
+
 ```bash
 docker restart umbral
 ```

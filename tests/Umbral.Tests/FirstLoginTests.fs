@@ -134,7 +134,6 @@ let private claimAndConfigure (app: Fixtures.TestApp) (browser: Browser) : Task<
                   ClientId = "fake-client"
                   ClientSecretRef = secretRef.Encoded
                   ClientSecretHint = "cret"
-                  ExtraScopes = []
                   IssuerUrl = None
                   IsEnabled = true
                   IsShared = true

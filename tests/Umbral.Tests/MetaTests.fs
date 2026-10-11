@@ -114,8 +114,8 @@ let private secretName =
     )
 
 /// A value that is not a literal secret: empty, a boolean, or a reference to a
-/// variable. `${NAME}` is what ConfigFile.fs resolves, and the same form is
-/// compose's and a workflow's, so one rule covers all three.
+/// variable. `${NAME}` is compose's form and a workflow's, so one rule covers
+/// both.
 let private isNotALiteral (value: string) =
     let v = value.Trim()
 
@@ -262,7 +262,7 @@ let ``the secret scan covers the files it is meant to`` () =
 [<InlineData("launchSettings.json", "{ \"profiles\": { \"http\": { \"environmentVariables\": { \"UMBRAL__TOKEN\": \"x\" } } } }", "profiles.http.environmentVariables.UMBRAL__TOKEN")>]
 [<InlineData("docker-compose.yml", "services:\n  umbral:\n    environment:\n      UMBRAL__ADMIN_PASSWORD: hunter2\n", "services.umbral.environment.UMBRAL__ADMIN_PASSWORD")>]
 [<InlineData("docker-compose.yml", "services:\n  umbral:\n    environment:\n      - GITHUB_CLIENT_SECRET=hunter2\n", "services.umbral.environment.GITHUB_CLIENT_SECRET")>]
-[<InlineData("umbral.yaml", "connectors:\n  - slug: github\n    client_secret: abc\n", "connectors.client_secret")>]
+[<InlineData(".github/workflows/ci.yml", "jobs:\n  build:\n    steps:\n      - name: deploy\n        env:\n          API_TOKEN: abc\n", "jobs.build.steps.env.API_TOKEN")>]
 [<InlineData(".env", "UMBRAL__API_KEY=abc\n", "UMBRAL__API_KEY")>]
 [<InlineData(".env.production", "export UMBRAL__SECRET=\"abc\"\n", "UMBRAL__SECRET")>]
 let ``the secret scan flags a literal credential`` (fileName: string, text: string, expected: string) =

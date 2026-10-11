@@ -69,25 +69,6 @@ characters). It is never shown again: to change it, paste a new one into
 **Replace client secret**. If you **Reset Secret** in Discord, do this at once,
 or logins fail until you do.
 
-### The same thing in the configuration file
-
-```yaml
-version: 1
-connectors:
-  - slug: discord
-    kind: discord
-    display_name: Discord
-    client_id: "123456789012345678"
-    client_secret: ${UMBRAL_DISCORD_SECRET}
-    enabled: true
-    # shared: true                     # optional, default true; false = offered only to apps that choose it
-```
-
-Set `UMBRAL_DISCORD_SECRET` in the container's environment. See
-[Configuration as code](../../README.md#configuration-as-code). Remember that
-the file is re-applied on every start and overwrites UI changes to this
-connector.
-
 ## Giving one app its own name
 
 The Discord application you created above stands for your Umbral instance, so
@@ -115,31 +96,6 @@ app's choice, warns you first if an app would be left with no way to sign in. A
 connector that is not shared and that no app has chosen is offered nowhere. See
 [Troubleshooting](../../README.md#troubleshooting).
 
-In the configuration file, the second connector gets its own slug and its own
-secret variable, `UMBRAL_DISCORD_FRUNCHY_SECRET` (the slug upper-cased, anything
-that is not a letter or digit as `_`), and the app lists it:
-
-```yaml
-connectors:
-  - slug: discord-frunchy             # fixed once created: it is in the callback URL
-    kind: discord
-    display_name: Discord
-    client_id: "…"
-    client_secret: ${UMBRAL_DISCORD_FRUNCHY_SECRET}
-    enabled: true
-    shared: false                      # offered only to apps that choose it
-apps:
-  - client_id: frunchy
-    name: Frunchy
-    client_secret: ${UMBRAL_FRUNCHY_SECRET}   # web app; leave out for a single-page or native app
-    redirect_uris:
-      - https://frunchy.example.com/callback
-    connectors:                        # a chosen set; absent = all shared connectors
-      - discord-frunchy
-```
-
-An app listing a connector the file does not define refuses the whole file.
-
 ## Scopes Umbral requests
 
 `identify email`. Umbral requests them itself; you do not select scopes in the
@@ -150,8 +106,7 @@ portal.
 | `identify` | The account's ID, username, display name and avatar |
 | `email` | The email address and whether Discord has verified it |
 
-You may add more in the configuration file with `extra_scopes`, but identity
-does not need them. Umbral sends PKCE (`S256`) with the request.
+Umbral sends PKCE (`S256`) with the request.
 
 ## What people see
 

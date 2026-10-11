@@ -40,7 +40,6 @@ let endpoints: Endpoint list =
       yield! Umbral.Handlers.Admin.Connectors.endpoint
       Umbral.Handlers.Admin.ConnectorToggle.endpoint
       Umbral.Handlers.Admin.ConnectorDelete.endpoint
-      Umbral.Handlers.Admin.ConfigExport.endpoint
       yield! Umbral.Handlers.Dev.FakeProvider.endpoint
       yield! Umbral.Handlers.Admin.Apps.endpoint
       Umbral.Handlers.Admin.AppSecret.endpoint
@@ -348,77 +347,12 @@ let configureApp (app: WebApplication) =
 let initialize (app: WebApplication) =
     task {
         let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
-        let dataDirectory = app.Services.GetRequiredService<DataDirectory.DataDirectory>()
-        let config = app.Services.GetRequiredService<IConfiguration>()
 
         do! Database.initializeSchema dbConfig
 
         use scope = app.Services.CreateScope()
         let context = scope.ServiceProvider.GetRequiredService<UmbralContext>()
         do! context.Database.MigrateAsync()
-
-        // Apply the configuration file, if the operator supplied one. Before
-        // the fake-connector check, so a file that adds one is caught by it.
-        //
-        // Every failure here stops the process rather than starting a
-        // half-configured instance (FR-030). An operator who mistyped a
-        // variable name should find out now, with the entry named, not when a
-        // login fails with a provider error that mentions neither.
-        let configPath =
-            ConfigFile.locate config[ "UMBRAL:CONFIG_FILE" ] dataDirectory
-
-        match ConfigFile.tryRead configPath with
-        | None -> ()
-        | Some yaml ->
-            // The same plain-http setting the admin form's issuer check is
-            // given, so the file and the form accept the same addresses.
-            let allowLocalhostHttp =
-                app.Services.GetRequiredService<OidcDiscovery.OidcDiscovery>().AllowLocalhostHttp
-
-            match ConfigFile.parseWith allowLocalhostHttp yaml with
-            | Error e -> failwith $"{configPath}: {e.Describe}"
-            | Ok document ->
-                match ConfigFile.resolveSecrets (fun name -> config[name]) document with
-                | Error missing -> failwith $"{configPath}: {ConfigFile.describeMissing missing}"
-                | Ok resolved ->
-                    let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-                    let clock = app.Services.GetRequiredService<TimeProvider>()
-                    // Before the first write, so a file the instance cannot take
-                    // (an issuer or a kind changed on an existing slug) names the
-                    // file and leaves everything as it was. `applyConnectors`
-                    // asks again, for the callers that do not come through here.
-                    match! ConfigFile.conflicts dbConfig resolved with
-                    | [] -> ()
-                    | problems -> failwith $"{configPath}: {Umbral.Domains.ConfigDocument.describe problems}"
-
-                    let! applied = ConfigFile.applyConnectors dbConfig clock secrets resolved
-
-                    // Apps through OpenIddict's own manager, the way the Apps
-                    // screen creates them — OpenIddict is the only thing that
-                    // knows how a client secret is hashed.
-                    let applications = scope.ServiceProvider.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>()
-                    let! appsApplied = ConfigFile.applyApps dbConfig clock applications resolved
-
-                    // Before the setup banner below: a file that carries the
-                    // operator credential claims the instance, and an instance
-                    // that is already claimed has no use for the banner.
-                    let! operatorApplied = ConfigFile.applyOperator dbConfig clock resolved
-
-                    do!
-                        SecurityEvents.record
-                            dbConfig
-                            clock
-                            { SecurityEvents.event
-                                  SecurityEvents.ConfigApplied
-                                  SecurityEvents.Success
-                                  SecurityEvents.Actor.System with
-                                Detail =
-                                    Some(
-                                        $"connectors={applied};apps={appsApplied}"
-                                        + (match operatorApplied with
-                                           | Some result -> $";operator={string result}".ToLowerInvariant()
-                                           | None -> "")
-                                    ) }
 
         // A fake connector authenticates anyone as whoever they claim to be.
         // If one is configured on an instance that has not explicitly allowed
@@ -435,9 +369,8 @@ let initialize (app: WebApplication) =
 
         // An unconfigured instance is claimable by whoever reaches /admin/setup
         // first, so claiming it also needs a token only someone who can read
-        // the container log has. Printed after the configuration file, which
-        // may claim the instance itself; appsettings.json keeps the startup
-        // chatter quiet enough that it stays near the end of the log.
+        // the container log has. appsettings.json keeps the startup chatter
+        // quiet enough that it stays near the end of the log.
         if not configured then
             let origin = app.Services.GetRequiredService<PublicOrigin.PublicOrigin>()
             let token = app.Services.GetRequiredService<AdminAuth.SetupToken>()
@@ -474,9 +407,9 @@ let buildApp (args: string array) (customize: WebApplicationBuilder -> unit) : W
 ///
 /// Takes only what it needs. `initialize` is not run: it would print the
 /// first-run setup banner, with a token that nothing is waiting to receive,
-/// above the very credential this prints, and it would apply the configuration
-/// file for no reason. The schema is ensured here because the settings table
-/// must exist, which on an instance that never started is not a given.
+/// above the very credential this prints. The schema is ensured here because
+/// the settings table must exist, which on an instance that never started is
+/// not a given.
 ///
 /// On an instance nobody has claimed yet this claims it. That is acceptable:
 /// being able to run this process is more authority than the setup token
@@ -562,61 +495,12 @@ let healthcheck () =
     with _ ->
         1
 
-/// FR-017a: make the verification value the configuration file's
-/// `operator.credential_hash` points at, without Umbral needing a data
-/// directory, an origin or anything else to be configured — it is meant to be
-/// run anywhere, including on the laptop the file is written on.
-///
-///     echo -n 'the credential' | docker run --rm -i umbral hash-credential
-///
-/// Read from standard input rather than taken as an argument, so the credential
-/// is never in a process list or a shell history.
-let private hashCredential () =
-    let typed =
-        if Console.IsInputRedirected then
-            Console.In.ReadLine()
-        else
-            // At a terminal, typed without echo: this is the credential.
-            eprintf "Operator credential: "
-            let typed = Text.StringBuilder()
-            let mutable key = Console.ReadKey true
-
-            while key.Key <> ConsoleKey.Enter do
-                if key.Key = ConsoleKey.Backspace then
-                    if typed.Length > 0 then typed.Length <- typed.Length - 1
-                else
-                    typed.Append key.KeyChar |> ignore
-
-                key <- Console.ReadKey true
-
-            eprintfn ""
-            typed.ToString()
-
-    // Trimmed like every form field is (WebForms.value), so the hash verifies
-    // what the sign-in form will later send.
-    let credential = (match typed with | null -> "" | line -> line).Trim()
-
-    if credential.Length < AdminAuth.MinimumLength then
-        eprintfn $"The credential must be at least {AdminAuth.MinimumLength} characters. Nothing was printed."
-        1
-    else
-        // Standard output carries the hash and nothing else, so it can be
-        // captured. The hash holds `$`, which compose and shells expand: it is
-        // reproduced here quoted for a .env file, the usual place for it.
-        let hash = AdminAuth.hashCredential credential
-        Console.WriteLine hash
-        eprintfn "Put that in the environment variable the file references, in single quotes in a .env file:"
-        eprintfn $"  UMBRAL_OPERATOR_HASH='{hash}'"
-        0
-
 [<EntryPoint>]
 let main args =
     // Subcommands are decided before anything is built, so that none of them
     // can start a second web host or print the first-run banner.
     if args |> Array.contains "healthcheck" then
         healthcheck ()
-    elif args |> Array.contains "hash-credential" then
-        hashCredential ()
     else
         let app = buildApp args ignore
 

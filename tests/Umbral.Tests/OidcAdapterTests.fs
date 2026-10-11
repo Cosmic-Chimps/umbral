@@ -37,7 +37,6 @@ let private connector: Connector =
       ClientId = clientId
       ClientSecretRef = "local:unused"
       ClientSecretHint = "ount"
-      ExtraScopes = []
       IssuerUrl = Some issuer
       IsEnabled = true
       IsShared = true

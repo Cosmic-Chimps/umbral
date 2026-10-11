@@ -13,12 +13,9 @@
 module Umbral.Tests.SecurityEventCoverageTests
 
 open System
-open System.IO
 open System.Net
 open System.Net.Http
 open System.Text.Json
-open System.Threading.Tasks
-open Microsoft.Extensions.DependencyInjection
 open Xunit
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
@@ -74,107 +71,6 @@ let private signedInOk (result: Result<string, string>) =
     match result with
     | Ok code -> code
     | Error where -> failwith $"sign-in did not complete: {where}"
-
-// ---------------------------------------------------------------------------
-// The config file, as the operator supplies it at startup
-// ---------------------------------------------------------------------------
-
-let private configYaml (secretVariable: string) =
-    $"""version: 1
-
-connectors:
-  - slug: discord
-    kind: discord
-    display_name: Discord
-    client_id: "1234567890"
-    client_secret: ${{{secretVariable}}}
-    enabled: true
-"""
-
-/// Start an app whose startup applies a config file, and hand the file's path
-/// to the test so it can apply a second one later.
-let private withConfigFileAnd (extra: (string * string) list) (secret: string) (body: Fixtures.TestApp -> Task<unit>) =
-    task {
-        let path = Path.Combine(Path.GetTempPath(), "umbral-cfg-" + Guid.NewGuid().ToString "N" + ".yaml")
-        File.WriteAllText(path, configYaml "UMBRAL_DISCORD_SECRET")
-
-        try
-            use! app =
-                Fixtures.createAppWith
-                    ([ "UMBRAL:CONFIG_FILE", path
-                       "UMBRAL_DISCORD_SECRET", secret ]
-                     @ extra)
-                    ignore
-
-            do! body app
-        finally
-            if File.Exists path then File.Delete path
-    }
-
-let private withConfigFile = withConfigFileAnd []
-
-let private reapply (app: Fixtures.TestApp) (secret: string) =
-    task {
-        let document =
-            match ConfigFile.parse (configYaml "UMBRAL_DISCORD_SECRET") with
-            | Ok d -> d
-            | Error e -> failwith e.Describe
-
-        let resolved =
-            match ConfigFile.resolveSecrets (fun _ -> (secret: string | null)) document with
-            | Ok d -> d
-            | Error _ -> failwith "unreachable"
-
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! _ = ConfigFile.applyConnectors app.DbConfig app.Clock secrets resolved
-        return ()
-    }
-
-[<Fact>]
-let ``a config file applied at startup records its connectors as system events`` () =
-    withConfigFile "the-real-secret" (fun app ->
-        task {
-            let! rows = events app
-
-            let created = ofType ConnectorCreated rows
-            let single = Assert.Single created
-            Assert.Equal("system", single.Actor)
-            Assert.Equal(Some "discord", single.ConnectorSlug)
-            Assert.Equal(Some "source=config_file", single.Detail)
-
-            let applied = Assert.Single(ofType ConfigApplied rows)
-            Assert.Equal("system", applied.Actor)
-        })
-
-[<Fact>]
-let ``re-applying an unchanged file records no update`` () =
-    withConfigFile "the-real-secret" (fun app ->
-        task {
-            // A restart applies the same file again. A "connector updated" row
-            // per connector per restart would bury the one that matters.
-            do! reapply app "the-real-secret"
-            let! rows = events app
-            Assert.Empty(ofType ConnectorUpdated rows)
-        })
-
-[<Fact>]
-let ``a changed secret in the file records an update naming the field, never the value`` () =
-    withConfigFile "the-real-secret" (fun app ->
-        task {
-            do! reapply app "a-brand-new-secret"
-            let! rows = events app
-
-            let update = Assert.Single(ofType ConnectorUpdated rows)
-            Assert.Equal("system", update.Actor)
-            Assert.Equal(Some "discord", update.ConnectorSlug)
-            Assert.Equal(Some "source=config_file;changed=secret", update.Detail)
-
-            // Nothing in the log may carry either secret.
-            for row in rows do
-                let text = String.Join("|", [ row.EventType; defaultArg row.Detail "" ])
-                Assert.DoesNotContain("the-real-secret", text)
-                Assert.DoesNotContain("a-brand-new-secret", text)
-        })
 
 // ---------------------------------------------------------------------------
 // Sign-in events say the right thing about the right person
@@ -294,111 +190,103 @@ let ``a disabled user with a live session is turned away at authorize and it is 
 
 [<Fact>]
 let ``every event type in the data model is emitted by the real product`` () =
-    withConfigFileAnd fakeSettings "the-real-secret" (fun app ->
-        task {
-            // -- Operator: claim (credential set), sign out, sign in, a wrong credential
-            let operator = Browser(app.Client)
-            do! claimOperator app operator
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
 
-            let! _ = operator.PostForm("/admin/connectors", "/admin/signout", [])
-            let! _ = operator.PostForm("/admin/signin", "/admin/signin", [ "credential", "not-the-credential" ])
-            let! signedBackIn = operator.PostForm("/admin/signin", "/admin/signin", [ "credential", OperatorCredential ])
-            Assert.Equal(HttpStatusCode.Redirect, signedBackIn.StatusCode)
+        // -- Operator: claim (credential set), sign out, sign in, a wrong credential
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
 
-            // -- Apps: create two (rotated and deleted at the end, once the secret
-            //    the sign-ins below redeem with is no longer needed)
-            do! seedFakeConnector app
-            let! clientId, secret = registerApp operator "Grafana"
-            let! _ = registerApp operator "Throwaway"
+        let! _ = operator.PostForm("/admin/connectors", "/admin/signout", [])
+        let! _ = operator.PostForm("/admin/signin", "/admin/signin", [ "credential", "not-the-credential" ])
+        let! signedBackIn = operator.PostForm("/admin/signin", "/admin/signin", [ "credential", OperatorCredential ])
+        Assert.Equal(HttpStatusCode.Redirect, signedBackIn.StatusCode)
 
-            // -- People: a first sign-in (created), a second provider account with
-            //    the same verified email (linked), a code replayed
-            let sam = Browser(app.Client)
-            let! first = signInViaFake sam clientId "openid" "fake-user-1" "sam@example.com"
-            let code = signedInOk first
-            let! redeemed = exchangeCode app clientId secret code
-            Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode)
+        // -- Apps: create two (rotated and deleted at the end, once the secret
+        //    the sign-ins below redeem with is no longer needed)
+        do! seedFakeConnector app
+        let! clientId, secret = registerApp operator "Grafana"
+        let! _ = registerApp operator "Throwaway"
 
-            let! replay = exchangeCode app clientId secret code
-            Assert.Equal(HttpStatusCode.BadRequest, replay.StatusCode)
+        // -- People: a first sign-in (created), a second provider account with
+        //    the same verified email (linked), a code replayed
+        let sam = Browser(app.Client)
+        let! first = signInViaFake sam clientId "openid" "fake-user-1" "sam@example.com"
+        let code = signedInOk first
+        let! redeemed = exchangeCode app clientId secret code
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode)
 
-            let! linked = signInViaFake (Browser(app.Client)) clientId "openid" "fake-user-2" "sam@example.com"
-            signedInOk linked |> ignore
+        let! replay = exchangeCode app clientId secret code
+        Assert.Equal(HttpStatusCode.BadRequest, replay.StatusCode)
 
-            // A different person, to delete
-            let! other = signInViaFake (Browser(app.Client)) clientId "openid" "fake-user-3" "kim@example.com"
-            signedInOk other |> ignore
+        let! linked = signInViaFake (Browser(app.Client)) clientId "openid" "fake-user-2" "sam@example.com"
+        signedInOk linked |> ignore
 
-            let! samId = userIdOf app "fake-user-1"
-            let! otherId = userIdOf app "fake-user-3"
+        // A different person, to delete
+        let! other = signInViaFake (Browser(app.Client)) clientId "openid" "fake-user-3" "kim@example.com"
+        signedInOk other |> ignore
 
-            // -- Users: disable (and a refused sign-in), enable, delete
-            let! _ = operator.PostForm("/admin/users", $"/admin/users/{samId}/toggle", [])
-            let! refused = signInViaFake (Browser(app.Client)) clientId "openid" "fake-user-1" "sam@example.com"
-            Assert.True(Result.isError refused)
-            let! _ = operator.PostForm("/admin/users", $"/admin/users/{samId}/toggle", [])
-            let! _ = operator.PostForm("/admin/users", $"/admin/users/{otherId}/delete", [])
+        let! samId = userIdOf app "fake-user-1"
+        let! otherId = userIdOf app "fake-user-3"
 
-            // -- Connectors: the config file created discord; the screen now updates
-            //    it, turns it off and on, and removes it. The fake connector keeps
-            //    a door open throughout, so no confirmation is needed.
-            let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/discord", [ "clientId", "999" ])
-            let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/discord/toggle", [])
-            let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/discord/toggle", [])
-            let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/discord/delete", [])
+        // -- Users: disable (and a refused sign-in), enable, delete
+        let! _ = operator.PostForm("/admin/users", $"/admin/users/{samId}/toggle", [])
+        let! refused = signInViaFake (Browser(app.Client)) clientId "openid" "fake-user-1" "sam@example.com"
+        Assert.True(Result.isError refused)
+        let! _ = operator.PostForm("/admin/users", $"/admin/users/{samId}/toggle", [])
+        let! _ = operator.PostForm("/admin/users", $"/admin/users/{otherId}/delete", [])
 
-            // -- A brand new connector, created from the screen rather than the file
-            let! _ =
-                operator.PostForm(
-                    "/admin/connectors",
-                    "/admin/connectors/github",
-                    [ "clientId", "gh-client"; "clientSecret", "gh-secret" ]
-                )
-
-            // -- Apps: rotate the secret, delete one
-            let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/secret", [])
-            let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/delete", [])
-
-            // -- Apps from the file: one created, then renamed by a later apply
-            let applyApp (name: string) =
-                task {
-                    let yaml =
-                        $"""version: 1
-apps:
-  - client_id: filed
-    name: {name}
-    redirect_uris:
-      - https://filed.example.com/cb
-"""
-
-                    match ConfigFile.parse yaml with
-                    | Error e -> failwith e.Describe
-                    | Ok document ->
-                        let manager = app.Services.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>()
-                        let! _ = ConfigFile.applyApps app.DbConfig app.Clock manager document
-                        return ()
-                }
-
-            do! applyApp "Filed"
-            do! applyApp "Filed, renamed"
-
-            let! rows = events app
-            let seen = rows |> List.map (fun r -> r.EventType) |> Set.ofList
-
-            let missing =
-                allEventTypes
-                |> List.filter (fun t -> not (seen.Contains t.Value))
-                |> List.map (fun t -> t.Value)
-
-            Assert.True(
-                missing.IsEmpty,
-                "These event types are declared in SecurityEvents.allEventTypes but the product never emitted them: "
-                + String.Join(", ", missing)
+        // -- Connectors: the screen creates discord, updates it, turns it off and
+        //    on, and removes it. The fake connector keeps a door open
+        //    throughout, so no confirmation is needed.
+        let! _ =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/discord",
+                [ "clientId", "123"; "clientSecret", "discord-secret" ]
             )
 
-            // And nothing outside the closed set — a typo'd type cannot exist in
-            // the union, but a row written by hand could.
-            let known = allEventTypes |> List.map (fun t -> t.Value) |> Set.ofList
-            let unknown = seen |> Set.filter (fun t -> not (known.Contains t))
-            Assert.True(unknown.IsEmpty, "Unknown event types in the log: " + String.Join(", ", unknown))
-        })
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/discord", [ "clientId", "999" ])
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/discord/toggle", [])
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/discord/toggle", [])
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/discord/delete", [])
+
+        // -- Another connector, created the same way and left in place
+        let! _ =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/github",
+                [ "clientId", "gh-client"; "clientSecret", "gh-secret" ]
+            )
+
+        // -- Apps: change a connector choice (an update), rotate the secret, delete one
+        let! _ =
+            operator.PostForm(
+                "/admin/apps",
+                $"/admin/apps/{clientId}/connectors",
+                [ "connectorChoice", "chosen"; "connectors", "fake" ]
+            )
+
+        let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/secret", [])
+        let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/delete", [])
+
+        let! rows = events app
+        let seen = rows |> List.map (fun r -> r.EventType) |> Set.ofList
+
+        let missing =
+            allEventTypes
+            |> List.filter (fun t -> not (seen.Contains t.Value))
+            |> List.map (fun t -> t.Value)
+
+        Assert.True(
+            missing.IsEmpty,
+            "These event types are declared in SecurityEvents.allEventTypes but the product never emitted them: "
+            + String.Join(", ", missing)
+        )
+
+        // And nothing outside the closed set — a typo'd type cannot exist in
+        // the union, but a row written by hand could.
+        let known = allEventTypes |> List.map (fun t -> t.Value) |> Set.ofList
+        let unknown = seen |> Set.filter (fun t -> not (known.Contains t))
+        Assert.True(unknown.IsEmpty, "Unknown event types in the log: " + String.Join(", ", unknown))
+    }

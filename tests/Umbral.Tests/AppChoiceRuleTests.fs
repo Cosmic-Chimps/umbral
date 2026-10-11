@@ -13,7 +13,6 @@ let private connector slug kind enabled shared : Connector =
       ClientId = "id"
       ClientSecretRef = "ref"
       ClientSecretHint = "hint"
-      ExtraScopes = []
       IssuerUrl = None
       IsEnabled = enabled
       IsShared = shared

@@ -79,7 +79,6 @@ let private testConnector (kind: ProviderKind) : Connector =
       ClientId = "test-client-id"
       ClientSecretRef = "local:unused"
       ClientSecretHint = "1234"
-      ExtraScopes = []
       IssuerUrl = None
       IsEnabled = true
       IsShared = true

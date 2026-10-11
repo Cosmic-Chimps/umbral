@@ -1,36 +1,41 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: TEMPLATE (unversioned) → 1.0.0
-Rationale: Initial ratification. First concrete constitution derived from docs/vision.md.
+Version change: 1.0.0 → 2.0.0
+Rationale: MAJOR. Principle V (Config-as-Code Parity) is removed, along with
+its "Config parity" question in the Constitution Check. It required a YAML file
+equivalent to the admin UI; spec 004 (specs/004-remove-config-document) removes
+that file.
 
-Principles defined (all new):
-  I.   Three Concepts, No More
-  II.  One Artifact, Modest Hardware
-  III. Standards Over Hand-Rolled Protocol Code
-  IV.  Secure by Default, Not by Configuration
-  V.   Config-as-Code Parity
-  VI.  Documentation Is the Support Channel
-  VII. The Default Answer Is No
+Principles:
+  I.   Three Concepts, No More                     unchanged
+  II.  One Artifact, Modest Hardware               unchanged
+  III. Standards Over Hand-Rolled Protocol Code    unchanged
+  IV.  Secure by Default, Not by Configuration     unchanged
+  V.   Config-as-Code Parity                       REMOVED (heading kept, see below)
+  VI.  Documentation Is the Support Channel        unchanged
+  VII. The Default Answer Is No                    unchanged
 
-Sections added:
-  - Technology Constraints (replaces [SECTION_2_NAME])
-  - Development Workflow & Quality Gates (replaces [SECTION_3_NAME])
-  - Governance
+Not renumbered on purpose: code comments, specs and tests cite "Principle VI"
+and "Principle VII", and renumbering would silently repoint every one of them.
 
-Sections removed: none (template placeholders replaced in place)
+Sections changed:
+  - Development Workflow & Quality Gates: the "Config parity" row is removed
+    from the Constitution Check table.
 
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md — "Constitution Check" gate is a
-     placeholder filled per-feature by /speckit-plan; the gate table in
-     "Development Workflow & Quality Gates" below is the authoritative source.
-     No template edit required.
-  ✅ .specify/templates/spec-template.md — no mandatory section added or removed
-     by this constitution; specs remain implementation-agnostic. No edit required.
-  ✅ .specify/templates/tasks-template.md — principle-driven task types
-     (documentation, container image, config-as-code parity) are expressed as
-     per-feature tasks, not template categories. No edit required.
-  ⚠ README.md — does not exist yet. Principle VI requires one before v0.1.0 ships.
+  ✅ .specify/templates/plan-template.md: the gate table lives here, not in the
+     template. No edit required.
+  ✅ .specify/templates/spec-template.md: does not mention the YAML file. No
+     edit required.
+  ✅ .specify/templates/tasks-template.md: does not mention the YAML file. No
+     edit required.
+  ✅ README.md and docs/: the configuration file is removed from them in the same
+     change set (spec 004, FR-012 and FR-013).
+  ✅ docs/vision.md: the config-as-code goal is marked dropped.
+
+Plans invalidated: none in flight. Specs 001, 002 and 003 carry requirements
+built on Principle V; 004 supersedes them (spec 004, FR-014).
 
 Deferred items: none.
 -->
@@ -119,20 +124,18 @@ depend on the operator reading a hardening guide.
 **Rationale**: This product is the front door to everything behind it. An
 operator who misconfigures it will not find out until it matters.
 
-### V. Config-as-Code Parity
+### V. (Removed in 2.0.0)
 
-Umbral is configurable from one YAML file and from the admin UI, and the two are
-equivalent.
+This principle required a YAML file equivalent to the admin UI, importable and
+exportable. Spec 004 dropped it on 2026-10-10. Every feature had to extend the
+file, its validation and its round-trip tests. The file undid admin changes
+on every restart. And an export could never carry app secrets, which are stored
+only as hashes. The admin UI is now the one place configuration changes, and
+the data directory is the whole state of an instance (Principle II): copying it
+moves or rebuilds an instance, secrets included.
 
-- Anything that can be done in the admin UI MUST be expressible in the YAML
-  file. A feature that is UI-only is incomplete.
-- The YAML file MUST be declarative and idempotent: applying it twice MUST leave
-  the same state, and it MUST be safe to keep in version control with secrets
-  supplied by environment-variable reference.
-- Changes made in the UI MUST be exportable back to that YAML format.
-
-**Rationale**: The audience already runs things from a git repo. A product that
-forces clicking to reproduce a deployment is a product they will not adopt.
+The number stays so that references to Principles VI and VII keep pointing at
+them.
 
 ### VI. Documentation Is the Support Channel
 
@@ -202,7 +205,6 @@ after Phase 1 design:
 | Single artifact | Does this add a runtime dependency outside the container, or state outside the data directory? |
 | Protocol safety | Does this hand-roll any token, signature, or key handling that OpenIddict provides? |
 | Secure default | Is the secure behavior the default, with no operator action required? |
-| Config parity | Is every new capability expressible in the YAML file? |
 | Documentation | Does the task list include the doc change for every user-visible behavior? |
 | Scope | Is this on the Principle VII exclusion list? |
 
@@ -237,4 +239,4 @@ time and re-evaluated after design. Violations are either removed from the
 feature or recorded in the plan's Complexity Tracking table with an explicit
 justification; an unjustified violation blocks the plan.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-09
+**Version**: 2.0.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-10

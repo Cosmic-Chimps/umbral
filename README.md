@@ -32,7 +32,6 @@ which are good at it.
 - [Integrate an app](#integrate-an-app)
 - [Run it for real, behind HTTPS](#run-it-for-real-behind-https)
 - [Your data: back it up](#your-data-back-it-up)
-- [Configuration as code](#configuration-as-code)
 - [Forgotten operator credential](#forgotten-operator-credential)
 - [Settings reference](#settings-reference)
 - [Troubleshooting](#troubleshooting)
@@ -141,6 +140,23 @@ current one and the new one twice, and signs every other admin session out.
 
 You land on the **Connectors** screen. The admin area has three screens:
 **Apps**, **Connectors**, **Users**.
+
+#### Claim an instance from a script
+
+To claim an instance without opening the setup page, start the container and
+run this once:
+
+```bash
+docker exec umbral /app/Umbral reset-credential
+# compose:
+docker compose exec umbral /app/Umbral reset-credential
+```
+
+On an instance nobody has claimed, it claims it and prints a credential, once.
+Have your script store it. The setup page then no longer asks for a token: it
+sends you to the sign-in page. Run on an instance that is already claimed, the
+same command replaces the credential (see
+[Forgotten operator credential](#forgotten-operator-credential)).
 
 ### 4. Add a connector (GitHub)
 
@@ -439,13 +455,18 @@ Every URL Umbral publishes comes from `UMBRAL__PUBLIC_ORIGIN`, never from the
 > app's secret and update every app. Back it up, and test that you can restore
 > it.
 
+The same copy is how you move Umbral to another machine, or rebuild it after
+losing one. Start it on the copy with the same `UMBRAL__PUBLIC_ORIGIN`: the
+tokens and the redirect addresses you registered with each provider depend on
+it. App secrets come along, people stay signed in, and nothing else needs
+re-entering.
+
 What is in there:
 
 | Path | What |
 | --- | --- |
 | `umbral.db` | SQLite database: connectors, users, apps, the security log. (While running you will also see `umbral.db-wal` and `umbral.db-shm`: they belong with it.) |
 | `keys/` | Token signing and encryption keys, and the key ring that encrypts the stored secrets |
-| `umbral.yaml` | Your [configuration file](#configuration-as-code), if you use one |
 
 **Back up** = copy the directory. **Stop Umbral first**: SQLite keeps recent
 writes in the `-wal` file, and a copy taken mid-write can be inconsistent. A
@@ -502,145 +523,6 @@ On Linux the copied files are owned by root; use `sudo` to move or read them.
 secrets are in the same directory, so anyone who holds a copy of `/data` holds
 every secret in it.
 
-## Configuration as code
-
-Everything you can click you can also write in one YAML file. Umbral reads it
-**at startup**, from `/data/umbral.yaml` or from the path in
-`UMBRAL__CONFIG_FILE`:
-
-```yaml
-version: 1
-
-connectors:
-  - slug: github                       # fixed: it is in the callback URL
-    kind: github                       # discord | github | google | oidc
-    display_name: GitHub
-    client_id: "Ov23liXXXXXXXXXXXXXX"
-    client_secret: ${UMBRAL_GITHUB_SECRET}
-    enabled: true
-    # extra_scopes: []                 # optional, added to the scopes Umbral requests
-    # shared: true                     # optional, default true; false = offered only to apps that choose it
-
-  - slug: discord-frunchy              # a second connector of one kind: pick its slug
-    kind: discord
-    display_name: Discord (Frunchy)
-    client_id: "9876543210"
-    client_secret: ${UMBRAL_DISCORD_FRUNCHY_SECRET}   # the slug upper-cased, non-alphanumerics as _
-    enabled: true
-    shared: false                      # only apps that list it below see it
-
-  - slug: home                         # your own identity provider (see docs/connectors/oidc.md)
-    kind: oidc
-    issuer: https://auth.example.com/application/o/umbral   # required for oidc, an error for the others; fixed once saved
-    display_name: Home
-    client_id: umbral
-    client_secret: ${UMBRAL_HOME_SECRET}
-    enabled: true
-
-apps:
-  - client_id: grafana                 # identifies the app; applying twice is a no-op
-    name: Grafana
-    client_secret: ${UMBRAL_GRAFANA_SECRET}   # leave this line out for a single-page or native app
-    redirect_uris:
-      - https://grafana.example.com/login/generic_oauth
-    post_logout_redirect_uris:         # optional
-      - https://grafana.example.com/
-    # connectors: [discord-frunchy]    # optional: a chosen set of connector slugs; absent = all shared connectors
-
-  - client_id: frunchy
-    name: Frunchy
-    client_secret: ${UMBRAL_FRUNCHY_SECRET}
-    redirect_uris:
-      - https://frunchy.example.com/callback
-    connectors:                        # offers only these; [] offers nothing (not "all")
-      - discord-frunchy
-```
-
-- **Secrets are never written in the file.** `client_secret` must be a
-  `${VARIABLE}` reference that Umbral resolves from its environment. A literal
-  value is an *error*, on purpose: the file is meant to live in version control.
-  Set the variable on the container, for example in compose:
-
-  ```yaml
-  services:
-    umbral:
-      environment:
-        UMBRAL_GITHUB_SECRET: ${UMBRAL_GITHUB_SECRET}   # from your .env file
-        UMBRAL__CONFIG_FILE: /config/umbral.yaml
-      volumes:
-        - ./umbral.yaml:/config/umbral.yaml:ro
-  ```
-
-- **Applying is idempotent.** `slug` identifies a connector and `client_id`
-  identifies an app, so applying the same file twice changes nothing and creates
-  no duplicates.
-- **The file wins on every start.** A connector or app in the file is re-applied
-  each time Umbral starts, overwriting what you changed in the admin UI for that
-  slug or client ID (client ID, secret, redirect URIs, enabled, `shared` and
-  `connectors`). A `shared` or `connectors` key you remove from the file goes
-  back to its default (shared; all shared connectors) on the next start.
-  Connectors and apps that are not in the file are left alone.
-- **`connectors` must name connectors defined in the same file.** An app whose
-  list names a slug that the file does not define under `connectors` refuses the
-  whole file, naming the app entry and the slug. Add the connector to the file or
-  remove it from the app. Writing `connectors: []` on an app is deliberate: it
-  offers no sign-in method at all.
-- **An `oidc` entry needs its `issuer`** and nothing else new. Umbral never
-  contacts the provider when it applies the file, so it starts even if the
-  provider is down. The issuer cannot change: giving an existing slug a different
-  issuer, or one that another connector already has, stops Umbral from starting
-  and names the entry (delete the connector in the admin area, or use a new slug).
-- **A bad file stops Umbral from starting**, naming the entry and what to do
-  (`docker logs umbral`). Nothing is partly applied.
-- **Export what you have clicked.** Signed in as the operator, open
-  `https://auth.example.com/admin/config` in your browser. It downloads
-  `umbral.yaml` in exactly this format, with `${UMBRAL_<SLUG>_SECRET}`
-  placeholders in place of secrets. It includes `shared: false` and each app's
-  `connectors` list wherever they are set. There is no button for it in the admin UI
-  yet; it is only that address.
-- **App secrets cannot be exported**, because Umbral stores only a hash of them.
-  An export lists each web app with a `${UMBRAL_<CLIENT_ID>_SECRET}` reference
-  instead.
-- **Apps in the file:** an app with a `client_secret` reference is a web app
-  (confidential); one without is a single-page or native app (public), which has
-  no secret and uses PKCE. For a web app, the file is where you *set* the secret,
-  not where Umbral reads it back from: put the secret the app already uses in
-  the variable (at least 16 characters), and Umbral stores only its hash. Change
-  the variable and restart, and the new secret replaces the old one. Redirect
-  URIs are matched exactly, with no wildcards, as in the admin UI. A web app you
-  register in the admin UI shows its generated secret once; to manage it from the
-  file, put that secret in the variable.
-
-### The operator credential in the file
-
-The file can also claim the instance for you, so there is no setup screen to
-visit. It never holds the credential, only a **hash** of it, and that hash goes
-in an environment variable like any other secret:
-
-```bash
-# on any machine with the image; nothing needs configuring
-echo -n 'a credential of 12+ characters' | docker run --rm -i umbral hash-credential
-```
-
-It prints the hash and a ready `.env` line. Keep the value in **single quotes**:
-it contains `$`, which compose and shells would otherwise expand.
-
-```yaml
-operator:
-  credential_hash: ${UMBRAL_OPERATOR_HASH}
-```
-
-```bash
-# .env
-UMBRAL_OPERATOR_HASH='pbkdf2-sha256$600000$...$...'
-```
-
-On an unclaimed instance this sets the credential and Umbral prints no setup
-banner. After that the file applies **only when its hash changes**: a
-credential you replaced from the admin area is not put back by a restart, and
-editing the hash in the file replaces the credential and signs every admin
-session out. A literal `credential_hash:` is an error, like any literal secret.
-
 ## Forgotten operator credential
 
 Run this on the machine that hosts the container:
@@ -666,7 +548,6 @@ Set these as environment variables on the container.
 | --- | --- | --- |
 | `UMBRAL__PUBLIC_ORIGIN` | *required* | The address people reach Umbral at, e.g. `https://auth.example.com`. Scheme, host, optional port; no path. `http` is accepted only for `localhost`. |
 | `UMBRAL__DATA_DIRECTORY` | `/data` (set in the image) | Where Umbral keeps everything. Must be writable. |
-| `UMBRAL__CONFIG_FILE` | `<data directory>/umbral.yaml` | The [configuration file](#configuration-as-code). Optional. |
 | `ASPNETCORE_ENVIRONMENT` + `UMBRAL__INSECURE_ALLOW_HTTP` | unset | `Development` **and** `true` together allow plain `http://localhost`. Laptop trial only. Never set them on a server. |
 
 ## Troubleshooting
@@ -678,8 +559,7 @@ Commands below use the quick-start container name. With compose, write
 `docker logs umbral`: Umbral names the setting. Usual causes:
 `UMBRAL__PUBLIC_ORIGIN` is missing, has a path (`https://auth.example.com/auth`)
 or is `http://` with a host other than `localhost`; or `/data` is not writable. For a bind mount, run
-`chown -R 1654:1654 ./data`. A broken `umbral.yaml` also stops startup and names
-the line.
+`chown -R 1654:1654 ./data`.
 
 **I added a connector and nobody sees it.**
 A connector that is **not shared** and that **no app has chosen** is offered

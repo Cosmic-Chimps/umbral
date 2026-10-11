@@ -1,12 +1,9 @@
 /// How an App is shaped as an OpenIddict application.
 ///
-/// An App is an OIDC client stored entirely by OpenIddict. Two doors create
-/// one — the Apps screen and the `apps:` list of the configuration file — and
-/// both must produce the same client, or "the file is equivalent to the admin
-/// UI" (Principle V) stops being true in the one place a login would notice:
-/// an app whose authorization works and whose token exchange fails. So the
-/// permission set, the PKCE requirement and the client type are written once,
-/// here.
+/// An App is an OIDC client stored entirely by OpenIddict, created by the Apps
+/// screen. The permission set, the PKCE requirement and the client type are
+/// written once, here, so an app whose authorization works and whose token
+/// exchange fails has one place to look.
 module Umbral.Infrastructure.AppClients
 
 open System

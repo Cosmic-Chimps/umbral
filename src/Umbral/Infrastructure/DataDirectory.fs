@@ -33,9 +33,6 @@ type DataDirectory =
     /// secret unreadable.
     member this.KeysDirectory = Path.Combine(this.Root, "keys")
 
-    /// The declarative configuration file, when the operator supplies one.
-    member this.ConfigFile = Path.Combine(this.Root, "umbral.yaml")
-
 /// Resolve and create. Fails loudly rather than starting half-working: a
 /// read-only or unwritable data directory means Umbral would accept a connector
 /// secret and silently lose it, which is worse than refusing to start.

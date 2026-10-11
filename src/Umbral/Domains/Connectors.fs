@@ -63,7 +63,7 @@ type ProviderEndpoints =
       /// Empty for Fake, which never leaves the process.
       UserInfoUrl: string
       /// The minimum needed for a stable id, an email, a display name and an
-      /// avatar. Anything beyond this is the operator's `extra_scopes`.
+      /// avatar. These are all the scopes Umbral requests.
       Scopes: string list
       /// Discord does not document PKCE support; two third-party sources say
       /// S256-only. Shipped on, with this flag so a provider that rejects the
@@ -140,77 +140,6 @@ let setupCaveat (kind: ProviderKind) =
     | Fake
     | Oidc -> None
 
-// ---------------------------------------------------------------------------
-// Extra scopes (specs/002, T025). Pure, and shared by the admin form and the
-// configuration file, like the issuer rules below.
-// ---------------------------------------------------------------------------
-
-/// The longest scope Umbral accepts, and the most extra scopes one connector
-/// asks for. Generous for any real provider; the bound is there so a pasted
-/// paragraph is refused rather than stored and sent as an authorize URL.
-[<Literal>]
-let MaxScopeLength = 128
-
-[<Literal>]
-let MaxExtraScopes = 32
-
-/// Why an extra-scopes entry was refused. The text names the rule and the way
-/// out, like `IssuerError`.
-type ScopeError =
-    /// Holds a character a scope cannot: see `isScopeCharacter`.
-    | ScopeNotValid of scope: string
-    | ScopeTooLong of scope: string
-    | TooManyScopes
-
-    member this.Message =
-        // What is echoed is cut and cleaned: it came from a form or a file, and
-        // may carry a control character that has no business in a log line.
-        let shown (scope: string) =
-            let cut = if scope.Length > 40 then scope.Substring(0, 40) + "…" else scope
-            String(cut.ToCharArray() |> Array.map (fun c -> if Char.IsControl c then '?' else c))
-
-        match this with
-        | ScopeNotValid scope ->
-            $"\"{shown scope}\" is not a valid scope. Separate scopes with spaces, like groups offline_access; a scope is letters, digits and symbols such as : . _ - /, with no quote, comma or backslash."
-        | ScopeTooLong scope ->
-            $"\"{shown scope}\" is longer than {MaxScopeLength} characters, which no provider's scope is. Copy the scope names from your provider's documentation."
-        | TooManyScopes ->
-            $"More than {MaxExtraScopes} extra scopes. Ask only for the scopes you need, separated by spaces."
-
-/// The characters of an OAuth scope token (RFC 6749 §3.3): printable ASCII
-/// without space, double quote or backslash. A comma is refused as well, though
-/// the grammar allows it: it is nearly always a list typed the wrong way
-/// ("groups, offline_access"), and no real scope contains one.
-let private isScopeCharacter (c: char) =
-    c >= '\u0021' && c <= '\u007E' && c <> '"' && c <> '\\' && c <> ','
-
-/// Judge a list of extra scopes for a connector of `kind`, and return it as it
-/// is stored: in order, each once, and without the scopes the kind always
-/// requests (`openid email profile` for `Oidc`), which would be asked for twice.
-let checkExtraScopes (kind: ProviderKind) (scopes: string list) : Result<string list, ScopeError> =
-    let required = (endpointsFor kind).Scopes
-
-    match
-        scopes
-        |> List.tryPick (fun scope ->
-            if scope.Length > MaxScopeLength then Some(ScopeTooLong scope)
-            elif scope = "" || not (Seq.forall isScopeCharacter scope) then Some(ScopeNotValid scope)
-            else None)
-    with
-    | Some error -> Error error
-    | None ->
-        let kept = scopes |> List.distinct |> List.filter (fun scope -> not (List.contains scope required))
-        if kept.Length > MaxExtraScopes then Error TooManyScopes else Ok kept
-
-/// The form's one text box: scopes separated by spaces.
-let parseExtraScopes (kind: ProviderKind) (text: string | null) : Result<string list, ScopeError> =
-    let scopes =
-        match text with
-        | null -> []
-        | value -> value.Split(' ', StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
-
-    checkExtraScopes kind scopes
-
 /// A configured connector, as stored.
 type Connector =
     { /// Immutable: it is in the callback URL the operator registered with the
@@ -222,7 +151,6 @@ type Connector =
       /// "<store>:<locator>" — opaque outside the ISecretStore that wrote it.
       ClientSecretRef: string
       ClientSecretHint: string
-      ExtraScopes: string list
       /// Only for `Oidc`: the normalised issuer URL (`normaliseIssuer`). Part
       /// of every person's identity there (`oidcSubject`), so it never changes
       /// once saved. None for every other kind.
@@ -238,9 +166,7 @@ type Connector =
     member this.Endpoints = endpointsFor this.Kind
 
     member this.ScopeString =
-        (this.Endpoints.Scopes @ this.ExtraScopes)
-        |> List.distinct
-        |> String.concat " "
+        this.Endpoints.Scopes |> List.distinct |> String.concat " "
 
 /// An app's connector choice (FR-005). No row in `app_connector_choices` means
 /// AllShared, which is also the default for a new app.
