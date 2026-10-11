@@ -34,6 +34,8 @@ open Umbral.Domains.ConfigDocument
 type ConnectorDto() =
     member val Slug: string = "" with get, set
     member val Kind: string = "" with get, set
+    /// Only for `kind: oidc`.
+    member val Issuer: string = "" with get, set
     member val DisplayName: string = "" with get, set
     member val ClientId: string = "" with get, set
     member val ClientSecret: string = "" with get, set
@@ -92,7 +94,11 @@ type ParseError =
             $"The configuration file is not valid YAML: {detail}. Nothing has been changed."
         | Invalid problems -> describe problems
 
-let parse (yaml: string) : Result<Document, ParseError> =
+/// `allowLocalhostHttp` is whether this instance runs with the Development
+/// plain-http escape hatch, which is the only thing that lets an `oidc` issuer
+/// be a plain-http loopback address (`Connectors.normaliseIssuer`). The file is
+/// judged by the same rule as the admin form.
+let parseWith (allowLocalhostHttp: bool) (yaml: string) : Result<Document, ParseError> =
     // Matching on null narrows for the nullness checker where Option.ofObj
     // does not: AllowNullLiteral makes the type admit null, and the option's
     // payload is then still seen as nullable.
@@ -119,6 +125,7 @@ let parse (yaml: string) : Result<Document, ParseError> =
             |> List.map (fun c ->
                 { Slug = c.Slug
                   Kind = c.Kind
+                  Issuer = optional c.Issuer
                   DisplayName = optional c.DisplayName
                   ClientId = c.ClientId
                   ClientSecret = c.ClientSecret
@@ -138,9 +145,13 @@ let parse (yaml: string) : Result<Document, ParseError> =
     // Whole-document, before anything is written. A file that half-applies
     // leaves an instance in a state the operator did not ask for and cannot
     // read off the file in front of them (FR-030).
-    match validate document with
-    | [] -> Ok document
+    match validateWith allowLocalhostHttp document with
+    | [] -> Ok(normaliseIssuers allowLocalhostHttp document)
     | problems -> Error(Invalid problems)
+
+/// `parseWith` for an instance without the plain-http escape hatch, which is
+/// every instance but a developer's.
+let parse (yaml: string) : Result<Document, ParseError> = parseWith false yaml
 
 // ---------------------------------------------------------------------------
 // Resolving secrets
@@ -230,9 +241,72 @@ let describeMissing (missing: ResolveError list) =
 // Applying
 // ---------------------------------------------------------------------------
 
+/// What the instance already holds that the document cannot be applied over.
+/// The document alone is judged by `validate`; these need the database, so they
+/// are a separate question, asked for the whole document before the first write
+/// so that a refusal leaves nothing half-applied (FR-030).
+///
+/// A connector's kind and an `oidc` connector's issuer never change once saved:
+/// the kind decides which provider the row is, and the issuer is part of every
+/// person's identity (`Connectors.oidcSubject`). The store would silently keep
+/// the old value and apply the rest, which is the worst answer, so the file is
+/// refused with the way out. An issuer another slug already holds is refused
+/// too: two connectors on one provider would share every person under two names.
+let conflicts (config: Database.DbConfig) (document: Document) : Task<Problem list> =
+    task {
+        let problems = ResizeArray<Problem>()
+
+        for index, entry in List.indexed document.Connectors do
+            let at field = $"connectors[{index}].{field}"
+
+            match Connectors.parseKind entry.Kind with
+            | None -> ()
+            | Some kind ->
+                match! ConnectorStore.findBySlug config entry.Slug with
+                | Some stored when stored.Kind <> kind ->
+                    problems.Add
+                        { Where = at "kind"
+                          What =
+                            $"is {kind.Value}, but the connector \"{entry.Slug}\" is already a {stored.Kind.Value} \
+                              connector, and a connector's kind cannot change. Delete it in the admin area or use a new slug." }
+
+                | Some({ IssuerUrl = Some storedIssuer }) when kind = Connectors.Oidc && entry.Issuer <> Some storedIssuer ->
+                    let written = entry.Issuer |> Option.defaultValue ""
+
+                    problems.Add
+                        { Where = at "issuer"
+                          What =
+                            $"is \"{written}\", but the connector \"{entry.Slug}\" already has the issuer \"{storedIssuer}\": \
+                              issuer cannot change; delete the connector or use a new slug. People's accounts are tied to the issuer." }
+
+                | _ -> ()
+
+                match kind, entry.Issuer with
+                | Connectors.Oidc, Some issuer ->
+                    match! ConnectorStore.findByIssuer config issuer with
+                    | Some holder when holder.Slug <> entry.Slug ->
+                        problems.Add
+                            { Where = at "issuer"
+                              What =
+                                $"\"{issuer}\" is already the issuer of the connector \"{holder.Slug}\". One provider is one \
+                                  connector: use that slug, or delete that connector first." }
+                    | _ -> ()
+                | _ -> ()
+
+        return List.ofSeq problems
+    }
+
 /// Apply a resolved document. Idempotent: `slug` and `client_id` are the
 /// identity, so applying the same file twice changes nothing and creates no
 /// duplicates (FR-027).
+///
+/// An `oidc` entry is written as it says (issuer, enabled state, scopes) and the
+/// provider is never contacted: starting Umbral cannot depend on an identity
+/// provider being up (spec FR-021). A provider that turns out wrong fails its
+/// sign-ins with the usual notice.
+///
+/// Fails, writing nothing, when the instance holds something the file cannot be
+/// applied over (`conflicts`).
 ///
 /// Connectors only. The apps are `applyApps`, which needs OpenIddict's manager
 /// and so takes it from the caller.
@@ -245,14 +319,29 @@ let applyConnectors
     task {
         let mutable applied = 0
 
+        match! conflicts config document with
+        | [] -> ()
+        | problems -> failwith (describe problems)
+
         for entry in document.Connectors do
             match Connectors.parseKind entry.Kind with
             | None -> ()
-            // Validation refuses `kind: oidc` while the file has no `issuer`
-            // (specs/002 Phase 5); this is the same refusal, so a document that
-            // somehow got here cannot write an OpenID Connect row without one.
-            | Some Connectors.Oidc -> ()
             | Some kind ->
+                // `validate` has already run; these refusals are for a document
+                // that skipped it, so that no OpenID Connect row is ever written
+                // without an issuer, nor a scope list a provider would choke on.
+                let issuer =
+                    match kind, entry.Issuer with
+                    | Connectors.Oidc, None ->
+                        failwith $"The connector \"{entry.Slug}\" is kind oidc and has no issuer."
+                    | Connectors.Oidc, issuer -> issuer
+                    | _ -> None
+
+                let extraScopes =
+                    match Connectors.checkExtraScopes kind entry.ExtraScopes with
+                    | Ok scopes -> scopes
+                    | Error error -> failwith $"The connector \"{entry.Slug}\" has an invalid extra scope. {error.Message}"
+
                 let! existing = ConnectorStore.findBySlug config entry.Slug
                 let! reference = secrets.Put($"connector/{entry.Slug}/client_secret", entry.ClientSecret)
 
@@ -263,8 +352,8 @@ let applyConnectors
                       ClientId = entry.ClientId
                       ClientSecretRef = reference.Encoded
                       ClientSecretHint = Secrets.hint entry.ClientSecret
-                      ExtraScopes = entry.ExtraScopes
-                      IssuerUrl = None
+                      ExtraScopes = extraScopes
+                      IssuerUrl = issuer
                       IsEnabled = entry.Enabled
                       // Applying sets it to what the file says, back to the
                       // default when the key is removed (FR-016).
@@ -496,6 +585,17 @@ let applyApps
 let private variableFor (name: string) =
     "UMBRAL_" + Text.RegularExpressions.Regex.Replace(name.ToUpperInvariant(), "[^A-Z0-9]", "_") + "_SECRET"
 
+/// A display name as YAML text. The operator types it, and an OpenID Connect
+/// provider's is free text ("Club: Keycloak", "IdP #2"), so one that is not
+/// plainly safe is written in double quotes, with the two characters that
+/// matter inside them escaped. The common ones ("Discord", "GitHub (work)")
+/// stay as readable as they always were.
+let private yamlText (value: string) =
+    if Text.RegularExpressions.Regex.IsMatch(value, @"^[A-Za-z0-9][A-Za-z0-9 ()._/-]*[A-Za-z0-9)]$|^[A-Za-z0-9]$") then
+        value
+    else
+        "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\""
+
 /// An app as the export sees it. `Confidential` is what decides whether the
 /// entry carries a `client_secret` reference: a public client never has one.
 type ExportedApp =
@@ -515,19 +615,11 @@ type ExportedApp =
 /// the file carries instead is a reference to where the operator keeps it, and
 /// the file says so where someone will read it rather than discover it.
 ///
-/// OpenID Connect providers are left out, and the file says so. The file cannot
-/// declare one yet (`kind: oidc` is refused by `ConfigDocument` until the issuer
-/// field exists, specs/002 Phase 5), so writing one would make an export that its
-/// own import rejects. They are configured in the admin area only for now. An
-/// app's chosen set loses their slugs for the same reason — a slug the file does
-/// not define fails validation — and the app says which, in a comment, so
-/// re-applying the file is not mistaken for a copy of the instance.
+/// An OpenID Connect provider is written like any other connector plus its
+/// `issuer:`, which is what lets it be declared in the file at all, so an app's
+/// chosen set keeps its slug and the import finds it defined.
 let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
     let lines = ResizeArray<string>()
-
-    let isOidc (c: Connectors.Connector) = c.Kind = Connectors.Oidc
-    let omitted = connectors |> List.filter isOidc |> List.map _.Slug |> Set.ofList
-    let connectors = connectors |> List.filter (isOidc >> not)
 
     lines.Add "# Umbral configuration."
     lines.Add "#"
@@ -539,12 +631,6 @@ let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
     lines.Add "# the secret that app already uses (at least 16 characters) and Umbral will"
     lines.Add "# store its hash when this file is applied. An app without a client_secret is"
     lines.Add "# a public client (single-page or native) and has none."
-
-    if not omitted.IsEmpty then
-        lines.Add "#"
-        lines.Add "# OpenID Connect providers are configured in the admin area only for now, so"
-        lines.Add "# they are not in this file and applying it leaves them as they are."
-
     lines.Add ""
     lines.Add $"version: {SupportedVersion}"
     lines.Add ""
@@ -560,7 +646,15 @@ let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
             let enabled = if c.IsEnabled then "true" else "false"
             lines.Add $"  - slug: {c.Slug}"
             lines.Add $"    kind: {c.Kind.Value}"
-            lines.Add $"    display_name: {c.DisplayName}"
+
+            // The issuer is part of every person's identity, so it is written
+            // exactly as stored and applying it to a connector with another one
+            // is refused (`conflicts`).
+            match c.IssuerUrl with
+            | Some issuer -> lines.Add $"    issuer: {issuer}"
+            | None -> ()
+
+            lines.Add $"    display_name: {yamlText c.DisplayName}"
             lines.Add("    client_id: " + quote c.ClientId)
             lines.Add $"    client_secret: ${{{variableFor c.Slug}}}"
             lines.Add $"    enabled: {enabled}"
@@ -570,8 +664,10 @@ let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
             if not c.IsShared then
                 lines.Add "    shared: false"
 
+            // Each scope quoted: a scope may hold characters YAML reads as syntax
+            // in a list (`[`, `{`, `#`, a leading `-`), and quotes cost nothing.
             if not c.ExtraScopes.IsEmpty then
-                let scopes = String.concat ", " c.ExtraScopes
+                let scopes = c.ExtraScopes |> List.map (fun scope -> "\"" + scope + "\"") |> String.concat ", "
                 lines.Add $"    extra_scopes: [{scopes}]"
 
     lines.Add ""
@@ -600,26 +696,14 @@ let export (connectors: Connectors.Connector list) (apps: ExportedApp list) =
                     lines.Add $"      - {uri}"
 
             // A chosen set, `[]` included: an empty set is not "all shared",
-            // so it has to survive the round trip (FR-017). Slugs of providers
-            // the file cannot declare are dropped, and named in a comment; a set
-            // left empty by that stays `[]`, never "all shared", so re-applying
-            // fails closed rather than offering the app connectors it never chose.
-            let kept, dropped =
-                match app.Choice with
-                | Connectors.AllShared -> Set.empty, Set.empty
-                | Connectors.Only slugs -> Set.difference slugs omitted, Set.intersect slugs omitted
-
-            if not dropped.IsEmpty then
-                let names = dropped |> Set.toList |> String.concat ", "
-                lines.Add $"    # Also offers, chosen in the admin area only: {names}"
-
+            // so it has to survive the round trip (FR-017).
             match app.Choice with
             | Connectors.AllShared -> ()
-            | Connectors.Only _ when kept.IsEmpty -> lines.Add "    connectors: []"
-            | Connectors.Only _ ->
+            | Connectors.Only slugs when slugs.IsEmpty -> lines.Add "    connectors: []"
+            | Connectors.Only slugs ->
                 lines.Add "    connectors:"
 
-                for slug in kept do
+                for slug in slugs do
                     lines.Add $"      - {slug}"
 
     String.concat Environment.NewLine lines + Environment.NewLine

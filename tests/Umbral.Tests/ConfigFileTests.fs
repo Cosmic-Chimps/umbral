@@ -860,6 +860,452 @@ let ``an export then apply on a fresh instance reproduces both settings`` () =
     }
 
 // ---------------------------------------------------------------------------
+// OpenID Connect providers in the file (specs/002 User Story 3)
+// ---------------------------------------------------------------------------
+
+let private oidcIssuer = "https://auth.example.test/application/o/umbral"
+
+/// One `connectors:` entry, with the issuer line (or none) as the test wants it.
+let private oidcEntry (slug: string) (kind: string) (issuerLine: string) =
+    $"""  - slug: {slug}
+    kind: {kind}
+{issuerLine}    display_name: Home
+    client_id: umbral-client
+    client_secret: ${{UMBRAL_HOME_SECRET}}
+"""
+
+let private issuerLine (issuer: string) = $"    issuer: {issuer}\n"
+
+let private connectorsFile (entries: string list) =
+    "version: 1\n\nconnectors:\n" + String.concat "" entries
+
+let private oidcFile =
+    connectorsFile [ oidcEntry "home" "oidc" (issuerLine oidcIssuer) + "    enabled: true\n    extra_scopes: [groups, offline_access]\n" ]
+
+let private resolvedFrom (yaml: string) =
+    match ConfigFile.resolveSecrets (fun _ -> ("the-real-secret": string | null)) (parseOk yaml) with
+    | Ok document -> document
+    | Error missing -> failwith (ConfigFile.describeMissing missing)
+
+/// What the file says about a refusal, or a failure to refuse.
+let private applyRefusal (config: Database.DbConfig) (secrets: Secrets.ISecretStore) (yaml: string) =
+    task {
+        try
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom yaml)
+            return failwith "expected the document to be refused"
+        with ex when not (ex.Message.StartsWith "expected the document") ->
+            return ex.Message
+    }
+
+let private eventCount (config: Database.DbConfig) (eventType: string) =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+        command.CommandText <- "SELECT COUNT(*) FROM security_events WHERE event_type = @type"
+        command.Parameters.AddWithValue("@type", eventType) |> ignore
+        let! count = command.ExecuteScalarAsync()
+        return int (count :?> int64)
+    }
+
+[<Fact>]
+let ``an oidc entry parses, with its issuer in the one spelling and its extra scopes`` () =
+    let document =
+        parseOk (connectorsFile [ oidcEntry "home" "oidc" (issuerLine "https://AUTH.example.test/application/o/umbral/") ])
+
+    let entry = document.Connectors.Head
+    Assert.Equal("oidc", entry.Kind)
+    // Stored and compared the way the admin form does: host lower-cased, one
+    // trailing slash dropped.
+    Assert.Equal(Some oidcIssuer, entry.Issuer)
+
+    let withScopes = parseOk oidcFile
+    Assert.Equal<string list>([ "groups"; "offline_access" ], withScopes.Connectors.Head.ExtraScopes)
+
+[<Fact>]
+let ``an oidc entry without an issuer is refused, naming the entry`` () =
+    let message = parseErr (connectorsFile [ oidcEntry "home" "oidc" "" ])
+    Assert.Contains("connectors[0].issuer", message)
+    Assert.Contains("is missing", message)
+    // And what to write.
+    Assert.Contains("https://auth.example.com/application/o/umbral", message)
+
+[<Theory>]
+[<InlineData("github")>]
+[<InlineData("discord")>]
+[<InlineData("google")>]
+let ``an issuer on any other kind is refused, naming the entry`` (kind: string) =
+    let message = parseErr (connectorsFile [ oidcEntry kind kind (issuerLine oidcIssuer) ])
+    Assert.Contains("connectors[0].issuer", message)
+    Assert.Contains("only for kind: oidc", message)
+
+[<Fact>]
+let ``a slug that breaks the rule is refused for an oidc entry, naming it`` () =
+    let message = parseErr (connectorsFile [ oidcEntry "\"Not A Slug\"" "oidc" (issuerLine oidcIssuer) ])
+    Assert.Contains("connectors[0].slug", message)
+    Assert.Contains("not a valid slug", message)
+
+[<Theory>]
+// Another kind's name is where that kind's card posts, so it is not a slug for
+// a connector of a different kind: `oidc` included.
+[<InlineData("discord", "oidc")>]
+[<InlineData("oidc", "github")>]
+let ``another kind's name is refused as a slug, naming the entry`` (slug: string) (kind: string) =
+    let issuer = if kind = "oidc" then issuerLine oidcIssuer else ""
+    let message = parseErr (connectorsFile [ oidcEntry slug kind issuer ])
+    Assert.Contains("connectors[0].slug", message)
+    Assert.Contains("name of a built-in provider", message)
+
+[<Fact>]
+let ``a built-in connector under its own kind's name is still fine`` () =
+    // The rule refuses only a name that belongs to a DIFFERENT kind.
+    parseOk (connectorsFile [ oidcEntry "discord" "discord" "" ]) |> ignore
+
+[<Fact>]
+let ``two entries for one issuer are refused on the later one, however it is spelled`` () =
+    let message =
+        parseErr (
+            connectorsFile
+                [ oidcEntry "home" "oidc" (issuerLine oidcIssuer)
+                  oidcEntry "work" "oidc" (issuerLine "https://Auth.example.test/application/o/umbral/") ]
+        )
+
+    Assert.Contains("connectors[1].issuer", message)
+    Assert.Contains("connectors[0]", message)
+    Assert.Contains("home", message)
+    Assert.DoesNotContain("connectors[0].issuer", message)
+
+[<Theory>]
+[<InlineData("http://auth.example.test/o/umbral", "https://")>]
+[<InlineData("/application/o/umbral", "full address")>]
+[<InlineData("https://auth.example.test/o/umbral?tenant=1", "without a ? or # part")>]
+[<InlineData("https://auth.example.test/o/umbral#frag", "without a ? or # part")>]
+let ``an issuer that is not an absolute https address is refused, naming the entry`` (issuer: string) (because: string) =
+    let message = parseErr (connectorsFile [ oidcEntry "home" "oidc" (issuerLine issuer) ])
+    Assert.Contains("connectors[0].issuer", message)
+    Assert.Contains(because, message)
+
+[<Fact>]
+let ``a plain-http loopback issuer is accepted only where the instance allows it`` () =
+    let yaml = connectorsFile [ oidcEntry "home" "oidc" (issuerLine "http://localhost:9000/o/umbral") ]
+
+    // Without the Development escape hatch it is refused, like on the form.
+    Assert.Contains("connectors[0].issuer", parseErr yaml)
+
+    match ConfigFile.parseWith true yaml with
+    | Ok document -> Assert.Equal(Some "http://localhost:9000/o/umbral", document.Connectors.Head.Issuer)
+    | Error e -> failwith e.Describe
+
+    // And the exception is for loopback alone.
+    match ConfigFile.parseWith true (connectorsFile [ oidcEntry "home" "oidc" (issuerLine "http://auth.example.test/o") ]) with
+    | Ok _ -> failwith "a non-loopback http issuer must be refused"
+    | Error e -> Assert.Contains("connectors[0].issuer", e.Describe)
+
+[<Fact>]
+let ``extra scopes that are not scopes are refused, naming the entry`` () =
+    let yaml =
+        connectorsFile [ oidcEntry "home" "oidc" (issuerLine oidcIssuer) + "    extra_scopes: [\"two words\"]\n" ]
+
+    let message = parseErr yaml
+    Assert.Contains("connectors[0].extra_scopes", message)
+    Assert.Contains("is not a valid scope", message)
+
+[<Fact>]
+let ``applying an oidc entry twice creates one connector and records no update the second time`` () =
+    withDb (fun config secrets ->
+        task {
+            let yaml = oidcFile
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom yaml)
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom yaml)
+
+            let! all = ConnectorStore.listAll config
+            let connector = Assert.Single all
+            Assert.Equal(Umbral.Domains.Connectors.Oidc, connector.Kind)
+            Assert.Equal(Some oidcIssuer, connector.IssuerUrl)
+            Assert.Equal<string list>([ "groups"; "offline_access" ], connector.ExtraScopes)
+            Assert.True connector.IsEnabled
+
+            // The same System-actor events as any connector the file creates,
+            // and only a real change is recorded.
+            let! count = eventCount config "connector_created"
+            Assert.Equal(1, count)
+            let! count = eventCount config "connector_updated"
+            Assert.Equal(0, count)
+        })
+
+[<Fact>]
+let ``an oidc entry's enabled value is written as it is, and a change is recorded once`` () =
+    withDb (fun config secrets ->
+        task {
+            let disabled = oidcFile.Replace("enabled: true", "enabled: false")
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom disabled)
+
+            // No provider to ask, no check: it is stored disabled because the file says so.
+            let! stored = ConnectorStore.findBySlug config "home"
+            Assert.False stored.Value.IsEnabled
+
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom oidcFile)
+            let! now = ConnectorStore.findBySlug config "home"
+            Assert.True now.Value.IsEnabled
+            let! count = eventCount config "connector_updated"
+            Assert.Equal(1, count)
+        })
+
+[<Fact>]
+let ``extra scopes the kind already requests, or repeats, are not stored twice`` () =
+    withDb (fun config secrets ->
+        task {
+            let yaml = oidcFile.Replace("[groups, offline_access]", "[openid, groups, groups, email]")
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom yaml)
+            let! stored = ConnectorStore.findBySlug config "home"
+            Assert.Equal<string list>([ "groups" ], stored.Value.ExtraScopes)
+
+            // And a second apply of the same file is still no change.
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom yaml)
+            let! count = eventCount config "connector_updated"
+            Assert.Equal(0, count)
+        })
+
+[<Fact>]
+let ``changing the extra scopes of an oidc entry is applied and recorded`` () =
+    withDb (fun config secrets ->
+        task {
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom oidcFile)
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom (oidcFile.Replace("[groups, offline_access]", "[groups]")))
+
+            let! stored = ConnectorStore.findBySlug config "home"
+            Assert.Equal<string list>([ "groups" ], stored.Value.ExtraScopes)
+            let! count = eventCount config "connector_updated"
+            Assert.Equal(1, count)
+        })
+
+[<Fact>]
+let ``changing the issuer of an existing slug is refused, and nothing else in the file is written`` () =
+    withDb (fun config secrets ->
+        task {
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom oidcFile)
+
+            // `home` moves to another issuer, and a NEW entry sits after it in
+            // the same file: the refusal comes before either is written.
+            let changed =
+                connectorsFile
+                    [ oidcEntry "home" "oidc" (issuerLine "https://other.example.test/o")
+                      oidcEntry "work" "oidc" (issuerLine "https://work.example.test/o") ]
+
+            let! message = applyRefusal config secrets changed
+            Assert.Contains("connectors[0].issuer", message)
+            Assert.Contains("issuer cannot change; delete the connector or use a new slug", message)
+            Assert.Contains(oidcIssuer, message)
+            Assert.Contains("Nothing has been changed", message)
+
+            let! work = ConnectorStore.findBySlug config "work"
+            Assert.True work.IsNone
+
+            let! home = ConnectorStore.findBySlug config "home"
+            Assert.Equal(Some oidcIssuer, home.Value.IssuerUrl)
+            let! count = eventCount config "connector_updated"
+            Assert.Equal(0, count)
+        })
+
+[<Fact>]
+let ``an issuer another slug already holds is refused, naming that slug`` () =
+    withDb (fun config secrets ->
+        task {
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom oidcFile)
+
+            let! message = applyRefusal config secrets (connectorsFile [ oidcEntry "other" "oidc" (issuerLine oidcIssuer) ])
+            Assert.Contains("connectors[0].issuer", message)
+            Assert.Contains("\"home\"", message)
+
+            let! other = ConnectorStore.findBySlug config "other"
+            Assert.True other.IsNone
+        })
+
+[<Fact>]
+let ``a slug that is a connector of another kind is not rewritten as an oidc one`` () =
+    withDb (fun config secrets ->
+        task {
+            // `home` exists as a GitHub connector; the file now calls it oidc.
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom (connectorsFile [ oidcEntry "home" "github" "" ]))
+
+            let! message = applyRefusal config secrets oidcFile
+            Assert.Contains("connectors[0].kind", message)
+            Assert.Contains("already a github connector", message)
+
+            let! stored = ConnectorStore.findBySlug config "home"
+            Assert.Equal(Umbral.Domains.Connectors.GitHub, stored.Value.Kind)
+            Assert.Equal(None, stored.Value.IssuerUrl)
+        })
+
+/// Start the real app on a file, with the stub behind every provider call.
+let private withFileAndStub
+    (yaml: string)
+    (variables: (string * string) list)
+    (stub: StubOidcProvider.StubOidcProvider)
+    (body: Fixtures.TestApp -> Task<unit>)
+    =
+    task {
+        let path = Path.Combine(Path.GetTempPath(), "umbral-cfg-" + Guid.NewGuid().ToString "N" + ".yaml")
+        File.WriteAllText(path, yaml)
+
+        try
+            use! app =
+                Fixtures.createAppWithProviderHandler
+                    stub
+                    ([ "UMBRAL:CONFIG_FILE", path ] @ variables @ fakeSettings)
+                    ignore
+
+            do! body app
+        finally
+            if File.Exists path then File.Delete path
+    }
+
+[<Fact>]
+let ``startup succeeds with the provider unreachable, and never contacts it`` () =
+    task {
+        let stub = StubOidcProvider.create oidcIssuer
+        stub.Mode <- StubOidcProvider.Down
+
+        do!
+            withFileAndStub oidcFile [ "UMBRAL_HOME_SECRET", "the-home-secret-value" ] stub (fun app ->
+                task {
+                    // It is there, enabled as the file says, though nothing could answer.
+                    let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+                    Assert.Equal(Some oidcIssuer, stored.Value.IssuerUrl)
+                    Assert.True stored.Value.IsEnabled
+                    Assert.Empty stub.Requests
+                })
+    }
+
+/// What startup says about `yaml` on an instance that already holds what the
+/// first start left: `None` when it started, the failure when it did not.
+let private restartWith (dataDirectory: string) (yaml: string) =
+    task {
+        File.WriteAllText(Path.Combine(dataDirectory, "umbral.yaml"), yaml)
+
+        let app =
+            Umbral.Program.buildApp Array.empty (fun builder ->
+                builder.Configuration.AddInMemoryCollection(
+                    dict
+                        [ "UMBRAL:PUBLIC_ORIGIN", Fixtures.TestOrigin
+                          "UMBRAL:DATA_DIRECTORY", dataDirectory
+                          "UMBRAL_HOME_SECRET", "the-home-secret-value" ]
+                )
+                |> ignore)
+
+        try
+            try
+                do! Umbral.Program.initialize app
+                return None, app.Services.GetRequiredService<Database.DbConfig>()
+            with ex ->
+                return Some ex.Message, app.Services.GetRequiredService<Database.DbConfig>()
+        finally
+            (app :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
+    }
+
+[<Fact>]
+let ``changing the issuer of an existing slug stops startup, naming the file and the entry`` () =
+    task {
+        let dataDirectory = Path.Combine(Path.GetTempPath(), "umbral-issuer-" + Guid.NewGuid().ToString "N")
+        Directory.CreateDirectory dataDirectory |> ignore
+
+        try
+            let! first, _ = restartWith dataDirectory oidcFile
+            Assert.Equal(None, first)
+
+            let moved = oidcFile.Replace(oidcIssuer, "https://other.example.test/o")
+            let! second, config = restartWith dataDirectory moved
+
+            match second with
+            | None -> failwith "startup should have been refused"
+            | Some message ->
+                Assert.Contains("umbral.yaml", message)
+                Assert.Contains("connectors[0].issuer", message)
+                Assert.Contains("issuer cannot change; delete the connector or use a new slug", message)
+
+            // The instance is as the first start left it.
+            let! stored = ConnectorStore.findBySlug config "home"
+            Assert.Equal(Some oidcIssuer, stored.Value.IssuerUrl)
+        finally
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
+            Directory.Delete(dataDirectory, true)
+    }
+
+[<Fact>]
+let ``an export writes an oidc entry with its issuer and scopes, and a name that is not plain text in quotes`` () =
+    withDb (fun config secrets ->
+        task {
+            let named = oidcFile.Replace("display_name: Home", "display_name: \"Club: Keycloak #2\"")
+            let! _ = ConfigFile.applyConnectors config TimeProvider.System secrets (resolvedFrom named)
+            let! connectors = ConnectorStore.listAll config
+            let yaml = ConfigFile.export connectors []
+
+            Assert.Contains($"    issuer: {oidcIssuer}", yaml)
+            Assert.Contains("    extra_scopes: [\"groups\", \"offline_access\"]", yaml)
+            Assert.Contains("    display_name: \"Club: Keycloak #2\"", yaml)
+            Assert.DoesNotContain("admin area only", yaml)
+            Assert.DoesNotContain("the-real-secret", yaml)
+            Assert.Contains("${UMBRAL_HOME_SECRET}", yaml)
+
+            // What comes out goes back in, entry for entry.
+            let entry = (parseOk yaml).Connectors.Head
+            Assert.Equal("oidc", entry.Kind)
+            Assert.Equal(Some oidcIssuer, entry.Issuer)
+            Assert.Equal(Some "Club: Keycloak #2", entry.DisplayName)
+            Assert.Equal<string list>([ "groups"; "offline_access" ], entry.ExtraScopes)
+        })
+
+[<Fact>]
+let ``an export then import on a fresh instance reproduces the provider, its scopes and an app's chosen set`` () =
+    task {
+        let file =
+            oidcFile
+            + """
+apps:
+  - client_id: grafana
+    name: Grafana
+    client_secret: ${UMBRAL_GRAFANA_SECRET}
+    redirect_uris:
+      - https://grafana.example.com/login/generic_oauth
+    connectors: [home]
+"""
+
+        let variables =
+            [ "UMBRAL_HOME_SECRET", "the-home-secret-value"
+              "UMBRAL_GRAFANA_SECRET", grafanaSecret ]
+
+        let mutable exported = ""
+
+        do!
+            withFileAndStub file variables (StubOidcProvider.create oidcIssuer) (fun app ->
+                task {
+                    let operator = Browser(app.Client)
+                    do! claimOperator app operator
+                    let! response = operator.Get "/admin/config"
+                    let! yaml = response.Content.ReadAsStringAsync()
+                    exported <- yaml
+                })
+
+        Assert.Contains($"    issuer: {oidcIssuer}", exported)
+        // The app's chosen set keeps the provider's slug, and nothing says it was left out.
+        Assert.Contains("    connectors:\n      - home", exported.Replace("\r\n", "\n"))
+        Assert.DoesNotContain("admin area only", exported)
+
+        do!
+            withFileAndStub exported variables (StubOidcProvider.create oidcIssuer) (fun app ->
+                task {
+                    let! home = ConnectorStore.findBySlug app.DbConfig "home"
+                    Assert.Equal(Umbral.Domains.Connectors.Oidc, home.Value.Kind)
+                    Assert.Equal(Some oidcIssuer, home.Value.IssuerUrl)
+                    Assert.Equal<string list>([ "groups"; "offline_access" ], home.Value.ExtraScopes)
+                    Assert.True home.Value.IsEnabled
+
+                    let! choices = AppConnectors.allChoices app.DbConfig
+                    Assert.Equal(Umbral.Domains.Connectors.Only(set [ "home" ]), choices["grafana"])
+                })
+    }
+
+// ---------------------------------------------------------------------------
 // The shared redirect-URI rule
 //
 // Used by both the configuration file and the Apps admin form. It lived in two

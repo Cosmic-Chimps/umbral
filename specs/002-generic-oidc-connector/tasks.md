@@ -13,6 +13,8 @@ description: "Task list for the generic OpenID Connect connector"
 
 **Organization**: Grouped by user story so each can be built and tested on its own.
 
+> **Decision 2026-10-10: Phase 5 and ⟨scopes⟩ are implemented as written below** (spec 004 was not approved for 002; the "skip if 004 is confirmed" notes no longer apply). Original note:
+>
 > **Pending decision — read before Phase 5.** Spec 004 (`integration/all-sessions`,
 > "Remove the configuration document") removes the YAML file, and its
 > clarification says 002 drops User Story 3, FR-019, FR-020, FR-022, SC-007 and
@@ -92,7 +94,7 @@ description: "Task list for the generic OpenID Connect connector"
 - [x] T022 [US1] Connectors screen in src/Umbral/Handlers/Admin/Connectors.fs (spec 003's layout): an `oidc` connector renders as a card like any other, plus its issuer read-only with the immutability sentence; the `oidc` kind has no empty card; spec 003's add form offers "OpenID Connect provider" as a kind, with an issuer field (hint: only for OpenID Connect) and the email-trust warning; works without htmx
 - [x] T023 [US1] Extend spec 003's `create` handler (`POST /admin/connectors`) in src/Umbral/Handlers/Admin/Connectors.fs for `kind = oidc`: require and normalise `issuer` (T008), run `OidcDiscovery.check`, on Ok save enabled with `issuer_url`, on Wrong re-render the add form with the input kept and the reason (spec FR-005), store the secret through `ISecretStore`, emit `connector_created`; other kinds keep 003's behaviour
 - [x] T024 [US1] The update route in src/Umbral/Handlers/Admin/Connectors.fs (`POST /admin/connectors/{slug}`) accepts an `oidc` slug: display name, client ID, secret replacement; ignores any posted slug or issuer
-- [ ] T025 [US1] ⟨scopes⟩ Extra scopes field on the Add form and the update route for `oidc` connectors in src/Umbral/Handlers/Admin/Connectors.fs — **skip if spec 004 is confirmed** (it removes extra scopes for every kind)
+- [x] T025 [US1] ⟨scopes⟩ Extra scopes field on the Add form and the update route for `oidc` connectors in src/Umbral/Handlers/Admin/Connectors.fs — **skip if spec 004 is confirmed** (it removes extra scopes for every kind) *(user decided 2026-10-10: implemented)*
 - [x] T026 [US1] Picker in src/Umbral/Handlers/Connect/Picker.fs: confirm spec 003's filtering (shared / per-app set) includes `oidc` connectors under their display name with no kind-specific code; add the kind's button styling if the picker styles by kind
 
 **Checkpoint**: User Story 1 works end to end; this is the MVP.
@@ -123,7 +125,7 @@ description: "Task list for the generic OpenID Connect connector"
 
 ## Phase 5: User Story 3 — The same provider, from the configuration file (P2) ⟨file⟩
 
-> **Skip this whole phase if spec 004 is confirmed** (see the note at the top).
+> **Skip this whole phase if spec 004 is confirmed** (see the note at the top). *(User decided 2026-10-10: implemented.)*
 
 **Goal**: `kind: oidc` entries in the YAML file, validated, applied idempotently without contacting the provider, exported back.
 
@@ -131,13 +133,13 @@ description: "Task list for the generic OpenID Connect connector"
 
 ### Tests for User Story 3
 
-- [ ] T033 [P] [US3] ⟨file⟩ In tests/Umbral.Tests/ConfigFileTests.fs: apply twice → one connector, no `connector_updated` on the second; `issuer` missing on `oidc` and present on `github` each fail naming the entry; bad slug fails; two entries with one issuer fail; changing the issuer of an existing slug fails at startup; nothing partly applied; startup succeeds with the provider unreachable; export → import round-trips the entry
+- [x] T033 [P] [US3] ⟨file⟩ In tests/Umbral.Tests/ConfigFileTests.fs: apply twice → one connector, no `connector_updated` on the second; `issuer` missing on `oidc` and present on `github` each fail naming the entry; bad slug fails; two entries with one issuer fail; changing the issuer of an existing slug fails at startup; nothing partly applied; startup succeeds with the provider unreachable; export → import round-trips the entry
 
 ### Implementation for User Story 3
 
-- [ ] T034 [US3] ⟨file⟩ src/Umbral/Domains/ConfigDocument.fs: `issuer` on connector entries with the contract's validation, reusing T008
-- [ ] T035 [US3] ⟨file⟩ src/Umbral/Infrastructure/ConfigFile.fs: apply writes `issuer_url`, refuses an issuer change on an existing slug, never calls `OidcDiscovery`
-- [ ] T036 [US3] ⟨file⟩ src/Umbral/Handlers/Admin/ConfigExport.fs: emit `issuer:` for `oidc` connectors
+- [x] T034 [US3] ⟨file⟩ src/Umbral/Domains/ConfigDocument.fs: `issuer` on connector entries with the contract's validation, reusing T008
+- [x] T035 [US3] ⟨file⟩ src/Umbral/Infrastructure/ConfigFile.fs: apply writes `issuer_url`, refuses an issuer change on an existing slug, never calls `OidcDiscovery`
+- [x] T036 [US3] ⟨file⟩ src/Umbral/Handlers/Admin/ConfigExport.fs: emit `issuer:` for `oidc` connectors
 
 **Checkpoint**: file parity holds for `oidc`.
 

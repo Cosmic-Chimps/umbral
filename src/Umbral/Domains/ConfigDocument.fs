@@ -14,6 +14,10 @@ let SupportedVersion = 1
 type ConnectorEntry =
     { Slug: string
       Kind: string
+      /// Only for `kind: oidc` (required there, an error anywhere else): the
+      /// address the provider calls its issuer. As written in the file until
+      /// `normaliseIssuers` has run, the spelling Umbral stores after it.
+      Issuer: string option
       DisplayName: string option
       ClientId: string
       /// As written in the file: always a `${VAR}` reference, never a literal.
@@ -151,26 +155,60 @@ let private validateOperator (entry: OperatorEntry) =
     else
         []
 
-let private validateConnector (index: int) (entry: ConnectorEntry) =
+/// `allowLocalhostHttp` is whether this instance runs with the Development
+/// plain-http escape hatch, the one thing that lets a loopback issuer be http:
+/// the same flag the admin form's `normaliseIssuer` is given, so the file and
+/// the form accept the same addresses.
+let private validateConnector (allowLocalhostHttp: bool) (index: int) (entry: ConnectorEntry) =
     let at field = $"connectors[{index}].{field}"
+    let kind = Connectors.parseKind entry.Kind
 
     [ if not (Ids.isValidSlug entry.Slug) then
           problem
               (at "slug")
               $"\"{entry.Slug}\" is not a valid slug. Use lower-case letters, digits and hyphens, up to 32 \
                 characters. It appears in the callback URL registered with the provider."
+      else
+          // A kind's own name is where its card posts, so a connector of another
+          // kind under it would be edited as the wrong provider (the admin form
+          // refuses it for the same reason). `oidc` is a kind's name too.
+          match Connectors.parseKind entry.Slug, kind with
+          | Some named, Some own when named <> own ->
+              problem
+                  (at "slug")
+                  $"\"{entry.Slug}\" is the name of a built-in provider, so it can only be the slug of a connector \
+                    of that kind. Choose another slug, like home or club-keycloak."
+          | _ -> ()
 
-      // `oidc` parses as a kind now, but the file has no `issuer` field yet
-      // (specs/002 Phase 5, pending spec 004). Accepting the kind without it
-      // would store an OpenID Connect connector with no issuer, so it stays
-      // refused here with the other kinds the file does not know.
-      match Connectors.parseKind entry.Kind with
-      | Some Connectors.Oidc
+      match kind with
       | None ->
           problem
               (at "kind")
-              $"\"{entry.Kind}\" is not a provider Umbral supports. Use discord, github or google."
+              $"\"{entry.Kind}\" is not a provider Umbral supports. Use discord, github, google or oidc."
       | Some _ -> ()
+
+      match kind, entry.Issuer with
+      | Some Connectors.Oidc, None ->
+          problem
+              (at "issuer")
+              "is missing. A kind: oidc entry needs the issuer your provider shows, like \
+               https://auth.example.com/application/o/umbral."
+      | Some Connectors.Oidc, Some issuer ->
+          match Connectors.normaliseIssuer allowLocalhostHttp issuer with
+          | Ok _ -> ()
+          | Error error -> problem (at "issuer") error.Message
+      | Some _, Some _ ->
+          problem
+              (at "issuer")
+              $"is only for kind: oidc, and this entry is kind: {entry.Kind}. Remove the issuer from it."
+      | _ -> ()
+
+      match kind with
+      | Some kind ->
+          match Connectors.checkExtraScopes kind entry.ExtraScopes with
+          | Ok _ -> ()
+          | Error error -> problem (at "extra_scopes") error.Message
+      | None -> ()
 
       if String.IsNullOrWhiteSpace entry.ClientId then
           problem (at "client_id") "is empty. Copy it from the provider's developer console."
@@ -223,9 +261,38 @@ let private validateApp (defined: Set<string>) (index: int) (entry: AppEntry) =
           for slug in duplicates id slugs do
               problem (at "connectors") $"\"{slug}\" appears more than once." ]
 
+/// Two entries for one provider would share every person under two names, which
+/// is why the database refuses it (`ux_connectors_issuer`) and the admin form
+/// too. Judged on the normalised spelling, so a trailing slash or a capital in
+/// the host does not make a second provider. Reported on the later entry.
+let private duplicateIssuers (allowLocalhostHttp: bool) (connectors: ConnectorEntry list) =
+    connectors
+    |> List.indexed
+    |> List.choose (fun (index, entry) ->
+        match Connectors.parseKind entry.Kind, entry.Issuer with
+        | Some Connectors.Oidc, Some issuer ->
+            match Connectors.normaliseIssuer allowLocalhostHttp issuer with
+            | Ok normalised -> Some(index, entry.Slug, normalised)
+            | Error _ -> None
+        | _ -> None)
+    |> List.groupBy (fun (_, _, normalised) -> normalised)
+    |> List.collect (fun (normalised, entries) ->
+        match entries with
+        | (firstIndex, firstSlug, _) :: later ->
+            later
+            |> List.map (fun (index, _, _) ->
+                problem
+                    $"connectors[{index}].issuer"
+                    $"\"{normalised}\" is already the issuer of connectors[{firstIndex}] (\"{firstSlug}\"). One provider is one \
+                      connector: remove one of the two entries.")
+        | [] -> [])
+
 /// Every problem in the document, not just the first. An operator fixing a file
 /// by hand should get the whole list, not discover the next one on each restart.
-let validate (document: Document) : Problem list =
+///
+/// `allowLocalhostHttp` is the instance's Development plain-http setting (see
+/// `validateConnector`); `validate` is the answer for an instance without it.
+let validateWith (allowLocalhostHttp: bool) (document: Document) : Problem list =
     [ if document.Version <> SupportedVersion then
           problem
               "version"
@@ -242,12 +309,30 @@ let validate (document: Document) : Problem list =
           problem "apps" $"\"{clientId}\" appears more than once. A client id identifies an app."
 
       for i, connector in List.indexed document.Connectors do
-          yield! validateConnector i connector
+          yield! validateConnector allowLocalhostHttp i connector
+
+      yield! duplicateIssuers allowLocalhostHttp document.Connectors
 
       let defined = document.Connectors |> List.map _.Slug |> Set.ofList
 
       for i, app in List.indexed document.Apps do
           yield! validateApp defined i app ]
+
+let validate (document: Document) : Problem list = validateWith false document
+
+/// The document with every `oidc` issuer in the one spelling Umbral stores and
+/// compares (`Connectors.normaliseIssuer`). Run after `validateWith` has passed,
+/// so an issuer that cannot be normalised is left as it is rather than hidden.
+let normaliseIssuers (allowLocalhostHttp: bool) (document: Document) : Document =
+    let normalise (entry: ConnectorEntry) =
+        match Connectors.parseKind entry.Kind, entry.Issuer with
+        | Some Connectors.Oidc, Some issuer ->
+            match Connectors.normaliseIssuer allowLocalhostHttp issuer with
+            | Ok normalised -> { entry with Issuer = Some normalised }
+            | Error _ -> entry
+        | _ -> entry
+
+    { document with Connectors = document.Connectors |> List.map normalise }
 
 /// One message an operator can act on, listing every problem found.
 let describe (problems: Problem list) =

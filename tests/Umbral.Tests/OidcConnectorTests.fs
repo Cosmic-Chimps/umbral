@@ -811,17 +811,23 @@ let ``only the OpenID Connect card has the extra scopes field`` () =
     }
 
 // ---------------------------------------------------------------------------
-// Export (the config file cannot declare an oidc connector yet)
+// Export (the configuration file declares an oidc connector, T036)
 // ---------------------------------------------------------------------------
 
 [<Fact>]
-let ``an export with an oidc connector omits it, says so, and still round-trips through apply`` () =
+let ``an export with an oidc connector writes it with its issuer and scopes, keeps it in the app's set, and applies back`` () =
     task {
         let stub = create issuer
         let! app, operator = start [ stub ] ignore []
         use _ = app
 
-        let! _ = addProvider operator "home" issuer
+        let! _ =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors",
+                addFields "home" issuer @ [ "extraScopes", "groups offline_access" ]
+            )
+
         let! clientId, _ = createClientApp operator
 
         // An app that chose both the fake connector and the provider.
@@ -830,23 +836,27 @@ let ``an export with an oidc connector omits it, says so, and still round-trips 
         let! export = operator.Get "/admin/config"
         let! yaml = export.Content.ReadAsStringAsync()
 
-        // What the file says about it, and nothing it would then refuse.
-        Assert.Contains("OpenID Connect providers are configured in the admin area only for now", yaml)
-        Assert.DoesNotContain("kind: oidc", yaml)
-        Assert.DoesNotContain("slug: home", yaml)
-        Assert.DoesNotContain(issuer, yaml)
-        Assert.Contains("chosen in the admin area only: home", yaml)
+        Assert.Contains("kind: oidc", yaml)
+        Assert.Contains("slug: home", yaml)
+        Assert.Contains($"issuer: {issuer}", yaml)
+        Assert.Contains("extra_scopes: [\"groups\", \"offline_access\"]", yaml)
+        Assert.Contains("${UMBRAL_HOME_SECRET}", yaml)
         Assert.DoesNotContain(providerSecret, yaml)
+        // Nothing is left out, so nothing says so.
+        Assert.DoesNotContain("admin area only", yaml)
 
-        // It parses: the import accepts what the export wrote.
+        // It parses: the import accepts what the export wrote, the app's set
+        // naming the provider it chose.
         let document =
             match ConfigFile.parse yaml with
             | Ok document -> document
             | Error error -> failwith error.Describe
 
-        Assert.DoesNotContain(document.Connectors, fun c -> c.Slug = "home")
+        let entry = document.Connectors |> List.find (fun c -> c.Slug = "home")
+        Assert.Equal(Some issuer, entry.Issuer)
+        Assert.Equal<string list>([ "groups"; "offline_access" ], entry.ExtraScopes)
         let appEntry = document.Apps |> List.find (fun a -> a.ClientId = clientId)
-        Assert.Equal<string list>([ "fake" ], appEntry.Connectors |> Option.defaultValue [])
+        Assert.Equal<string list>([ "fake"; "home" ], appEntry.Connectors |> Option.defaultValue [])
 
         // And it applies, on the instance it came from, leaving the provider as it was.
         let environment (_: string) : string | null = "an-environment-secret-0123456789"
@@ -860,7 +870,19 @@ let ``an export with an oidc connector omits it, says so, and still round-trips 
 
         let! kept = ConnectorStore.findBySlug app.DbConfig "home"
         Assert.Equal(Some issuer, kept.Value.IssuerUrl)
+        Assert.Equal<string list>([ "groups"; "offline_access" ], kept.Value.ExtraScopes)
         Assert.True kept.Value.IsEnabled
+
+        // The environment's secret is not the one typed on the form, so the file
+        // rewrites that, and only that: the issuer, scopes and name are not part
+        // of the change.
+        let! updates = scalarCount app "SELECT COUNT(*) FROM security_events WHERE event_type = 'connector_updated' AND connector_slug = 'home'"
+        Assert.Equal(1, updates)
+
+        let! detail =
+            Flows.scalar app "SELECT detail FROM security_events WHERE event_type = 'connector_updated' AND connector_slug = 'home'" []
+
+        Assert.Equal("source=config_file;changed=secret", detail)
     }
 
 [<Fact>]

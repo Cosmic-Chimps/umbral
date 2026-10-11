@@ -224,6 +224,12 @@ type OidcDiscovery(client: HttpClient, allowLocalhostHttp: bool, timeout: TimeSp
     new(client: HttpClient, allowLocalhostHttp: bool) =
         OidcDiscovery(client, allowLocalhostHttp, defaultTimeout, TimeProvider.System)
 
+    /// Whether this instance admits a plain-http loopback issuer (the
+    /// Development escape hatch). The configuration file is judged by the same
+    /// setting as the admin form, so it asks here rather than re-reading the
+    /// environment and risking a second answer.
+    member _.AllowLocalhostHttp = allowLocalhostHttp
+
     /// The one spelling of an issuer this instance stores and compares: the
     /// rule of `normaliseIssuer` with this instance's plain-http setting, so the
     /// admin form and the cache cannot disagree about which addresses are allowed.
