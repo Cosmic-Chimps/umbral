@@ -621,6 +621,196 @@ let ``saving the card without a secret keeps the saved one`` () =
     }
 
 // ---------------------------------------------------------------------------
+// Extra scopes (T025)
+// ---------------------------------------------------------------------------
+
+/// The `scope` Umbral sends the provider when a person starts signing in
+/// through `slug`, read off the authorize URL it redirects to.
+let private requestedScopes (browser: Browser) (clientId: string) (slug: string) =
+    task {
+        let! toPicker = browser.Get(authorizeUrl clientId "openid email profile")
+        let! toProvider = browser.Get((toPicker.Headers.Location |> string).Replace("/signin", $"/connect/{slug}/start"))
+        let query = Web.HttpUtility.ParseQueryString((toProvider.Headers.Location |> string).Split('?')[1])
+        return query["scope"]
+    }
+
+[<Fact>]
+let ``extra scopes typed on the add form are requested after the three required ones, each once`` () =
+    task {
+        let stub = create issuer
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        // `email` is already required; `groups` is typed twice.
+        let! added =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors",
+                addFields "home" issuer @ [ "extraScopes", "  groups offline_access  email groups " ]
+            )
+
+        Assert.Contains("connector-added-oidc", added.Headers.Location |> string)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.Equal<string list>([ "groups"; "offline_access" ], stored.Value.ExtraScopes)
+
+        let! clientId, _ = createClientApp operator
+        let! scope = requestedScopes (Browser app.Client) clientId "home"
+        Assert.Equal("openid email profile groups offline_access", scope)
+
+        // The card shows them back for editing.
+        let! screen = operator.GetHtml "/admin/connectors"
+        Assert.Contains("value=\"groups offline_access\"", screen)
+    }
+
+[<Fact>]
+let ``a provider added without extra scopes requests exactly the three required ones`` () =
+    task {
+        let stub = create issuer
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let! clientId, _ = createClientApp operator
+        let! scope = requestedScopes (Browser app.Client) clientId "home"
+        Assert.Equal("openid email profile", scope)
+    }
+
+[<Fact>]
+let ``the card changes and clears the extra scopes, and the next sign-in asks for them`` () =
+    task {
+        let stub = create issuer
+        let! app, operator = start [ stub ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+        let! clientId, _ = createClientApp operator
+
+        let card scopes =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/home",
+                [ "displayName", "Home"; "clientId", "umbral-client"; "shared", "true"; "extraScopes", scopes ]
+            )
+
+        let! saved = card "groups"
+        Assert.Contains("connector-saved", saved.Headers.Location |> string)
+        let! scope = requestedScopes (Browser app.Client) clientId "home"
+        Assert.Equal("openid email profile groups", scope)
+
+        let! _ = card ""
+        let! cleared = requestedScopes (Browser app.Client) clientId "home"
+        Assert.Equal("openid email profile", cleared)
+
+        // A post without the field (a script, the unshare confirmation) leaves them.
+        let! _ = card "groups"
+
+        let! _ =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/home",
+                [ "displayName", "Home"; "clientId", "umbral-client"; "shared", "true" ]
+            )
+
+        let! kept = requestedScopes (Browser app.Client) clientId "home"
+        Assert.Equal("openid email profile groups", kept)
+    }
+
+[<Theory>]
+[<InlineData("groups, offline_access")>]
+[<InlineData("grou\"ps")>]
+[<InlineData("back\\slash")>]
+[<InlineData("tab\tinside")>]
+let ``extra scopes that are not scopes are refused on the add form with the input kept`` (typed: string) =
+    task {
+        let! app, operator = start [ create issuer ] ignore []
+        use _ = app
+
+        let! response =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors",
+                addFields "home" issuer @ [ "extraScopes", typed ]
+            )
+
+        let! html = response.Content.ReadAsStringAsync()
+        Assert.Equal(enum<HttpStatusCode> 422, response.StatusCode)
+        Assert.Contains("data-add-error=\"extraScopes\"", html)
+        Assert.Contains("is not a valid scope", html)
+        assertInputKept html issuer
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.True stored.IsNone
+    }
+
+[<Fact>]
+let ``a scope that is too long, or too many of them, is refused`` () =
+    task {
+        let! app, operator = start [ create issuer ] ignore []
+        use _ = app
+
+        let post scopes =
+            operator.PostForm("/admin/connectors", "/admin/connectors", addFields "home" issuer @ [ "extraScopes", scopes ])
+
+        let! tooLong = post (String('a', 129))
+        let! html = tooLong.Content.ReadAsStringAsync()
+        Assert.Equal(enum<HttpStatusCode> 422, tooLong.StatusCode)
+        Assert.Contains("longer than 128 characters", html)
+
+        let! tooMany = post (String.Join(" ", [ for i in 1..33 -> $"scope{i}" ]))
+        let! html = tooMany.Content.ReadAsStringAsync()
+        Assert.Equal(enum<HttpStatusCode> 422, tooMany.StatusCode)
+        Assert.Contains("More than 32 extra scopes", html)
+    }
+
+[<Fact>]
+let ``an invalid extra scope on the card draws it again with what was typed and changes nothing`` () =
+    task {
+        let! app, operator = start [ create issuer ] ignore []
+        use _ = app
+
+        let! _ = addProvider operator "home" issuer
+
+        let! response =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/home",
+                [ "displayName", "Renamed"
+                  "clientId", "typed-client-id"
+                  "shared", "true"
+                  "extraScopes", "groups, offline_access" ]
+            )
+
+        let! html = response.Content.ReadAsStringAsync()
+        Assert.Equal(enum<HttpStatusCode> 422, response.StatusCode)
+        Assert.Contains("data-card-error=\"extraScopes\"", html)
+        Assert.Contains("is not a valid scope", html)
+        Assert.Contains("value=\"groups, offline_access\"", html)
+        Assert.Contains("value=\"Renamed\"", html)
+        Assert.Contains("value=\"typed-client-id\"", html)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.Equal("Home", stored.Value.DisplayName)
+        Assert.Equal("umbral-client", stored.Value.ClientId)
+        Assert.Empty stored.Value.ExtraScopes
+    }
+
+[<Fact>]
+let ``only the OpenID Connect card has the extra scopes field`` () =
+    task {
+        let! app, operator = start [ create issuer ] ignore []
+        use _ = app
+
+        let! screen = operator.GetHtml "/admin/connectors"
+        // The add form has it once; the built-in cards have none.
+        Assert.Equal(1, Regex.Matches(screen, "name=\"extraScopes\"").Count)
+
+        let! _ = addProvider operator "home" issuer
+        let! withProvider = operator.GetHtml "/admin/connectors"
+        Assert.Equal(2, Regex.Matches(withProvider, "name=\"extraScopes\"").Count)
+    }
+
+// ---------------------------------------------------------------------------
 // Export (the config file cannot declare an oidc connector yet)
 // ---------------------------------------------------------------------------
 

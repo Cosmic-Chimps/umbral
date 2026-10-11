@@ -185,6 +185,9 @@ type Texts =
       ConnectorIssuerLabel: string
       ConnectorIssuerHint: string
       ConnectorIssuerFixedNote: string
+      /// Extra scopes of an OpenID Connect provider (specs/002 T025).
+      ConnectorExtraScopesLabel: string
+      ConnectorExtraScopesHint: string
       ConnectorEmailTrustWarning: string
       ConnectorOidcClientIdHint: string
       ConnectorOidcSecretAgainHint: string
@@ -430,6 +433,10 @@ let en: Texts =
       ConnectorIssuerFixedNote =
         "The identifier and the issuer can't be changed, because people's accounts are tied to the issuer and the callback URL is registered with the provider. "
         + "To change either, delete this provider and add it again: the same issuer brings everyone back to their account."
+      ConnectorExtraScopesLabel = "Extra scopes"
+      ConnectorExtraScopesHint =
+        "Optional, only for an OpenID Connect provider: scopes to ask for besides openid, email and profile, separated by spaces, like groups offline_access. "
+        + "Leave it empty if you are not sure your provider needs more."
       ConnectorEmailTrustWarning =
         "Umbral trusts an email address that an OpenID Connect provider marks as verified, and uses it to recognise the same person across providers. "
         + "Add only a provider you run or trust. One that lets people claim email addresses they don't control would let them sign in as someone else."
