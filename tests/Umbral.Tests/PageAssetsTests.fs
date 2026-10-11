@@ -224,8 +224,9 @@ let private seedDiscord (app: Fixtures.TestApp) =
                   ClientId = "1234"
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = Secrets.hint "discord-secret"
-                  ExtraScopes = []
+                  IssuerUrl = None
                   IsEnabled = true
+                  IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
                   UpdatedUtc = app.Clock.GetUtcNow() }
                 None

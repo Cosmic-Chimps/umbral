@@ -525,7 +525,7 @@ let private view
             for row in rows do
                 appRow ctx t origin connectors row
     }
-    |> Layout.page ctx t t.AppsTitle
+    |> Layout.operatorPage ctx t t.AppsTitle
 
 /// F#'s `task { for x in ... }` binds `seq<'T>`, not `IAsyncEnumerable<'T>`, so
 /// OpenIddict's manager enumerables (backed by EF Core queries) are drained by

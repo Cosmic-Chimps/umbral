@@ -25,11 +25,22 @@ let icon (i: Icon) =
     raw $"""<svg class="um-icon" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true" focusable="false"><path d="{i.Path}"/></svg>"""
 
 /// The mark (an inline SVG) next to the wordmark, linking to the Apps screen
-let brand (siteName: string) =
-    a(href = "/admin/apps", class' = "inline-flex items-center gap-2.5 rounded text-headline-md font-extrabold tracking-tight text-on-surface") {
-        span(class' = "block h-7 w-7") { raw markSvg }
-        siteName
-    }
+let private brandClass =
+    "inline-flex items-center gap-2.5 rounded text-headline-md font-extrabold tracking-tight text-on-surface"
+
+/// The wordmark. It links home only for the operator (`/admin/apps`); everyone
+/// else gets it as plain text, since they have no business on `/admin`.
+let brand (linked: bool) (siteName: string) : HtmlElement =
+    if linked then
+        a(href = "/admin/apps", class' = brandClass) {
+            span(class' = "block h-7 w-7") { raw markSvg }
+            siteName
+        }
+    else
+        span(class' = brandClass) {
+            span(class' = "block h-7 w-7") { raw markSvg }
+            siteName
+        }
 
 type ButtonKind =
     | Primary

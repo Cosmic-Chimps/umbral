@@ -6,6 +6,7 @@ open System.Net
 open System.Net.Http
 open Xunit
 open Umbral.Tests.Infrastructure
+open Umbral.Tests.Infrastructure.Flows
 
 /// Sends `attempts` requests from `source` and returns the last response, the
 /// one the limiter refused.
@@ -64,4 +65,61 @@ let ``an end user's protocol-error page does not link to the operator sign-in`` 
 
         Assert.Contains("data-protocol-error", html)
         Assert.DoesNotContain("href=\"/admin\"", html)
+    }
+
+[<Fact>]
+let ``the end-user picker shows no operator navigation`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! response = app.Client.GetAsync "/signin"
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.Contains("data-screen=\"signin\"", html)
+        Assert.DoesNotContain("/admin/", html)
+        Assert.DoesNotContain("<form", html)
+    }
+
+[<Fact>]
+let ``setup and operator sign-in show the brand without the operator navigation`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! setup = app.Client.GetAsync "/admin/setup"
+        let! setupHtml = setup.Content.ReadAsStringAsync()
+        Assert.DoesNotContain("href=\"/admin/apps\"", setupHtml)
+        Assert.DoesNotContain("href=\"/admin/connectors\"", setupHtml)
+        Assert.DoesNotContain("/admin/signout", setupHtml)
+
+        let browser = Browser app.Client
+        do! claimOperator app browser
+
+        let! signIn = app.Client.GetAsync "/admin/signin"
+        let! signInHtml = signIn.Content.ReadAsStringAsync()
+        Assert.Contains("data-screen=\"operator-signin\"", signInHtml)
+        Assert.DoesNotContain("href=\"/admin/apps\"", signInHtml)
+        Assert.DoesNotContain("/admin/signout", signInHtml)
+    }
+
+[<Fact>]
+let ``an end user's message page shows no operator navigation`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! response = app.Client.GetAsync "/connect/authorize?response_type=code"
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.DoesNotContain("href=\"/admin/apps\"", html)
+        Assert.DoesNotContain("/admin/signout", html)
+    }
+
+[<Fact>]
+let ``a signed-in operator's screens keep the operator navigation`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let browser = Browser app.Client
+        do! claimOperator app browser
+
+        let! response = browser.Get "/admin/connectors"
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.Contains("href=\"/admin/apps\"", html)
+        Assert.Contains("action=\"/admin/signout\"", html)
     }

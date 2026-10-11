@@ -225,7 +225,7 @@ let private view (ctx: HttpContext) (t: Texts.Texts) (rows: Row list) (term: str
             for data in rows do
                 row ctx t data
     }
-    |> Layout.page ctx t t.UsersTitle
+    |> Layout.operatorPage ctx t t.UsersTitle
 
 let page: EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->

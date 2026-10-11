@@ -520,7 +520,7 @@ let private view
 
         addForm ctx t addableKinds add
     }
-    |> Layout.page ctx t t.ConnectorsTitle
+    |> Layout.operatorPage ctx t t.ConnectorsTitle
 
 /// The kinds the add form offers: the three real providers, OpenID Connect (which
 /// has no empty card, it is only ever added here), and the fake one
