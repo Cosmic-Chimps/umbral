@@ -27,6 +27,13 @@ RUN case "$TARGETARCH" in \
  && dotnet restore src/Umbral/Umbral.fsproj -r "$rid"
 
 COPY src/ src/
+
+# The committed Assets/umbral.css is what dev, the tests and this image all
+# serve. Fail the build when a view gained a class and the CSS was not
+# regenerated. The build stage runs on $BUILDPLATFORM, so `uname -m` picks the
+# Tailwind CLI that runs natively; the cache mount keeps the download between builds.
+RUN --mount=type=cache,target=/root/.cache/umbral src/Umbral/Assets/build-css.sh --check
+
 # Framework-dependent: the aspnet base image supplies the runtime. A
 # RID-specific publish still emits the /app/Umbral apphost, which is the
 # command the reset-credential docs tell an operator to run.

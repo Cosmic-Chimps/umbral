@@ -30,10 +30,27 @@ let private navLinks (ctx: HttpContext) (t: Texts) =
         }
     }
 
-/// Base HTML layout on the design system (Views/Theme.fs). No frontend build
-/// step: Tailwind, fonts and htmx all come from a CDN, configured at request
-/// time from F# data.
+/// The Content-Security-Policy of every page Umbral renders: scripts, styles,
+/// fonts and frames only from this origin (nothing inline, nothing from a CDN),
+/// images also from `data:` for the favicon, no plugins, no `<base>`.
+///
+/// It is set by `page`, not by a site-wide middleware, because OpenIddict's
+/// `response_mode=form_post` answer is an HTML page with an inline auto-submit
+/// script: a global policy would leave every app that uses form_post on a blank
+/// page. Every page Umbral renders itself goes through `page`, so it is
+/// covered. `form-action` and `frame-ancestors` are deliberately not set: they
+/// are out of scope here, and `frame-ancestors` would interfere with the
+/// silent-renew iframes of single-page-app clients.
+let contentSecurityPolicy =
+    "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'"
+
+/// Base HTML layout on the design system (src/Umbral/Assets/). The stylesheet
+/// (compiled by build-css.sh), htmx and Umbral's own script are served by
+/// Umbral itself, so a page loads nothing from a third party and runs no inline
+/// script (see `contentSecurityPolicy`).
 let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
+    ctx.Response.Headers.ContentSecurityPolicy <- contentSecurityPolicy
+
     html(lang = "en", class' = "bg-surface") {
         head() {
             meta(charset = "UTF-8")
@@ -42,19 +59,10 @@ let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement
             meta(name = "theme-color", content = "#0d1117")
             title() { $"{titleText} | {t.SiteName}" }
             link(rel = "icon", href = faviconHref).attr("type", "image/svg+xml")
-            link(rel = "preconnect", href = "https://fonts.googleapis.com")
-            link(rel = "preconnect", href = "https://fonts.gstatic.com").attr("crossorigin", "")
-
-            for sheet in fontStylesheets do
-                link(rel = "stylesheet", href = sheet)
-
-            style() { raw tokensCss }
-            script(src = "https://cdn.tailwindcss.com")
-            script() { raw tailwindConfig }
-            style().attr("type", "text/tailwindcss") { raw componentCss }
+            link(rel = "stylesheet", href = Assets.css.Href)
             // htmx 4.x: Oxpecker.Htmx 4.0.* emits attributes for this major version only.
-            script(src = "https://cdn.jsdelivr.net/npm/htmx.org@4.0.0", crossorigin = "anonymous")
-            script() { raw Components.copyScript }
+            script(src = Assets.htmx.Href)
+            script(src = Assets.script.Href)
         }
 
         body(class' = "min-h-screen bg-surface text-on-surface flex flex-col") {

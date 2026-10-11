@@ -643,3 +643,12 @@ Umbral is built on .NET 10 (F#), [Oxpecker](https://github.com/Lanayx/Oxpecker),
 [OpenIddict](https://documentation.openiddict.com/) and SQLite. The project's
 rules are in [`.specify/memory/constitution.md`](.specify/memory/constitution.md)
 and its specification is in [`specs/001-umbral-mvp/`](specs/001-umbral-mvp/).
+
+The UI loads nothing from third parties: its stylesheet, htmx and its one small
+script are served by Umbral itself, and every page carries a strict
+Content-Security-Policy. The CSS is compiled once, not in the browser. After you
+change a view, `src/Umbral/Assets/tailwind.config.js` (the design tokens) or
+`src/Umbral/Assets/umbral.input.css` (the component classes), run
+`src/Umbral/Assets/build-css.sh` — it downloads the pinned standalone Tailwind
+CLI, no Node needed — and commit the regenerated `umbral.css`. The image build
+runs it with `--check` and fails on a stale file.

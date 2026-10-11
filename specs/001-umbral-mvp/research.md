@@ -334,6 +334,13 @@ Adopted wholesale:
 - **No frontend build step.** Tokens are F# data in `Views/Theme.fs` that generate
   both the CSS custom properties and the Tailwind CDN config; icons are a closed
   union used to subset the icon font. No npm, no bundler, no `wwwroot`.
+  **Amended 2026-10-10:** the tokens moved to `Assets/tailwind.config.js` and the
+  CSS is compiled once by the standalone Tailwind CLI (`Assets/build-css.sh`, no
+  Node or npm) and committed; icons are inline SVG, and the stylesheet, htmx and
+  Umbral's script are embedded resources served by Umbral itself — still no
+  bundler and no `wwwroot`. Third-party script on an identity provider's
+  credential pages violated constitution IV, and an offline homelab got an
+  unstyled UI (principle II).
 
 Corrections and deviations, each deliberate:
 
