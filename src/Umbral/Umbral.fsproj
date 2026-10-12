@@ -43,6 +43,12 @@
     <Compile Include="Infrastructure/DataDirectory.fs" />
     <Compile Include="Infrastructure/Keys.fs" />
     <Compile Include="Infrastructure/Secrets.fs" />
+    <Compile Include="Infrastructure/SecretStores/Settings.fs" />
+    <Compile Include="Infrastructure/SecretStores/Aws.fs" />
+    <Compile Include="Infrastructure/SecretStores/Gcp.fs" />
+    <Compile Include="Infrastructure/SecretStores/Azure.fs" />
+    <Compile Include="Infrastructure/SecretStores/BellaBaxter.fs" />
+    <Compile Include="Infrastructure/SecretStores/Registry.fs" />
     <Compile Include="Infrastructure/Database.fs" />
     <Compile Include="Infrastructure/SecurityEvents.fs" />
     <Compile Include="Infrastructure/LogRedaction.fs" />
@@ -56,6 +62,7 @@
     <Compile Include="Infrastructure/Providers/Oidc.fs" />
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />
+    <Compile Include="Infrastructure/SecretMove.fs" />
     <Compile Include="Infrastructure/AppConnectors.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
@@ -150,6 +157,26 @@
       family stays one version (see `dotnet list package` with its transitive option).
     -->
     <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.19.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The four external secret managers (specs/005-external-secret-stores/research.md R4).
+      Exact versions, because these are the clients the adapters' error mapping was
+      written against; a floating range would change which exceptions mean "denied".
+      None is loaded unless its store is configured (R2: stores are built lazily),
+      so a local-only instance pays for them in disk, not in memory.
+    -->
+    <!-- Secrets Manager client for the `aws` store. -->
+    <PackageReference Include="AWSSDK.SecretsManager" Version="4.0.100.16" />
+    <!-- Application Default Credentials and access tokens for the `gcp` store's REST calls. -->
+    <PackageReference Include="Google.Apis.Auth" Version="1.77.0" />
+    <!-- Key Vault secrets client for the `azure` store. -->
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.11.2" />
+    <!-- The credential chain (environment, workload identity, managed identity) the `azure` store signs in with. -->
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <!-- Client for the `bellabaxter` store; preview, hence the exact pin. -->
+    <PackageReference Include="BellaBaxter.Client" Version="0.1.1-preview.131" />
   </ItemGroup>
 
 </Project>

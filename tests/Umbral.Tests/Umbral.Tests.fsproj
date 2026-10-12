@@ -9,6 +9,7 @@
   <!-- Same compile-order constraint as the web project: helpers before the tests that use them. -->
   <ItemGroup>
     <Compile Include="Infrastructure/Fixtures.fs" />
+    <Compile Include="Infrastructure/InMemorySecretStore.fs" />
     <Compile Include="Infrastructure/Flows.fs" />
     <Compile Include="Infrastructure/Journeys.fs" />
     <Compile Include="Infrastructure/StubOidcProvider.fs" />
@@ -58,6 +59,14 @@
     <Compile Include="AppConnectorChoiceTests.fs" />
     <Compile Include="MultipleConnectorsTests.fs" />
     <Compile Include="NoConfigFileTests.fs" />
+    <Compile Include="SecretStoreSettingsTests.fs" />
+    <Compile Include="AwsSecretStoreTests.fs" />
+    <Compile Include="GcpSecretStoreTests.fs" />
+    <Compile Include="AzureSecretStoreTests.fs" />
+    <Compile Include="BellaBaxterSecretStoreTests.fs" />
+    <Compile Include="SecretCacheTests.fs" />
+    <Compile Include="ExternalSecretConnectorTests.fs" />
+    <Compile Include="SecretMoveTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 
