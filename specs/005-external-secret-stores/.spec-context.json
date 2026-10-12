@@ -1,0 +1,30 @@
+{
+  "workflow": "speckit",
+  "specName": "External Secret Stores for Connector Secrets",
+  "branch": "005-external-secret-stores",
+  "currentStep": "tasks",
+  "status": "ready-to-implement",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-12T18:13:42.955Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-10-12T18:36:37.534Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-10-12T18:53:28.995Z"
+    }
+  ]
+}
