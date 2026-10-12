@@ -22,9 +22,9 @@ let private scalar (config: Database.DbConfig) (sql: string) =
 let ``the app starts on a TestServer`` () =
     task {
         use! app = Fixtures.createApp ()
-        let! response = app.Client.GetAsync "/"
-        // No routes are mapped yet; reaching the terminal 404 proves the whole
-        // pipeline composed and ran.
+        let! response = app.Client.GetAsync "/no-such-page"
+        // No route is mapped at this path; reaching the terminal 404 proves the
+        // whole pipeline composed and ran.
         Assert.Equal(Net.HttpStatusCode.NotFound, response.StatusCode)
     }
 

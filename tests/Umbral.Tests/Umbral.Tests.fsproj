@@ -42,6 +42,7 @@
     <Compile Include="OAuthRoundTripTests.fs" />
     <Compile Include="RateLimitTests.fs" />
     <Compile Include="AdminLandingTests.fs" />
+    <Compile Include="HomeTests.fs" />
     <Compile Include="MessagePageTests.fs" />
     <Compile Include="SubcommandTests.fs" />
     <Compile Include="LoggingDefaultsTests.fs" />

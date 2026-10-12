@@ -71,6 +71,7 @@
     <Compile Include="Views/Layout.fs" />
     <Compile Include="Handlers/Health.fs" />
     <Compile Include="Handlers/Assets.fs" />
+    <Compile Include="Handlers/Home.fs" />
     <Compile Include="Handlers/Admin/Landing.fs" />
     <Compile Include="Handlers/Admin/Setup.fs" />
     <Compile Include="Handlers/Admin/SignIn.fs" />

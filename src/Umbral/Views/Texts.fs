@@ -195,6 +195,19 @@ type Texts =
       UserDeleteButton: string
       UserDeleteConfirm: string -> string
 
+      // Home page (GET /): static, the same for everyone, nothing about this instance
+      HomeTitle: string
+      HomeHeadline: string
+      HomeLead: string
+      HomeSigningInHeading: string
+      HomeSigningInBody: string
+      HomeBuildingHeading: string
+      HomeBuildingBody: string
+      HomeDiscoveryLink: string
+      HomeRunningHeading: string
+      HomeRunningBody: string
+      HomeAdminButton: string
+
       // Generic chrome and errors (FR-037: every message names the next action)
       AntiforgeryExpiredTitle: string
       AntiforgeryExpiredBody: string
@@ -461,6 +474,21 @@ let en: Texts =
       UserDisableConfirm = fun name -> $"Disable {name}? They won't be able to sign in again, and their existing sessions and tokens stop working immediately."
       UserDeleteButton = "Delete"
       UserDeleteConfirm = fun name -> $"Delete {name}? This removes their account and every linked provider account permanently, and can't be undone."
+
+      HomeTitle = "Welcome"
+      HomeHeadline = "Umbral"
+      HomeLead =
+        "A self-hosted sign-in server that lets your apps offer social login (Discord, GitHub, Google, "
+        + "any OpenID Connect provider) through one OpenID Connect issuer."
+      HomeSigningInHeading = "Signing in?"
+      HomeSigningInBody =
+        "You don't start here. Open the app you want to use and choose to sign in; it brings you to Umbral's sign-in screen."
+      HomeBuildingHeading = "Building an app?"
+      HomeBuildingBody = "Point your OpenID Connect client at this issuer. Its settings are published at the discovery address."
+      HomeDiscoveryLink = "OpenID Connect discovery document"
+      HomeRunningHeading = "Running this instance?"
+      HomeRunningBody = "Set up providers, register apps and manage people from the admin area."
+      HomeAdminButton = "Open the admin area"
 
       AntiforgeryExpiredTitle = "This form expired"
       AntiforgeryExpiredBody = "Reload the page and try again."

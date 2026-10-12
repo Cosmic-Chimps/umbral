@@ -135,8 +135,9 @@ later while signed in, open **Credential** in the top bar: it asks for the
 current one and the new one twice, and signs every other admin session out.
 
 > `/admin` always takes you to the right place: the setup page the first time,
-> the sign-in page afterwards. Umbral has no front page, so `/` answers
-> "Not found".
+> the sign-in page afterwards. `/` is a short public home page (what Umbral is,
+> the issuer URL for app developers, and a link to `/admin`); it shows nothing
+> about how this instance is set up.
 
 You land on the **Connectors** screen. The admin area has three screens:
 **Apps**, **Connectors**, **Users**.
@@ -578,9 +579,6 @@ none is shared and enabled. Fix it on **Apps** (**Sign-in methods**) or on
 A session counts for an app only if it came through a connector that app offers.
 They signed in to Umbral through a connector this app does not offer, so they
 must pick one it does. They are still signed in to Umbral for other apps.
-
-**`/` shows "Not found".**
-That is expected: Umbral has no front page. Go to `/admin`.
 
 **I cannot find the setup token, or it is rejected.**
 `docker logs umbral 2>&1 | grep -A6 "not configured yet"` and take the *latest*

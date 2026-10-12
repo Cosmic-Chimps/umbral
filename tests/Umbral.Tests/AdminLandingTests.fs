@@ -39,15 +39,3 @@ let ``/admin for a signed-in operator goes where sign-in lands`` () =
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
         Assert.Equal("/admin/connectors", location response)
     }
-
-[<Fact>]
-let ``/ stays a 404`` () =
-    task {
-        use! app = Fixtures.createApp ()
-        let! response = app.Client.GetAsync "/"
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode)
-
-        // The themed page, not a bare "Not found" (Texts.NotFoundTitle).
-        let! html = response.Content.ReadAsStringAsync()
-        Assert.Contains("Page not found", html)
-    }
