@@ -120,8 +120,7 @@ let claimOperator (app: Fixtures.TestApp) (browser: Browser) =
 /// The fake connector, written straight to the store with a real stored secret.
 let seedFakeConnector (app: Fixtures.TestApp) =
     task {
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! reference = secrets.Put("connector/fake/client_secret", "unused")
+        let! reference = Fixtures.putSecret app "fake" "unused"
 
         do!
             ConnectorStore.save

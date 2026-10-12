@@ -36,6 +36,9 @@ type EventType =
     | ConnectorEnabled
     | ConnectorDisabled
     | ConnectorDeleted
+    // Secret stores (specs/005-external-secret-stores)
+    | SecretStoreFailed
+    | ConnectorSecretMoved
     // Apps
     | AppCreated
     | AppUpdated
@@ -64,6 +67,8 @@ type EventType =
         | ConnectorEnabled -> "connector_enabled"
         | ConnectorDisabled -> "connector_disabled"
         | ConnectorDeleted -> "connector_deleted"
+        | SecretStoreFailed -> "secret_store_failed"
+        | ConnectorSecretMoved -> "connector_secret_moved"
         | AppCreated -> "app_created"
         | AppUpdated -> "app_updated"
         | AppSecretRotated -> "app_secret_rotated"
@@ -89,11 +94,22 @@ let allEventTypes =
       ConnectorEnabled
       ConnectorDisabled
       ConnectorDeleted
+      SecretStoreFailed
+      ConnectorSecretMoved
       AppCreated
       AppUpdated
       AppSecretRotated
       AppDeleted
       AuthorizationCodeReplayed ]
+
+/// The `Detail` of a `secret_store_failed` event: which store, which operation
+/// (`put`, `get`, `delete` or `probe`), and the closed cause word, plus
+/// `stale=true` when the failure was a refresh whose old value was served from
+/// the grace period. Built from fixed words only, so no value, locator or
+/// credential can reach the event table through it.
+let storeDetail (store: string) (op: string) (cause: Secrets.StoreFailure) (stale: bool) =
+    let core = $"store={store};op={op};cause={cause.Cause}"
+    if stale then core + ";stale=true" else core
 
 type Outcome =
     | Success

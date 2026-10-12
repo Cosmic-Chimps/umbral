@@ -209,8 +209,7 @@ let ``a restart leaves people signed in and issued tokens valid`` () =
             match reference with
             | Error e -> failwith e
             | Ok reference ->
-                let store = second.Services.GetRequiredService<Secrets.ISecretStore>()
-                let! plaintext = store.Get reference
+                let! plaintext = Fixtures.readSecret second reference
                 Assert.Equal(Some ConnectorSecret, plaintext)
 
             // The same fact, through the path that matters: a brand-new person

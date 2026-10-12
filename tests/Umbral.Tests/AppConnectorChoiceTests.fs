@@ -18,8 +18,7 @@ open Umbral.Tests.Infrastructure.Flows
 /// A stored Discord connector, written straight to the store with a real secret.
 let private seedDiscord (app: Fixtures.TestApp) (enabled: bool) (shared: bool) =
     task {
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! reference = secrets.Put("connector/discord/client_secret", "discord-secret")
+        let! reference = Fixtures.putSecret app "discord" "discord-secret"
 
         do!
             ConnectorStore.save

@@ -22,6 +22,7 @@ open Oxpecker.ViewEngine
 open Umbral.Domains
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
+open Umbral.Infrastructure.SecretStores.Registry
 open Umbral.Views
 
 // ---------------------------------------------------------------------------
@@ -671,11 +672,20 @@ let private recordEvent (ctx: HttpContext) (kind: SecurityEvents.EventType) (slu
     recordEventWith ctx kind slug None
 
 /// Store a secret under the connector's own slug, returning what the store
-/// keeps: the encoded reference and the hint the screen shows.
+/// keeps: the encoded reference and the hint the screen shows, or why the store
+/// refused. The local store never refuses; the callers still handle `Error`
+/// because the next stores will (specs/005 T023 gives them the full treatment).
+///
+/// The name's discriminator comes from the time the secret is written here, as
+/// a stand-in until the creating path passes the `created_utc` it will write.
 let private putSecret (ctx: HttpContext) (slug: string) (plaintext: string) =
     task {
-        let! reference = ctx.GetService<Secrets.ISecretStore>().Put($"connector/{slug}/client_secret", plaintext)
-        return reference.Encoded, Secrets.hint plaintext
+        let secrets = ctx.GetService<SecretStores>()
+        let name = Secrets.SecretName.derive "umbral" slug (ctx.GetService<TimeProvider>().GetUtcNow())
+
+        match! secrets.Active.Put(name, plaintext, ctx.RequestAborted) with
+        | Ok reference -> return Ok(reference.Encoded, Secrets.hint plaintext)
+        | Error failure -> return Error failure
     }
 
 /// Whether `kind` may be created from the first-connector path, an empty card
@@ -786,7 +796,9 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
 
         // Only now does the secret reach the store: the slug is free, the issuer
         // is free and the provider answered.
-        let! secret = putSecret ctx state.Slug newSecret.Value
+        match! putSecret ctx state.Slug newSecret.Value with
+        | Error _ -> return! refuse "clientSecret" ((Texts.current ()).Notice "connector-secret-store-failed")
+        | Ok secret ->
 
         let! added =
             ConnectorStore.create
@@ -877,7 +889,9 @@ let create: EndpointHandler =
 
             // The slug was just checked free, so writing the secret under it
             // cannot replace another connector's.
-            let! secret = putSecret ctx slug plaintext
+            match! putSecret ctx slug plaintext with
+            | Error _ -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-store-failed"
+            | Ok secret ->
 
             let! added =
                 ConnectorStore.create
@@ -947,7 +961,9 @@ let save (slug: string) : EndpointHandler =
             | None, None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-required"
 
             | None, Some plaintext ->
-                let! secret = putSecret ctx slug plaintext
+                match! putSecret ctx slug plaintext with
+                | Error _ -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-store-failed"
+                | Ok secret ->
 
                 let! added =
                     ConnectorStore.create
@@ -1009,9 +1025,13 @@ let save (slug: string) : EndpointHandler =
                     | Some plaintext ->
                         task {
                             let! secret = putSecret ctx slug plaintext
-                            return Some secret
+                            return secret |> Result.map Some
                         }
-                    | None -> System.Threading.Tasks.Task.FromResult None
+                    | None -> System.Threading.Tasks.Task.FromResult(Ok None)
+
+                match secretUpdate with
+                | Error _ -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-store-failed"
+                | Ok secretUpdate ->
 
                 let! updated = ConnectorStore.update config clock slug newName clientId newShared secretUpdate
 

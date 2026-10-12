@@ -111,10 +111,10 @@ let ``a second start reuses the keys rather than regenerating them`` () =
 let ``the secret store is resolvable and round-trips`` () =
     task {
         use! app = Fixtures.createApp ()
-        let store = app.Services.GetRequiredService<Secrets.ISecretStore>()
 
-        let! reference = store.Put("connector/discord/client_secret", "value-from-the-form")
-        let! recovered = store.Get reference
+        // Through the registry, as the handlers reach it.
+        let! reference = Fixtures.putSecret app "discord" "value-from-the-form"
+        let! recovered = Fixtures.readSecret app reference
 
         Assert.Equal(Some "value-from-the-form", recovered)
     }

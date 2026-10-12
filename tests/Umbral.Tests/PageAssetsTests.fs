@@ -211,8 +211,7 @@ let ``the operator sign-in page is self-contained`` () =
 
 let private seedDiscord (app: Fixtures.TestApp) =
     task {
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! reference = secrets.Put("connector/discord/client_secret", "discord-secret")
+        let! reference = Fixtures.putSecret app "discord" "discord-secret"
 
         do!
             ConnectorStore.save

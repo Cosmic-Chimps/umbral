@@ -143,8 +143,7 @@ let ``the failure redirect never carries the provider's own words`` () =
 /// session carries the slug" cannot both pass by accident.
 let private addLabConnector (app: Fixtures.TestApp) =
     task {
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! reference = secrets.Put("connector/fake-lab/client_secret", "unused")
+        let! reference = Fixtures.putSecret app "fake-lab" "unused"
 
         do!
             ConnectorStore.save

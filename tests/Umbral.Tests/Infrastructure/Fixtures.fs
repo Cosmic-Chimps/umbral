@@ -17,6 +17,8 @@ open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.DependencyInjection.Extensions
 open Microsoft.Extensions.Time.Testing
+open Umbral.Infrastructure
+open Umbral.Infrastructure.SecretStores.Registry
 
 [<Literal>]
 let TestOrigin = "https://umbral.test"
@@ -154,3 +156,53 @@ let createAppWithProviderHandler
         |> ignore
 
         customize builder)
+
+/// Replaces the registry with one holding `stores` (each under its own `Id`)
+/// and writing new secrets to the store named `activeId`, for `customize`.
+///
+/// The `local` store is still the real one, built from the app's key ring, so a
+/// test can start on `local` and an external store at once. `bound` is the
+/// time limit on a call to a store; a test of a hung store passes a short one
+/// rather than waiting out the product's 10 seconds.
+///
+/// It works because `customize` runs before `configureServices`, whose
+/// `TryAddSingleton` then leaves this registration alone.
+let withSecretStoresWithin (bound: TimeSpan) (stores: Secrets.ISecretStore list) (activeId: string) (builder: WebApplicationBuilder) =
+    builder.Services.TryAddSingleton<SecretStores>(fun sp ->
+        let local = Secrets.LocalSecretStore(sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>())
+
+        let others =
+            stores
+            |> List.map (fun store -> store.Id, lazy (Ok store))
+            |> Map.ofList
+
+        SecretStores(local, activeId, others, bound))
+
+/// `withSecretStoresWithin` with the product's own call bound.
+let withSecretStores (stores: Secrets.ISecretStore list) (activeId: string) (builder: WebApplicationBuilder) =
+    withSecretStoresWithin callBound stores activeId builder
+
+/// Writes a secret the way the product's handlers do, through the registry's
+/// active store, and returns the reference to put in a connector row. For tests
+/// that seed a connector straight into the database. A refusal fails the test:
+/// seeding is not what is being tested.
+let putSecret (app: TestApp) (slug: string) (plaintext: string) : Task<Secrets.SecretRef> =
+    task {
+        let secrets = app.Services.GetRequiredService<SecretStores>()
+        let name = Secrets.SecretName.derive "umbral" slug (app.Clock.GetUtcNow())
+
+        match! secrets.Active.Put(name, plaintext, Threading.CancellationToken.None) with
+        | Ok reference -> return reference
+        | Error failure -> return failwith $"seeding a secret for '{slug}' failed: {failure.Cause}"
+    }
+
+/// Reads a secret back the way the sign-in callback does. `None` when the store
+/// could not give it, whatever the reason.
+let readSecret (app: TestApp) (reference: Secrets.SecretRef) : Task<string option> =
+    task {
+        let secrets = app.Services.GetRequiredService<SecretStores>()
+
+        match! secrets.Read(reference, Threading.CancellationToken.None) with
+        | Ok plaintext -> return Some plaintext
+        | Error _ -> return None
+    }

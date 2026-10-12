@@ -18,6 +18,7 @@ open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.DependencyInjection.Extensions
 open Oxpecker
 open Umbral.Infrastructure
+open Umbral.Infrastructure.SecretStores.Registry
 open Umbral.Migrations
 
 // ---------------------------------------------------------------------------
@@ -108,9 +109,11 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
         .SetApplicationName "Umbral"
     |> ignore
 
-    services.AddSingleton<Secrets.ISecretStore>(fun sp ->
-        Secrets.LocalSecretStore(sp.GetRequiredService<IDataProtectionProvider>()) :> Secrets.ISecretStore)
-    |> ignore
+    // TryAdd, so that a test can register a registry of its own (an in-memory
+    // store under any id) before this runs, as it does for TimeProvider above.
+    services.TryAddSingleton<SecretStores>(fun sp ->
+        let local = Secrets.LocalSecretStore(sp.GetRequiredService<IDataProtectionProvider>())
+        SecretStores(local, Secrets.LocalStoreId, Map.empty))
 
     // EF Core exists for OpenIddict's four tables and nothing else; Umbral's own
     // six are raw SQLite in Database.fs.

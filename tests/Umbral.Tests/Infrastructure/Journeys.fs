@@ -132,13 +132,12 @@ let claimInstance (app: Fixtures.TestApp) (browser: Browser) =
     }
 
 /// Add the Fake connector. Written straight to the store because it has no card
-/// on the Connectors screen, but the secret goes through the real `ISecretStore`:
+/// on the Connectors screen, but the secret goes through the real secret store registry:
 /// the callback unprotects it on every sign-in, so a bogus reference would fail
 /// the login for a reason that has nothing to do with the test.
 let addFakeConnector (app: Fixtures.TestApp) (secret: string) =
     task {
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! reference = secrets.Put("connector/fake/client_secret", secret)
+        let! reference = Fixtures.putSecret app "fake" secret
 
         do!
             ConnectorStore.save

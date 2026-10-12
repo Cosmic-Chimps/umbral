@@ -116,13 +116,12 @@ let private claimAndConfigure (app: Fixtures.TestApp) (browser: Browser) : Task<
         // The connector the operator would create on the Connectors screen.
         // Written directly because the fake kind has no card there — it is not
         // a provider anyone configures deliberately.
-        // The secret goes through the real ISecretStore rather than being
+        // The secret goes through the real secret store registry rather than being
         // faked. The callback unprotects it on every sign-in, and a bogus
         // reference fails the login with "connector_secret_unreadable" — which
         // is correct behaviour, and special-casing it away would make this test
         // pass for the wrong reason.
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! secretRef = secrets.Put("connector/fake/client_secret", "fake-secret")
+        let! secretRef = Fixtures.putSecret app "fake" "fake-secret"
 
         do!
             ConnectorStore.save

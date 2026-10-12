@@ -95,8 +95,7 @@ let private claim (app: Fixtures.TestApp) (browser: Browser) =
 
 let private seedConnector (app: Fixtures.TestApp) (enabled: bool) =
     task {
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! reference = secrets.Put("connector/discord/client_secret", "the-first-secret")
+        let! reference = Fixtures.putSecret app "discord" "the-first-secret"
 
         do!
             ConnectorStore.save
@@ -179,7 +178,6 @@ let ``replacing the secret takes effect without a restart`` () =
         Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode)
 
         // Read back the way the callback does, in the same process.
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
         let! connector = ConnectorStore.findBySlug app.DbConfig "discord"
 
         match connector with
@@ -188,7 +186,7 @@ let ``replacing the secret takes effect without a restart`` () =
             match Secrets.SecretRef.Decode connector.ClientSecretRef with
             | Error e -> failwith e
             | Ok reference ->
-                let! recovered = secrets.Get reference
+                let! recovered = Fixtures.readSecret app reference
                 Assert.Equal(Some "the-second-secret", recovered)
     }
 
@@ -210,7 +208,6 @@ let ``saving with a blank secret keeps the stored one`` () =
                 [ "clientId", "4321"; "clientSecret", "" ]
             )
 
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
         let! connector = ConnectorStore.findBySlug app.DbConfig "discord"
 
         match connector with
@@ -221,7 +218,7 @@ let ``saving with a blank secret keeps the stored one`` () =
             match Secrets.SecretRef.Decode connector.ClientSecretRef with
             | Error e -> failwith e
             | Ok reference ->
-                let! recovered = secrets.Get reference
+                let! recovered = Fixtures.readSecret app reference
                 Assert.Equal(Some "the-first-secret", recovered)
     }
 
@@ -275,8 +272,7 @@ let ``the connector toggle works identically with and without htmx`` () =
         do! seedConnector app true
 
         // Seed a second one so neither toggle trips the last-connector guard.
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! reference = secrets.Put("connector/github/client_secret", "gh-secret")
+        let! reference = Fixtures.putSecret app "github" "gh-secret"
 
         do!
             ConnectorStore.save

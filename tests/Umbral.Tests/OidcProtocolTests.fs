@@ -115,8 +115,7 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
                   "confirm", "a-very-good-credential" ]
             )
 
-        let secrets = app.Services.GetRequiredService<Secrets.ISecretStore>()
-        let! reference = secrets.Put("connector/fake/client_secret", "unused")
+        let! reference = Fixtures.putSecret app "fake" "unused"
 
         do!
             ConnectorStore.save

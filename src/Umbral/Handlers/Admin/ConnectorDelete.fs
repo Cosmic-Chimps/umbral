@@ -23,6 +23,7 @@ module Umbral.Handlers.Admin.ConnectorDelete
 open OpenIddict.Abstractions
 open Oxpecker
 open Umbral.Infrastructure
+open Umbral.Infrastructure.SecretStores.Registry
 
 let handler (slug: string) : EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
@@ -69,7 +70,14 @@ let handler (slug: string) : EndpointHandler =
             // the row anyway), where the other order would leave a connector
             // that exists and can no longer authenticate.
             match Secrets.SecretRef.Decode connector.ClientSecretRef with
-            | Ok reference -> do! (ctx.GetService<Secrets.ISecretStore>()).Delete reference
+            | Ok reference ->
+                // The result is not looked at yet: a refused delete is handled
+                // where the external stores arrive (specs/005 T024).
+                match (ctx.GetService<SecretStores>()).For reference.Store with
+                | Ok store ->
+                    let! _ = store.Delete(reference, ctx.RequestAborted)
+                    ()
+                | Error _ -> ()
             | Error _ -> ()
 
             do!

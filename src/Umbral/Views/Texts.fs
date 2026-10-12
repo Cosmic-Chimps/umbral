@@ -257,6 +257,8 @@ let private noticeEn (code: string) : string option =
     | "connector-unknown" -> Some "That connector isn't one Umbral supports. Choose one of the connectors listed on this screen."
     | "connector-client-id-required" -> Some "Enter the client ID from the provider's console, then save again."
     | "connector-secret-required" -> Some "Enter the client secret from the provider's console, then save again."
+    | "connector-secret-store-failed" ->
+        Some "The client secret could not be saved to its secret store, so nothing was changed. Check that the store is reachable and Umbral may write to it, then save again."
     | "connector-last-enabled" ->
         Some "This is the only enabled connector. Turning it off means nobody can sign in to any app. Press it again to confirm."
 

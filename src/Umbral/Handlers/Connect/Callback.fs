@@ -11,6 +11,7 @@ open Microsoft.AspNetCore.Builder
 open Oxpecker
 open Umbral.Infrastructure
 open Umbral.Infrastructure.ProviderAdapters
+open Umbral.Infrastructure.SecretStores.Registry
 open Umbral.Infrastructure.SecurityEvents
 
 let private fail = Picker.redirectWithFailure
@@ -87,21 +88,22 @@ let handler (slug: string) : EndpointHandler =
             | Some code ->
 
             // Unprotected at the moment of use and never held anywhere else.
-            let secrets = ctx.GetService<Secrets.ISecretStore>()
+            let secrets = ctx.GetService<SecretStores>()
 
             let! secret =
                 match Secrets.SecretRef.Decode connector.ClientSecretRef with
-                | Ok reference -> secrets.Get reference
-                | Error _ -> System.Threading.Tasks.Task.FromResult None
+                | Ok reference -> secrets.Read(reference, ctx.RequestAborted)
+                | Error _ -> System.Threading.Tasks.Task.FromResult(Error Secrets.NotFound)
 
             match secret with
-            | None ->
+            | Error _ ->
                 // Almost always a lost or unmounted /data/keys: the ciphertext
-                // is there and the key ring that reads it is not.
+                // is there and the key ring that reads it is not. The store's
+                // own reason is not recorded yet (specs/005 T025).
                 do! record Failure SignInFailed (Some "connector_secret_unreadable")
                 return fail ctx "sign-in-failed"
 
-            | Some secret ->
+            | Ok secret ->
 
             let registry = ctx.GetService<Registry>()
 
