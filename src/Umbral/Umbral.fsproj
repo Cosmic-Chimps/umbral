@@ -49,6 +49,7 @@
     <Compile Include="Infrastructure/SecretStores/Azure.fs" />
     <Compile Include="Infrastructure/SecretStores/BellaBaxter.fs" />
     <Compile Include="Infrastructure/SecretStores/Registry.fs" />
+    <Compile Include="Infrastructure/SecretStores/Wiring.fs" />
     <Compile Include="Infrastructure/Database.fs" />
     <Compile Include="Infrastructure/SecurityEvents.fs" />
     <Compile Include="Infrastructure/LogRedaction.fs" />

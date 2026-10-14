@@ -60,6 +60,7 @@
     <Compile Include="MultipleConnectorsTests.fs" />
     <Compile Include="NoConfigFileTests.fs" />
     <Compile Include="SecretStoreSettingsTests.fs" />
+    <Compile Include="SecretStoreWiringTests.fs" />
     <Compile Include="AwsSecretStoreTests.fs" />
     <Compile Include="GcpSecretStoreTests.fs" />
     <Compile Include="AzureSecretStoreTests.fs" />

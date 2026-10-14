@@ -210,6 +210,37 @@ let private parseBella (config: IConfiguration) : Result<BellaLocation, SettingP
               PrivateKeyPem = read config "BELLA_BAXTER_PRIVATE_KEY" |> Option.map Secrets.Protected.Of }
     | _ -> Error(List.ofSeq problems)
 
+/// How a store that only READS (a reference left in BellaBaxter after the
+/// instance moved elsewhere) signs in: the same `BELLA_BAXTER_*` precedence as
+/// `parseBella`, without asking for a project or an environment, because a
+/// locator carries its own. `None` when there is no usable credential: such an
+/// instance cannot read the reference, which the registry reports as
+/// `NotConfigured` and the card says so (FR-021) instead of refusing to start.
+let bellaReaderLocation (config: IConfiguration) : BellaLocation option =
+    match parseBella config with
+    | Ok location -> Some location
+    | Error _ ->
+        // `parseBella` also refuses a token without a project; a reader does
+        // not need one, so only the credential and the address are rechecked.
+        let url = read config "BELLA_BAXTER_URL" |> Option.defaultValue DefaultBellaUrl
+
+        let auth =
+            match read config "BELLA_BAXTER_ACCESS_TOKEN", read config "BELLA_BAXTER_API_KEY" with
+            | Some token, _ -> Some(AccessToken(Secrets.Protected.Of token))
+            | None, Some key when apiKeyPattern.IsMatch key -> Some(ApiKey(Secrets.Protected.Of key))
+            | _ -> None
+
+        match auth with
+        | Some auth when bellaUrlAcceptable url ->
+            Some
+                { BaseUrl = url
+                  Auth = auth
+                  Project = None
+                  Environment = None
+                  Provider = None
+                  PrivateKeyPem = read config "BELLA_BAXTER_PRIVATE_KEY" |> Option.map Secrets.Protected.Of }
+        | _ -> None
+
 /// Parse and validate every setting, returning all the problems at once.
 ///
 /// Prefix, cache and grace are read whatever the store, so a typo in them is

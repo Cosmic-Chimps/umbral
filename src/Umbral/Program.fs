@@ -128,7 +128,7 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     // store under any id) before this runs, as it does for TimeProvider above.
     services.TryAddSingleton<SecretStores>(fun sp ->
         let local = Secrets.LocalSecretStore(sp.GetRequiredService<IDataProtectionProvider>())
-        SecretStores(local, Secrets.LocalStoreId, Map.empty))
+        Umbral.Infrastructure.SecretStores.Wiring.build config (sp.GetRequiredService<SecretStoreSettings.SecretStoreSettings>()) local)
 
     // EF Core exists for OpenIddict's four tables and nothing else; Umbral's own
     // six are raw SQLite in Database.fs.
