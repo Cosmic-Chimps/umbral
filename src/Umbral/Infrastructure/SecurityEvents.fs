@@ -229,3 +229,22 @@ let recordStoreFailure
             ConnectorSlug = Some connectorSlug
             RemoteIp = remoteIp
             Detail = Some(storeDetail store op cause false) }
+
+/// A sign-in was served the cached secret because the refresh could not reach
+/// the store (`secret_store_failed` with `stale=true`, FR-014). Actor User: the
+/// person signing in is the one whose request it happened on.
+let recordStoreStale
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (connectorSlug: string)
+    (remoteIp: string option)
+    (store: string)
+    (cause: Secrets.StoreFailure)
+    : Task<unit> =
+    record
+        config
+        clock
+        { event SecretStoreFailed Failure User with
+            ConnectorSlug = Some connectorSlug
+            RemoteIp = remoteIp
+            Detail = Some(storeDetail store "get" cause true) }

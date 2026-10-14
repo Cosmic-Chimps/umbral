@@ -113,13 +113,13 @@ unreachable manager, immediate failure for not found / denied.
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] `tests/Umbral.Tests/SecretCacheTests.fs` with `FakeTimeProvider` and the in-memory store: fresh hit makes no call; expired + store ok refreshes; expired + `Unreachable` within grace serves stale and records `stale=true`, a second sign-in 10 s later makes no extra call and no extra event, one 31 s later retries; past lifetime + grace fails; `NotFound`/`AccessDenied` on refresh evicts and fails at once; `Evict` forces the next read to call; cache 0 calls every time; grace 0 fails on the first expired outage; local references never go through the cache
-- [ ] T028 [P] [US2] Extend `tests/Umbral.Tests/ExternalSecretConnectorTests.fs`: end to end through `/connect/...` callback — sign in, store down, advance 301 s → sign-in succeeds with `secret_store_failed … stale=true`; advance past 3 900 s → `sign-in-failed` with `cause=unreachable`; replace the secret → next sign-in uses the new value regardless of cache; a new app host over the same data directory (restart) has an empty cache (first sign-in calls the store)
+- [X] T027 [P] [US2] `tests/Umbral.Tests/SecretCacheTests.fs` with `FakeTimeProvider` and the in-memory store: fresh hit makes no call; expired + store ok refreshes; expired + `Unreachable` within grace serves stale and records `stale=true`, a second sign-in 10 s later makes no extra call and no extra event, one 31 s later retries; past lifetime + grace fails; `NotFound`/`AccessDenied` on refresh evicts and fails at once; `Evict` forces the next read to call; cache 0 calls every time; grace 0 fails on the first expired outage; local references never go through the cache
+- [X] T028 [P] [US2] Extend `tests/Umbral.Tests/ExternalSecretConnectorTests.fs`: end to end through `/connect/...` callback — sign in, store down, advance 301 s → sign-in succeeds with `secret_store_failed … stale=true`; advance past 3 900 s → `sign-in-failed` with `cause=unreachable`; replace the secret → next sign-in uses the new value regardless of cache; a new app host over the same data directory (restart) has an empty cache (first sign-in calls the store)
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Add the cache to `src/Umbral/Infrastructure/SecretStores/Registry.fs` per research R6 and the state diagram in data-model.md: `ConcurrentDictionary<string, Entry>` keyed by encoded reference, value as `Secrets.Protected`, `fetchedAt`, `lastFailedRefreshAt`, time from the registered `TimeProvider`; external stores only; `Read` records `secret_store_failed` with `stale=true` through a callback the registry is given (so Registry.fs does not depend on handlers); `Evict` implemented; nothing written to disk or logged
-- [ ] T030 [US2] Run T027, T028 and the full suite: all green
+- [X] T029 [US2] Add the cache to `src/Umbral/Infrastructure/SecretStores/Registry.fs` per research R6 and the state diagram in data-model.md: `ConcurrentDictionary<string, Entry>` keyed by encoded reference, value as `Secrets.Protected`, `fetchedAt`, `lastFailedRefreshAt`, time from the registered `TimeProvider`; external stores only; `Read` records `secret_store_failed` with `stale=true` through a callback the registry is given (so Registry.fs does not depend on handlers); `Evict` implemented; nothing written to disk or logged
+- [X] T030 [US2] Run T027, T028 and the full suite: all green
 
 **Checkpoint**: US1 + US2 is the complete P1 delivery.
 

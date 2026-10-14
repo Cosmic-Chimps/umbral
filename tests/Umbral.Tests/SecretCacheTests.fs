@@ -1,2 +1,297 @@
-/// Tests for specs/005-external-secret-stores; filled in by the user-story tasks.
+/// The cache in front of the external stores and its grace period
+/// (specs/005-external-secret-stores User Story 2, research R6).
+///
+/// The registry is driven directly, over the in-memory store and a
+/// `FakeTimeProvider`, so a test advances minutes without waiting and counts
+/// the calls the store actually received. The handlers' side of it (the event
+/// the callback records, a restart, a replaced secret) is in
+/// ExternalSecretConnectorTests.
 module Umbral.Tests.SecretCacheTests
+
+open System
+open System.Threading
+open System.Threading.Tasks
+open Microsoft.AspNetCore.DataProtection
+open Microsoft.Extensions.Time.Testing
+open Xunit
+open Umbral.Infrastructure.Secrets
+open Umbral.Infrastructure.SecretStores.Registry
+open Umbral.Tests.Infrastructure.InMemorySecretStore
+
+let private lifetime = TimeSpan.FromSeconds 300.
+let private grace = TimeSpan.FromSeconds 3600.
+let private secret = "cached-client-secret-51de09"
+
+type private Rig =
+    { Store: InMemorySecretStore
+      Clock: FakeTimeProvider
+      Registry: SecretStores
+      Reference: SecretRef
+      /// The failures `Read` reported as "served stale", oldest first.
+      Stale: ResizeArray<StoreFailure> }
+
+let private setupWith (storeId: string) (cacheLifetime: TimeSpan) (gracePeriod: TimeSpan) : Rig =
+    let store = InMemorySecretStore storeId
+    let clock = FakeTimeProvider(DateTimeOffset.UtcNow)
+    let local = LocalSecretStore(EphemeralDataProtectionProvider())
+
+    let registry =
+        SecretStores(
+            local,
+            storeId,
+            Map [ storeId, lazy (Ok(store :> ISecretStore)) ],
+            TimeSpan.FromSeconds 5.,
+            clock,
+            cacheLifetime,
+            gracePeriod
+        )
+
+    let name = SecretName.derive "umbral" "home" (clock.GetUtcNow())
+
+    let reference =
+        match (store :> ISecretStore).Put(name, secret, CancellationToken.None).Result with
+        | Ok reference -> reference
+        | Error failure -> failwith $"seeding failed: {failure.Cause}"
+
+    { Store = store
+      Clock = clock
+      Registry = registry
+      Reference = reference
+      Stale = ResizeArray() }
+
+let private setup () = setupWith "aws" lifetime grace
+
+/// One read, counting a served-stale report.
+let private read (rig: Rig) =
+    rig.Registry.Read(
+        rig.Reference,
+        (fun failure ->
+            rig.Stale.Add failure
+            Task.FromResult()),
+        CancellationToken.None
+    )
+
+let private gets (rig: Rig) =
+    rig.Store.Calls |> List.filter (fun call -> call.Op = "get") |> List.length
+
+let private seconds (n: float) = TimeSpan.FromSeconds n
+
+[<Fact>]
+let ``a fresh entry is served without a call to the store`` () =
+    task {
+        let rig = setup ()
+
+        let! first = read rig
+        Assert.Equal(Ok secret, first)
+        Assert.Equal(1, gets rig)
+
+        rig.Clock.Advance(seconds 299.)
+        let! second = read rig
+        Assert.Equal(Ok secret, second)
+        Assert.Equal(1, gets rig)
+        Assert.Empty rig.Stale
+    }
+
+[<Fact>]
+let ``an expired entry is refreshed, and the new value replaces the old`` () =
+    task {
+        let rig = setup ()
+        let! _ = read rig
+
+        // A new version under the same locator, as a replace in the manager
+        // does: the clock has not moved since the seeding, so the name is the same.
+        let name = SecretName.derive "umbral" "home" (rig.Clock.GetUtcNow())
+        let! _ = (rig.Store :> ISecretStore).Put(name, "second-version-77", CancellationToken.None)
+
+        rig.Clock.Advance(seconds 301.)
+        let! refreshed = read rig
+        Assert.Equal(Ok "second-version-77", refreshed)
+        Assert.Equal(2, gets rig)
+
+        // And the refreshed one is fresh again.
+        rig.Clock.Advance(seconds 10.)
+        let! again = read rig
+        Assert.Equal(Ok "second-version-77", again)
+        Assert.Equal(2, gets rig)
+        Assert.Empty rig.Stale
+    }
+
+[<Fact>]
+let ``an unreachable store within the grace period serves the stale value and reports it`` () =
+    task {
+        let rig = setup ()
+        let! _ = read rig
+
+        rig.Store.FailEveryCall Unreachable
+        rig.Clock.Advance(seconds 301.)
+
+        let! served = read rig
+        Assert.Equal(Ok secret, served)
+        Assert.Equal(2, gets rig)
+        Assert.Equal<StoreFailure list>([ Unreachable ], List.ofSeq rig.Stale)
+    }
+
+[<Fact>]
+let ``during an outage the store is asked and the failure reported at most once per 30 seconds`` () =
+    task {
+        let rig = setup ()
+        let! _ = read rig
+
+        rig.Store.FailEveryCall Unreachable
+        rig.Clock.Advance(seconds 301.)
+        let! _ = read rig
+        Assert.Equal(2, gets rig)
+
+        rig.Clock.Advance(seconds 10.)
+        let! quiet = read rig
+        Assert.Equal(Ok secret, quiet)
+        Assert.Equal(2, gets rig)
+        Assert.Equal(1, rig.Stale.Count)
+
+        rig.Clock.Advance(seconds 21.)
+        let! retried = read rig
+        Assert.Equal(Ok secret, retried)
+        Assert.Equal(3, gets rig)
+        Assert.Equal(2, rig.Stale.Count)
+    }
+
+[<Fact>]
+let ``a recovered store replaces the stale value and ends the outage`` () =
+    task {
+        let rig = setup ()
+        let! _ = read rig
+
+        rig.Store.FailEveryCall Unreachable
+        rig.Clock.Advance(seconds 301.)
+        let! _ = read rig
+
+        rig.Store.Recover()
+        rig.Clock.Advance(seconds 31.)
+        let! recovered = read rig
+        Assert.Equal(Ok secret, recovered)
+        Assert.Equal(1, rig.Stale.Count)
+
+        // Fresh again: no further call.
+        let before = gets rig
+        let! _ = read rig
+        Assert.Equal(before, gets rig)
+    }
+
+[<Fact>]
+let ``past the lifetime plus the grace period an outage fails the read`` () =
+    task {
+        let rig = setup ()
+        let! _ = read rig
+
+        rig.Store.FailEveryCall Unreachable
+        rig.Clock.Advance(seconds 3901.)
+
+        let! failed = read rig
+        Assert.Equal(Error Unreachable, failed)
+        Assert.Empty rig.Stale
+    }
+
+[<Theory>]
+[<InlineData("not_found")>]
+[<InlineData("access_denied")>]
+let ``a store that says the secret is gone or forbidden evicts the entry and fails at once`` (cause: string) =
+    task {
+        let rig = setup ()
+        let! _ = read rig
+
+        let failure = if cause = "not_found" then NotFound else AccessDenied
+        rig.Store.FailEveryCall failure
+        rig.Clock.Advance(seconds 301.)
+
+        let! failed = read rig
+        Assert.Equal(Error failure, failed)
+        Assert.Empty rig.Stale
+
+        // Evicted, so once the store answers again the next read is a miss that
+        // calls it, not a stale value brought back.
+        rig.Store.Recover()
+        let before = gets rig
+        let! next = read rig
+        Assert.Equal(Ok secret, next)
+        Assert.Equal(before + 1, gets rig)
+    }
+
+[<Fact>]
+let ``evicting forces the next read to call the store`` () =
+    task {
+        let rig = setup ()
+        let! _ = read rig
+        let! _ = read rig
+        Assert.Equal(1, gets rig)
+
+        rig.Registry.Evict rig.Reference
+
+        let! _ = read rig
+        Assert.Equal(2, gets rig)
+    }
+
+[<Fact>]
+let ``a cache lifetime of zero calls the store on every read`` () =
+    task {
+        let rig = setupWith "aws" TimeSpan.Zero grace
+
+        for _ in 1..3 do
+            let! value = read rig
+            Assert.Equal(Ok secret, value)
+
+        Assert.Equal(3, gets rig)
+    }
+
+[<Fact>]
+let ``a grace period of zero fails on the first expired outage`` () =
+    task {
+        let rig = setupWith "aws" lifetime TimeSpan.Zero
+        let! _ = read rig
+
+        rig.Store.FailEveryCall Unreachable
+        rig.Clock.Advance(seconds 301.)
+
+        let! failed = read rig
+        Assert.Equal(Error Unreachable, failed)
+        Assert.Empty rig.Stale
+    }
+
+[<Fact>]
+let ``a store that is not configured here is not served from the cache`` () =
+    task {
+        let rig = setup ()
+        let! _ = read rig
+
+        let missing = { rig.Reference with Store = "gcp" }
+
+        let! failed =
+            rig.Registry.Read(missing, (fun _ -> Task.FromResult()), CancellationToken.None)
+
+        Assert.Equal(Error NotConfigured, failed)
+    }
+
+[<Fact>]
+let ``local references never go through the cache`` () =
+    task {
+        let clock = FakeTimeProvider(DateTimeOffset.UtcNow)
+        let provider = EphemeralDataProtectionProvider()
+        let local = LocalSecretStore provider
+        let counted = InMemorySecretStore "aws"
+
+        let registry =
+            SecretStores(local, "local", Map [ "aws", lazy (Ok(counted :> ISecretStore)) ], TimeSpan.FromSeconds 5., clock, lifetime, grace)
+
+        let name = SecretName.derive "umbral" "home" (clock.GetUtcNow())
+
+        let! put = (local :> ISecretStore).Put(name, secret, CancellationToken.None)
+        let reference = match put with Ok r -> r | Error _ -> failwith "local put"
+
+        let! first = registry.Read(reference, CancellationToken.None)
+        let! second = registry.Read(reference, CancellationToken.None)
+        Assert.Equal(Ok secret, first)
+        Assert.Equal(Ok secret, second)
+
+        // Nothing was ever asked of an external store, and nothing is held for
+        // a local reference: a key ring that is lost is felt on the next read.
+        Assert.Equal(0, counted.CallCount)
+    }
