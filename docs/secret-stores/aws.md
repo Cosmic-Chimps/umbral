@@ -21,7 +21,7 @@ Back to the [README](../../README.md). Other stores:
 ## 1. Grant the permissions
 
 Umbral names every secret it creates `umbral-<slug>-<8 chars>` (for example
-`umbral-github-3f9a1c2e`), so you can grant access to that prefix and nothing
+`umbral-github-k3f7x2qa`), so you can grant access to that prefix and nothing
 else. Attach this policy to the IAM user or role Umbral uses, replacing `REGION`
 and `ACCOUNT`:
 

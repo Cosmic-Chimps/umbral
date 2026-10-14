@@ -29,7 +29,7 @@ gcloud iam service-accounts create umbral --project PROJECT_ID \
 ## 2. Grant the permissions
 
 Umbral names every secret it creates `umbral-<slug>-<8 chars>` (for example
-`umbral-github-3f9a1c2e`), so you can limit it to that prefix. Google's IAM
+`umbral-github-k3f7x2qa`), so you can limit it to that prefix. Google's IAM
 conditions can do that for everything except **creating** a secret, so the role
 has two parts: `secretmanager.secrets.create` unconditionally, and the rest
 only on secrets whose name starts with the prefix.

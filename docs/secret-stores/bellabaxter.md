@@ -73,7 +73,7 @@ A healthy start has **no warning about the secret store** in the log, and the
 Connectors screen shows no notice about it. Then save a connector. The card says
 **Kept in BellaBaxter**, and the environment shows a key named
 `UMBRAL_UMBRAL_<SLUG>_<8 CHARS>` (for the `github` connector,
-`UMBRAL_UMBRAL_GITHUB_3F9A1C2E`): `UMBRAL_`, the prefix, the connector's slug,
+`UMBRAL_UMBRAL_GITHUB_K3F7X2QA`): `UMBRAL_`, the prefix, the connector's slug,
 and 8 characters, in capitals with hyphens as underscores.
 
 ## 4. Move an instance in, or out
