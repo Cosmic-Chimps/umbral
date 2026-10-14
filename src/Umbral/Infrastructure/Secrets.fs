@@ -224,7 +224,12 @@ let masked (hintText: string) =
 /// `ToString` is the hole every redaction effort falls through: structured
 /// logging, string interpolation and exception messages all reach for it. This
 /// type has no other way to get at the value than `Reveal`, which is greppable.
-[<Struct>]
+///
+/// The display attribute closes the second hole: F# prints a record, and any
+/// union or record that contains one, structurally (`%A`, and the `ToString`
+/// F# generates for a union) and that path never calls the override above, so a
+/// settings record holding a `Protected` would print its field.
+[<Struct; StructuredFormatDisplay("[redacted]")>]
 type Protected =
     private
         { Inner: string }

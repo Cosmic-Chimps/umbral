@@ -21,6 +21,8 @@ open Umbral.Infrastructure
 open Umbral.Infrastructure.SecretStores.Registry
 open Umbral.Migrations
 
+module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
+
 // ---------------------------------------------------------------------------
 // Endpoints
 //
@@ -83,18 +85,31 @@ let private requireSettings (config: IConfiguration) =
         | Ok d -> d
         | Error message -> failwith message
 
-    origin, dataDirectory
+    // Every problem at once, one line each, so a deployment is fixed in one
+    // pass. This is the shared path of `buildApp`, so `reset-credential` and
+    // the other offline commands refuse a bad store setting exactly as the
+    // server does.
+    let secretStore =
+        match SecretStoreSettings.parse config with
+        | Ok settings -> settings
+        | Error problems ->
+            let describe = (Texts.current ()).SecretStoreProblem
+            failwith (problems |> List.map describe |> String.concat " ")
+
+    origin, dataDirectory, secretStore
 
 // ---------------------------------------------------------------------------
 // Composition
 // ---------------------------------------------------------------------------
 
 let configureServices (config: IConfiguration) (services: IServiceCollection) =
-    let origin, dataDirectory = requireSettings config
+    let origin, dataDirectory, secretStore = requireSettings config
     let dbConfig: Database.DbConfig = { DataSource = dataDirectory.DatabaseFile }
 
     services.AddSingleton<PublicOrigin.PublicOrigin> origin |> ignore
     services.AddSingleton<DataDirectory.DataDirectory> dataDirectory |> ignore
+    // Parsed once here; the registry wiring reads it when it builds the stores.
+    services.AddSingleton<SecretStoreSettings.SecretStoreSettings> secretStore |> ignore
     services.AddSingleton<Database.DbConfig> dbConfig |> ignore
     services.TryAddSingleton<TimeProvider> TimeProvider.System
 
