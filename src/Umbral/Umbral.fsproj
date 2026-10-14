@@ -63,7 +63,6 @@
     <Compile Include="Infrastructure/Providers/Oidc.fs" />
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />
-    <Compile Include="Infrastructure/SecretMove.fs" />
     <Compile Include="Infrastructure/AppConnectors.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
@@ -73,6 +72,7 @@
     <Compile Include="Infrastructure/Sessions.fs" />
     <Compile Include="Infrastructure/OpenIddictSetup.fs" />
     <Compile Include="Views/Texts.fs" />
+    <Compile Include="Infrastructure/SecretMove.fs" />
     <Compile Include="Views/Theme.fs" />
     <Compile Include="Views/Assets.fs" />
     <Compile Include="Views/Components.fs" />

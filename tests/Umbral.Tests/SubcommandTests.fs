@@ -24,7 +24,7 @@ let private nonNull (value: 'a | null) : 'a =
 
 let private umbralDll = Path.Combine(AppContext.BaseDirectory, "Umbral.dll")
 
-let private startProcess (dataDirectory: string) (port: int) (args: string list) =
+let private startProcessWith (environment: (string * string) list) (dataDirectory: string) (port: int) (args: string list) =
     let info = ProcessStartInfo("dotnet")
     info.ArgumentList.Add umbralDll
 
@@ -40,11 +40,17 @@ let private startProcess (dataDirectory: string) (port: int) (args: string list)
     info.Environment["UMBRAL__PUBLIC_ORIGIN"] <- "https://umbral.test"
     info.Environment["UMBRAL__DATA_DIRECTORY"] <- dataDirectory
     info.Environment["ASPNETCORE_HTTP_PORTS"] <- string port
+
+    for name, value in environment do
+        info.Environment[name] <- value
+
     Process.Start info |> nonNull
 
-let private run (dataDirectory: string) (port: int) (args: string list) =
+let private startProcess = startProcessWith []
+
+let private runWith (environment: (string * string) list) (dataDirectory: string) (port: int) (args: string list) =
     task {
-        use proc = startProcess dataDirectory port args
+        use proc = startProcessWith environment dataDirectory port args
         let out = proc.StandardOutput.ReadToEndAsync()
         let err = proc.StandardError.ReadToEndAsync()
 
@@ -56,6 +62,8 @@ let private run (dataDirectory: string) (port: int) (args: string list) =
         let! stderr = err
         return proc.ExitCode, stdout, stderr
     }
+
+let private run = runWith []
 
 let private freePort () =
     let listener = new TcpListener(IPAddress.Loopback, 0)
@@ -166,4 +174,31 @@ let ``healthcheck exits 0 against a running instance`` () =
             finally
                 server.Kill true
                 server.WaitForExit()
+        })
+
+[<Fact>]
+let ``move-secrets --dry-run with only environment variables exits 0 and prints the summary`` () =
+    withDataDirectory (fun dir ->
+        task {
+            let! code, stdout, stderr = run dir (freePort ()) [ "move-secrets"; "--dry-run" ]
+
+            Assert.True((code = 0), $"exit {code}\n{stdout}\n{stderr}")
+            Assert.Contains("0 connectors: 0 would move, 0 already in place, 0 failed.", stdout)
+            // Like reset-credential: no web host, no first-run banner.
+            Assert.DoesNotContain("not configured yet", stdout)
+        })
+
+[<Fact>]
+let ``move-secrets with an unknown store exits non-zero with the settings message before any connector line`` () =
+    withDataDirectory (fun dir ->
+        task {
+            let! code, stdout, stderr =
+                runWith [ "UMBRAL__SECRET_STORE", "nonsense" ] dir (freePort ()) [ "move-secrets"; "--dry-run" ]
+
+            Assert.NotEqual(0, code)
+            Assert.Contains("UMBRAL__SECRET_STORE", stderr)
+            Assert.Contains("nonsense", stderr)
+            Assert.DoesNotContain("connectors:", stdout)
+            Assert.DoesNotContain("skipped", stdout)
+            Assert.DoesNotContain("would move", stdout)
         })
