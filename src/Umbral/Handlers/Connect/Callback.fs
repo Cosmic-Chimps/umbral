@@ -92,7 +92,15 @@ let handler (slug: string) : EndpointHandler =
 
             let! secret =
                 match Secrets.SecretRef.Decode connector.ClientSecretRef with
-                | Ok reference -> secrets.Read(reference, ctx.RequestAborted)
+                | Ok reference ->
+                    // A value served from the grace period is recorded here, where
+                    // the connector and the caller's address are known.
+                    secrets.Read(
+                        reference,
+                        (fun cause ->
+                            recordStoreStale config clock slug remoteIp reference.Store cause),
+                        ctx.RequestAborted
+                    )
                 | Error _ -> System.Threading.Tasks.Task.FromResult(Error Secrets.NotFound)
 
             match secret with

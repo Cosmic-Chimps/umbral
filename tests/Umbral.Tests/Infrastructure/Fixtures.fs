@@ -176,7 +176,11 @@ let withSecretStoresWithin (bound: TimeSpan) (stores: Secrets.ISecretStore list)
             |> List.map (fun store -> store.Id, lazy (Ok store))
             |> Map.ofList
 
-        SecretStores(local, activeId, others, bound))
+        // The app's own clock and cache settings, so a test drives expiry with
+        // its `FakeTimeProvider` and sets the lifetimes the way a deployment does.
+        let settings = sp.GetRequiredService<Umbral.Infrastructure.SecretStores.Settings.SecretStoreSettings>()
+
+        SecretStores(local, activeId, others, bound, sp.GetRequiredService<TimeProvider>(), settings.CacheLifetime, settings.GracePeriod))
 
 /// `withSecretStoresWithin` with the product's own call bound.
 let withSecretStores (stores: Secrets.ISecretStore list) (activeId: string) (builder: WebApplicationBuilder) =

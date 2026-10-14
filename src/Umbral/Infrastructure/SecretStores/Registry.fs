@@ -51,6 +51,19 @@ type private Bounded(inner: ISecretStore, bound: TimeSpan) =
         member _.Delete(reference, ct) = run ct (fun t -> inner.Delete(reference, t))
         member _.Probe ct = run ct inner.Probe
 
+/// How long after a failed refresh the cache leaves a stale entry alone. An
+/// outage during a busy hour then costs one call and one event per entry per
+/// half minute, not one per sign-in (specs/005 research R6).
+let refreshSpacing = TimeSpan.FromSeconds 30.
+
+/// What the cache holds for one reference: the value protected, when it was
+/// fetched, and when a refresh of it last failed. In process memory only; it is
+/// never serialised, so a restart starts empty (FR-013).
+type private Entry =
+    { Value: Protected
+      FetchedAt: DateTimeOffset
+      LastFailedRefreshAt: DateTimeOffset option }
+
 /// What `Active` is when the configured store cannot be built: every call says
 /// so, instead of the process failing to start or a handler throwing.
 type private Unavailable(id: string, failure: StoreFailure) =
@@ -68,6 +81,12 @@ type private Unavailable(id: string, failure: StoreFailure) =
 /// build its store (credentials gone, a setting missing) answers `Error` and
 /// the registry reports `NotConfigured` for it, not an exception.
 ///
+/// `Read` keeps what an external store returned for `cacheLifetime`, and for a
+/// further `gracePeriod` after that serves it anyway when the store cannot be
+/// reached, so an outage at the manager does not stop every sign-in (FR-013,
+/// FR-014). A lifetime of zero caches nothing; a grace period of zero never
+/// serves a value past its lifetime.
+///
 /// Registered with `TryAddSingleton` (as `TimeProvider` is), so a test puts in
 /// its own before `configureServices` runs.
 type SecretStores
@@ -75,7 +94,10 @@ type SecretStores
         local: ISecretStore,
         activeId: string,
         others: Map<string, Lazy<Result<ISecretStore, StoreFailure>>>,
-        bound: TimeSpan
+        bound: TimeSpan,
+        clock: TimeProvider,
+        cacheLifetime: TimeSpan,
+        gracePeriod: TimeSpan
     ) =
 
     // Wrapped once, so every route to a store goes through the time bound.
@@ -88,6 +110,16 @@ type SecretStores
                 (match built.Value with
                 | Ok store -> Ok(Bounded(store, bound) :> ISecretStore)
                 | Error failure -> Error failure))
+
+    // Keyed by the encoded reference. Concurrent misses for one key may both
+    // call the manager: at the scale of one instance that is cheaper than a
+    // single-flight lock that has to be got right (research R6).
+    let cache = Collections.Concurrent.ConcurrentDictionary<string, Entry>()
+
+    /// No cache: for a registry built by a test or a tool that reads each
+    /// reference once and wants the store's answer every time.
+    new(local: ISecretStore, activeId: string, others: Map<string, Lazy<Result<ISecretStore, StoreFailure>>>, bound: TimeSpan) =
+        SecretStores(local, activeId, others, bound, TimeProvider.System, TimeSpan.Zero, TimeSpan.Zero)
 
     new(local: ISecretStore, activeId: string, others: Map<string, Lazy<Result<ISecretStore, StoreFailure>>>) =
         SecretStores(local, activeId, others, callBound)
@@ -108,15 +140,85 @@ type SecretStores
             | Some store -> store.Value
             | None -> Error NotConfigured
 
-    /// The plaintext a reference points at. Directly from its store for now;
-    /// the cache with its grace period sits in front of this (specs/005 research R6).
-    member this.Read(reference: SecretRef, cancellationToken: CancellationToken) : Task<Result<string, StoreFailure>> =
-        match this.For reference.Store with
-        | Ok store -> store.Get(reference, cancellationToken)
-        | Error failure -> Task.FromResult(Error failure)
+    /// The plaintext a reference points at, from the cache while it is fresh.
+    ///
+    /// `onStaleRefreshFailed` runs when the answer is a value served from the
+    /// grace period because the refresh failed, with that failure. The caller
+    /// supplies it because it alone knows the connector and the request the
+    /// security event belongs to, and this module compiles before the events.
+    /// It runs at most once per entry per `refreshSpacing`, which is also how
+    /// often the store is asked again.
+    member this.Read
+        (reference: SecretRef, onStaleRefreshFailed: StoreFailure -> Task<unit>, cancellationToken: CancellationToken)
+        : Task<Result<string, StoreFailure>> =
+        task {
+            // The local store decrypts in microseconds and has no outage to
+            // ride out; a lifetime of zero is the operator turning the cache off.
+            if reference.Store = LocalStoreId || cacheLifetime <= TimeSpan.Zero then
+                match this.For reference.Store with
+                | Ok store -> return! store.Get(reference, cancellationToken)
+                | Error failure -> return Error failure
+            else
+                let key = reference.Encoded
+                let now = clock.GetUtcNow()
+                let held = match cache.TryGetValue key with | true, entry -> Some entry | _ -> None
 
-    /// Forgets anything held for this reference. Nothing is held yet.
-    member _.Evict(_reference: SecretRef) : unit = ()
+                let withinGrace (entry: Entry) (at: DateTimeOffset) =
+                    at - entry.FetchedAt < cacheLifetime + gracePeriod
+
+                match held with
+                | Some entry when now - entry.FetchedAt < cacheLifetime -> return Ok entry.Value.Reveal
+
+                // Expired, and a refresh failed a moment ago: keep serving the
+                // value without asking again, and without another event.
+                | Some entry when
+                    withinGrace entry now
+                    && (match entry.LastFailedRefreshAt with
+                        | Some failedAt -> now - failedAt < refreshSpacing
+                        | None -> false)
+                    ->
+                    return Ok entry.Value.Reveal
+
+                | _ ->
+                    let! fetched =
+                        match this.For reference.Store with
+                        | Ok store -> store.Get(reference, cancellationToken)
+                        | Error failure -> Task.FromResult(Error failure)
+
+                    // After the call, which may have taken up to the bound.
+                    let at = clock.GetUtcNow()
+
+                    match fetched, held with
+                    | Ok value, _ ->
+                        cache[key] <-
+                            { Value = Protected.Of value
+                              FetchedAt = at
+                              LastFailedRefreshAt = None }
+
+                        return Ok value
+
+                    | Error Unreachable, Some entry when withinGrace entry at ->
+                        cache[key] <- { entry with LastFailedRefreshAt = Some at }
+                        do! onStaleRefreshFailed Unreachable
+                        return Ok entry.Value.Reveal
+
+                    | Error failure, _ ->
+                        // A secret that is gone, a grant that is revoked, a
+                        // store that is not set up, or the grace period over:
+                        // waiting will not change the answer, so a stale value
+                        // must not hide it (FR-014).
+                        cache.TryRemove key |> ignore
+                        return Error failure
+        }
+
+    /// `Read` for a caller with no event to record.
+    member this.Read(reference: SecretRef, cancellationToken: CancellationToken) : Task<Result<string, StoreFailure>> =
+        this.Read(reference, (fun _ -> Task.FromResult()), cancellationToken)
+
+    /// Forgets what is held for this reference, so the next read asks the
+    /// store. Replace, delete and move call it (FR-013); a refresh already in
+    /// flight may still put its older value back, which the next expiry corrects.
+    member _.Evict(reference: SecretRef) : unit = cache.TryRemove reference.Encoded |> ignore
 
     /// Whether this instance could read a reference of this store, decided
     /// without a network call: the Connectors screen asks it for every card.

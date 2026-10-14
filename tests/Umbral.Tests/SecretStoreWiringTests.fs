@@ -9,6 +9,7 @@
 /// same process; the loaded-assembly half is a run of the real binary.
 module Umbral.Tests.SecretStoreWiringTests
 
+open System
 open Microsoft.AspNetCore.DataProtection
 open Microsoft.Extensions.Configuration
 open Xunit
@@ -25,7 +26,7 @@ let private build (pairs: (string * string) list) : SecretStores =
     | Error problems -> failwith $"settings did not parse: {problems}"
     | Ok settings ->
         let local = Secrets.LocalSecretStore(EphemeralDataProtectionProvider())
-        Wiring.build config settings local
+        Wiring.build config settings TimeProvider.System local
 
 let private external = [ "aws"; "gcp"; "azure"; "bellabaxter" ]
 

@@ -494,3 +494,137 @@ let ``a secret the store cannot return fails the sign-in with the store and the 
         let! signIn = events app "sign_in_failed"
         Assert.Contains("user|failure|home|connector_secret_unreadable;store=aws;cause=access_denied", signIn)
     }
+
+// ---------------------------------------------------------------------------
+// The cache and its grace period (User Story 2)
+// ---------------------------------------------------------------------------
+
+let private signedInHome (store: InMemorySecretStore) (stub: StubOidcProvider) (settings: (string * string) list) =
+    task {
+        let! app, operator = start store stub settings
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", oidcFields "home")
+        let! clientId, _ = createClientApp operator
+        return app, operator, clientId
+    }
+
+let private gets (store: InMemorySecretStore) =
+    store.Calls |> List.filter (fun call -> call.Op = "get") |> List.length
+
+[<Fact>]
+let ``with the store down a sign-in is served from the grace period, and fails once it is over`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let stub = create issuer
+        let! app, _, clientId = signedInHome store stub awsSettings
+        use _ = app
+
+        let! first = signInThroughProvider (Browser app.Client) stub clientId "home"
+        Assert.True(reachedApp first, first)
+        Assert.Equal(1, gets store)
+
+        store.FailEveryCall Unreachable
+        app.Clock.Advance(TimeSpan.FromSeconds 301.)
+
+        let! second = signInThroughProvider (Browser app.Client) stub clientId "home"
+        Assert.True(reachedApp second, second)
+        Assert.Equal(2, gets store)
+
+        let! stale = events app "secret_store_failed"
+        Assert.Equal("user|failure|home|store=aws;op=get;cause=unreachable;stale=true", stale)
+
+        // 3 901 s after the fetch: lifetime 300 + grace 3 600 is over.
+        app.Clock.Advance(TimeSpan.FromSeconds 3600.)
+
+        let! third = signInThroughProvider (Browser app.Client) stub clientId "home"
+        Assert.False(reachedApp third, third)
+
+        let! signIn = events app "sign_in_failed"
+        Assert.Contains("connector_secret_unreadable;store=aws;cause=unreachable", signIn)
+    }
+
+[<Fact>]
+let ``replacing the secret makes the next sign-in use the new value whatever the cache holds`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let stub = create issuer
+        let! app, operator, clientId = signedInHome store stub awsSettings
+        use _ = app
+
+        let! _ = signInThroughProvider (Browser app.Client) stub clientId "home"
+        Assert.Equal(Some plaintext, stub.LastTokenRequest.Value.BasicClientSecret)
+
+        let replacement = "replacement-secret-5be1c4"
+
+        let! saved =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/home",
+                [ "displayName", "Home"
+                  "clientId", "umbral-client"
+                  "clientSecret", replacement
+                  "shared", "true" ])
+
+        Assert.Contains("connector-saved", location saved)
+
+        // No time has passed: only the eviction can make this a fresh read.
+        let! landed = signInThroughProvider (Browser app.Client) stub clientId "home"
+        Assert.True(reachedApp landed, landed)
+        Assert.Equal(Some replacement, stub.LastTokenRequest.Value.BasicClientSecret)
+    }
+
+[<Fact>]
+let ``a new app host over the same data directory starts with an empty cache`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let stub = create issuer
+        let directory = Fixtures.freshDataDirectory ()
+
+        try
+            let startOn () =
+                task {
+                    let! app =
+                        Fixtures.createAppIn
+                            directory
+                            (fakeSettings @ awsSettings)
+                            (fun builder ->
+                                builder.Services.AddSingleton<Umbral.Infrastructure.ProviderAdapters.PrimaryHandler>(
+                                    Umbral.Infrastructure.ProviderAdapters.PrimaryHandler(fun () -> stub :> HttpMessageHandler))
+                                |> ignore
+
+                                Fixtures.withSecretStores [ store ] "aws" builder)
+
+                    stub.Now <- fun () -> app.Clock.GetUtcNow()
+                    return app
+                }
+
+            let! first = startOn ()
+            let! clientId =
+                task {
+                    use _ = first
+                    let operator = Browser first.Client
+                    do! claimInstance first operator
+                    do! addFakeConnector first "fake-connector-secret-value"
+                    let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", oidcFields "home")
+                    let! clientId, _ = createClientApp operator
+                    let! landed = signInThroughProvider (Browser first.Client) stub clientId "home"
+                    Assert.True(reachedApp landed, landed)
+                    Assert.Equal(1, gets store)
+
+                    // Warm: a second sign-in does not call the store.
+                    let! again = signInThroughProvider (Browser first.Client) stub clientId "home"
+                    Assert.True(reachedApp again, again)
+                    Assert.Equal(1, gets store)
+                    return clientId
+                }
+
+            use! second = startOn ()
+            let! landed = signInThroughProvider (Browser second.Client) stub clientId "home"
+            Assert.True(reachedApp landed, landed)
+            Assert.Equal(2, gets store)
+        finally
+            try
+                if Directory.Exists directory then
+                    Directory.Delete(directory, true)
+            with _ ->
+                ()
+    }

@@ -139,7 +139,7 @@ let private reader (config: IConfiguration) (prefix: string) (storeId: string) :
             | None -> Error NotConfigured)
 
 /// The registry for this deployment.
-let build (config: IConfiguration) (settings: SecretStoreSettings) (local: ISecretStore) : SecretStores =
+let build (config: IConfiguration) (settings: SecretStoreSettings) (clock: TimeProvider) (local: ISecretStore) : SecretStores =
     let activeId = settings.StoreId
 
     let readers =
@@ -152,4 +152,4 @@ let build (config: IConfiguration) (settings: SecretStoreSettings) (local: ISecr
         | Some built -> (activeId, built) :: readers
         | None -> readers
 
-    SecretStores(local, activeId, Map.ofList others)
+    SecretStores(local, activeId, Map.ofList others, callBound, clock, settings.CacheLifetime, settings.GracePeriod)
