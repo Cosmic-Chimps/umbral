@@ -54,9 +54,10 @@ COPY --from=build /app .
 # Everything Umbral persists lives in this one directory: umbral.db, the token
 # signing keys, and the Data Protection key ring.
 #
-# LOSING IT MEANS RE-ENTERING EVERY SECRET. Connector client secrets and app
-# secrets are encrypted with that key ring and cannot be read without it, and
-# every issued token stops validating. Back it up by copying this one directory
+# LOSING IT MEANS RE-ENTERING EVERY SECRET. Connector client secrets are
+# encrypted with that key ring (unless UMBRAL__SECRET_STORE keeps them in an
+# external manager) and cannot be read without it, app secrets are stored only
+# as hashes, and every issued token stops validating. Back it up by copying this one directory
 # (stop the container first, or copy umbral.db together with its -wal file).
 #
 # Created and chowned here so a fresh named volume, which copies this

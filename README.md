@@ -33,12 +33,19 @@ which are good at it.
 - [Run it for real, behind HTTPS](#run-it-for-real-behind-https)
 - [Your data: back it up](#your-data-back-it-up)
 - [Forgotten operator credential](#forgotten-operator-credential)
+- [Moving connector secrets between stores](#moving-connector-secrets-between-stores)
 - [Settings reference](#settings-reference)
 - [Troubleshooting](#troubleshooting)
 
 Provider walkthroughs: [Discord](docs/connectors/discord.md) ·
 [GitHub](docs/connectors/github.md) · [Google](docs/connectors/google.md) ·
 [Your own OpenID Connect provider](docs/connectors/oidc.md)
+
+Where connector secrets can live (optional):
+[AWS Secrets Manager](docs/secret-stores/aws.md) ·
+[Google Cloud Secret Manager](docs/secret-stores/gcp.md) ·
+[Azure Key Vault](docs/secret-stores/azure.md) ·
+[BellaBaxter](docs/secret-stores/bellabaxter.md)
 
 ## Requirements
 
@@ -453,7 +460,8 @@ Every URL Umbral publishes comes from `UMBRAL__PUBLIC_ORIGIN`, never from the
 > **Everything Umbral keeps is in one directory, `/data`. If you lose it, you
 > lose every connector secret and every app secret, and every issued token stops
 > working.** You would re-enter each provider's client secret, regenerate each
-> app's secret and update every app. Back it up, and test that you can restore
+> app's secret and update every app. (Umbral keeps only a hash of an app's
+> secret, so it cannot be recovered from anywhere.) Back it up, and test that you can restore
 > it.
 
 The same copy is how you move Umbral to another machine, or rebuild it after
@@ -467,7 +475,7 @@ What is in there:
 | Path | What |
 | --- | --- |
 | `umbral.db` | SQLite database: connectors, users, apps, the security log. (While running you will also see `umbral.db-wal` and `umbral.db-shm`: they belong with it.) |
-| `keys/` | Token signing and encryption keys, and the key ring that encrypts the stored secrets |
+| `keys/` | Token signing and encryption keys, and the key ring that encrypts the connectors' client secrets kept here |
 
 **Back up** = copy the directory. **Stop Umbral first**: SQLite keeps recent
 writes in the `-wal` file, and a copy taken mid-write can be inconsistent. A
@@ -521,8 +529,16 @@ host directory with `cp -a` and make it writable for UID 1654 first:
 On Linux the copied files are owned by root; use `sudo` to move or read them.
 
 **Treat the backup like a password database.** The keys that decrypt the stored
-secrets are in the same directory, so anyone who holds a copy of `/data` holds
-every secret in it.
+connector secrets are in the same directory, so anyone who holds a copy of
+`/data` holds every secret in it.
+
+**With an external secret store, the connector secrets are not in `/data`.**
+If you set `UMBRAL__SECRET_STORE` to `aws`, `gcp`, `azure` or `bellabaxter`
+(see the [walkthroughs](docs/secret-stores/aws.md)), the backup holds only a
+reference to each secret, so a restore needs the same manager, reachable with
+the same credentials, to read them back. Two instances that use the same
+`UMBRAL__SECRET_STORE_PREFIX` in the same manager share their secrets: give the
+second one its own prefix.
 
 ## Forgotten operator credential
 
@@ -541,6 +557,25 @@ ended. There is deliberately no "forgot your credential" page: reaching this
 command needs access to the machine, which is more than reaching the web page
 needs.
 
+## Moving connector secrets between stores
+
+If you change `UMBRAL__SECRET_STORE`, connectors already saved keep their
+secrets where they are until you move them. Recreate the container with the new
+setting (to move out of a manager, set `local` and keep that manager's
+credentials), then:
+
+```bash
+docker exec umbral /app/Umbral move-secrets --dry-run
+docker exec umbral /app/Umbral move-secrets
+# compose:
+docker compose exec umbral /app/Umbral move-secrets
+```
+
+It prints one line per connector (`moved`, `skipped`, `failed`, `warning`) and a
+summary, never a secret. It exits 1 if any connector failed; that connector
+keeps its old, readable copy, and running the command again finishes the rest.
+Details are in the [walkthroughs](docs/secret-stores/aws.md).
+
 ## Settings reference
 
 Set these as environment variables on the container.
@@ -550,6 +585,17 @@ Set these as environment variables on the container.
 | `UMBRAL__PUBLIC_ORIGIN` | *required* | The address people reach Umbral at, e.g. `https://auth.example.com`. Scheme, host, optional port; no path. `http` is accepted only for `localhost`. |
 | `UMBRAL__DATA_DIRECTORY` | `/data` (set in the image) | Where Umbral keeps everything. Must be writable. |
 | `ASPNETCORE_ENVIRONMENT` + `UMBRAL__INSECURE_ALLOW_HTTP` | unset | `Development` **and** `true` together allow plain `http://localhost`. Laptop trial only. Never set them on a server. |
+| `UMBRAL__SECRET_STORE` | `local` | Where connector client secrets are kept: `local` (encrypted in `/data`), `aws`, `gcp`, `azure` or `bellabaxter`. Anything else stops the start. |
+| `UMBRAL__SECRET_STORE_PREFIX` | `umbral` | Start of every secret's name in the manager. 1–32 lowercase letters, digits or hyphens, not starting or ending with a hyphen. |
+| `UMBRAL__SECRET_CACHE_SECONDS` | `300` | How long a secret read from the manager is kept in memory. `0` turns the cache off. |
+| `UMBRAL__SECRET_GRACE_SECONDS` | `3600` | How long Umbral keeps using the last secret it read when the manager cannot be reached. `0` refuses at once. |
+| `UMBRAL__AZURE_KEY_VAULT_URI` | unset | The vault's `https://` address, no path. Required when the store is `azure`. |
+| `UMBRAL__BELLABAXTER_PROVIDER` | unset | The BellaBaxter provider's slug; needed only when the environment has no secret provider or several. |
+
+The cloud's own variables (`AWS_REGION`, `GOOGLE_CLOUD_PROJECT`, `AZURE_*`,
+`BELLA_BAXTER_*`) are listed in each store's walkthrough:
+[AWS](docs/secret-stores/aws.md) · [Google Cloud](docs/secret-stores/gcp.md) ·
+[Azure](docs/secret-stores/azure.md) · [BellaBaxter](docs/secret-stores/bellabaxter.md).
 
 ## Troubleshooting
 
