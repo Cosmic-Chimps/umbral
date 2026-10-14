@@ -29,7 +29,7 @@ let ``an issuer is stored with the connector, read back and found by`` () =
         use! app = Fixtures.createApp ()
         let issuer = "https://auth.example.com/application/o/umbral"
 
-        let! created = ConnectorStore.create app.DbConfig app.Clock (connector "home" Oidc (Some issuer)) secret
+        let! created = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "home" Oidc (Some issuer)) secret
         Assert.Equal(ConnectorStore.Created, created)
 
         let! bySlug = ConnectorStore.findBySlug app.DbConfig "home"
@@ -48,7 +48,7 @@ let ``a connector of another kind has no issuer`` () =
     task {
         use! app = Fixtures.createApp ()
 
-        let! _ = ConnectorStore.create app.DbConfig app.Clock (connector "discord-two" Discord None) secret
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "discord-two" Discord None) secret
         let! stored = ConnectorStore.findBySlug app.DbConfig "discord-two"
         Assert.Equal(None, stored.Value.IssuerUrl)
     }
@@ -59,8 +59,8 @@ let ``a second connector on the same issuer is refused as issuer taken and nothi
         use! app = Fixtures.createApp ()
         let issuer = "https://auth.example.com/o"
 
-        let! _ = ConnectorStore.create app.DbConfig app.Clock (connector "home" Oidc (Some issuer)) secret
-        let! second = ConnectorStore.create app.DbConfig app.Clock (connector "work" Oidc (Some issuer)) secret
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "home" Oidc (Some issuer)) secret
+        let! second = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "work" Oidc (Some issuer)) secret
 
         Assert.Equal(ConnectorStore.IssuerTaken, second)
 
@@ -73,8 +73,8 @@ let ``a taken slug is still reported as slug taken, not issuer taken`` () =
     task {
         use! app = Fixtures.createApp ()
 
-        let! _ = ConnectorStore.create app.DbConfig app.Clock (connector "home" Oidc (Some "https://one.example.com")) secret
-        let! again = ConnectorStore.create app.DbConfig app.Clock (connector "home" Oidc (Some "https://two.example.com")) secret
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "home" Oidc (Some "https://one.example.com")) secret
+        let! again = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "home" Oidc (Some "https://two.example.com")) secret
 
         Assert.Equal(ConnectorStore.SlugTaken, again)
 
@@ -88,7 +88,7 @@ let ``saving a connector again never changes its issuer`` () =
     task {
         use! app = Fixtures.createApp ()
 
-        let! _ = ConnectorStore.create app.DbConfig app.Clock (connector "home" Oidc (Some "https://one.example.com")) secret
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "home" Oidc (Some "https://one.example.com")) secret
 
         // The issuer is part of every person's identity: a save that carries a
         // different one must not move it.

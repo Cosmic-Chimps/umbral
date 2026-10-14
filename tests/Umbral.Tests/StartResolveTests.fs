@@ -61,7 +61,7 @@ let private startWith (adapter: ScriptedAdapter) =
         try
             do! Database.initializeSchema config
             let clock = FakeTimeProvider(DateTimeOffset.UtcNow)
-            let! _ = ConnectorStore.create config clock connector ("local:x", "cret")
+            let! _ = ConnectorStore.create config (clock.GetUtcNow()) connector ("local:x", "cret")
 
             let services = ServiceCollection()
             services.AddSingleton<Database.DbConfig>(config) |> ignore

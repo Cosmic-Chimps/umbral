@@ -230,9 +230,47 @@ type Texts =
       ProtocolErrorBody: string
       Notice: string -> string
 
+      // The external secret stores (spec 005), named for the operator. The
+      // argument is a store id as a `SecretRef` carries it; an id this build
+      // does not know is shown as it is, which is a fixed word of ours (it
+      // came from a stored reference, never from a URL).
+      SecretStoreName: string -> string
+      /// A write to the store was refused: the store's display name and the
+      /// cause word (`StoreFailure.Cause`). Shown inline by the OIDC add form
+      /// and, through the single-use notice cookie, by the redirecting paths.
+      ConnectorSecretStoreFailed: string -> string -> string
+      /// A delete left the secret in its manager: the store's display name and
+      /// the name the operator has to remove it under there.
+      ConnectorSecretLeftBehind: string -> string -> string
+
       // Startup refusals about the external secret store (spec 005, FR-005):
       // one line per problem, each saying which variable and what to set.
       SecretStoreProblem: SecretStoreSettings.SettingProblem -> string }
+
+/// The display name of a store, by the id a `SecretRef` carries.
+let private secretStoreNameEn (storeId: string) : string =
+    match storeId with
+    | "local" -> "this instance (encrypted)"
+    | "aws" -> "AWS Secrets Manager"
+    | "gcp" -> "Google Cloud Secret Manager"
+    | "azure" -> "Azure Key Vault"
+    | "bellabaxter" -> "BellaBaxter"
+    | other -> other
+
+/// What a `StoreFailure.Cause` word means to someone who has to fix it.
+let private causeEn (cause: string) : string =
+    match cause with
+    | "unreachable" -> "could not be reached"
+    | "access_denied" -> "refused Umbral's credentials or permissions"
+    | "not_configured" -> "is not set up on this instance"
+    | "rejected" -> "rejected the request"
+    | _ -> "failed"
+
+let private connectorSecretStoreFailedEn (store: string) (cause: string) : string =
+    $"{store} {causeEn cause}, so the client secret was not saved and nothing was changed. Check that Umbral's credentials for it are valid, that they may write secrets, and that it is reachable from this host, following the walkthrough in docs/secret-stores/. Then enter the secret again."
+
+let private connectorSecretLeftBehindEn (store: string) (name: string) : string =
+    $"The connector was deleted, but its client secret {name} could not be removed from {store}. Delete it there by hand, or anyone with access to that store can still read it."
 
 /// The notice texts, by code; `None` for a code no screen sends.
 let private noticeEn (code: string) : string option =
@@ -263,8 +301,12 @@ let private noticeEn (code: string) : string option =
     | "connector-unknown" -> Some "That connector isn't one Umbral supports. Choose one of the connectors listed on this screen."
     | "connector-client-id-required" -> Some "Enter the client ID from the provider's console, then save again."
     | "connector-secret-required" -> Some "Enter the client secret from the provider's console, then save again."
+    // The fallbacks for a notice that arrives without its server-side detail
+    // (a refresh, a link): the same advice, without the store's name.
     | "connector-secret-store-failed" ->
-        Some "The client secret could not be saved to its secret store, so nothing was changed. Check that the store is reachable and Umbral may write to it, then save again."
+        Some "The client secret could not be saved to its secret store, so nothing was saved. Check that Umbral's credentials for the store are valid, that they may write secrets, and that the store is reachable from this host, following the walkthrough in docs/secret-stores/. Then enter the secret again."
+    | "connector-secret-left-behind" ->
+        Some "The connector was deleted, but its client secret could not be removed from its secret store. Remove it there by hand: it is named after the connector, under the prefix umbral by default."
     | "connector-last-enabled" ->
         Some "This is the only enabled connector. Turning it off means nobody can sign in to any app. Press it again to confirm."
 
@@ -551,6 +593,9 @@ let en: Texts =
         + "registered here exactly as the app sends it, and that it uses PKCE with S256. If you were "
         + "just trying to sign in, go back to the app and try again, and tell its owner if it keeps happening."
       Notice = fun code -> noticeEn code |> Option.defaultValue "Reload the page to see its current state."
+      SecretStoreName = secretStoreNameEn
+      ConnectorSecretStoreFailed = connectorSecretStoreFailedEn
+      ConnectorSecretLeftBehind = connectorSecretLeftBehindEn
       SecretStoreProblem = secretStoreProblemEn }
 
 /// The code itself when it is one a screen has a message for, so that a screen

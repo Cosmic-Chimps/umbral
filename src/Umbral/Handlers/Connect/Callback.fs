@@ -96,11 +96,26 @@ let handler (slug: string) : EndpointHandler =
                 | Error _ -> System.Threading.Tasks.Task.FromResult(Error Secrets.NotFound)
 
             match secret with
-            | Error _ ->
-                // Almost always a lost or unmounted /data/keys: the ciphertext
-                // is there and the key ring that reads it is not. The store's
-                // own reason is not recorded yet (specs/005 T025).
-                do! record Failure SignInFailed (Some "connector_secret_unreadable")
+            | Error cause ->
+                // With the local store, almost always a lost or unmounted
+                // /data/keys: the ciphertext is there and the key ring that
+                // reads it is not. With an external one, the cause word says
+                // whether to look at the network, the grant or the name. Both
+                // events carry only the store id and that word (FR-015); the
+                // person sees the same page as for any failed sign-in.
+                let store =
+                    match Secrets.SecretRef.Decode connector.ClientSecretRef with
+                    | Ok reference -> reference.Store
+                    | Error _ -> "unknown"
+
+                do! recordStoreFailure config clock Actor.User slug remoteIp store "get" cause
+
+                do!
+                    record
+                        Failure
+                        SignInFailed
+                        (Some $"connector_secret_unreadable;store={store};cause={cause.Cause}")
+
                 return fail ctx "sign-in-failed"
 
             | Ok secret ->

@@ -25,6 +25,8 @@ open Oxpecker
 open Umbral.Infrastructure
 open Umbral.Infrastructure.SecretStores.Registry
 
+module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
+
 let handler (slug: string) : EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
         task {
@@ -65,30 +67,65 @@ let handler (slug: string) : EndpointHandler =
 
             do! ConnectorStore.delete config slug
 
-            // After the row, not before: a failure in between leaves an
-            // orphaned ciphertext (harmless, and the local store keeps it in
-            // the row anyway), where the other order would leave a connector
-            // that exists and can no longer authenticate.
-            match Secrets.SecretRef.Decode connector.ClientSecretRef with
-            | Ok reference ->
-                // The result is not looked at yet: a refused delete is handled
-                // where the external stores arrive (specs/005 T024).
-                match (ctx.GetService<SecretStores>()).For reference.Store with
-                | Ok store ->
-                    let! _ = store.Delete(reference, ctx.RequestAborted)
-                    ()
-                | Error _ -> ()
-            | Error _ -> ()
+            let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
 
+            // The event is recorded with the row, before the store is asked: the
+            // connector is gone whatever the store says, and the record of it
+            // must not depend on a manager that may be down (FR-010).
             do!
                 SecurityEvents.record
                     config
                     clock
                     { SecurityEvents.event SecurityEvents.ConnectorDeleted SecurityEvents.Success SecurityEvents.Actor.Operator with
                         ConnectorSlug = Some slug
-                        RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string }
+                        RemoteIp = remoteIp }
 
-            return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-deleted"
+            // After the row, not before: a failure in between leaves an
+            // orphaned secret, where the other order would leave a connector
+            // that exists and can no longer authenticate.
+            let secrets = ctx.GetService<SecretStores>()
+
+            let! leftBehind =
+                match Secrets.SecretRef.Decode connector.ClientSecretRef with
+                | Error _ -> System.Threading.Tasks.Task.FromResult None
+                | Ok reference ->
+                    task {
+                        let! outcome =
+                            match secrets.For reference.Store with
+                            | Ok store -> store.Delete(reference, ctx.RequestAborted)
+                            | Error failure -> System.Threading.Tasks.Task.FromResult(Error failure)
+
+                        secrets.Evict reference
+
+                        match outcome with
+                        | Ok() -> return None
+                        | Error failure -> return Some(reference.Store, failure)
+                    }
+
+            match leftBehind with
+            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-deleted"
+            | Some(store, failure) ->
+                do! SecurityEvents.recordStoreFailure config clock SecurityEvents.Actor.Operator slug remoteIp store "delete" failure
+
+                // The row is gone, so the secret's name is derived from what the
+                // row held and carried to the screen in the single-use notice
+                // cookie: never from the URL, which anyone can write. It is the
+                // name this instance gave the secret; an operator who changed
+                // the prefix since sees the current one.
+                let name =
+                    (Secrets.SecretName.derive
+                        (ctx.GetService<SecretStoreSettings.SecretStoreSettings>().Prefix)
+                        slug
+                        connector.CreatedUtc)
+                        .In store
+
+                return!
+                    WebForms.NoticeReason.redirect
+                        ctx
+                        "/admin/connectors"
+                        "connector-secret-left-behind"
+                        slug
+                        $"{store}|{name}"
         })
 
 let endpoint = POST [ routef "/admin/connectors/{%s}/delete" handler ]

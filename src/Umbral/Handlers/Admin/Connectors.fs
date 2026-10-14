@@ -25,6 +25,8 @@ open Umbral.Infrastructure
 open Umbral.Infrastructure.SecretStores.Registry
 open Umbral.Views
 
+module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
+
 // ---------------------------------------------------------------------------
 // The origin-mismatch banner (T070)
 // ---------------------------------------------------------------------------
@@ -631,6 +633,20 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                         | _ -> None
 
                     Some(said |> Option.defaultValue (t.Notice code))
+                // The store failures: which store, and the cause or the secret's
+                // name, come from the cookie the refusal wrote, never the URL.
+                | Some("connector-secret-store-failed" | "connector-secret-left-behind" as code) ->
+                    let said =
+                        ctx.TryGetQueryValue "slug"
+                        |> Option.bind (fun slug -> WebForms.NoticeReason.consume ctx code slug)
+                        |> Option.bind (fun reason ->
+                            match reason.Split '|' with
+                            | [| store; detail |] when code = "connector-secret-store-failed" ->
+                                Some(t.ConnectorSecretStoreFailed (t.SecretStoreName store) detail)
+                            | [| store; detail |] -> Some(t.ConnectorSecretLeftBehind (t.SecretStoreName store) detail)
+                            | _ -> None)
+
+                    Some(said |> Option.defaultValue (t.Notice code))
                 | _ -> None
 
             return!
@@ -671,22 +687,65 @@ let private recordEventWith
 let private recordEvent (ctx: HttpContext) (kind: SecurityEvents.EventType) (slug: string) =
     recordEventWith ctx kind slug None
 
-/// Store a secret under the connector's own slug, returning what the store
-/// keeps: the encoded reference and the hint the screen shows, or why the store
-/// refused. The local store never refuses; the callers still handle `Error`
-/// because the next stores will (specs/005 T023 gives them the full treatment).
-///
-/// The name's discriminator comes from the time the secret is written here, as
-/// a stand-in until the creating path passes the `created_utc` it will write.
-let private putSecret (ctx: HttpContext) (slug: string) (plaintext: string) =
+let private remoteIpOf (ctx: HttpContext) =
+    ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+
+let private prefixOf (ctx: HttpContext) =
+    ctx.GetService<SecretStoreSettings.SecretStoreSettings>().Prefix
+
+/// The store refused a write. Recorded once, here, with the store and the cause
+/// word and nothing the store said (FR-010); the callers turn it into a refusal.
+let private recordPutFailed (ctx: HttpContext) (slug: string) (failure: Secrets.StoreFailure) =
+    SecurityEvents.recordStoreFailure
+        (ctx.GetService<Database.DbConfig>())
+        (ctx.GetService<TimeProvider>())
+        SecurityEvents.Actor.Operator
+        slug
+        (remoteIpOf ctx)
+        (ctx.GetService<SecretStores>()).Active.Id
+        "put"
+        failure
+
+/// Write the secret of a NEW connector to the active store, under the name
+/// derived from its slug and the `now` that `ConnectorStore.create` will write
+/// as `created_utc`. Returns the reference (to delete again if the row loses a
+/// race) and what the row keeps: the encoded reference and the hint the screen
+/// shows. On failure the event is already recorded.
+let private putNew (ctx: HttpContext) (slug: string) (now: DateTimeOffset) (plaintext: string) =
     task {
         let secrets = ctx.GetService<SecretStores>()
-        let name = Secrets.SecretName.derive "umbral" slug (ctx.GetService<TimeProvider>().GetUtcNow())
+        let name = Secrets.SecretName.derive (prefixOf ctx) slug now
 
         match! secrets.Active.Put(name, plaintext, ctx.RequestAborted) with
-        | Ok reference -> return Ok(reference.Encoded, Secrets.hint plaintext)
-        | Error failure -> return Error failure
+        | Ok reference -> return Ok(reference, (reference.Encoded, Secrets.hint plaintext))
+        | Error failure ->
+            do! recordPutFailed ctx slug failure
+            return Error failure
     }
+
+/// A create that wrote its secret and then lost the race for the slug (or the
+/// issuer): no connector refers to that secret, so it is removed again. Best
+/// effort; a store that refuses leaves an unreferenced secret, which costs
+/// nothing but a line in the manager.
+let private discard (ctx: HttpContext) (reference: Secrets.SecretRef) =
+    task {
+        match (ctx.GetService<SecretStores>()).For reference.Store with
+        | Ok store ->
+            let! _ = store.Delete(reference, ctx.RequestAborted)
+            ()
+        | Error _ -> ()
+    }
+
+/// The refusal of the redirecting paths. The store and the cause word travel in
+/// the single-use notice cookie, not in the URL, so the screen can name the
+/// store without a link being able to make it say anything (`NoticeReason`).
+let private refuseStoreFailed (ctx: HttpContext) (slug: string) (failure: Secrets.StoreFailure) =
+    WebForms.NoticeReason.redirect
+        ctx
+        "/admin/connectors"
+        "connector-secret-store-failed"
+        slug
+        $"{(ctx.GetService<SecretStores>()).Active.Id}|{failure.Cause}"
 
 /// Whether `kind` may be created from the first-connector path, an empty card
 /// posting to its own name. The fake kind is refused where the fake connector is
@@ -796,14 +855,24 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
 
         // Only now does the secret reach the store: the slug is free, the issuer
         // is free and the provider answered.
-        match! putSecret ctx state.Slug newSecret.Value with
-        | Error _ -> return! refuse "clientSecret" ((Texts.current ()).Notice "connector-secret-store-failed")
-        | Ok secret ->
+        // `now` is taken once: it is the `created_utc` of the row and the
+        // discriminator of the secret's name.
+        let now = clock.GetUtcNow()
+
+        match! putNew ctx state.Slug now newSecret.Value with
+        | Error failure ->
+            // The form is drawn again with what was typed, but the secret must
+            // be typed again: the screen never holds it.
+            return!
+                refuse
+                    "clientSecret"
+                    (t.ConnectorSecretStoreFailed (t.SecretStoreName (ctx.GetService<SecretStores>()).Active.Id) failure.Cause)
+        | Ok(reference, secret) ->
 
         let! added =
             ConnectorStore.create
                 config
-                clock
+                now
                 { Slug = state.Slug
                   Kind = Oidc
                   DisplayName = state.DisplayName
@@ -813,8 +882,8 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   IssuerUrl = Some issuer
                   IsEnabled = enabled
                   IsShared = state.Shared
-                  CreatedUtc = clock.GetUtcNow()
-                  UpdatedUtc = clock.GetUtcNow() }
+                  CreatedUtc = now
+                  UpdatedUtc = now }
                 secret
 
         match added with
@@ -840,9 +909,14 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                         "connector-added-oidc-unreachable"
                         state.Slug
                         reason
-        // Lost a race between the checks above and the insert.
-        | ConnectorStore.SlugTaken -> return! refuse "slug" t.ConnectorAddOidcSlugTaken
-        | ConnectorStore.IssuerTaken -> return! refuse "issuer" (t.ConnectorAddOidcIssuerTaken issuer)
+        // Lost a race between the checks above and the insert: nothing refers
+        // to the secret just written, so it goes again.
+        | ConnectorStore.SlugTaken ->
+            do! discard ctx reference
+            return! refuse "slug" t.ConnectorAddOidcSlugTaken
+        | ConnectorStore.IssuerTaken ->
+            do! discard ctx reference
+            return! refuse "issuer" (t.ConnectorAddOidcIssuerTaken issuer)
     }
 
 /// Add a connector of a kind under a slug the operator chose (FR-012).
@@ -889,14 +963,16 @@ let create: EndpointHandler =
 
             // The slug was just checked free, so writing the secret under it
             // cannot replace another connector's.
-            match! putSecret ctx slug plaintext with
-            | Error _ -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-store-failed"
-            | Ok secret ->
+            let now = clock.GetUtcNow()
+
+            match! putNew ctx slug now plaintext with
+            | Error failure -> return! refuseStoreFailed ctx slug failure
+            | Ok(reference, secret) ->
 
             let! added =
                 ConnectorStore.create
                     config
-                    clock
+                    now
                     { Slug = slug
                       Kind = kind
                       DisplayName = displayName
@@ -907,11 +983,12 @@ let create: EndpointHandler =
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
-                      CreatedUtc = clock.GetUtcNow()
-                      UpdatedUtc = clock.GetUtcNow() }
+                      CreatedUtc = now
+                      UpdatedUtc = now }
                     secret
 
             if added <> ConnectorStore.Created then
+                do! discard ctx reference
                 return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
             else
 
@@ -961,14 +1038,16 @@ let save (slug: string) : EndpointHandler =
             | None, None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-required"
 
             | None, Some plaintext ->
-                match! putSecret ctx slug plaintext with
-                | Error _ -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-store-failed"
-                | Ok secret ->
+                let now = clock.GetUtcNow()
+
+                match! putNew ctx slug now plaintext with
+                | Error failure -> return! refuseStoreFailed ctx slug failure
+                | Ok(reference, secret) ->
 
                 let! added =
                     ConnectorStore.create
                         config
-                        clock
+                        now
                         { Slug = slug
                           Kind = kind
                           DisplayName = (if fullForm then displayName else kind.DisplayName)
@@ -980,11 +1059,12 @@ let save (slug: string) : EndpointHandler =
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true
                           IsShared = (not fullForm) || isShared
-                          CreatedUtc = clock.GetUtcNow()
-                          UpdatedUtc = clock.GetUtcNow() }
+                          CreatedUtc = now
+                          UpdatedUtc = now }
                         secret
 
                 if added <> ConnectorStore.Created then
+                    do! discard ctx reference
                     return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
                 else
                     do! recordEvent ctx SecurityEvents.ConnectorCreated slug
@@ -1020,26 +1100,90 @@ let save (slug: string) : EndpointHandler =
                             [ "slug", slug; "change", "unshare" ]
                 else
 
+                let secrets = ctx.GetService<SecretStores>()
+
+                // The name is derived again from what never changes about the
+                // connector, so a connector already in the active store gets a
+                // new version of the secret it has (the reference stays), and
+                // one in another store gets a copy in the active one (R5).
                 let! secretUpdate =
                     match newSecret with
                     | Some plaintext ->
                         task {
-                            let! secret = putSecret ctx slug plaintext
-                            return secret |> Result.map Some
+                            let name = Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc
+
+                            match! secrets.Active.Put(name, plaintext, ctx.RequestAborted) with
+                            | Ok reference -> return Ok(Some(reference, (reference.Encoded, Secrets.hint plaintext)))
+                            | Error failure ->
+                                do! recordPutFailed ctx slug failure
+                                return Error failure
                         }
                     | None -> System.Threading.Tasks.Task.FromResult(Ok None)
 
                 match secretUpdate with
-                | Error _ -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-store-failed"
-                | Ok secretUpdate ->
+                | Error failure -> return! refuseStoreFailed ctx slug failure
+                | Ok written ->
 
-                let! updated = ConnectorStore.update config clock slug newName clientId newShared secretUpdate
+                let! updated =
+                    ConnectorStore.update config clock slug newName clientId newShared (written |> Option.map snd)
+
+                match written with
+                | Some(reference, _) when not updated ->
+                    // The connector vanished between the read and the update;
+                    // the secret just written belongs to nothing.
+                    do! discard ctx reference
+                | _ -> ()
 
                 if not updated then
                     return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
                 else
                     do! recordEvent ctx SecurityEvents.ConnectorUpdated slug
-                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
+
+                    // A secret moved to another store leaves its old copy
+                    // behind in the old one, which is removed now that no row
+                    // refers to it. The card is already saved either way.
+                    let! leftBehind =
+                        match written, Secrets.SecretRef.Decode stored.ClientSecretRef with
+                        | Some(reference, _), Ok old when old <> reference ->
+                            task {
+                                secrets.Evict old
+                                secrets.Evict reference
+
+                                match secrets.For old.Store with
+                                | Ok oldStore ->
+                                    match! oldStore.Delete(old, ctx.RequestAborted) with
+                                    | Ok() -> return None
+                                    | Error failure -> return Some(old.Store, failure)
+                                | Error failure -> return Some(old.Store, failure)
+                            }
+                        | Some(reference, _), _ ->
+                            secrets.Evict reference
+                            System.Threading.Tasks.Task.FromResult None
+                        | None, _ -> System.Threading.Tasks.Task.FromResult None
+
+                    match leftBehind with
+                    | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
+                    | Some(store, failure) ->
+                        do!
+                            SecurityEvents.recordStoreFailure
+                                config
+                                clock
+                                SecurityEvents.Actor.Operator
+                                slug
+                                (remoteIpOf ctx)
+                                store
+                                "delete"
+                                failure
+
+                        let name = (Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc).In store
+
+                        return!
+                            WebForms.NoticeReason.redirect
+                                ctx
+                                "/admin/connectors"
+                                "connector-secret-left-behind"
+                                slug
+                                $"{store}|{name}"
         })
 
 let endpoint =

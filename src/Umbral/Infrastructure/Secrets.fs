@@ -103,6 +103,11 @@ type SecretName =
     member this.Bella =
         $"UMBRAL_{this.Prefix}_{this.Slug}_{this.Discriminator}".ToUpperInvariant().Replace('-', '_')
 
+    /// The name as the store with this id (`SecretRef.Store`) renders it: what
+    /// the operator has to look for when a delete leaves a secret behind.
+    member this.In(storeId: string) =
+        if storeId = "bellabaxter" then this.Bella else this.Cloud
+
 [<RequireQualifiedAccess>]
 module SecretName =
 

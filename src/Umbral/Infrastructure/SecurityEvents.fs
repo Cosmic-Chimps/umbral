@@ -207,3 +207,25 @@ let record (config: Database.DbConfig) (clock: TimeProvider) (e: SecurityEvent) 
         use! connection = Database.openConnection config
         do! recordIn connection null clock e
     }
+
+/// A call to a secret store failed (`secret_store_failed`). The one place the
+/// three callers that record it (the admin paths, the delete and the sign-in
+/// callback) build the event, so its `Detail` is always `storeDetail` and never
+/// something a caller assembled from a value or a locator.
+let recordStoreFailure
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (actor: Actor)
+    (connectorSlug: string)
+    (remoteIp: string option)
+    (store: string)
+    (op: string)
+    (cause: Secrets.StoreFailure)
+    : Task<unit> =
+    record
+        config
+        clock
+        { event SecretStoreFailed Failure actor with
+            ConnectorSlug = Some connectorSlug
+            RemoteIp = remoteIp
+            Detail = Some(storeDetail store op cause false) }

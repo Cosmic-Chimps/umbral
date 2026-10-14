@@ -160,9 +160,14 @@ let private SqliteConstraint = 19
 /// primary key and sits in the callback URL, so an existing one is never
 /// replaced here — or when another connector already holds the issuer. The
 /// caller has already checked `Ids.isValidSlug`.
+///
+/// `now` is written as `created_utc`. The caller takes it once and uses it for
+/// the secret's name too: the name's discriminator derives from `created_utc`,
+/// and a replace later re-derives the same name from the stored value
+/// (specs/005 research R5).
 let create
     (config: Database.DbConfig)
-    (clock: TimeProvider)
+    (now: DateTimeOffset)
     (connector: Connector)
     (secretRef: string, secretHint: string)
     : Task<CreateResult> =
@@ -186,7 +191,7 @@ let create
         command.Parameters.AddWithValue("@enabled", (if connector.IsEnabled then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@shared", (if connector.IsShared then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@issuer", issuerParameter connector) |> ignore
-        command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+        command.Parameters.AddWithValue("@now", now.ToUniversalTime().ToString "o") |> ignore
 
         try
             let! inserted = command.ExecuteNonQueryAsync()
