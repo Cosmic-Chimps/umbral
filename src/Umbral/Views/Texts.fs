@@ -5,6 +5,8 @@
 /// shown to an operator or an end user.
 module Umbral.Views.Texts
 
+module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
+
 type Texts =
     { SiteName: string
       Footer: string
@@ -226,7 +228,11 @@ type Texts =
       /// gets here anyway gets a fixed text.
       ProtocolErrorTitle: string
       ProtocolErrorBody: string
-      Notice: string -> string }
+      Notice: string -> string
+
+      // Startup refusals about the external secret store (spec 005, FR-005):
+      // one line per problem, each saying which variable and what to set.
+      SecretStoreProblem: SecretStoreSettings.SettingProblem -> string }
 
 /// The notice texts, by code; `None` for a code no screen sends.
 let private noticeEn (code: string) : string option =
@@ -298,6 +304,38 @@ let private noticeEn (code: string) : string option =
     | "credential-replaced" -> Some "Operator credential replaced."
     | "credential-current-incorrect" -> Some "That's not the current credential. Check it and try again."
     | _ -> None
+
+/// What `SecretStoreSettings.parse` found wrong, in the words of someone at 1am with a Pi:
+/// the variable by its `__` name and what to set it to. None of them quotes a
+/// BellaBaxter key, token or private key; the problems never carry one.
+let private secretStoreProblemEn (problem: SecretStoreSettings.SettingProblem) : string =
+    match problem with
+    | SecretStoreSettings.UnknownStore value ->
+        $"UMBRAL__SECRET_STORE is \"{value}\", which is not a store Umbral knows. Set it to one of local, aws, gcp, azure or bellabaxter, or remove it to keep secrets in the data directory."
+    | SecretStoreSettings.MalformedPrefix value ->
+        $"UMBRAL__SECRET_STORE_PREFIX is \"{value}\". Use 1 to 32 lowercase letters, digits or hyphens, not starting or ending with a hyphen, for example umbral. Remove it to use umbral."
+    | SecretStoreSettings.MalformedCacheSeconds value ->
+        $"UMBRAL__SECRET_CACHE_SECONDS is \"{value}\", which is not a whole number of seconds of 0 or more. Set it to a number such as 300, or 0 to turn the cache off."
+    | SecretStoreSettings.MalformedGraceSeconds value ->
+        $"UMBRAL__SECRET_GRACE_SECONDS is \"{value}\", which is not a whole number of seconds of 0 or more. Set it to a number such as 3600, or 0 to refuse a secret the manager cannot confirm."
+    | SecretStoreSettings.AzureVaultUriMissing ->
+        "UMBRAL__SECRET_STORE is azure but UMBRAL__AZURE_KEY_VAULT_URI is not set. Set it to your vault's URI, such as https://umbral-kv.vault.azure.net/."
+    | SecretStoreSettings.AzureVaultUriInvalid value ->
+        $"UMBRAL__AZURE_KEY_VAULT_URI is \"{value}\". Give your vault's address as an https URL with no path, such as https://umbral-kv.vault.azure.net/."
+    | SecretStoreSettings.AwsRegionMissing ->
+        "UMBRAL__SECRET_STORE is aws but AWS_REGION is not set. Set it to the region new secrets are created in, such as eu-west-1."
+    | SecretStoreSettings.GcpProjectMissing ->
+        "UMBRAL__SECRET_STORE is gcp but GOOGLE_CLOUD_PROJECT is not set. Set it to the ID of the Google Cloud project new secrets are created in."
+    | SecretStoreSettings.BellaCredentialMissing ->
+        "UMBRAL__SECRET_STORE is bellabaxter but neither BELLA_BAXTER_API_KEY nor BELLA_BAXTER_ACCESS_TOKEN is set. Set BELLA_BAXTER_API_KEY to an API key from your Bella Baxter project."
+    | SecretStoreSettings.BellaApiKeyMalformed ->
+        "BELLA_BAXTER_API_KEY does not look like a Bella Baxter API key, which has the form bax-{id}-{secret}. Copy the whole key again from Bella Baxter, with nothing before or after it."
+    | SecretStoreSettings.BellaTokenWithoutProject ->
+        "BELLA_BAXTER_ACCESS_TOKEN is set but BELLA_BAXTER_PROJECT is not. A token does not name a project, so set BELLA_BAXTER_PROJECT to the project's slug."
+    | SecretStoreSettings.BellaTokenWithoutEnvironment ->
+        "BELLA_BAXTER_ACCESS_TOKEN is set but BELLA_BAXTER_ENV is not. A token does not name an environment, so set BELLA_BAXTER_ENV to the environment's slug."
+    | SecretStoreSettings.BellaUrlRejected value ->
+        $"BELLA_BAXTER_URL is \"{value}\". Set it to the https address of your Bella Baxter server, such as https://api.bella-baxter.io. Plain http is accepted only for localhost."
 
 let en: Texts =
     { SiteName = "Umbral"
@@ -512,7 +550,8 @@ let en: Texts =
         + "configuration mismatch between the app and Umbral: check that its redirect URI is "
         + "registered here exactly as the app sends it, and that it uses PKCE with S256. If you were "
         + "just trying to sign in, go back to the app and try again, and tell its owner if it keeps happening."
-      Notice = fun code -> noticeEn code |> Option.defaultValue "Reload the page to see its current state." }
+      Notice = fun code -> noticeEn code |> Option.defaultValue "Reload the page to see its current state."
+      SecretStoreProblem = secretStoreProblemEn }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.
