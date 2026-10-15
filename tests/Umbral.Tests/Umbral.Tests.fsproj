@@ -68,6 +68,9 @@
     <Compile Include="SecretCacheTests.fs" />
     <Compile Include="ExternalSecretConnectorTests.fs" />
     <Compile Include="SecretMoveTests.fs" />
+    <Compile Include="EmailDomainsTests.fs" />
+    <Compile Include="AllowedDomainsSignInTests.fs" />
+    <Compile Include="AllowedDomainsAdminTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 

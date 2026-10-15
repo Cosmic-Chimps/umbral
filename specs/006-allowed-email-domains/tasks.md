@@ -40,7 +40,7 @@ storage with no behaviour change.
 
 ## Phase 1: Setup
 
-- [ ] T001 Create empty modules and register them: `src/Umbral/Domains/EmailDomains.fs` directly after `Domains/Linking.fs`, `src/Umbral/Infrastructure/EmailDomainRules.fs` directly after `Infrastructure/ConnectorStore.fs` in `src/Umbral/Umbral.fsproj`; `tests/Umbral.Tests/EmailDomainsTests.fs`, `AllowedDomainsSignInTests.fs`, `AllowedDomainsAdminTests.fs` in `tests/Umbral.Tests/Umbral.Tests.fsproj` (before `SmokeTests.fs`)
+- [X] T001 Create empty modules and register them: `src/Umbral/Domains/EmailDomains.fs` directly after `Domains/Linking.fs`, `src/Umbral/Infrastructure/EmailDomainRules.fs` directly after `Infrastructure/ConnectorStore.fs` in `src/Umbral/Umbral.fsproj`; `tests/Umbral.Tests/EmailDomainsTests.fs`, `AllowedDomainsSignInTests.fs`, `AllowedDomainsAdminTests.fs` in `tests/Umbral.Tests/Umbral.Tests.fsproj` (before `SmokeTests.fs`)
 
 ---
 

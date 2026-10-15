@@ -1,0 +1,1 @@
+module Umbral.Tests.AllowedDomainsSignInTests

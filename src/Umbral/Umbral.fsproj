@@ -38,6 +38,7 @@
     <Compile Include="Domains/Ids.fs" />
     <Compile Include="Domains/Connectors.fs" />
     <Compile Include="Domains/Linking.fs" />
+    <Compile Include="Domains/EmailDomains.fs" />
     <Compile Include="Domains/RedirectUris.fs" />
     <Compile Include="Infrastructure/PublicOrigin.fs" />
     <Compile Include="Infrastructure/DataDirectory.fs" />
@@ -63,6 +64,7 @@
     <Compile Include="Infrastructure/Providers/Oidc.fs" />
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />
+    <Compile Include="Infrastructure/EmailDomainRules.fs" />
     <Compile Include="Infrastructure/AppConnectors.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
