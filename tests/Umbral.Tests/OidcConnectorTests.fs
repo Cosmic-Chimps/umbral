@@ -938,7 +938,8 @@ let ``a provider that cannot be reached when it is added is saved disabled with 
                 "SELECT detail FROM security_events WHERE event_type = 'connector_created' AND connector_slug = 'home'"
                 []
 
-        Assert.StartsWith("saved_disabled: ", detail)
+        // FR-022: the store holding the secret comes first, then why it is disabled.
+        Assert.StartsWith("store=local;saved_disabled: ", detail)
         Assert.DoesNotContain(providerSecret, detail)
 
         // And it is not on anybody's sign-in page.

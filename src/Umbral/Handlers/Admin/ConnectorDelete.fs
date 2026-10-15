@@ -65,46 +65,63 @@ let handler (slug: string) : EndpointHandler =
                 return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-delete-last-enabled"
             else
 
-            do! ConnectorStore.delete config slug
-
             let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
-
-            // The event is recorded with the row, before the store is asked: the
-            // connector is gone whatever the store says, and the record of it
-            // must not depend on a manager that may be down (FR-010).
-            do!
-                SecurityEvents.record
-                    config
-                    clock
-                    { SecurityEvents.event SecurityEvents.ConnectorDeleted SecurityEvents.Success SecurityEvents.Actor.Operator with
-                        ConnectorSlug = Some slug
-                        RemoteIp = remoteIp }
-
-            // After the row, not before: a failure in between leaves an
-            // orphaned secret, where the other order would leave a connector
-            // that exists and can no longer authenticate.
             let secrets = ctx.GetService<SecretStores>()
 
-            let! leftBehind =
-                match Secrets.SecretRef.Decode connector.ClientSecretRef with
-                | Error _ -> System.Threading.Tasks.Task.FromResult None
-                | Ok reference ->
+            // Under the lease on the connector's secret, so that a move that is
+            // copying it cannot write the secret back to a manager after this
+            // has deleted it (research R8). A move that has the lease makes the
+            // delete wait for the operator to try again; nothing is deleted.
+            let! deleted =
+                ConnectorStore.withLease config clock slug (fun () ->
                     task {
-                        let! outcome =
-                            match secrets.For reference.Store with
-                            | Ok store -> store.Delete(reference, ctx.RequestAborted)
-                            | Error failure -> System.Threading.Tasks.Task.FromResult(Error failure)
+                        // The reference to clean up is the one the deleted row
+                        // held, read by the delete itself: a move that switched
+                        // the row since `connector` was read leaves a copy in the
+                        // new store, and that is the one to remove.
+                        match! ConnectorStore.delete config slug with
+                        | None -> return None
+                        | Some encoded ->
+                            let reference = Secrets.SecretRef.Decode encoded |> Result.toOption
 
-                        secrets.Evict reference
+                            // The event is recorded with the row, before the store
+                            // is asked: the connector is gone whatever the store
+                            // says, and the record of it must not depend on a
+                            // manager that may be down (FR-010). It names the store
+                            // that held the secret (FR-022).
+                            do!
+                                SecurityEvents.record
+                                    config
+                                    clock
+                                    { SecurityEvents.event SecurityEvents.ConnectorDeleted SecurityEvents.Success SecurityEvents.Actor.Operator with
+                                        ConnectorSlug = Some slug
+                                        Detail = reference |> Option.map (fun r -> $"store={r.Store}")
+                                        RemoteIp = remoteIp }
 
-                        match outcome with
-                        | Ok() -> return None
-                        | Error failure -> return Some(reference.Store, failure)
-                    }
+                            // After the row, not before: a failure in between
+                            // leaves an orphaned secret, where the other order
+                            // would leave a connector that exists and can no
+                            // longer authenticate.
+                            match reference with
+                            | None -> return Some None
+                            | Some reference ->
+                                let! outcome =
+                                    match secrets.For reference.Store with
+                                    | Ok store -> store.Delete(reference, ctx.RequestAborted)
+                                    | Error failure -> System.Threading.Tasks.Task.FromResult(Error failure)
 
-            match leftBehind with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-deleted"
-            | Some(store, failure) ->
+                                secrets.Evict reference
+
+                                match outcome with
+                                | Ok() -> return Some None
+                                | Error failure -> return Some(Some(reference.Store, failure))
+                    })
+
+            match deleted with
+            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-busy"
+            | Some None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+            | Some(Some None) -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-deleted"
+            | Some(Some(Some(store, failure))) ->
                 do! SecurityEvents.recordStoreFailure config clock SecurityEvents.Actor.Operator slug remoteIp store "delete" failure
 
                 // The row is gone, so the secret's name is derived from what the

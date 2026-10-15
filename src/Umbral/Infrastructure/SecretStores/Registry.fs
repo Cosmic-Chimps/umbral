@@ -24,6 +24,9 @@ open Umbral.Infrastructure.Secrets
 /// token rather than by a retry storm.
 let callBound = TimeSpan.FromSeconds 10.
 
+/// How much longer than the bound a call that ignores its token is waited for.
+let private backstop = TimeSpan.FromSeconds 1.
+
 /// Runs every call of `inner` under the caller's token linked to a time bound.
 ///
 /// Doing it here, in the one wrapper the registry hands out, means no caller
@@ -31,16 +34,32 @@ let callBound = TimeSpan.FromSeconds 10.
 /// that fires, the answer is `Unreachable`: from outside, a store that does not
 /// answer in time is a store that cannot be reached. If it is the caller's own
 /// token, the cancellation is theirs and is not turned into a failure.
+///
+/// The token is a request, and an SDK may ignore it, so the call is also
+/// waited for no longer than the bound plus a second. A call that outlives that
+/// is abandoned: it ends as `Unreachable`, and what the abandoned task later
+/// does (it may still fault) is observed so that it cannot surface as an
+/// unobserved task exception.
 type private Bounded(inner: ISecretStore, bound: TimeSpan) =
 
     let run (caller: CancellationToken) (call: CancellationToken -> Task<Result<'a, StoreFailure>>) =
         task {
             use linked = CancellationTokenSource.CreateLinkedTokenSource caller
             linked.CancelAfter bound
+            let mutable started = Unchecked.defaultof<Task<Result<'a, StoreFailure>>>
 
             try
-                return! call linked.Token
-            with :? OperationCanceledException when not caller.IsCancellationRequested ->
+                started <- call linked.Token
+                return! started.WaitAsync(bound + backstop, caller)
+            with
+            | :? OperationCanceledException when not caller.IsCancellationRequested -> return Error Unreachable
+            | :? TimeoutException ->
+                started.ContinueWith(
+                    (fun (abandoned: Task<Result<'a, StoreFailure>>) -> abandoned.Exception |> ignore),
+                    TaskContinuationOptions.OnlyOnFaulted
+                )
+                |> ignore
+
                 return Error Unreachable
         }
 
@@ -56,13 +75,22 @@ type private Bounded(inner: ISecretStore, bound: TimeSpan) =
 /// half minute, not one per sign-in (specs/005 research R6).
 let refreshSpacing = TimeSpan.FromSeconds 30.
 
+/// How long beyond the call bound the mark of a refresh in flight is believed.
+let private refreshMargin = TimeSpan.FromSeconds 5.
+
 /// What the cache holds for one reference: the value protected, when it was
 /// fetched, and when a refresh of it last failed. In process memory only; it is
 /// never serialised, so a restart starts empty (FR-013).
+///
+/// `RefreshingSince` is set, atomically, by the one reader that is refreshing an
+/// entry that has expired: the others serve the value they hold and do not call
+/// the store, so a store that is slow to answer is asked once and not once per
+/// sign-in for the whole time it takes (research R6).
 type private Entry =
     { Value: Protected
       FetchedAt: DateTimeOffset
-      LastFailedRefreshAt: DateTimeOffset option }
+      LastFailedRefreshAt: DateTimeOffset option
+      RefreshingSince: DateTimeOffset option }
 
 /// What the Connectors screen shows about the active store beyond its cards.
 /// `Healthy` also covers "never checked" and a local store, which have nothing
@@ -72,9 +100,9 @@ type SecretStoreState =
     | Failed of StoreFailure * at: DateTimeOffset
 
 /// Whether the active store was last seen failing (specs/005 data-model,
-/// Story 4). The startup probe sets it; a successful `Put` on the active store
-/// clears it, so the notice goes away once the operator has fixed the cause and
-/// saved something, without a restart. In process memory only: a restart probes
+/// Story 4). The startup probe sets it, and so does a failed `Put` on the active
+/// store; a successful `Put` clears it, so the notice goes away once the
+/// operator has fixed the cause and saved something, without a restart. In process memory only: a restart probes
 /// again.
 ///
 /// Owned by the registry (`SecretStores.Status`) rather than registered next to
@@ -89,9 +117,13 @@ type SecretStoreStatus() =
     member _.Fail(failure: StoreFailure, at: DateTimeOffset) = state <- Failed(failure, at)
     member _.Clear() = state <- Healthy
 
-/// The active store as callers get it: a successful write proves the store works
-/// and the credentials may write, which is what the notice says is wrong.
-type private ClearsStatusOnPut(inner: ISecretStore, status: SecretStoreStatus) =
+/// The active store as callers get it: a write is the evidence the notice is
+/// about. A successful one proves the store works and the credentials may write,
+/// so it clears the notice; one that failed because the store is unreachable,
+/// refuses the credentials, is not set up or rejected the request raises it, so
+/// an operator who sees a save refused also sees the notice on the screen. A
+/// `NotFound` is not about the store being down, so it leaves the notice alone.
+type private TracksStatusOnPut(inner: ISecretStore, status: SecretStoreStatus, clock: TimeProvider) =
     interface ISecretStore with
         member _.Id = inner.Id
 
@@ -101,7 +133,8 @@ type private ClearsStatusOnPut(inner: ISecretStore, status: SecretStoreStatus) =
 
                 match result with
                 | Ok _ -> status.Clear()
-                | Error _ -> ()
+                | Error NotFound -> ()
+                | Error failure -> status.Fail(failure, clock.GetUtcNow())
 
                 return result
             }
@@ -162,20 +195,19 @@ type SecretStores
     // single-flight lock that has to be got right (research R6).
     let cache = Collections.Concurrent.ConcurrentDictionary<string, Entry>()
 
-    // How many times each reference has been evicted. A read notes it before
-    // calling the store and writes its answer back only if it has not moved:
-    // otherwise a sign-in that was reading the old value while the operator
-    // replaced the secret would put that value back for a whole cache lifetime,
-    // and an operator replaces a secret precisely because the old one was
-    // revoked (FR-013: replacing discards the cached value at once).
-    let evictions = Collections.Concurrent.ConcurrentDictionary<string, int64>()
+    // How many times anything has been evicted, over the registry's life. A read
+    // notes it before calling the store and writes its answer back only if it has
+    // not moved, and checks again after writing: otherwise a sign-in that was
+    // reading the old value while the operator replaced the secret would put
+    // that value back for a whole cache lifetime, and an operator replaces a
+    // secret precisely because the old one was revoked (FR-013: replacing
+    // discards the cached value at once). One counter for all references is
+    // coarser than one per reference, and the cost is an occasional cache miss
+    // for a read that overlapped an unrelated eviction; what it buys is that
+    // there is nothing per key to look up or to grow.
+    let mutable generation = 0L
 
     let status = SecretStoreStatus()
-
-    let evictionsOf (key: string) =
-        match evictions.TryGetValue key with
-        | true, count -> count
-        | _ -> 0L
 
     /// No cache: for a registry built by a test or a tool that reads each
     /// reference once and wants the store's answer every time.
@@ -193,7 +225,7 @@ type SecretStores
             | Error failure -> Unavailable(activeId, failure) :> ISecretStore
 
         // The local store has no outage to report, so nothing to clear.
-        if activeId = LocalStoreId then store else ClearsStatusOnPut(store, status) :> ISecretStore
+        if activeId = LocalStoreId then store else TracksStatusOnPut(store, status, clock) :> ISecretStore
 
     /// What the startup probe found, for the Connectors screen.
     member _.Status = status
@@ -228,62 +260,122 @@ type SecretStores
                 | Error failure -> return Error failure
             else
                 let key = reference.Encoded
-                let now = clock.GetUtcNow()
-                let held = match cache.TryGetValue key with | true, entry -> Some entry | _ -> None
 
                 let withinGrace (entry: Entry) (at: DateTimeOffset) =
                     at - entry.FetchedAt < cacheLifetime + gracePeriod
 
-                match held with
-                | Some entry when now - entry.FetchedAt < cacheLifetime -> return Ok entry.Value.Reveal
+                let recentlyFailed (entry: Entry) (at: DateTimeOffset) =
+                    match entry.LastFailedRefreshAt with
+                    | Some failedAt -> at - failedAt < refreshSpacing
+                    | None -> false
 
-                // Expired, and a refresh failed a moment ago: keep serving the
-                // value without asking again, and without another event.
-                | Some entry when
-                    withinGrace entry now
-                    && (match entry.LastFailedRefreshAt with
-                        | Some failedAt -> now - failedAt < refreshSpacing
-                        | None -> false)
-                    ->
-                    return Ok entry.Value.Reveal
+                // A refresh that has not ended after the bound plus a margin is
+                // one whose reader is gone (cancelled, or the process was starved
+                // for a while): its mark no longer holds anyone else back.
+                let refreshing (entry: Entry) (at: DateTimeOffset) =
+                    match entry.RefreshingSince with
+                    | Some since -> at - since < bound + refreshMargin
+                    | None -> false
 
-                | _ ->
-                    let evictedBefore = evictionsOf key
+                let mutable answer: Result<string, StoreFailure> option = None
 
-                    let! fetched =
-                        match this.For reference.Store with
-                        | Ok store -> store.Get(reference, cancellationToken)
-                        | Error failure -> Task.FromResult(Error failure)
+                while answer.IsNone do
+                    let now = clock.GetUtcNow()
+                    let held = match cache.TryGetValue key with | true, entry -> Some entry | _ -> None
 
-                    // After the call, which may have taken up to the bound.
-                    let at = clock.GetUtcNow()
-                    let evictedMeanwhile = evictionsOf key <> evictedBefore
+                    match held with
+                    | Some entry when now - entry.FetchedAt < cacheLifetime -> answer <- Some(Ok entry.Value.Reveal)
 
-                    match fetched, held with
-                    | Ok value, _ ->
-                        if not evictedMeanwhile then
-                            cache[key] <-
-                                { Value = Protected.Of value
-                                  FetchedAt = at
-                                  LastFailedRefreshAt = None }
+                    // Expired, and either a refresh failed a moment ago or one is
+                    // in flight right now: keep serving the value without asking
+                    // again, and without another event.
+                    | Some entry when withinGrace entry now && (recentlyFailed entry now || refreshing entry now) ->
+                        answer <- Some(Ok entry.Value.Reveal)
 
-                        return Ok value
+                    | _ ->
+                        // Becoming the reader that refreshes an entry still within
+                        // its grace period is a compare-and-swap on the entry, so
+                        // exactly one of several simultaneous readers wins; the
+                        // rest go round again and find the mark. A miss, or an
+                        // entry past its grace period, has no stale value to
+                        // protect and nothing to claim.
+                        let claimed =
+                            match held with
+                            | Some entry when withinGrace entry now ->
+                                cache.TryUpdate(key, { entry with RefreshingSince = Some now }, entry)
+                            | _ -> true
 
-                    // An entry evicted while the store was being asked is a
-                    // value the operator has replaced: it is not served, not
-                    // even from the grace period.
-                    | Error Unreachable, Some entry when withinGrace entry at && not evictedMeanwhile ->
-                        cache[key] <- { entry with LastFailedRefreshAt = Some at }
-                        do! onStaleRefreshFailed Unreachable
-                        return Ok entry.Value.Reveal
+                        if claimed then
+                            let before = Interlocked.Read &generation
+                            let ended = ref false
 
-                    | Error failure, _ ->
-                        // A secret that is gone, a grant that is revoked, a
-                        // store that is not set up, or the grace period over:
-                        // waiting will not change the answer, so a stale value
-                        // must not hide it (FR-014).
-                        cache.TryRemove key |> ignore
-                        return Error failure
+                            let! fetched =
+                                task {
+                                    try
+                                        let! result =
+                                            match this.For reference.Store with
+                                            | Ok store -> store.Get(reference, cancellationToken)
+                                            | Error failure -> Task.FromResult(Error failure)
+
+                                        ended.Value <- true
+                                        return result
+                                    finally
+                                        // A call that threw (the caller's own
+                                        // cancellation) must not leave the mark up
+                                        // for the whole bound.
+                                        if not ended.Value then
+                                            match held, cache.TryGetValue key with
+                                            | Some _, (true, current) when current.RefreshingSince.IsSome ->
+                                                cache.TryUpdate(key, { current with RefreshingSince = None }, current) |> ignore
+                                            | _ -> ()
+                                }
+
+                            // After the call, which may have taken up to the bound.
+                            let at = clock.GetUtcNow()
+                            let evictedMeanwhile () = Interlocked.Read &generation <> before
+
+                            // The entry is written and then the count is looked at
+                            // once more: an eviction that landed between the first
+                            // look and the write found nothing to remove, so the
+                            // write has to be undone here.
+                            let put (entry: Entry) =
+                                if not (evictedMeanwhile ()) then
+                                    cache[key] <- entry
+
+                                    if evictedMeanwhile () then
+                                        cache.TryRemove key |> ignore
+
+                            match fetched, held with
+                            | Ok value, _ ->
+                                put
+                                    { Value = Protected.Of value
+                                      FetchedAt = at
+                                      LastFailedRefreshAt = None
+                                      RefreshingSince = None }
+
+                                answer <- Some(Ok value)
+
+                            // An entry evicted while the store was being asked is a
+                            // value the operator has replaced: it is not served, not
+                            // even from the grace period.
+                            | Error Unreachable, Some entry when withinGrace entry at && not (evictedMeanwhile ()) ->
+                                put
+                                    { entry with
+                                        LastFailedRefreshAt = Some at
+                                        RefreshingSince = None }
+
+                                do! onStaleRefreshFailed Unreachable
+                                answer <- Some(Ok entry.Value.Reveal)
+
+                            | Error failure, _ ->
+                                // A secret that is gone, a grant that is revoked, a
+                                // store that is not set up, or the grace period over:
+                                // waiting will not change the answer, so a stale value
+                                // must not hide it (FR-014).
+                                cache.TryRemove key |> ignore
+                                answer <- Some(Error failure)
+
+                return answer.Value
         }
 
     /// `Read` for a caller with no event to record.
@@ -291,15 +383,21 @@ type SecretStores
         this.Read(reference, (fun _ -> Task.FromResult()), cancellationToken)
 
     /// Forgets what is held for this reference, so the next read asks the
-    /// store. Replace, delete and move call it (FR-013). Counted before the
-    /// removal, so that a read already in flight sees the count move and does
-    /// not put its older value back.
+    /// store. Replace, delete and move call it (FR-013). The count moves before
+    /// the removal, so that a read already in flight sees it move and does not
+    /// put its older value back.
     member _.Evict(reference: SecretRef) : unit =
-        let key = reference.Encoded
-        evictions.AddOrUpdate(key, 1L, (fun _ count -> count + 1L)) |> ignore
-        cache.TryRemove key |> ignore
+        Interlocked.Increment &generation |> ignore
+        cache.TryRemove reference.Encoded |> ignore
 
-    /// Whether this instance could read a reference of this store, decided
-    /// without a network call: the Connectors screen asks it for every card.
-    member _.CanRead(storeId: string) : bool =
-        storeId = LocalStoreId || others.ContainsKey storeId
+    /// Whether this instance could read a reference of this store: whether the
+    /// store can be built here. Building makes no network call, but it does load
+    /// the vendor's assembly, which is acceptable because the Connectors screen
+    /// asks only about a store some card names, and such a store is about to be
+    /// used anyway. A store whose credentials are present but unusable (a Bella
+    /// key that does not parse, a credential file that cannot be read) is not
+    /// readable, which is what the card should say (FR-021).
+    member this.CanRead(storeId: string) : bool =
+        match this.For storeId with
+        | Ok _ -> true
+        | Error _ -> false

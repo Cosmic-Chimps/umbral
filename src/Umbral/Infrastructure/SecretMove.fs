@@ -30,10 +30,14 @@ type private Outcome =
     | WouldMove
     | InPlace
     | ChangedMeanwhile
+    /// Somebody else held the connector's lease: the admin screen (an edit) or
+    /// another run of this command.
+    | Busy
     | Failed
 
-/// Moves one connector whose secret is in `source`. Writes its own report line.
-let private moveOne
+/// Moves one connector whose secret is in `source`, while holding its lease.
+/// Writes its own report line.
+let private moveLocked
     (stores: SecretStores)
     (settings: SecretStoreSettings)
     (dbConfig: Database.DbConfig)
@@ -53,7 +57,7 @@ let private moveOne
         let failed (store: string) (op: string) (cause: StoreFailure) =
             task {
                 do! SecurityEvents.recordStoreFailure dbConfig clock SecurityEvents.Actor.System slug None store op cause
-                write (t.MoveFailed slug source.Store target.Id (t.MoveStoreFailure store cause.Cause))
+                write (t.MoveFailed slug source.Store target.Id (t.MoveStoreFailure store cause))
                 return Failed
             }
 
@@ -97,14 +101,25 @@ let private moveOne
                 Detail = Some $"from={source.Store};to={target.Id}" }
 
         match! ConnectorStore.switchSecretRef dbConfig clock slug connector.ClientSecretRef copy.Encoded moved with
-        | false ->
-            // Somebody replaced the secret or deleted the connector while this
-            // was copying. What was just written is left alone rather than
-            // deleted: a replace derives the very same name, so deleting it
-            // could remove the secret the operator has just entered.
+        | ConnectorStore.Changed ->
+            // Somebody replaced the secret while this was copying (the lease
+            // makes that rare: the admin screen declines while it is held). What
+            // was just written is left alone rather than deleted: a replace
+            // derives the very same name, so deleting it could remove the secret
+            // the operator has just entered.
             write (t.MoveChangedMeanwhile slug)
             return ChangedMeanwhile
-        | true ->
+        | ConnectorStore.Gone ->
+            // The connector was deleted while this was copying, and nothing
+            // refers to the copy: remove it, or it outlives the connector in the
+            // manager. Safe to delete, because a connector created again under
+            // this slug gets another name (its `created_utc` differs). Best
+            // effort: a store that refuses leaves an unreferenced secret.
+            let! _ = target.Delete(copy, none)
+            stores.Evict copy
+            write (t.MoveChangedMeanwhile slug)
+            return ChangedMeanwhile
+        | ConnectorStore.Switched ->
             stores.Evict source
 
             match! sourceStore.Delete(source, none) with
@@ -115,8 +130,48 @@ let private moveOne
                 // Already moved, so nothing is lost and the exit stays 0; the
                 // operator is told what to remove by hand and where.
                 let leftover = (SecretName.derive settings.Prefix slug connector.CreatedUtc).In source.Store
-                write (t.MoveLeftBehind slug source.Store target.Id cause.Cause leftover)
+                write (t.MoveLeftBehind slug source.Store target.Id cause leftover)
                 return Moved
+    }
+
+/// Moves one connector, under the lease on its secret. The move reads the
+/// source, writes the target and switches the row over several calls to a
+/// manager, and an operator replacing the secret writes the very same derived
+/// name; without the lease a move that read the old value could write it after
+/// the replace and leave it as the manager's latest version while the row names
+/// the new one. The row is read again once the lease is held, because the one
+/// the run listed may be minutes old.
+let private moveOne
+    (stores: SecretStores)
+    (settings: SecretStoreSettings)
+    (dbConfig: Database.DbConfig)
+    (clock: System.TimeProvider)
+    (write: string -> unit)
+    (connector: Connector)
+    (source: SecretRef)
+    : Task<Outcome> =
+    task {
+        let t = Texts.current ()
+
+        let! outcome =
+            ConnectorStore.withLease dbConfig clock connector.Slug (fun () ->
+                task {
+                    let! current = ConnectorStore.findBySlug dbConfig connector.Slug
+
+                    match current with
+                    | Some row when row.ClientSecretRef = connector.ClientSecretRef ->
+                        return! moveLocked stores settings dbConfig clock write row source
+                    | _ ->
+                        // Replaced or deleted since the run listed it.
+                        write (t.MoveChangedMeanwhile connector.Slug)
+                        return ChangedMeanwhile
+                })
+
+        match outcome with
+        | Some result -> return result
+        | None ->
+            write (t.MoveBusy connector.Slug)
+            return Busy
     }
 
 /// Runs the command. `dryRun` makes no call to any store and writes nothing: it
@@ -159,7 +214,7 @@ let run
         write ""
 
         write (
-            t.MoveSummary dryRun results.Count (count [ Moved; WouldMove ]) (count [ InPlace ]) (count [ ChangedMeanwhile ]) failed
+            t.MoveSummary dryRun results.Count (count [ Moved; WouldMove ]) (count [ InPlace ]) (count [ ChangedMeanwhile; Busy ]) failed
         )
 
         return if failed > 0 then 1 else 0

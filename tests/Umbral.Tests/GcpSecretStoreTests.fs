@@ -434,3 +434,61 @@ let ``the callers own cancellation is not turned into a failure`` () =
 
         Assert.IsAssignableFrom<OperationCanceledException> outcome |> ignore
     }
+
+// --- token acquisition failures -----------------------------------------------
+
+/// Hands the credential a handler of the test's own for its calls to the token
+/// endpoint, so the token call can fail the way Google's can.
+type private TokenHandlerFactory(handler: HttpMessageHandler) =
+    inherit Google.Apis.Http.HttpClientFactory()
+    override _.CreateHandler(_args) = handler
+
+/// A service-account credential whose token endpoint is `tokenHandler`: the
+/// first thing a call does is ask it for a token.
+let private credentialOver (tokenHandler: HttpMessageHandler) =
+    use rsa = System.Security.Cryptography.RSA.Create 2048
+    let key = rsa.ExportPkcs8PrivateKeyPem()
+
+    let initializer =
+        ServiceAccountCredential.Initializer("umbral@proj-1.iam.gserviceaccount.com", "https://tokens.test/token")
+
+    initializer.HttpClientFactory <- TokenHandlerFactory tokenHandler
+    GoogleCredential.FromServiceAccountCredential(ServiceAccountCredential(initializer.FromPrivateKey key))
+
+let private tokenFailure (respond: unit -> Task<HttpResponseMessage>) =
+    { new HttpMessageHandler() with
+        member _.SendAsync(_request, _cancellationToken) = respond () }
+
+[<Theory>]
+[<InlineData(500, "unreachable")>]
+[<InlineData(503, "unreachable")>]
+[<InlineData(429, "unreachable")>]
+[<InlineData(400, "access_denied")>]
+[<InlineData(401, "access_denied")>]
+let ``a token endpoint that answers with a status maps by the status`` (code: int, expected: string) =
+    task {
+        let handler =
+            tokenFailure (fun () ->
+                Task.FromResult(json (enum<HttpStatusCode> code) """{"error":"invalid_grant","error_description":"x"}"""))
+
+        let api = fake (fun _ -> status 200)
+        let store = create { options api with Credential = Some(credentialOver handler) }
+        let! result = store.Probe none
+
+        let wanted = if expected = "unreachable" then Unreachable else AccessDenied
+        Assert.Equal(Error wanted, result)
+        // Nothing was sent to the manager without a token.
+        Assert.Empty api.Requests
+    }
+
+[<Fact>]
+let ``a network failure reaching the token endpoint is unreachable`` () =
+    task {
+        let handler = tokenFailure (fun () -> Task.FromException<HttpResponseMessage>(HttpRequestException "dead network"))
+        let api = fake (fun _ -> status 200)
+        let store = create { options api with Credential = Some(credentialOver handler) }
+        let! result = store.Probe none
+
+        Assert.Equal(Error Unreachable, result)
+        Assert.Empty api.Requests
+    }

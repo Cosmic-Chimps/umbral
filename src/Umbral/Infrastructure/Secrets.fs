@@ -79,6 +79,31 @@ type StoreFailure =
         | NotConfigured -> "not_configured"
         | Rejected _ -> "rejected"
 
+    /// The `Rejected` reasons the product has words for, each a closed code an
+    /// adapter sets itself. Any other reason is an exception type name or a
+    /// status code, which is for a developer and never reaches an operator.
+    static member KnownRejections = [ "soft_deleted"; "provider_ambiguous"; "location_not_found" ]
+
+    /// What a notice cookie carries to say which failure it is about: the cause
+    /// word, and for a `Rejected` with a known reason that reason too. It is
+    /// read back with `OfCode`, which never rebuilds a reason that is not known.
+    member this.Code =
+        match this with
+        | Rejected reason when List.contains reason StoreFailure.KnownRejections -> $"rejected:{reason}"
+        | _ -> this.Cause
+
+    static member OfCode(code: string) : StoreFailure option =
+        match code with
+        | "unreachable" -> Some Unreachable
+        | "access_denied" -> Some AccessDenied
+        | "not_found" -> Some NotFound
+        | "not_configured" -> Some NotConfigured
+        | "rejected" -> Some(Rejected "")
+        | other when other.StartsWith "rejected:" ->
+            let reason = other.Substring "rejected:".Length
+            if List.contains reason StoreFailure.KnownRejections then Some(Rejected reason) else None
+        | _ -> None
+
 /// The logical name of a connector's secret, before any store renders it.
 ///
 /// It is derived, not random, so that a retried write (or a move that is run

@@ -340,3 +340,212 @@ let ``a read in flight when the secret is replaced does not put the old value ba
         Assert.Equal(Ok "new-value", second)
         Assert.Equal(2, store.Gets)
     }
+
+/// A registry over `store`, with the cache on, for the tests that gate a store.
+let private gatedRegistry (clock: FakeTimeProvider) (store: ISecretStore) =
+    SecretStores(
+        LocalSecretStore(EphemeralDataProtectionProvider()),
+        "aws",
+        Map [ "aws", lazy (Ok store) ],
+        TimeSpan.FromSeconds 5.,
+        clock,
+        lifetime,
+        grace
+    )
+
+[<Fact>]
+let ``while one refresh of an expired entry is in flight, other readers get the stale value without calling the store or raising an event`` () =
+    task {
+        let clock = FakeTimeProvider(DateTimeOffset.UtcNow)
+        let store = GatedStore "aws"
+        let registry = gatedRegistry clock store
+        let reference = { Store = "aws"; Locator = "umbral-home-aaaaaaaa" }
+        let events = ResizeArray<StoreFailure>()
+
+        let read () =
+            registry.Read(
+                reference,
+                (fun failure ->
+                    events.Add failure
+                    Task.FromResult()),
+                CancellationToken.None
+            )
+
+        store.Answer(Ok "v1")
+        let! first = read ()
+        Assert.Equal(Ok "v1", first)
+
+        // Expired, within the grace period; the manager is slow to answer.
+        clock.Advance(seconds 301.)
+        store.Rearm()
+        let refreshing = read ()
+        Assert.Equal(2, store.Gets)
+
+        // Readers that arrive meanwhile do not wait for it and do not ask.
+        let others = [ for _ in 1..5 -> read () ]
+        Assert.True(others |> List.forall (fun t -> t.IsCompleted), "readers behind a refresh in flight must not wait for the store")
+
+        for other in others do
+            Assert.Equal(Ok "v1", other.Result)
+
+        Assert.Equal(2, store.Gets)
+        Assert.Empty events
+
+        // The refresh fails: that reader reports the one event, and the entry
+        // keeps serving without a call for the next 30 seconds.
+        store.Answer(Error Unreachable)
+        let! stale = refreshing
+        Assert.Equal(Ok "v1", stale)
+        Assert.Equal<StoreFailure list>([ Unreachable ], List.ofSeq events)
+
+        let! quiet = read ()
+        Assert.Equal(Ok "v1", quiet)
+        Assert.Equal(2, store.Gets)
+        Assert.Equal(1, events.Count)
+    }
+
+[<Fact>]
+let ``a refresh in flight that never ended is ignored once the bound and a margin have passed`` () =
+    task {
+        let clock = FakeTimeProvider(DateTimeOffset.UtcNow)
+        let store = GatedStore "aws"
+        let registry = gatedRegistry clock store
+        let reference = { Store = "aws"; Locator = "umbral-home-aaaaaaaa" }
+
+        store.Answer(Ok "v1")
+        let! _ = registry.Read(reference, CancellationToken.None)
+
+        clock.Advance(seconds 301.)
+        store.Rearm()
+        let _abandoned = registry.Read(reference, CancellationToken.None)
+        Assert.Equal(2, store.Gets)
+
+        // Its reader is gone: after the 5 second bound and the margin the entry
+        // is refreshed by the next reader.
+        clock.Advance(seconds 11.)
+        store.Rearm()
+        store.Answer(Ok "v2")
+        let! next = registry.Read(reference, CancellationToken.None)
+        Assert.Equal(Ok "v2", next)
+        Assert.Equal(3, store.Gets)
+    }
+
+[<Fact>]
+let ``an eviction that lands while a read is in flight discards that read for any reference`` () =
+    task {
+        // One counter for the whole registry: a read overlapping ANY eviction
+        // writes nothing back. That costs a miss, never a stale value.
+        let clock = FakeTimeProvider(DateTimeOffset.UtcNow)
+        let store = GatedStore "aws"
+        let registry = gatedRegistry clock store
+        let reference = { Store = "aws"; Locator = "umbral-home-aaaaaaaa" }
+        let other = { Store = "aws"; Locator = "umbral-other-bbbbbbbb" }
+
+        let inFlight = registry.Read(reference, CancellationToken.None)
+        registry.Evict other
+        store.Answer(Ok "v1")
+        let! first = inFlight
+        Assert.Equal(Ok "v1", first)
+
+        store.Rearm()
+        store.Answer(Ok "v2")
+        let! second = registry.Read(reference, CancellationToken.None)
+        Assert.Equal(Ok "v2", second)
+        Assert.Equal(2, store.Gets)
+    }
+
+/// A store whose Put fails the way the test says.
+let private failingPutRegistry (failure: StoreFailure option) =
+    let store = InMemorySecretStore "aws"
+    let clock = FakeTimeProvider(DateTimeOffset.UtcNow)
+
+    let registry =
+        SecretStores(
+            LocalSecretStore(EphemeralDataProtectionProvider()),
+            "aws",
+            Map [ "aws", lazy (Ok(store :> ISecretStore)) ],
+            TimeSpan.FromSeconds 5.,
+            clock,
+            lifetime,
+            grace
+        )
+
+    failure |> Option.iter store.FailEveryCall
+    store, registry
+
+[<Fact>]
+let ``a failed save to the active store raises the notice, and a good one clears it`` () =
+    task {
+        let name = SecretName.derive "umbral" "home" DateTimeOffset.UtcNow
+
+        for failure in [ Unreachable; AccessDenied; NotConfigured; Rejected "soft_deleted" ] do
+            let store, registry = failingPutRegistry (Some failure)
+            Assert.Equal(Healthy, registry.Status.Current)
+
+            let! put = registry.Active.Put(name, secret, CancellationToken.None)
+            Assert.Equal(Error failure, put)
+
+            match registry.Status.Current with
+            | Failed(raised, _) -> Assert.Equal(failure, raised)
+            | Healthy -> failwith $"{failure} did not raise the notice"
+
+            store.Recover()
+            let! _ = registry.Active.Put(name, secret, CancellationToken.None)
+            Assert.Equal(Healthy, registry.Status.Current)
+    }
+
+[<Fact>]
+let ``a save that the store answers with not found leaves the notice alone`` () =
+    task {
+        let _, registry = failingPutRegistry (Some NotFound)
+        let name = SecretName.derive "umbral" "home" DateTimeOffset.UtcNow
+        let! _ = registry.Active.Put(name, secret, CancellationToken.None)
+        Assert.Equal(Healthy, registry.Status.Current)
+    }
+
+/// A store that ignores the cancellation token, as an SDK may.
+type private DeafStore(id: string) =
+    member val Pending = TaskCompletionSource<Result<string, StoreFailure>>() with get
+
+    interface ISecretStore with
+        member _.Id = id
+        member _.Put(name, _, _) = Task.FromResult(Ok { Store = id; Locator = name.Cloud })
+        member this.Get(_, _) = this.Pending.Task
+        member _.Delete(_, _) = Task.FromResult(Ok())
+        member _.Probe _ = Task.FromResult(Ok())
+
+[<Fact>]
+let ``a store that ignores its token still ends as unreachable, and its late failure is observed`` () =
+    task {
+        let store = DeafStore "aws"
+
+        let registry =
+            SecretStores(
+                LocalSecretStore(EphemeralDataProtectionProvider()),
+                "aws",
+                Map [ "aws", lazy (Ok(store :> ISecretStore)) ],
+                TimeSpan.FromMilliseconds 50.
+            )
+
+        let unobserved = ResizeArray<exn>()
+        let handler = EventHandler<UnobservedTaskExceptionEventArgs>(fun _ e -> unobserved.Add e.Exception)
+        TaskScheduler.UnobservedTaskException.AddHandler handler
+
+        try
+            let reference = { Store = "aws"; Locator = "umbral-home-aaaaaaaa" }
+            let reading = registry.Read(reference, CancellationToken.None)
+            let! finished = Task.WhenAny(reading, Task.Delay(TimeSpan.FromSeconds 10.))
+            Assert.True(Object.ReferenceEquals(finished, reading), "the read must end by the bound plus a second")
+            Assert.Equal(Error Unreachable, reading.Result)
+
+            // The abandoned call fails afterwards; nobody awaits it.
+            store.Pending.SetException(InvalidOperationException "late")
+
+            for _ in 1..3 do
+                GC.Collect()
+                GC.WaitForPendingFinalizers()
+
+            Assert.Empty unobserved
+        finally
+            TaskScheduler.UnobservedTaskException.RemoveHandler handler
+    }

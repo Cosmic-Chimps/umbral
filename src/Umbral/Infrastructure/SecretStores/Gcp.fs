@@ -172,8 +172,15 @@ type GcpSecretStore(options: GcpStoreOptions) =
             // No Application Default Credentials on this machine: the grant is
             // missing, which waiting will not fix, so it reads as denied.
             | :? InvalidOperationException -> return Error AccessDenied
-            // Google refused to issue a token (revoked key, bad assertion).
-            | :? TokenResponseException -> return Error AccessDenied
+            // Google answered the token request with an error. A 4xx says it
+            // refused to issue a token (revoked key, bad assertion), which
+            // waiting will not fix. A 5xx, or "not now" (408, 429), is the
+            // token endpoint having a bad hour, which is an outage like any
+            // other and the cache may ride out.
+            | :? TokenResponseException as refused ->
+                match refused.StatusCode |> Option.ofNullable |> Option.map int with
+                | Some code when code >= 500 || code = 408 || code = 429 -> return Error Unreachable
+                | _ -> return Error AccessDenied
             | ex -> return Error(Rejected(ex.GetType().Name))
         }
 

@@ -170,6 +170,29 @@ let ``zero or several secrets providers without a configured one are rejected as
     }
 
 [<Fact>]
+let ``a 404 while finding the provider says the configured location does not exist, not that a secret is gone`` () =
+    task {
+        // The environment (or the project) is not there: listing its providers 404s.
+        let fake = synchronous (fun _ -> status HttpStatusCode.NotFound)
+        let store = storeWith (options fake)
+
+        let! put = store.Put(name, "s3cr3t", none)
+        Assert.Equal(Error(Rejected "location_not_found"), put)
+
+        // The probe says the same, rather than reading the 404 as the healthy answer.
+        let! probe = store.Probe none
+        Assert.Equal(Error(Rejected "location_not_found"), probe)
+    }
+
+[<Fact>]
+let ``a 404 from the key's own context call says the configured location does not exist`` () =
+    task {
+        let fake = synchronous (fun _ -> status HttpStatusCode.NotFound)
+        let! probe = (storeWith { options fake with Project = None; Environment = None }).Probe none
+        Assert.Equal(Error(Rejected "location_not_found"), probe)
+    }
+
+[<Fact>]
 let ``a configured provider is used without listing the environment's`` () =
     task {
         let fake = synchronous (fun _ -> status HttpStatusCode.OK)

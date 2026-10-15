@@ -17,8 +17,9 @@
 ///
 /// Every factory is a `lazy`, and each store's construction sits in its own
 /// non-inlined function, so building this registry touches no vendor
-/// assembly: a local-only instance loads none (SC-004, SC-006). `CanRead` stays
-/// a lookup, with no network and no credential read.
+/// assembly: a local-only instance loads none (SC-004, SC-006). `CanRead` builds
+/// the store it is asked about, which makes no network call and loads that one
+/// vendor's assembly, and only when a connector's card names the store.
 module Umbral.Infrastructure.SecretStores.Wiring
 
 open System

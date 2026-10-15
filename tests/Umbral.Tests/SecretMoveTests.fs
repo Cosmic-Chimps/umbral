@@ -511,3 +511,214 @@ let ``a source delete that fails prints a warning, returns 0, and the connector 
         let! count = movedEvents app "alpha"
         Assert.Equal("2", count)
     }
+
+// ---------------------------------------------------------------------------
+// The lease on a connector's secret (research R8)
+// ---------------------------------------------------------------------------
+
+/// Runs `beforePut` before the inner store writes, so a test can act between
+/// the move's read of the old value and its write of the copy, or hold an
+/// operator's write open.
+type private HookedStore(inner: ISecretStore, beforePut: (SecretName -> Task<unit>) ref) =
+    interface ISecretStore with
+        member _.Id = inner.Id
+
+        member _.Put(name, value, ct) =
+            task {
+                do! beforePut.Value name
+                return! inner.Put(name, value, ct)
+            }
+
+        member _.Get(reference, ct) = inner.Get(reference, ct)
+        member _.Delete(reference, ct) = inner.Delete(reference, ct)
+        member _.Probe ct = inner.Probe ct
+
+let private replaceForm (secret: string) =
+    [ "clientId", "client-alpha"
+      "clientSecret", secret
+      "displayName", "alpha"
+      "shared", "true" ]
+
+let private replaceLocation (response: HttpResponseMessage) = response.Headers.Location |> string
+
+let private latestOf (store: InMemorySecretStore) (reference: string) =
+    let decoded = SecretRef.Decode reference |> Result.defaultWith failwith
+    store.VersionsOf decoded.Locator |> List.tryLast
+
+[<Fact>]
+let ``an operator's replace during a move is refused, and once the move is done the new secret is the manager's latest version`` () =
+    task {
+        let inner = InMemorySecretStore "aws"
+        let beforePut = ref (fun (_: SecretName) -> Task.FromResult())
+        let! app = startWith (HookedStore(inner, beforePut))
+        use _ = app
+        do! seedLocal app GitHub "alpha" None
+        let operator = Browser app.Client
+        do! claimInstance app operator
+
+        // The move has read the old value; now, before it writes, the operator
+        // replaces the secret. Without the lease this saved, and the move's
+        // write of the OLD value then landed on the same name afterwards.
+        let refused = ref ""
+
+        beforePut.Value <-
+            fun _ ->
+                task {
+                    let! response = operator.PostForm("/admin/connectors", "/admin/connectors/alpha", replaceForm "operator-new-secret")
+                    refused.Value <- replaceLocation response
+                }
+
+        let! code, lines = move app (app.Services.GetRequiredService<SecretStores>()) false
+        Assert.Equal(0, code)
+        Assert.Equal("moved", firstWord (reportLines lines |> List.head))
+        Assert.Contains("connector-secret-busy", refused.Value)
+
+        // Nothing of the refused replace was written; the connector's secret is
+        // the one the move copied.
+        beforePut.Value <- fun _ -> Task.FromResult()
+        let! reference = referenceOf app "alpha"
+        Assert.Equal(Some(plaintextOf "alpha"), latestOf inner reference)
+
+        // The operator saves again, and now it is the latest version.
+        let! saved = operator.PostForm("/admin/connectors", "/admin/connectors/alpha", replaceForm "operator-new-secret")
+        Assert.Contains("connector-saved", replaceLocation saved)
+        let! after = referenceOf app "alpha"
+        Assert.Equal(reference, after)
+        Assert.Equal(Some "operator-new-secret", latestOf inner after)
+    }
+
+[<Fact>]
+let ``a move that meets an operator's replace in flight skips the connector, and the new secret stays the latest version`` () =
+    task {
+        let inner = InMemorySecretStore "aws"
+        let beforePut = ref (fun (_: SecretName) -> Task.FromResult())
+        let! app = startWith (HookedStore(inner, beforePut))
+        use _ = app
+        do! seedLocal app GitHub "alpha" None
+        let operator = Browser app.Client
+        do! claimInstance app operator
+
+        // The operator's write is held open inside the store.
+        let entered = TaskCompletionSource()
+        let release = TaskCompletionSource()
+
+        beforePut.Value <-
+            fun _ ->
+                task {
+                    entered.SetResult()
+                    do! release.Task
+                }
+
+        let replacing = operator.PostForm("/admin/connectors", "/admin/connectors/alpha", replaceForm "operator-new-secret")
+        do! entered.Task
+
+        beforePut.Value <- fun _ -> Task.FromResult()
+        let! code, lines = move app (app.Services.GetRequiredService<SecretStores>()) false
+
+        Assert.Equal(0, code)
+        let line = reportLines lines |> List.head
+        Assert.Equal("skipped", firstWord line)
+        Assert.Contains("being edited; run move-secrets again", line)
+
+        release.SetResult()
+        let! saved = replacing
+        Assert.Contains("connector-saved", replaceLocation saved)
+
+        let! reference = referenceOf app "alpha"
+        Assert.StartsWith("aws:", reference)
+        Assert.Equal(Some "operator-new-secret", latestOf inner reference)
+
+        // Run again: it is already where it goes, and nothing is overwritten.
+        let! _, again = move app (app.Services.GetRequiredService<SecretStores>()) false
+        Assert.Equal("skipped", firstWord (reportLines again |> List.head))
+        Assert.Equal(Some "operator-new-secret", latestOf inner reference)
+    }
+
+[<Fact>]
+let ``a move skips a connector whose lease is held, and moves it once the lease is released`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app = startWith store
+        use _ = app
+        do! seedAll app
+
+        let! taken = ConnectorStore.tryLease app.DbConfig app.Clock "bravo" "someone-editing" ConnectorStore.leaseLength
+        Assert.True taken
+
+        let stores = app.Services.GetRequiredService<SecretStores>()
+        let! code, lines = move app stores false
+
+        Assert.Equal(0, code)
+        Assert.Equal<string list>([ "moved"; "skipped"; "moved" ], reportLines lines |> List.map firstWord)
+        Assert.Contains("being edited; run move-secrets again", lines |> List.find (fun l -> l.Contains "bravo"))
+        let! bravo = referenceOf app "bravo"
+        Assert.StartsWith("local:", bravo)
+
+        do! ConnectorStore.releaseLease app.DbConfig "bravo" "someone-editing"
+        let! code, lines = move app stores false
+        Assert.Equal(0, code)
+        Assert.Equal<string list>([ "skipped"; "moved"; "skipped" ], reportLines lines |> List.map firstWord)
+        do! assertAllIn app "aws"
+    }
+
+[<Fact>]
+let ``a lease is taken by one holder, released only by that holder, and taken over once it has expired`` () =
+    task {
+        let! app = startWith (InMemorySecretStore "aws")
+        use _ = app
+        let take holder = ConnectorStore.tryLease app.DbConfig app.Clock "alpha" holder ConnectorStore.leaseLength
+
+        let! first = take "one"
+        let! second = take "two"
+        Assert.True first
+        Assert.False second
+
+        // Somebody else's release does nothing.
+        do! ConnectorStore.releaseLease app.DbConfig "alpha" "two"
+        let! stillHeld = take "two"
+        Assert.False stillHeld
+
+        // Past its length the lease is the next taker's.
+        app.Clock.Advance(TimeSpan.FromMinutes 2. + TimeSpan.FromSeconds 1.)
+        let! takenOver = take "two"
+        Assert.True takenOver
+
+        // The first holder's late release must not remove the new holder's lease.
+        do! ConnectorStore.releaseLease app.DbConfig "alpha" "one"
+        let! stillTwos = take "three"
+        Assert.False stillTwos
+
+        do! ConnectorStore.releaseLease app.DbConfig "alpha" "two"
+        let! free = take "three"
+        Assert.True free
+    }
+
+[<Fact>]
+let ``a move deletes the copy it wrote when the connector was deleted while it was copying`` () =
+    task {
+        let inner = InMemorySecretStore "aws"
+        let appRef = ref Unchecked.defaultof<Fixtures.TestApp>
+
+        // The row is deleted straight from the table, as a delete that did not
+        // honour the lease would have.
+        let rival (name: SecretName) =
+            task {
+                if name.Slug = "alpha" then
+                    let! _ = ConnectorStore.delete appRef.Value.DbConfig "alpha"
+                    ()
+            }
+
+        let! app = startWith (RacingStore(inner, rival))
+        use _ = app
+        appRef.Value <- app
+        do! seedLocal app GitHub "alpha" None
+
+        let! code, lines = move app (app.Services.GetRequiredService<SecretStores>()) false
+
+        Assert.Equal(0, code)
+        Assert.Equal("skipped", firstWord (reportLines lines |> List.head))
+        // The copy did not outlive the connector.
+        Assert.Empty inner.Locators
+        let! moved = movedEvents app "alpha"
+        Assert.Equal("0", moved)
+    }

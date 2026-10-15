@@ -100,8 +100,8 @@ let ``the active external store does not make the others readable`` () =
 let ``a Bella reader without a usable credential is registered as unreadable, not as a crash`` () =
     // The variable is present (so a reader is registered) but holds no key the
     // client would accept: the registry answers NotConfigured instead of
-    // throwing, and the card says so (FR-021).
+    // throwing, and `CanRead` says no, so the card warns (FR-021).
     let stores = build [ "BELLA_BAXTER_API_KEY", "not-a-bax-key" ]
 
-    Assert.True(stores.CanRead "bellabaxter")
+    Assert.False(stores.CanRead "bellabaxter")
     Assert.Equal(Error Secrets.NotConfigured, stores.For "bellabaxter" |> Result.map (fun s -> s.Id))

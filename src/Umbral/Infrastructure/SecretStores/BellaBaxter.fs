@@ -130,6 +130,15 @@ let private failureOf (ex: exn) : StoreFailure =
         | :? OperationCanceledException -> Unreachable
         | _ -> Rejected(ex.GetType().Name)
 
+/// `failureOf` for the calls that find the project, the environment and the
+/// provider. A 404 there is not "the secret is gone": it says the configured
+/// names do not exist, which the operator fixes in the settings, so it gets its
+/// own closed code (Texts.fs says which settings to look at).
+let private resolutionFailureOf (ex: exn) : StoreFailure =
+    match statusOf ex with
+    | Some 404 -> Rejected "location_not_found"
+    | _ -> failureOf ex
+
 /// Runs a call and hands back what it threw, except the caller's own
 /// cancellation, which stays theirs (the registry turns its bound into
 /// `Unreachable`; see Registry.fs).
@@ -268,7 +277,7 @@ type BellaBaxterSecretStore(options: BellaStoreOptions) =
                     let! me = attempt cancellationToken (fun () -> bella.Api.V1.Keys.Me.GetAsync(cancellationToken = cancellationToken))
 
                     match me with
-                    | Error ex -> return Error(failureOf ex)
+                    | Error ex -> return Error(resolutionFailureOf ex)
                     | Ok answer ->
                       match Option.ofObj answer with
                       | None -> return Error shapeError
@@ -291,7 +300,7 @@ type BellaBaxterSecretStore(options: BellaStoreOptions) =
                         bella.Api.V1.Projects[project].Environments[environment].Providers.GetAsync(cancellationToken = cancellationToken))
 
                 match listed with
-                | Error ex -> return Error(failureOf ex)
+                | Error ex -> return Error(resolutionFailureOf ex)
                 | Ok answer ->
                   match Option.ofObj answer with
                   | None -> return Error shapeError

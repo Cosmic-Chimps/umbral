@@ -368,8 +368,10 @@ let configureApp (app: WebApplication) =
 /// is logged with what to check, recorded as a `secret_store_failed` event, and
 /// kept in the registry's status for the Connectors screen.
 ///
-/// "Not found" is the healthy answer, since the probe reads a name that does not
-/// exist. The registry bounds the call at 10 seconds. `/healthz` does not look
+/// Each adapter's probe reads a name that does not exist and maps the 404 that
+/// answers to success, so a `NotFound` that reaches here means something else
+/// was not found (a project, a vault) and is a failure like any other. The
+/// registry bounds the call at 10 seconds. `/healthz` does not look
 /// at this: a restart cannot repair a manager.
 let private probeSecretStore (app: WebApplication) (dbConfig: Database.DbConfig) =
     task {
@@ -379,8 +381,7 @@ let private probeSecretStore (app: WebApplication) (dbConfig: Database.DbConfig)
         if active.Id <> Secrets.LocalStoreId then
             try
                 match! active.Probe Threading.CancellationToken.None with
-                | Ok ()
-                | Error Secrets.NotFound -> ()
+                | Ok () -> ()
                 | Error failure ->
                     let clock = app.Services.GetRequiredService<TimeProvider>()
                     secrets.Status.Fail(failure, clock.GetUtcNow())
@@ -388,7 +389,7 @@ let private probeSecretStore (app: WebApplication) (dbConfig: Database.DbConfig)
                     app.Services
                         .GetRequiredService<ILoggerFactory>()
                         .CreateLogger("Umbral.SecretStores")
-                        .LogWarning(Texts.current().SecretStoreProbeWarning active.Id failure.Cause)
+                        .LogWarning(Texts.current().SecretStoreProbeWarning active.Id failure)
 
                     do! SecurityEvents.recordStoreProbeFailed dbConfig clock active.Id failure
             with ex ->

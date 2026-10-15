@@ -420,6 +420,197 @@ let ``deleting a connector deletes its secret from the store`` () =
     }
 
 [<Fact>]
+let ``created, updated and deleted events carry the store that holds the secret`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+        let! created = events app "connector_created"
+        Assert.Equal("operator|success|work-github|store=aws", created)
+
+        // Saving without a new secret changes no secret: no store to name.
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/work-github", [ "clientId", "gh-client"; "displayName", "Renamed" ])
+        let! renamed = events app "connector_updated"
+        Assert.Equal("operator|success|work-github|", renamed)
+
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/work-github", [ "clientId", "gh-client"; "clientSecret", "another-secret-value" ])
+        let! updated = events app "connector_updated"
+        Assert.Equal("operator|success|work-github| ; operator|success|work-github|store=aws", updated)
+
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/work-github/delete", [])
+        let! deleted = events app "connector_deleted"
+        Assert.Equal("operator|success|work-github|store=aws", deleted)
+    }
+
+[<Fact>]
+let ``a replace is refused while a move holds the connector's lease, and a delete too, saving nothing`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+        let name = (namesFor store "work-github").Head
+        let! before = referenceOf app "work-github"
+        let callsBefore = store.CallCount
+
+        let! taken = ConnectorStore.tryLease app.DbConfig app.Clock "work-github" "a-move" ConnectorStore.leaseLength
+        Assert.True taken
+
+        let! replaced =
+            operator.PostForm("/admin/connectors", "/admin/connectors/work-github", [ "clientId", "gh-client"; "clientSecret", "replacement-secret-value" ])
+
+        Assert.Contains("connector-secret-busy", location replaced)
+        let! screen = operator.GetHtml(location replaced)
+        Assert.Contains("data-notice=\"connector-secret-busy\"", screen)
+        Assert.Contains("A secret move is working on this connector. Try again in a minute.", screen)
+
+        let! deleted = operator.PostForm("/admin/connectors", "/admin/connectors/work-github/delete", [])
+        Assert.Contains("connector-secret-busy", location deleted)
+
+        // Nothing was written, replaced or deleted, anywhere.
+        Assert.Equal(callsBefore, store.CallCount)
+        Assert.Equal<string list>([ plaintext ], store.VersionsOf $"mem/{name}")
+        let! after = referenceOf app "work-github"
+        Assert.Equal(before, after)
+
+        // Released: the same replace goes through.
+        do! ConnectorStore.releaseLease app.DbConfig "work-github" "a-move"
+
+        let! again =
+            operator.PostForm("/admin/connectors", "/admin/connectors/work-github", [ "clientId", "gh-client"; "clientSecret", "replacement-secret-value" ])
+
+        Assert.Contains("connector-saved", location again)
+        Assert.Equal<string list>([ plaintext; "replacement-secret-value" ], store.VersionsOf $"mem/{name}")
+
+        // And the lease is not left behind by a finished save.
+        let! free = ConnectorStore.tryLease app.DbConfig app.Clock "work-github" "next" ConnectorStore.leaseLength
+        Assert.True free
+    }
+
+[<Fact>]
+let ``a lease that expired does not block the admin screen`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+
+        let! _ = ConnectorStore.tryLease app.DbConfig app.Clock "work-github" "a-dead-move" ConnectorStore.leaseLength
+        app.Clock.Advance(TimeSpan.FromMinutes 3.)
+
+        let! replaced =
+            operator.PostForm("/admin/connectors", "/admin/connectors/work-github", [ "clientId", "gh-client"; "clientSecret", "replacement-secret-value" ])
+
+        Assert.Contains("connector-saved", location replaced)
+    }
+
+[<Fact>]
+let ``a replace that keeps the secret in the same store never deletes the old copy, even if its locator reads differently`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+
+        // The row names the same secret under another spelling of its locator
+        // (the way GCP names a project by id or by number).
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-github"
+        let respelled = { Store = "aws"; Locator = "mem/respelled-locator" }
+        do! ConnectorStore.save app.DbConfig app.Clock stored.Value (Some(respelled.Encoded, "hint"))
+
+        let callsBefore = store.CallCount
+
+        let! saved =
+            operator.PostForm("/admin/connectors", "/admin/connectors/work-github", [ "clientId", "gh-client"; "clientSecret", "replacement-secret-value" ])
+
+        Assert.Contains("connector-saved", location saved)
+        let calls = store.Calls |> List.skip callsBefore
+        Assert.Equal<string list>([ "put" ], calls |> List.map (fun c -> c.Op))
+    }
+
+[<Fact>]
+let ``a replace that moves the secret between stores and cannot remove the old copy says the connector was saved`` () =
+    task {
+        let aws = InMemorySecretStore "aws"
+        let gcp = InMemorySecretStore "gcp"
+
+        let! app =
+            Fixtures.createAppWithProviderHandler
+                (create issuer :> HttpMessageHandler)
+                (fakeSettings @ awsSettings)
+                (Fixtures.withSecretStores [ aws :> ISecretStore; gcp ] "aws")
+
+        use _ = app
+        let operator = Browser app.Client
+        do! claimInstance app operator
+        do! addFakeConnector app "fake-connector-secret-value"
+
+        let now = app.Clock.GetUtcNow()
+        let old = { Store = "gcp"; Locator = "mem/old-copy" }
+
+        let! _ =
+            ConnectorStore.create
+                app.DbConfig
+                now
+                { Slug = "github"
+                  Kind = ProviderKind.GitHub
+                  DisplayName = "GitHub"
+                  ClientId = "gh-client"
+                  ClientSecretRef = ""
+                  ClientSecretHint = ""
+                  IssuerUrl = None
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = now
+                  UpdatedUtc = now }
+                (old.Encoded, "hint")
+
+        gcp.FailEveryCall Unreachable
+
+        let! saved =
+            operator.PostForm("/admin/connectors", "/admin/connectors/github", [ "displayName", "GitHub"; "clientId", "gh-client"; "clientSecret", plaintext ])
+
+        Assert.Contains("connector-secret-replaced-left-behind", location saved)
+        let! screen = operator.GetHtml(location saved)
+        Assert.Contains("data-notice=\"connector-secret-replaced-left-behind\"", screen)
+        Assert.Contains("The connector was saved, but its previous secret could not be removed from Google Cloud Secret Manager", screen)
+        Assert.DoesNotContain("was deleted", screen)
+
+        let! after = referenceOf app "github"
+        Assert.StartsWith("aws:", after)
+    }
+
+[<Fact>]
+let ``deleting removes exactly the reference the deleted row held`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+
+        // The reference the row holds NOW, after a move or a replace changed it
+        // since the page the operator was looking at was drawn.
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-github"
+        let current = { Store = "aws"; Locator = "mem/the-current-copy" }
+        do! ConnectorStore.save app.DbConfig app.Clock stored.Value (Some(current.Encoded, "hint"))
+
+        let! returned = ConnectorStore.delete app.DbConfig "work-github"
+        Assert.Equal(Some current.Encoded, returned)
+
+        let! absent = ConnectorStore.delete app.DbConfig "work-github"
+        Assert.Equal(None, absent)
+
+        // Through the handler the store is asked to delete that reference.
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "second-github")
+        let! second = referenceOf app "second-github"
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/second-github/delete", [])
+        let target = (SecretRef.Decode second |> Result.defaultWith failwith).Locator
+        Assert.Contains({ Op = "delete"; Target = Some target }, store.Calls)
+    }
+
+[<Fact>]
 let ``a store that refuses the delete leaves the connector gone, records both events and names the secret`` () =
     task {
         let store = InMemorySecretStore "aws"
@@ -437,7 +628,7 @@ let ``a store that refuses the delete leaves the connector gone, records both ev
         Assert.True stored.IsNone
 
         let! removed = events app "connector_deleted"
-        Assert.Equal("operator|success|work-github|", removed)
+        Assert.Equal("operator|success|work-github|store=aws", removed)
 
         let! failed = events app "secret_store_failed"
         Assert.Equal("operator|failure|work-github|store=aws;op=delete;cause=unreachable", failed)
@@ -739,6 +930,42 @@ let ``a card whose reference names a store this instance cannot build warns, wit
         Assert.DoesNotContain("data-secret-unreadable", cardOf html "home")
     }
 
+[<Fact>]
+let ``a card whose store has credentials in the environment that cannot be used warns that it is unreadable`` () =
+    task {
+        // A Bella key is present (so a reader is registered) but does not parse:
+        // the store cannot be built, so the card must not claim it can be read.
+        let! app =
+            Fixtures.createAppWithProviderHandler
+                (create issuer :> HttpMessageHandler)
+                (fakeSettings @ [ "BELLA_BAXTER_API_KEY", "not-a-bax-key" ])
+                ignore
+
+        use _ = app
+        let operator = Browser app.Client
+        do! claimInstance app operator
+
+        do!
+            ConnectorStore.save
+                app.DbConfig
+                app.Clock
+                { Slug = "github"
+                  Kind = ProviderKind.GitHub
+                  DisplayName = "GitHub"
+                  ClientId = "gh-client"
+                  ClientSecretRef = "bellabaxter:UMBRAL_UMBRAL_GITHUB_ABCDEFGH"
+                  ClientSecretHint = "••••••••abcd"
+                  IssuerUrl = None
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = app.Clock.GetUtcNow()
+                  UpdatedUtc = app.Clock.GetUtcNow() }
+                None
+
+        let! html = operator.GetHtml "/admin/connectors"
+        Assert.Contains("data-secret-unreadable", cardOf html "github")
+    }
+
 [<Theory>]
 [<InlineData("unreachable")>]
 [<InlineData("access_denied")>]
@@ -793,9 +1020,9 @@ let ``a successful save to the store clears the startup notice`` () =
     }
 
 [<Fact>]
-let ``a probe answering not found, or succeeding, shows no notice and records nothing`` () =
+let ``a probe succeeding shows no notice and records nothing`` () =
     task {
-        for failure in [ Some NotFound; None ] do
+        for failure in [ None ] do
             let store = InMemorySecretStore "aws"
             failure |> Option.iter store.FailEveryCall
 
@@ -810,6 +1037,100 @@ let ``a probe answering not found, or succeeding, shows no notice and records no
             Assert.DoesNotContain(logs.Entries, fun e -> e.Everything.Contains "docs/secret-stores")
             // One probe, and nothing else asked of the store.
             Assert.Equal<string list>([ "probe" ], store.Calls |> List.map (fun c -> c.Op))
+    }
+
+[<Fact>]
+let ``a probe answering not found is a failure: the adapters map the probe's own 404 to success`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        store.FailEveryCall NotFound
+
+        let! app, operator, logs = startProbed store
+        use _ = app
+
+        let! html = operator.GetHtml "/admin/connectors"
+        Assert.Contains(problemMarker, html)
+
+        let! recorded = events app "secret_store_failed"
+        Assert.Equal("system|failure||store=aws;op=probe;cause=not_found", recorded)
+        Assert.Contains(logs.Entries, fun e -> e.Level = LogLevel.Warning && e.Everything.Contains "docs/secret-stores")
+    }
+
+[<Fact>]
+let ``a refused save raises the page notice, and says what the refusal means`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+
+        let! before = operator.GetHtml "/admin/connectors"
+        Assert.DoesNotContain(problemMarker, before)
+
+        store.FailEveryCall AccessDenied
+        let! refused = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+        Assert.Contains("connector-secret-store-failed", location refused)
+
+        let! after = operator.GetHtml "/admin/connectors"
+        Assert.Contains(problemMarker, after)
+    }
+
+[<Fact>]
+let ``a secret deleted in the console gets its own text on the save refusal and the page notice`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+        store.FailEveryCall(Rejected "soft_deleted")
+
+        let! inline' = operator.PostForm("/admin/connectors", "/admin/connectors", oidcFields "home")
+        let! body = inline'.Content.ReadAsStringAsync()
+        Assert.Contains("holds a deleted secret under this connector", body)
+
+        let! refused = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+        let! screen = operator.GetHtml(location refused)
+        Assert.Contains("holds a deleted secret under this connector", screen)
+        Assert.Contains("Restore it (or purge it) in the console", screen)
+        Assert.DoesNotContain("rejected the request", screen)
+
+        // The page notice the failed save raised says the same.
+        Assert.Contains(problemMarker, screen)
+    }
+
+[<Fact>]
+let ``a rejection with a reason that is not a known code is never printed`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+        store.FailEveryCall(Rejected "VendorSecretThing")
+
+        let! refused = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+        let! screen = operator.GetHtml(location refused)
+        Assert.Contains("rejected the request", screen)
+        Assert.DoesNotContain("VendorSecretThing", screen)
+        Assert.DoesNotContain("VendorSecretThing", location refused)
+    }
+
+[<Fact>]
+let ``an ambiguous BellaBaxter provider names the setting in the warning, the page notice and the save refusal`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        store.FailEveryCall(Rejected "provider_ambiguous")
+
+        let! app, operator, logs = startProbed store
+        use _ = app
+
+        let! html = operator.GetHtml "/admin/connectors"
+        Assert.Contains(problemMarker, html)
+        Assert.Contains("UMBRAL__BELLABAXTER_PROVIDER", html)
+
+        let warnings = logs.Entries |> Array.filter (fun e -> e.Level = LogLevel.Warning)
+        Assert.Contains(warnings, fun e -> e.Everything.Contains "UMBRAL__BELLABAXTER_PROVIDER")
+
+        let! refused = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+        let! screen = operator.GetHtml(location refused)
+        Assert.Contains("data-notice=\"connector-secret-store-failed\"", screen)
+        Assert.Contains("UMBRAL__BELLABAXTER_PROVIDER", screen)
     }
 
 [<Fact>]

@@ -7,6 +7,8 @@ module Umbral.Views.Texts
 
 module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
 
+open Umbral.Infrastructure.Secrets
+
 type Texts =
     { SiteName: string
       Footer: string
@@ -235,13 +237,16 @@ type Texts =
       // does not know is shown as it is, which is a fixed word of ours (it
       // came from a stored reference, never from a URL).
       SecretStoreName: string -> string
-      /// A write to the store was refused: the store's display name and the
-      /// cause word (`StoreFailure.Cause`). Shown inline by the OIDC add form
-      /// and, through the single-use notice cookie, by the redirecting paths.
-      ConnectorSecretStoreFailed: string -> string -> string
+      /// A write to the store was refused: the store id and the failure. Shown
+      /// inline by the OIDC add form and, through the single-use notice cookie,
+      /// by the redirecting paths.
+      ConnectorSecretStoreFailed: string -> StoreFailure -> string
       /// A delete left the secret in its manager: the store's display name and
       /// the name the operator has to remove it under there.
       ConnectorSecretLeftBehind: string -> string -> string
+      /// A replace moved the secret to the active store but could not remove the
+      /// old copy: the old store's display name and the name to remove there.
+      ConnectorSecretReplacedLeftBehind: string -> string -> string
 
       // The `move-secrets` command (spec 005, FR-016 to FR-019): one plain line
       // per connector, then a summary. Store arguments are store ids as a
@@ -254,13 +259,16 @@ type Texts =
       /// The row changed while the move was copying, so the switch was refused
       /// and nothing was overwritten (slug).
       MoveChangedMeanwhile: string -> string
+      /// The connector's lease was held, by an edit in the admin screen or by a
+      /// move that is still running, so it was left alone (slug).
+      MoveBusy: string -> string
       /// slug, from, to, then why in plain words.
       MoveFailed: string -> string -> string -> string -> string
-      /// slug, from, to, the cause word of the failed delete (in the `from`
-      /// store), and the name the leftover has under there.
-      MoveLeftBehind: string -> string -> string -> string -> string -> string
-      /// Why a call to a store failed: the store's id and the cause word.
-      MoveStoreFailure: string -> string -> string
+      /// slug, from, to, the failure of the delete (in the `from` store), and
+      /// the name the leftover has under there.
+      MoveLeftBehind: string -> string -> string -> StoreFailure -> string -> string
+      /// Why a call to a store failed: the store's id and the failure.
+      MoveStoreFailure: string -> StoreFailure -> string
       /// The target did not give back what was written (target store id).
       MoveMismatch: string -> string
       /// The stored reference could not even be read (slug has no store prefix).
@@ -283,11 +291,11 @@ type Texts =
       /// build (store id).
       SecretUnreadable: string -> string
       /// The Connectors page notice when the active store failed its startup
-      /// probe (store id, cause word).
-      SecretStoreProblemNotice: string -> string -> string
-      /// The warning logged at startup for the same failure (store id, cause
-      /// word).
-      SecretStoreProbeWarning: string -> string -> string }
+      /// probe or its latest save (store id, failure).
+      SecretStoreProblemNotice: string -> StoreFailure -> string
+      /// The warning logged at startup for the same failure (store id,
+      /// failure).
+      SecretStoreProbeWarning: string -> StoreFailure -> string }
 
 /// The display name of a store, by the id a `SecretRef` carries.
 let private secretStoreNameEn (storeId: string) : string =
@@ -299,20 +307,75 @@ let private secretStoreNameEn (storeId: string) : string =
     | "bellabaxter" -> "BellaBaxter"
     | other -> other
 
-/// What a `StoreFailure.Cause` word means to someone who has to fix it.
-let private causeEn (cause: string) : string =
-    match cause with
-    | "unreachable" -> "could not be reached"
-    | "access_denied" -> "refused Umbral's credentials or permissions"
-    | "not_configured" -> "is not set up on this instance"
-    | "rejected" -> "rejected the request"
-    | _ -> "failed"
+/// What a failure says about the store, in a clause that follows its name.
+let private causeEn (failure: StoreFailure) : string =
+    match failure with
+    | Unreachable -> "could not be reached"
+    | AccessDenied -> "refused Umbral's credentials or permissions"
+    | NotConfigured -> "is not set up on this instance"
+    | Rejected _ -> "rejected the request"
+    | NotFound -> "failed"
 
-let private connectorSecretStoreFailedEn (store: string) (cause: string) : string =
-    $"{store} {causeEn cause}, so the client secret was not saved and nothing was changed. Check that Umbral's credentials for it are valid, that they may write secrets, and that it is reachable from this host, following the walkthrough in docs/secret-stores/. Then enter the secret again."
+/// What to look at when a store cannot be reached, which differs by store.
+let private reachHintEn (storeId: string) : string =
+    match storeId with
+    | "aws" -> "check the network and AWS_REGION"
+    | "gcp" -> "check the network and GOOGLE_CLOUD_PROJECT"
+    | "azure" -> "check the network and UMBRAL__AZURE_KEY_VAULT_URI"
+    | "bellabaxter" -> "check the network and the BellaBaxter URL"
+    | _ -> "check the network"
+
+/// What to check when a store failed in a way with no remedy of its own, by
+/// cause: the sentence the startup warning, the page notice and the refusal of
+/// a save share.
+let private whatToCheckEn (storeId: string) (failure: StoreFailure) : string =
+    match failure with
+    | AccessDenied ->
+        "Check that the credentials Umbral was given are valid and that they may read and write secrets, following the permissions in docs/secret-stores/."
+    | NotConfigured ->
+        "Check the settings and credentials for it in the environment, following docs/secret-stores/."
+    | Unreachable -> $"Check the network between this host and it, and that Umbral's credentials for it are valid ({reachHintEn storeId}), following docs/secret-stores/."
+    | _ -> "Check its settings and the permissions Umbral was given, following docs/secret-stores/."
+
+/// The failures that have a remedy of their own, by their closed code. `None`
+/// for every other failure, whose `Rejected` reason, if any, stays unprinted.
+let private specificFailureEn (storeId: string) (failure: StoreFailure) : string option =
+    let name = secretStoreNameEn storeId
+
+    match failure with
+    | Rejected "soft_deleted" ->
+        Some $"{name} holds a deleted secret under this connector's name. Restore it (or purge it) in the console, then save again."
+    | Rejected "provider_ambiguous" ->
+        Some
+            $"{name} has more than one secret provider in this environment, or none, so Umbral cannot tell which one keeps its secrets. Set UMBRAL__BELLABAXTER_PROVIDER to the name of the provider to use, then restart Umbral."
+    | Rejected "location_not_found" ->
+        Some
+            $"{name} has no project, environment or provider by the configured name. Check BELLA_BAXTER_PROJECT, BELLA_BAXTER_ENV and UMBRAL__BELLABAXTER_PROVIDER."
+    | NotFound ->
+        Some
+            $"{name} does not have the secret or location Umbral asked for. Check its settings (region, project, vault) and the permissions Umbral was given, following docs/secret-stores/."
+    | _ -> None
+
+/// What is wrong with a store and what to do about it, from the store's id and
+/// the failure. The one place a failure becomes words: the startup warning, the
+/// page notice and the refusal of a save all build on it, so a failure with a
+/// remedy of its own (a secret deleted in the console, an ambiguous BellaBaxter
+/// provider) says it in all three. A `Rejected` reason is printed only through
+/// the closed codes `specificFailureEn` knows; any other reason gets the
+/// generic text, because it is an exception type name or a status code.
+let storeFailureText (storeId: string) (failure: StoreFailure) : string =
+    match specificFailureEn storeId failure with
+    | Some text -> text
+    | None -> $"{secretStoreNameEn storeId} {causeEn failure}. {whatToCheckEn storeId failure}"
+
+let private connectorSecretStoreFailedEn (storeId: string) (failure: StoreFailure) : string =
+    $"{storeFailureText storeId failure} The client secret was not saved and nothing was changed; enter it again once that is fixed."
 
 let private connectorSecretLeftBehindEn (store: string) (name: string) : string =
     $"The connector was deleted, but its client secret {name} could not be removed from {store}. Delete it there by hand, or anyone with access to that store can still read it."
+
+let private connectorSecretReplacedLeftBehindEn (store: string) (name: string) : string =
+    $"The connector was saved, but its previous secret could not be removed from {store}. Remove {name} there by hand, or anyone with access to that store can still read it."
 
 let private secretStoreLabelEn (storeId: string) : string =
     $"Kept in {secretStoreNameEn storeId}"
@@ -324,41 +387,27 @@ let private secretUnreadableEn (storeId: string) : string =
 /// line up in a terminal, then what it says.
 let private moveLine (word: string) (slug: string) (rest: string) = $"{word.PadRight 9} {slug.PadRight 10} {rest}"
 
-/// What to look at when a store cannot be reached, which differs by store.
-let private reachHintEn (storeId: string) : string =
-    match storeId with
-    | "aws" -> "check the network and AWS_REGION"
-    | "gcp" -> "check the network and GOOGLE_CLOUD_PROJECT"
-    | "azure" -> "check the network and UMBRAL__AZURE_KEY_VAULT_URI"
-    | "bellabaxter" -> "check the network and the BellaBaxter URL"
-    | _ -> "check the network"
-
-let private moveStoreFailureEn (storeId: string) (cause: string) : string =
+let private moveStoreFailureEn (storeId: string) (failure: StoreFailure) : string =
     let name = secretStoreNameEn storeId
 
-    match cause with
-    | "unreachable" -> $"could not reach {name} ({reachHintEn storeId})"
-    | "access_denied" -> $"{name} refused Umbral's credentials or permissions (check that they may read and write secrets)"
-    | "not_found" -> $"the secret was not found in {name} (re-enter it on the Connectors screen)"
-    | "not_configured" -> $"{name} is not set up on this instance (keep its credentials available while moving out of it)"
-    | _ -> $"{name} rejected the request (check its permissions and settings)"
+    match failure with
+    | Unreachable -> $"could not reach {name} ({reachHintEn storeId})"
+    | AccessDenied -> $"{name} refused Umbral's credentials or permissions (check that they may read and write secrets)"
+    | NotFound -> $"the secret was not found in {name} (re-enter it on the Connectors screen)"
+    | NotConfigured -> $"{name} is not set up on this instance (keep its credentials available while moving out of it)"
+    | Rejected "soft_deleted" ->
+        $"{name} holds a deleted secret under this connector's name (restore or purge it in the console, then run move-secrets again)"
+    | Rejected "provider_ambiguous" ->
+        $"{name} has more than one secret provider in this environment, or none (set UMBRAL__BELLABAXTER_PROVIDER)"
+    | Rejected "location_not_found" ->
+        $"{name} has no project, environment or provider by the configured name (check BELLA_BAXTER_PROJECT, BELLA_BAXTER_ENV and UMBRAL__BELLABAXTER_PROVIDER)"
+    | Rejected _ -> $"{name} rejected the request (check its permissions and settings)"
 
-/// What to check when the active store failed, by cause: the sentence the
-/// startup warning and the Connectors page notice share.
-let private whatToCheckEn (storeId: string) (cause: string) : string =
-    match cause with
-    | "access_denied" ->
-        "Check that the credentials Umbral was given are valid and that they may read and write secrets, following the permissions in docs/secret-stores/."
-    | "not_configured" ->
-        "Check the settings and credentials for it in the environment, following docs/secret-stores/."
-    | "unreachable" -> $"Check the network between this host and it, and that Umbral's credentials for it are valid ({reachHintEn storeId}), following docs/secret-stores/."
-    | _ -> "Check its settings and the permissions Umbral was given, following docs/secret-stores/."
+let private secretStoreProblemNoticeEn (storeId: string) (failure: StoreFailure) : string =
+    $"{storeFailureText storeId failure} Secrets kept in {secretStoreNameEn storeId} cannot be read or saved right now. This notice clears after a secret is saved to it successfully."
 
-let private secretStoreProblemNoticeEn (storeId: string) (cause: string) : string =
-    $"The secret store {secretStoreNameEn storeId} {causeEn cause} when Umbral last checked it, so secrets kept in it cannot be read or saved right now. {whatToCheckEn storeId cause} This notice clears after a secret is saved to it successfully."
-
-let private secretStoreProbeWarningEn (storeId: string) (cause: string) : string =
-    $"The secret store {secretStoreNameEn storeId} {causeEn cause} at startup. Umbral started anyway, but secrets kept in it cannot be read or saved until this is fixed. {whatToCheckEn storeId cause}"
+let private secretStoreProbeWarningEn (storeId: string) (failure: StoreFailure) : string =
+    $"Secret store check at startup: {storeFailureText storeId failure} Umbral started anyway, but secrets kept in {secretStoreNameEn storeId} cannot be read or saved until this is fixed."
 
 let private moveSummaryEn (dryRun: bool) (total: int) (moved: int) (already: int) (changed: int) (failed: int) : string =
     let noun = if total = 1 then "connector" else "connectors"
@@ -401,6 +450,10 @@ let private noticeEn (code: string) : string option =
         Some "The client secret could not be saved to its secret store, so nothing was saved. Check that Umbral's credentials for the store are valid, that they may write secrets, and that the store is reachable from this host, following the walkthrough in docs/secret-stores/. Then enter the secret again."
     | "connector-secret-left-behind" ->
         Some "The connector was deleted, but its client secret could not be removed from its secret store. Remove it there by hand: it is named after the connector, under the prefix umbral by default."
+    | "connector-secret-replaced-left-behind" ->
+        Some "The connector was saved, but its previous secret could not be removed from its old secret store. Remove it there by hand: it is named after the connector, under the prefix umbral by default."
+    | "connector-secret-busy" ->
+        Some "A secret move is working on this connector. Try again in a minute."
     | "connector-last-enabled" ->
         Some "This is the only enabled connector. Turning it off means nobody can sign in to any app. Press it again to confirm."
 
@@ -690,11 +743,13 @@ let en: Texts =
       SecretStoreName = secretStoreNameEn
       ConnectorSecretStoreFailed = connectorSecretStoreFailedEn
       ConnectorSecretLeftBehind = connectorSecretLeftBehindEn
+      ConnectorSecretReplacedLeftBehind = connectorSecretReplacedLeftBehindEn
       MoveMoved = fun slug from target -> moveLine "moved" slug $"{from} → {target}"
       MoveWouldMove = fun slug from target -> $"would move  {slug}  {from} → {target}"
       MoveAlreadyIn = fun slug store -> moveLine "skipped" slug $"already in {store}"
       MoveChangedMeanwhile =
         fun slug -> moveLine "skipped" slug "changed while it was being moved, so nothing was overwritten; run the command again"
+      MoveBusy = fun slug -> moveLine "skipped" slug "being edited; run move-secrets again"
       MoveFailed =
         fun slug from target why ->
             moveLine "failed" slug $"{from} → {target}: {why}. It still uses its old, readable copy"

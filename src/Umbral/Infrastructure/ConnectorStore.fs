@@ -249,6 +249,17 @@ let update
         return changed > 0
     }
 
+/// How `switchSecretRef` ended. A row that changed and a row that is gone are
+/// different answers: a changed row has a secret an operator just entered (whose
+/// name the move's copy shares), a gone row has nothing left that refers to the
+/// copy at all.
+type SwitchResult =
+    | Switched
+    /// The row exists but no longer holds `oldRef`.
+    | Changed
+    /// No connector has that slug any more.
+    | Gone
+
 /// Points a connector at a new secret reference, but only if it still points at
 /// `oldRef`, and records `event` in the same transaction. The guard is the whole
 /// safety of the move command (specs/005 research R8): if an operator replaced
@@ -264,7 +275,7 @@ let switchSecretRef
     (oldRef: string)
     (newRef: string)
     (event: SecurityEvents.SecurityEvent)
-    : Task<bool> =
+    : Task<SwitchResult> =
     task {
         use! connection = Database.openConnection config
         use transaction = connection.BeginTransaction()
@@ -285,10 +296,15 @@ let switchSecretRef
         if changed > 0 then
             do! SecurityEvents.recordIn connection transaction clock event
             transaction.Commit()
-            return true
+            return Switched
         else
+            use exists = connection.CreateCommand()
+            exists.Transaction <- transaction
+            exists.CommandText <- "SELECT count(*) FROM connectors WHERE slug = @slug"
+            exists.Parameters.AddWithValue("@slug", slug) |> ignore
+            let! count = exists.ExecuteScalarAsync()
             transaction.Rollback()
-            return false
+            return if Convert.ToInt32 count > 0 then Changed else Gone
     }
 
 let setEnabled (config: Database.DbConfig) (clock: TimeProvider) (slug: string) (isEnabled: bool) : Task<unit> =
@@ -303,14 +319,121 @@ let setEnabled (config: Database.DbConfig) (clock: TimeProvider) (slug: string) 
         return ()
     }
 
-let delete (config: Database.DbConfig) (slug: string) : Task<unit> =
+/// Deletes the row and hands back the secret reference it held, read by the
+/// same statement that removed it: the reference to clean up is exactly the one
+/// that was deleted, not one read a moment earlier that a move or a replace
+/// may have changed since. `None` when no connector has that slug.
+let delete (config: Database.DbConfig) (slug: string) : Task<string option> =
     task {
         use! connection = Database.openConnection config
         use command = connection.CreateCommand()
-        command.CommandText <- "DELETE FROM connectors WHERE slug = @slug"
+        command.CommandText <- "DELETE FROM connectors WHERE slug = @slug RETURNING client_secret_ref"
         command.Parameters.AddWithValue("@slug", slug) |> ignore
+        let! value = command.ExecuteScalarAsync()
+        return (match value with | :? string as reference -> Some reference | _ -> None)
+    }
+
+// ---------------------------------------------------------------------------
+// The secret lease
+// ---------------------------------------------------------------------------
+
+/// How long a lease holds. It covers the move's four bounded calls to a store
+/// (read, write, read back, delete, each at most 10 seconds) with room to spare,
+/// and is also how long a lease left by a process that died blocks a connector.
+let leaseLength = TimeSpan.FromMinutes 2.
+
+let private leaseKey (slug: string) = $"secret-lease:{slug}"
+
+/// Takes the lease on a connector's secret for `holder`, if nobody holds it or
+/// the holder's `length` has run out. Returns whether it was taken.
+///
+/// Two writers of one connector's secret (an operator replacing it in the admin
+/// screen, the move command copying it to another store) write the same derived
+/// name, and `switchSecretRef`'s guard protects the row but not the store: a
+/// move that read the old value, an operator who then replaced it, and a move
+/// that then wrote would leave the old value as the manager's latest version
+/// while the row says the new one. Whoever holds the lease is the only one
+/// writing that name, so the order of the writes cannot invert.
+///
+/// It is a row in `settings` (key `secret-lease:{slug}`, value the holder, time
+/// the instant it was taken), so it needs no schema of its own and is shared by
+/// the web process and the command, which are two processes on one database.
+/// The statement is one atomic upsert whose update only applies to an expired
+/// lease, so of two simultaneous takers exactly one changes a row.
+let tryLease
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (slug: string)
+    (holder: string)
+    (length: TimeSpan)
+    : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+
+        command.CommandText <-
+            "INSERT INTO settings (key, value, updated_utc) VALUES (@key, @holder, @now)
+             ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_utc = excluded.updated_utc
+             WHERE settings.updated_utc < @expiredBefore"
+
+        let now = clock.GetUtcNow()
+        command.Parameters.AddWithValue("@key", leaseKey slug) |> ignore
+        command.Parameters.AddWithValue("@holder", holder) |> ignore
+        command.Parameters.AddWithValue("@now", now.ToString "o") |> ignore
+        command.Parameters.AddWithValue("@expiredBefore", (now - length).ToString "o") |> ignore
+        let! changed = command.ExecuteNonQueryAsync()
+        return changed > 0
+    }
+
+/// Gives the lease back, but only if `holder` still holds it: a lease that
+/// expired and was taken by someone else is not the releaser's to delete.
+let releaseLease (config: Database.DbConfig) (slug: string) (holder: string) : Task<unit> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+        command.CommandText <- "DELETE FROM settings WHERE key = @key AND value = @holder"
+        command.Parameters.AddWithValue("@key", leaseKey slug) |> ignore
+        command.Parameters.AddWithValue("@holder", holder) |> ignore
         let! _ = command.ExecuteNonQueryAsync()
         return ()
+    }
+
+/// Runs `work` under the lease on `slug`; `None`, without running it, when
+/// somebody else holds the lease. The lease is released however `work` ends. The
+/// holder is a fresh GUID per acquisition, so a release can only ever remove
+/// what this acquisition took.
+let withLease
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (slug: string)
+    (work: unit -> Task<'a>)
+    : Task<'a option> =
+    task {
+        let holder = Guid.NewGuid().ToString "N"
+        let! taken = tryLease config clock slug holder leaseLength
+
+        if not taken then
+            return None
+        else
+            // Released before the outcome is looked at, and awaited: a lease
+            // that is still there when the caller's next line runs would make
+            // the next attempt find it held.
+            let! outcome =
+                task {
+                    try
+                        let! result = work ()
+                        return Ok result
+                    with ex ->
+                        return Error ex
+                }
+
+            do! releaseLease config slug holder
+
+            match outcome with
+            | Ok result -> return Some result
+            | Error ex ->
+                Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
+                return None
     }
 
 /// How many connectors would remain usable if `slug` were disabled or deleted.

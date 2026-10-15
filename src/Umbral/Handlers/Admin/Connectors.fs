@@ -59,7 +59,7 @@ let private secretStoreBanner (ctx: HttpContext) (t: Texts.Texts) =
     | Failed(failure, _) ->
         (div(class' = "um-alert um-alert-warning").attr("role", "alert").data("secret-store-problem", "") {
             Components.icon Theme.Warning
-            span() { t.SecretStoreProblemNotice secrets.Active.Id failure.Cause }
+            span() { t.SecretStoreProblemNotice secrets.Active.Id failure }
         })
         :> HtmlElement
     | Healthy -> Fragment() :> HtmlElement
@@ -678,18 +678,25 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                     Some(said |> Option.defaultValue (t.Notice code))
                 // The store failures: which store, and the cause or the secret's
                 // name, come from the cookie the refusal wrote, never the URL.
-                | Some("connector-secret-store-failed" | "connector-secret-left-behind" as code) ->
+                | Some("connector-secret-store-failed" | "connector-secret-left-behind" | "connector-secret-replaced-left-behind" as code) ->
                     let said =
                         ctx.TryGetQueryValue "slug"
                         |> Option.bind (fun slug -> WebForms.NoticeReason.consume ctx code slug)
                         |> Option.bind (fun reason ->
                             match reason.Split '|' with
+                            // The detail is a failure code, read back through
+                            // `OfCode`, which rebuilds only the codes it knows.
                             | [| store; detail |] when code = "connector-secret-store-failed" ->
-                                Some(t.ConnectorSecretStoreFailed (t.SecretStoreName store) detail)
-                            | [| store; detail |] -> Some(t.ConnectorSecretLeftBehind (t.SecretStoreName store) detail)
+                                Secrets.StoreFailure.OfCode detail |> Option.map (t.ConnectorSecretStoreFailed store)
+                            | [| store; detail |] when code = "connector-secret-left-behind" ->
+                                Some(t.ConnectorSecretLeftBehind (t.SecretStoreName store) detail)
+                            | [| store; detail |] ->
+                                Some(t.ConnectorSecretReplacedLeftBehind (t.SecretStoreName store) detail)
                             | _ -> None)
 
                     Some(said |> Option.defaultValue (t.Notice code))
+                // Refused, nothing saved: a warning, with a fixed text.
+                | Some("connector-secret-busy" as code) -> Some(t.Notice code)
                 | _ -> None
 
             return!
@@ -726,9 +733,6 @@ let private recordEventWith
             ConnectorSlug = Some slug
             Detail = detail
             RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string }
-
-let private recordEvent (ctx: HttpContext) (kind: SecurityEvents.EventType) (slug: string) =
-    recordEventWith ctx kind slug None
 
 let private remoteIpOf (ctx: HttpContext) =
     ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
@@ -788,7 +792,7 @@ let private refuseStoreFailed (ctx: HttpContext) (slug: string) (failure: Secret
         "/admin/connectors"
         "connector-secret-store-failed"
         slug
-        $"{(ctx.GetService<SecretStores>()).Active.Id}|{failure.Cause}"
+        $"{(ctx.GetService<SecretStores>()).Active.Id}|{failure.Code}"
 
 /// Whether `kind` may be created from the first-connector path, an empty card
 /// posting to its own name. The fake kind is refused where the fake connector is
@@ -909,7 +913,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
             return!
                 refuse
                     "clientSecret"
-                    (t.ConnectorSecretStoreFailed (t.SecretStoreName (ctx.GetService<SecretStores>()).Active.Id) failure.Cause)
+                    (t.ConnectorSecretStoreFailed (ctx.GetService<SecretStores>()).Active.Id failure)
         | Ok(reference, secret) ->
 
         let! added =
@@ -940,7 +944,11 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                     ctx
                     SecurityEvents.ConnectorCreated
                     state.Slug
-                    (reasonShort |> Option.map (fun reason -> $"saved_disabled: {reason}"))
+                    (Some(
+                        match reasonShort with
+                        | Some reason -> $"store={reference.Store};saved_disabled: {reason}"
+                        | None -> $"store={reference.Store}"
+                    ))
 
             match reasonShort with
             | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added-oidc"
@@ -1035,7 +1043,7 @@ let create: EndpointHandler =
                 return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
             else
 
-            do! recordEvent ctx SecurityEvents.ConnectorCreated slug
+            do! recordEventWith ctx SecurityEvents.ConnectorCreated slug (Some $"store={reference.Store}")
             return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added"
         })
 
@@ -1110,7 +1118,7 @@ let save (slug: string) : EndpointHandler =
                     do! discard ctx reference
                     return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
                 else
-                    do! recordEvent ctx SecurityEvents.ConnectorCreated slug
+                    do! recordEventWith ctx SecurityEvents.ConnectorCreated slug (Some $"store={reference.Store}")
                     return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
 
             | Some stored, _ ->
@@ -1145,88 +1153,123 @@ let save (slug: string) : EndpointHandler =
 
                 let secrets = ctx.GetService<SecretStores>()
 
-                // The name is derived again from what never changes about the
-                // connector, so a connector already in the active store gets a
-                // new version of the secret it has (the reference stays), and
-                // one in another store gets a copy in the active one (R5).
-                let! secretUpdate =
-                    match newSecret with
-                    | Some plaintext ->
-                        task {
-                            let name = Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc
+                // Everything from the write of a new secret to the row that
+                // records it, so that a move copying this connector cannot
+                // interleave with it (the lease, ConnectorStore.tryLease).
+                let apply () =
+                    task {
+                        // The row is read again under the lease: a move that
+                        // finished since the first read may have changed which
+                        // store holds the old copy.
+                        match! ConnectorStore.findBySlug config slug with
+                        | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+                        | Some stored ->
 
-                            match! secrets.Active.Put(name, plaintext, ctx.RequestAborted) with
-                            | Ok reference -> return Ok(Some(reference, (reference.Encoded, Secrets.hint plaintext)))
-                            | Error failure ->
-                                do! recordPutFailed ctx slug failure
-                                return Error failure
-                        }
-                    | None -> System.Threading.Tasks.Task.FromResult(Ok None)
+                        // The name is derived again from what never changes about the
+                        // connector, so a connector already in the active store gets a
+                        // new version of the secret it has (the reference stays), and
+                        // one in another store gets a copy in the active one (R5).
+                        let! secretUpdate =
+                            match newSecret with
+                            | Some plaintext ->
+                                task {
+                                    let name = Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc
 
-                match secretUpdate with
-                | Error failure -> return! refuseStoreFailed ctx slug failure
-                | Ok written ->
+                                    match! secrets.Active.Put(name, plaintext, ctx.RequestAborted) with
+                                    | Ok reference -> return Ok(Some(reference, (reference.Encoded, Secrets.hint plaintext)))
+                                    | Error failure ->
+                                        do! recordPutFailed ctx slug failure
+                                        return Error failure
+                                }
+                            | None -> System.Threading.Tasks.Task.FromResult(Ok None)
 
-                let! updated =
-                    ConnectorStore.update config clock slug newName clientId newShared (written |> Option.map snd)
+                        match secretUpdate with
+                        | Error failure -> return! refuseStoreFailed ctx slug failure
+                        | Ok written ->
 
-                match written with
-                | Some(reference, _) when not updated ->
-                    // The connector vanished between the read and the update;
-                    // the secret just written belongs to nothing.
-                    do! discard ctx reference
-                | _ -> ()
+                        let! updated =
+                            ConnectorStore.update config clock slug newName clientId newShared (written |> Option.map snd)
 
-                if not updated then
-                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
-                else
-                    do! recordEvent ctx SecurityEvents.ConnectorUpdated slug
+                        match written with
+                        | Some(reference, _) when not updated ->
+                            // The connector vanished between the read and the update;
+                            // the secret just written belongs to nothing.
+                            do! discard ctx reference
+                        | _ -> ()
 
-                    // A secret moved to another store leaves its old copy
-                    // behind in the old one, which is removed now that no row
-                    // refers to it. The card is already saved either way.
-                    let! leftBehind =
-                        match written, Secrets.SecretRef.Decode stored.ClientSecretRef with
-                        | Some(reference, _), Ok old when old <> reference ->
-                            task {
-                                secrets.Evict old
-                                secrets.Evict reference
+                        if not updated then
+                            return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+                        else
+                            // FR-022: a changed secret names the store that now holds it.
+                            do!
+                                recordEventWith
+                                    ctx
+                                    SecurityEvents.ConnectorUpdated
+                                    slug
+                                    (written |> Option.map (fun (reference, _) -> $"store={reference.Store}"))
 
-                                match secrets.For old.Store with
-                                | Ok oldStore ->
-                                    match! oldStore.Delete(old, ctx.RequestAborted) with
-                                    | Ok() -> return None
-                                    | Error failure -> return Some(old.Store, failure)
-                                | Error failure -> return Some(old.Store, failure)
-                            }
-                        | Some(reference, _), _ ->
-                            secrets.Evict reference
-                            System.Threading.Tasks.Task.FromResult None
-                        | None, _ -> System.Threading.Tasks.Task.FromResult None
+                            // A secret moved to another store leaves its old copy
+                            // behind in the old one, which is removed now that no row
+                            // refers to it. The card is already saved either way. Only a
+                            // different STORE means a copy to remove: within one store a
+                            // new version went under the same name, and a locator that
+                            // differs in spelling (a GCP project id against its number)
+                            // still names that same secret, which must not be deleted.
+                            let! leftBehind =
+                                match written, Secrets.SecretRef.Decode stored.ClientSecretRef with
+                                | Some(reference, _), Ok old when old.Store <> reference.Store ->
+                                    task {
+                                        secrets.Evict old
+                                        secrets.Evict reference
 
-                    match leftBehind with
-                    | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
-                    | Some(store, failure) ->
-                        do!
-                            SecurityEvents.recordStoreFailure
-                                config
-                                clock
-                                SecurityEvents.Actor.Operator
-                                slug
-                                (remoteIpOf ctx)
-                                store
-                                "delete"
-                                failure
+                                        match secrets.For old.Store with
+                                        | Ok oldStore ->
+                                            match! oldStore.Delete(old, ctx.RequestAborted) with
+                                            | Ok() -> return None
+                                            | Error failure -> return Some(old.Store, failure)
+                                        | Error failure -> return Some(old.Store, failure)
+                                    }
+                                | Some(reference, _), Ok old ->
+                                    secrets.Evict old
+                                    secrets.Evict reference
+                                    System.Threading.Tasks.Task.FromResult None
+                                | Some(reference, _), _ ->
+                                    secrets.Evict reference
+                                    System.Threading.Tasks.Task.FromResult None
+                                | None, _ -> System.Threading.Tasks.Task.FromResult None
 
-                        let name = (Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc).In store
+                            match leftBehind with
+                            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
+                            | Some(store, failure) ->
+                                do!
+                                    SecurityEvents.recordStoreFailure
+                                        config
+                                        clock
+                                        SecurityEvents.Actor.Operator
+                                        slug
+                                        (remoteIpOf ctx)
+                                        store
+                                        "delete"
+                                        failure
 
-                        return!
-                            WebForms.NoticeReason.redirect
-                                ctx
-                                "/admin/connectors"
-                                "connector-secret-left-behind"
-                                slug
-                                $"{store}|{name}"
+                                let name = (Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc).In store
+
+                                return!
+                                    WebForms.NoticeReason.redirect
+                                        ctx
+                                        "/admin/connectors"
+                                        "connector-secret-replaced-left-behind"
+                                        slug
+                                        $"{store}|{name}"
+                    }
+
+                match newSecret with
+                // No secret is written, so there is nothing for a move to race.
+                | None -> return! apply ()
+                | Some _ ->
+                    match! ConnectorStore.withLease config clock slug apply with
+                    | Some() -> ()
+                    | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-busy"
         })
 
 let endpoint =
