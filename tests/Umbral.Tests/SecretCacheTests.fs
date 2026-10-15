@@ -295,3 +295,48 @@ let ``local references never go through the cache`` () =
         // a local reference: a key ring that is lost is felt on the next read.
         Assert.Equal(0, counted.CallCount)
     }
+
+/// A store whose next read waits for the test to answer it, so a test can
+/// evict while a read is in flight.
+type private GatedStore(id: string) =
+    let mutable gate = TaskCompletionSource<Result<string, StoreFailure>>()
+    member val Gets = 0 with get, set
+    member _.Answer(value: Result<string, StoreFailure>) = gate.TrySetResult value |> ignore
+    member _.Rearm() = gate <- TaskCompletionSource<Result<string, StoreFailure>>()
+
+    interface ISecretStore with
+        member _.Id = id
+        member _.Put(name, _, _) = Task.FromResult(Ok { Store = id; Locator = name.Cloud })
+        member this.Get(_, _) =
+            this.Gets <- this.Gets + 1
+            gate.Task
+        member _.Delete(_, _) = Task.FromResult(Ok())
+        member _.Probe _ = Task.FromResult(Ok())
+
+[<Fact>]
+let ``a read in flight when the secret is replaced does not put the old value back`` () =
+    task {
+        let clock = FakeTimeProvider(DateTimeOffset.UtcNow)
+        let store = GatedStore "aws"
+        let local = LocalSecretStore(EphemeralDataProtectionProvider())
+
+        let registry =
+            SecretStores(local, "aws", Map [ "aws", lazy (Ok(store :> ISecretStore)) ], TimeSpan.FromSeconds 5., clock, lifetime, grace)
+
+        let reference = { Store = "aws"; Locator = "umbral-home-aaaaaaaa" }
+
+        // A sign-in starts reading the old value; the operator replaces the
+        // secret (which evicts) before the store answers.
+        let inFlight = registry.Read(reference, CancellationToken.None)
+        registry.Evict reference
+        store.Answer(Ok "old-value")
+        let! first = inFlight
+        Assert.Equal(Ok "old-value", first)
+
+        // The next sign-in must ask the store, not get the old value from the cache.
+        store.Rearm()
+        store.Answer(Ok "new-value")
+        let! second = registry.Read(reference, CancellationToken.None)
+        Assert.Equal(Ok "new-value", second)
+        Assert.Equal(2, store.Gets)
+    }

@@ -116,6 +116,19 @@ type SecretStores
     // single-flight lock that has to be got right (research R6).
     let cache = Collections.Concurrent.ConcurrentDictionary<string, Entry>()
 
+    // How many times each reference has been evicted. A read notes it before
+    // calling the store and writes its answer back only if it has not moved:
+    // otherwise a sign-in that was reading the old value while the operator
+    // replaced the secret would put that value back for a whole cache lifetime,
+    // and an operator replaces a secret precisely because the old one was
+    // revoked (FR-013: replacing discards the cached value at once).
+    let evictions = Collections.Concurrent.ConcurrentDictionary<string, int64>()
+
+    let evictionsOf (key: string) =
+        match evictions.TryGetValue key with
+        | true, count -> count
+        | _ -> 0L
+
     /// No cache: for a registry built by a test or a tool that reads each
     /// reference once and wants the store's answer every time.
     new(local: ISecretStore, activeId: string, others: Map<string, Lazy<Result<ISecretStore, StoreFailure>>>, bound: TimeSpan) =
@@ -180,6 +193,8 @@ type SecretStores
                     return Ok entry.Value.Reveal
 
                 | _ ->
+                    let evictedBefore = evictionsOf key
+
                     let! fetched =
                         match this.For reference.Store with
                         | Ok store -> store.Get(reference, cancellationToken)
@@ -187,17 +202,22 @@ type SecretStores
 
                     // After the call, which may have taken up to the bound.
                     let at = clock.GetUtcNow()
+                    let evictedMeanwhile = evictionsOf key <> evictedBefore
 
                     match fetched, held with
                     | Ok value, _ ->
-                        cache[key] <-
-                            { Value = Protected.Of value
-                              FetchedAt = at
-                              LastFailedRefreshAt = None }
+                        if not evictedMeanwhile then
+                            cache[key] <-
+                                { Value = Protected.Of value
+                                  FetchedAt = at
+                                  LastFailedRefreshAt = None }
 
                         return Ok value
 
-                    | Error Unreachable, Some entry when withinGrace entry at ->
+                    // An entry evicted while the store was being asked is a
+                    // value the operator has replaced: it is not served, not
+                    // even from the grace period.
+                    | Error Unreachable, Some entry when withinGrace entry at && not evictedMeanwhile ->
                         cache[key] <- { entry with LastFailedRefreshAt = Some at }
                         do! onStaleRefreshFailed Unreachable
                         return Ok entry.Value.Reveal
@@ -216,9 +236,13 @@ type SecretStores
         this.Read(reference, (fun _ -> Task.FromResult()), cancellationToken)
 
     /// Forgets what is held for this reference, so the next read asks the
-    /// store. Replace, delete and move call it (FR-013); a refresh already in
-    /// flight may still put its older value back, which the next expiry corrects.
-    member _.Evict(reference: SecretRef) : unit = cache.TryRemove reference.Encoded |> ignore
+    /// store. Replace, delete and move call it (FR-013). Counted before the
+    /// removal, so that a read already in flight sees the count move and does
+    /// not put its older value back.
+    member _.Evict(reference: SecretRef) : unit =
+        let key = reference.Encoded
+        evictions.AddOrUpdate(key, 1L, (fun _ count -> count + 1L)) |> ignore
+        cache.TryRemove key |> ignore
 
     /// Whether this instance could read a reference of this store, decided
     /// without a network call: the Connectors screen asks it for every card.
