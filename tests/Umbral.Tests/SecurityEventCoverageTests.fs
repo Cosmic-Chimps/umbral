@@ -10,18 +10,30 @@
 /// weaker claim than "the right event was written, about the right person": an
 /// earlier version of the callback recorded a disabled user's sign-in as a
 /// success and then again as a failure.
+///
+/// The journey runs with an in-memory store registered as `aws` and active,
+/// because two of the event types (`secret_store_failed`, `connector_secret_moved`)
+/// exist only when an external store does. Nothing else about it changes: every
+/// event still comes from the product's own handlers and the `move-secrets`
+/// command, and the store only answers the way a manager would.
 module Umbral.Tests.SecurityEventCoverageTests
 
 open System
 open System.Net
 open System.Net.Http
 open System.Text.Json
+open Microsoft.AspNetCore.DataProtection
+open Microsoft.Extensions.DependencyInjection
 open Xunit
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
+open Umbral.Infrastructure.Secrets
+open Umbral.Infrastructure.SecretStores.Registry
+open Umbral.Infrastructure.SecretStores.Settings
 open Umbral.Infrastructure.SecurityEvents
 open Umbral.Tests.Infrastructure
 open Umbral.Tests.Infrastructure.Flows
+open Umbral.Tests.Infrastructure.InMemorySecretStore
 
 type private Row =
     { EventType: string
@@ -71,6 +83,28 @@ let private signedInOk (result: Result<string, string>) =
     match result with
     | Ok code -> code
     | Error where -> failwith $"sign-in did not complete: {where}"
+
+// ---------------------------------------------------------------------------
+// An instance with an external store
+// ---------------------------------------------------------------------------
+
+let private awsSettings =
+    [ "UMBRAL:SECRET_STORE", "aws"
+      "AWS_REGION", "eu-west-1" ]
+
+/// An app whose active store is the in-memory `aws` one.
+let private startOnAws (store: InMemorySecretStore) =
+    Fixtures.createAppWith (fakeSettings @ awsSettings) (Fixtures.withSecretStores [ store ] "aws")
+
+/// What an operator runs after unsetting `UMBRAL__SECRET_STORE`: the same
+/// stores with `local` as the target. The app's own registry cannot be changed
+/// once built, so this builds the second one over the same store and key ring.
+let private moveToLocal (app: Fixtures.TestApp) (store: InMemorySecretStore) =
+    let local = LocalSecretStore(app.Services.GetRequiredService<IDataProtectionProvider>())
+    let registry = SecretStores(local, "local", Map [ "aws", lazy (Ok(store :> ISecretStore)) ])
+
+    SecretMove.run registry (app.Services.GetRequiredService<SecretStoreSettings>()) app.DbConfig app.Clock false ignore
+
 
 // ---------------------------------------------------------------------------
 // Sign-in events say the right thing about the right person
@@ -191,7 +225,8 @@ let ``a disabled user with a live session is turned away at authorize and it is 
 [<Fact>]
 let ``every event type in the data model is emitted by the real product`` () =
     task {
-        use! app = Fixtures.createAppWith fakeSettings ignore
+        let store = InMemorySecretStore "aws"
+        use! app = startOnAws store
 
         // -- Operator: claim (credential set), sign out, sign in, a wrong credential
         let operator = Browser(app.Client)
@@ -259,6 +294,19 @@ let ``every event type in the data model is emitted by the real product`` () =
                 [ "clientId", "gh-client"; "clientSecret", "gh-secret" ]
             )
 
+        // -- A store that refuses a write: the connector is not saved, and the
+        //    refusal is recorded (secret_store_failed)
+        store.FailNextCall AccessDenied
+
+        let! refusedSave =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/discord",
+                [ "clientId", "456"; "clientSecret", "refused-secret" ]
+            )
+
+        Assert.Contains("connector-secret-store-failed", location refusedSave)
+
         // -- Apps: change a connector choice (an update), rotate the secret, delete one
         let! _ =
             operator.PostForm(
@@ -269,6 +317,11 @@ let ``every event type in the data model is emitted by the real product`` () =
 
         let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/secret", [])
         let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/delete", [])
+
+        // -- The offline command: the instance goes back to `local`, so every
+        //    connector's secret moves (connector_secret_moved)
+        let! exitCode = moveToLocal app store
+        Assert.Equal(0, exitCode)
 
         let! rows = events app
         let seen = rows |> List.map (fun r -> r.EventType) |> Set.ofList
@@ -289,4 +342,75 @@ let ``every event type in the data model is emitted by the real product`` () =
         let known = allEventTypes |> List.map (fun t -> t.Value) |> Set.ofList
         let unknown = seen |> Set.filter (fun t -> not (known.Contains t))
         Assert.True(unknown.IsEmpty, "Unknown event types in the log: " + String.Join(", ", unknown))
+    }
+
+// ---------------------------------------------------------------------------
+// The two events of an external store say the right thing about the right connector
+// ---------------------------------------------------------------------------
+
+let private githubFields (secret: string) =
+    [ "clientId", "gh-client"; "clientSecret", secret ]
+
+[<Fact>]
+let ``a store that refuses a write records one failure naming the operator, the connector, the store and the cause`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        use! app = startOnAws store
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+        do! seedFakeConnector app
+
+        let secret = "refused-client-secret-77c1e0"
+        store.FailNextCall AccessDenied
+
+        let! refused = operator.PostForm("/admin/connectors", "/admin/connectors/github", githubFields secret)
+        Assert.Contains("connector-secret-store-failed", location refused)
+
+        let! rows = events app
+        let failed = Assert.Single(ofType SecretStoreFailed rows)
+        Assert.Equal("failure", failed.Outcome)
+        Assert.Equal("operator", failed.Actor)
+        Assert.Equal(Some "github", failed.ConnectorSlug)
+        // Fixed words only: a closed set of causes, never what the store said.
+        Assert.Equal(Some "store=aws;op=put;cause=access_denied", failed.Detail)
+        Assert.Equal(None, failed.UserId)
+        Assert.Equal(None, failed.ClientId)
+
+        // The refused write saved nothing, so nothing else was recorded about it.
+        Assert.Empty(ofType ConnectorCreated rows)
+        Assert.DoesNotContain(secret, String.Join(" ", rows |> List.map (fun r -> string r.Detail)))
+    }
+
+[<Fact>]
+let ``moving a connector's secret records one move per connector, by the system, naming both stores`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        use! app = startOnAws store
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+        do! seedFakeConnector app
+
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors/github", githubFields "gh-secret-for-move")
+
+        let! code = moveToLocal app store
+        Assert.Equal(0, code)
+
+        let! rows = events app
+        let moved = ofType ConnectorSecretMoved rows
+
+        // `fake` was seeded through the registry's active store, so it moves too.
+        Assert.Equal<string list>([ "fake"; "github" ], moved |> List.map (fun r -> r.ConnectorSlug.Value) |> List.sort)
+
+        for row in moved do
+            Assert.Equal("success", row.Outcome)
+            Assert.Equal("system", row.Actor)
+            Assert.Equal(Some "from=aws;to=local", row.Detail)
+            Assert.Equal(None, row.UserId)
+            Assert.Equal(None, row.ClientId)
+
+        // A second run finds everything in place and records nothing more.
+        let! again = moveToLocal app store
+        Assert.Equal(0, again)
+        let! after = events app
+        Assert.Equal(moved.Length, (ofType ConnectorSecretMoved after).Length)
     }
