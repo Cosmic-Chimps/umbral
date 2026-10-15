@@ -120,11 +120,11 @@ storage and its event shapes. No behaviour changes; the suite stays green.
 
 ## Phase 8: Polish & Cross-Cutting
 
-- [ ] T025 [P] README: a "Who can sign in" section in `README.md` covering both levels, which applies, verified-only, no subdomains, what happens to people already signed in (next use, one-hour access tokens), the one-app recipe, and the refusal events in `security_events` (FR-023)
-- [ ] T026 [P] `docs/connectors/google.md`: allowed email domains section — Workspace domains are owned by the company; a consumer Google account can also carry a verified address at the domain if the person controls that inbox; the `hd` hint and that it is only a hint; the one-app recipe (FR-024)
-- [ ] T027 [P] `docs/connectors/github.md`: section — GitHub verifies any address the person controls; Umbral checks the primary verified address; a domain rule on GitHub trusts whoever can receive mail at the domain; the one-app recipe
-- [ ] T028 [P] `docs/connectors/discord.md`: section — Discord's verified flag, accounts without a verified email are refused while a rule applies; the one-app recipe
-- [ ] T029 [P] `docs/connectors/oidc.md`: section — a provider that does not assert `email_verified` refuses everyone while a rule applies; trust depends on how the provider verifies; the one-app recipe
+- [X] T025 [P] README: a "Who can sign in" section in `README.md` covering both levels, which applies, verified-only, no subdomains, what happens to people already signed in (next use, one-hour access tokens), the one-app recipe, and the refusal events in `security_events` (FR-023)
+- [X] T026 [P] `docs/connectors/google.md`: allowed email domains section — Workspace domains are owned by the company; a consumer Google account can also carry a verified address at the domain if the person controls that inbox; the `hd` hint and that it is only a hint; the one-app recipe (FR-024)
+- [X] T027 [P] `docs/connectors/github.md`: section — GitHub verifies any address the person controls; Umbral checks the primary verified address; a domain rule on GitHub trusts whoever can receive mail at the domain; the one-app recipe
+- [X] T028 [P] `docs/connectors/discord.md`: section — Discord's verified flag, accounts without a verified email are refused while a rule applies; the one-app recipe
+- [X] T029 [P] `docs/connectors/oidc.md`: section — a provider that does not assert `email_verified` refuses everyone while a rule applies; trust depends on how the provider verifies; the one-app recipe
 - [ ] T030 Extend `tests/Umbral.Tests/SecurityEventCoverageTests.fs` so the coverage journey emits `allowed_domains_changed` and a domain refusal, and `tests/Umbral.Tests/LogRedactionTests.fs` (or the sign-in tests) so no full email address reaches `security_events` or the logs during a refusal
 - [ ] T031 Run `dotnet build -c Release` and `dotnet test -c Release`; record the count here; check every acceptance scenario of spec.md maps to a passing test
 - [ ] T032 Manual: walk [quickstart.md](./quickstart.md) "By hand" on a development instance

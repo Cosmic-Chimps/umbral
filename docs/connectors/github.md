@@ -126,6 +126,26 @@ Umbral sends PKCE (`S256`) with the request.
   person's account from another provider (see
   [How people are identified](../../README.md#how-people-are-identified)).
 
+## Allowed email domains
+
+On the Connectors screen you can limit who can sign in by email domain, for the
+whole instance or for one connector (see
+[Who can sign in](../../README.md#who-can-sign-in)). While a rule applies, only
+an email GitHub reports as verified counts, and the domain must match exactly.
+
+- GitHub verifies any address its user can receive mail at. Umbral checks the
+  address this connector already uses: the person's **primary, verified**
+  address. A person with none is refused while a rule applies.
+- A domain rule on GitHub therefore trusts anyone who can receive mail at that
+  domain, not only people the company has hired. If that is not enough for
+  you, use a Google Workspace connector for the domain instead.
+
+To limit one app, create a connector for it with the domain rule and offer only
+that connector to the app. For example, add a second GitHub connector, "GitHub (Acme)",
+with your domain in **Allowed email domains**, then on **Apps** set the app's
+**Sign-in methods** to **Only the connectors I choose** and tick only that
+connector. See [Who can sign in](../../README.md#who-can-sign-in).
+
 ## Gotchas
 
 - **One callback URL per OAuth app.** GitHub's OAuth Apps take a single
