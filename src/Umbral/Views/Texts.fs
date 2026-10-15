@@ -142,6 +142,35 @@ type Texts =
       ConnectorNotSharedBadge: string
       /// Shown on a connector that is not shared and that no app has chosen.
       ConnectorOfferedNowhere: string
+
+      // Who can sign in (specs/006): the instance card, a connector's own list,
+      // each card's rule label and the Apps warning. Entries in the messages
+      // are the operator's own words, so the views draw them as text.
+      AllowedDomainsTitle: string
+      AllowedDomainsLead: string
+      AllowedDomainsLabel: string
+      AllowedDomainsPlaceholder: string
+      AllowedDomainsSaveButton: string
+      /// The wildcard and not-a-domain refusals, each naming the entry.
+      AllowedDomainsWildcard: string -> string
+      AllowedDomainsNotADomain: string -> string
+      /// The button on the removal warning, which posts the empty list.
+      AllowedDomainsRemoveAnyway: string
+      /// What the help of a connector's field says there is when no instance
+      /// list is set.
+      AllowedDomainsNone: string
+      /// The help of a connector's field. Takes the instance list as the
+      /// operator reads it, or `AllowedDomainsNone`.
+      ConnectorDomainsHelp: string -> string
+      ConnectorLimitOneAppNote: string
+      ConnectorLimitOneAppNoteOidc: string
+      /// The rule label of a card: the list, as the operator reads it.
+      ConnectorRuleConnector: string -> string
+      ConnectorRuleInstance: string -> string
+      ConnectorRuleAnyone: string
+      /// The unrestricted connectors' names (at least one), for an app that
+      /// also offers a connector with a rule.
+      AppsUnrestrictedWarning: string list -> string
       ConnectorAddTitle: string
       ConnectorAddLead: string
       ConnectorAddKindLabel: string
@@ -489,6 +518,14 @@ let private noticeEn (code: string) : string option =
     | "app-connector-unknown" ->
         Some "One of the ticked connectors no longer exists. Reload the page, tick from the list shown, and save again."
     | "app-connectors-saved" -> Some "Sign-in methods saved. The app's next sign-in page uses them."
+    // The saved choice mixes connectors with a domain rule and without one. The
+    // Apps screen swaps in the names when it can tell them; this is what a
+    // stale link still says.
+    | "app-connectors-unrestricted" ->
+        Some "Some connectors this app offers have no domain rule and let anyone with an account sign in to it. To keep this app limited, offer only connectors with a domain rule."
+    | "allowed-domains-saved" -> Some "Allowed email domains saved. They apply from the next sign-in."
+    | "allowed-domains-removal" ->
+        Some "Removing this list lets anyone with an account sign in through these connectors, which have no list of their own:"
     | "connector-enabled" -> Some "Connector enabled."
     | "connector-disabled" -> Some "Connector disabled."
     | "connector-deleted" -> Some "Connector deleted."
@@ -652,6 +689,35 @@ let en: Texts =
       ConnectorSharedBadge = "Shared"
       ConnectorNotSharedBadge = "Not shared"
       ConnectorOfferedNowhere = "Not shared, and no app has chosen it, so nobody sees it yet. Choose it on an app's Sign-in methods, or tick Shared."
+
+      AllowedDomainsTitle = "Who can sign in"
+      AllowedDomainsLead =
+        "Allowed email domains for every connector that has no list of its own. Only an email the provider has verified counts, and a subdomain must be listed on its own. Leave empty to let anyone with an account at an enabled provider sign in."
+      AllowedDomainsLabel = "Allowed email domains"
+      AllowedDomainsPlaceholder = "acme.com, example.org"
+      AllowedDomainsSaveButton = "Save"
+      AllowedDomainsWildcard =
+        fun entry -> $"'{entry}' is a wildcard. List each domain on its own, like acme.com, eu.acme.com, then save again."
+      AllowedDomainsNotADomain =
+        fun entry -> $"'{entry}' isn't a domain name. Enter domains like acme.com, separated by commas, then save again."
+      AllowedDomainsRemoveAnyway = "Remove the list anyway"
+      AllowedDomainsNone = "none: anyone can sign in"
+      ConnectorDomainsHelp =
+        fun instance ->
+            $"Only people whose verified email is at one of these domains can sign in through this connector. Leave empty to use the instance list ({instance})."
+      ConnectorLimitOneAppNote =
+        "To limit one app, create a connector for it with the domain rule and offer only that connector to the app."
+      ConnectorLimitOneAppNoteOidc =
+        "Umbral keeps one connector per issuer, so you can't add a second one for this provider. To limit one app, offer this connector only to that app, or limit the app at your provider."
+      ConnectorRuleConnector = fun list -> $"Who can sign in: {list} (this connector's list)"
+      ConnectorRuleInstance = fun list -> $"Who can sign in: {list} (the instance list)"
+      ConnectorRuleAnyone = "Who can sign in: anyone with an account"
+      AppsUnrestrictedWarning =
+        fun names ->
+            let verb = if List.length names = 1 then "has" else "have"
+            let joined = String.concat ", " names
+
+            $"{joined} {verb} no domain rule and let anyone with an account sign in to this app. To keep this app limited, offer only connectors with a domain rule."
       ConnectorAddTitle = "Add another connector"
       ConnectorAddLead = "A second Discord, GitHub or Google application, for example one with its own name for a single app, or an OpenID Connect provider such as Authentik, Keycloak or Pocket ID. The first connector of Discord, GitHub and Google needs no form here: use its card below."
       ConnectorAddKindLabel = "Provider"
