@@ -429,6 +429,11 @@ let private noticeEn (code: string) : string option =
     | "provider-unreachable" ->
         Some "That provider could not be reached. Try again in a moment, or choose a different option."
     | "account-disabled" -> Some "This account has been disabled. Contact whoever runs this Umbral."
+    // The sign-in page of an app whose connector limits email domains. It
+    // never says which domain is allowed, which one the person has, or why: a
+    // stranger reads nothing of the operator's rule (specs/006 FR-007).
+    | "account-not-allowed" ->
+        Some "This account can't be used to sign in here. Try a different account or another option below, or contact whoever runs this Umbral."
     | "app-created" -> Some "App registered."
     | "app-name-required" -> Some "Give the app a name, then save again."
     | "app-redirect-uri-invalid" ->

@@ -35,6 +35,14 @@ let IdpClaim = "idp"
 [<Literal>]
 let ConnectorClaim = "connector"
 
+/// The domain of the VERIFIED email this session was admitted on, normalised
+/// (`EmailDomains.domainOf`). Absent when the sign-in had no verified email, and
+/// on a session from before specs/006. Only the domain, never the address: it is
+/// all a later re-check needs, so no address has to sit in a cookie. Never passed
+/// on to apps.
+[<Literal>]
+let EmailDomainClaim = "email_domain"
+
 let configure (options: CookieAuthenticationOptions) =
     options.Cookie.Name <- CookieName
     options.Cookie.HttpOnly <- true
@@ -61,12 +69,18 @@ let configure (options: CookieAuthenticationOptions) =
     options.AccessDeniedPath <- PathString "/signin"
 
 /// Establish a session for a user who has just come back from a provider,
-/// through the connector `slug` of the given `kind`.
-let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) : Task =
+/// through the connector `slug` of the given `kind`. `emailDomain` is the domain
+/// of the verified email that was checked at this sign-in, if there was one.
+let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) (emailDomain: string option) : Task =
     let identity = ClaimsIdentity(Scheme)
     identity.AddClaim(Claim(ClaimTypes.NameIdentifier, userId))
     identity.AddClaim(Claim(IdpClaim, kind))
     identity.AddClaim(Claim(ConnectorClaim, slug))
+
+    match emailDomain with
+    | Some domain -> identity.AddClaim(Claim(EmailDomainClaim, domain))
+    | None -> ()
+
     ctx.SignInAsync(Scheme, ClaimsPrincipal identity)
 
 let signOut (ctx: HttpContext) : Task = ctx.SignOutAsync Scheme
@@ -91,4 +105,12 @@ let currentIdp (principal: ClaimsPrincipal) =
 let currentConnector (principal: ClaimsPrincipal) =
     match principal.FindFirst ConnectorClaim with
     | null -> currentIdp principal
+    | claim -> Some claim.Value
+
+/// The domain of the verified email the session was admitted on. None means the
+/// sign-in had no verified email, or the session is from before this feature:
+/// either way a rule that applies cannot admit it (specs/006 research R6).
+let currentEmailDomain (principal: ClaimsPrincipal) =
+    match principal.FindFirst EmailDomainClaim with
+    | null -> None
     | claim -> Some claim.Value
