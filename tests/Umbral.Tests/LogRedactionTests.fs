@@ -16,20 +16,33 @@
 /// token to stdout on purpose (FR-016) — that is how the operator learns it —
 /// and does so through `Console.WriteLine`, not a logger. What IS asserted is
 /// that the token never reaches an `ILogger`.
+///
+/// A second journey does the same through an external secret store (specs/005,
+/// SC-007): the connector client secret is then written to, read from and
+/// deleted in a manager, and every one of those paths — a refused write, a read
+/// served from the grace period, a delete the store refuses, the `move-secrets`
+/// command — logs and records what went wrong. None of them may carry a value.
 module Umbral.Tests.LogRedactionTests
 
 open System
 open System.Collections.Concurrent
 open System.Collections.Generic
 open System.Net
+open System.Net.Http
 open System.Text
 open System.Threading.Tasks
+open Microsoft.AspNetCore.DataProtection
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Logging
 open Xunit
 open Umbral.Infrastructure
+open Umbral.Infrastructure.Secrets
+open Umbral.Infrastructure.SecretStores.Registry
+open Umbral.Infrastructure.SecretStores.Settings
 open Umbral.Tests.Infrastructure
+open Umbral.Tests.Infrastructure.InMemorySecretStore
 open Umbral.Tests.Infrastructure.Journeys
+open Umbral.Tests.Infrastructure.StubOidcProvider
 
 // `Captured`, `CapturingProvider`, `Secret`, `leaksIn` and `securityEventRows` are
 // public so the OpenID Connect end-to-end test (OidcConnectorTests) searches its
@@ -129,28 +142,68 @@ let securityEventRows (app: Fixtures.TestApp) =
         return List.ofSeq rows
     }
 
+/// TRACE, and every category: the point is to see what the frameworks would say
+/// if an operator turned verbose logging on to debug an issue. appsettings.json
+/// quiets several categories by default, so they are raised here the way an
+/// operator would, through configuration.
+let private verboseSettings =
+    [ for category in
+          [ "Default"
+            "Microsoft.AspNetCore"
+            "Microsoft.EntityFrameworkCore.Database.Command"
+            "OpenIddict"
+            "Quartz" ] -> $"Logging:LogLevel:{category}", "Trace" ]
+
+let private captureAt (provider: CapturingProvider) (builder: Microsoft.AspNetCore.Builder.WebApplicationBuilder) =
+    builder.Logging.SetMinimumLevel LogLevel.Trace |> ignore
+    builder.Logging.AddProvider provider |> ignore
+
+/// What every journey asserts once it is over, so that none of them can pass
+/// on a capture that saw nothing: the capture is not vacuous, no log entry
+/// carries a secret, and no `security_events` row does. A journey that has
+/// tokens in it checks for its own OpenIddict output first, as the first one does.
+let private assertNoLeaks (app: Fixtures.TestApp) (provider: CapturingProvider) (secrets: Secret list) (otherText: (string * string) list) =
+    task {
+        let entries = provider.Entries
+        Assert.NotEmpty entries
+
+        Assert.True(
+            entries |> Array.exists (fun e -> e.Category.StartsWith "Microsoft.AspNetCore"),
+            "no ASP.NET Core log output was captured"
+        )
+
+        let leaks =
+            [ for entry in entries do
+                  match leaksIn secrets entry.Everything with
+                  | [] -> ()
+                  | labels ->
+                      // Names what leaked and where, never the value itself:
+                      // a failure message is a log too.
+                      yield String.Join(", ", labels) + $" in [{entry.Level}] {entry.Category}"
+              // Text that is not a log line but is just as pasted around: what
+              // a command printed.
+              for where, text in otherText do
+                  match leaksIn secrets text with
+                  | [] -> ()
+                  | labels -> yield String.Join(", ", labels) + $" in {where}" ]
+            |> List.distinct
+
+        Assert.True(List.isEmpty leaks, "secrets reached a log sink:" + Environment.NewLine + String.Join(Environment.NewLine, leaks))
+
+        // The security log: every column of every row.
+        let! rows = securityEventRows app
+        Assert.NotEmpty rows
+
+        let eventLeaks = rows |> List.collect (leaksIn secrets) |> List.distinct
+        Assert.True(List.isEmpty eventLeaks, "secrets reached security_events: " + String.Join(", ", eventLeaks))
+    }
+
 [<Fact>]
 let ``no secret, token or code reaches a log sink or the security log`` () =
     task {
         let provider = new CapturingProvider()
 
-        // TRACE, and every category: the point is to see what the frameworks
-        // would say if an operator turned verbose logging on to debug an issue.
-        // appsettings.json quiets several categories by default, so they are
-        // raised here the way an operator would, through configuration.
-        let customize (builder: Microsoft.AspNetCore.Builder.WebApplicationBuilder) =
-            builder.Logging.SetMinimumLevel LogLevel.Trace |> ignore
-            builder.Logging.AddProvider provider |> ignore
-
-        let verbose =
-            [ for category in
-                  [ "Default"
-                    "Microsoft.AspNetCore"
-                    "Microsoft.EntityFrameworkCore.Database.Command"
-                    "OpenIddict"
-                    "Quartz" ] -> $"Logging:LogLevel:{category}", "Trace" ]
-
-        use! app = Fixtures.createAppWith (fakeSettings @ verbose) customize
+        use! app = Fixtures.createAppWith (fakeSettings @ verboseSettings) (captureAt provider)
         let browser = Browser(app.Client)
         let secrets = List<Secret>()
 
@@ -251,43 +304,183 @@ let ``no secret, token or code reaches a log sink or the security log`` () =
             if cookie.Value.Length >= MinimumSecretLength then
                 remember $"cookie {cookie.Key}" cookie.Value
 
-        // ---------------------------------------------------------------------
-        // The assertions. First, that the capture is not vacuous: a provider
-        // that saw nothing would "prove" anything.
-        // ---------------------------------------------------------------------
-        let entries = provider.Entries
-        Assert.NotEmpty entries
-
         Assert.True(
-            entries |> Array.exists (fun e -> e.Level <= LogLevel.Debug && e.Category.StartsWith "OpenIddict"),
+            provider.Entries |> Array.exists (fun e -> e.Level <= LogLevel.Debug && e.Category.StartsWith "OpenIddict"),
             "no OpenIddict debug/trace output was captured, so this test is not looking where tokens tend to leak"
         )
 
-        Assert.True(
-            entries |> Array.exists (fun e -> e.Category.StartsWith "Microsoft.AspNetCore"),
-            "no ASP.NET Core log output was captured"
-        )
+        do! assertNoLeaks app provider (List.ofSeq secrets) []
+    }
 
-        let secrets = List.ofSeq secrets
+let private issuer = "https://auth.example.test/application/o/umbral"
 
-        let leaks =
-            [ for entry in entries do
-                  match leaksIn secrets entry.Everything with
-                  | [] -> ()
-                  | labels ->
-                      // Names what leaked and where, never the value itself:
-                      // a failure message is a log too.
-                      yield String.Join(", ", labels) + $" in [{entry.Level}] {entry.Category}" ]
-            |> List.distinct
+/// A whole sign-in through the stubbed provider with the connector `slug`, the
+/// way the product's own tests do it. True when it ended back at Umbral's
+/// authorize endpoint, that is, when the secret was read and accepted.
+let private signInThrough (browser: Browser) (stub: StubOidcProvider) (clientId: string) (slug: string) =
+    task {
+        let! toPicker = browser.Get(authorizeUrl clientId "openid email profile")
+        let! toProvider = browser.Get((toPicker.Headers.Location |> string).Replace("/signin", $"/connect/{slug}/start"))
+        let authorization = stub.Authorize(Uri(toProvider.Headers.Location |> string))
 
-        Assert.True(List.isEmpty leaks, "secrets reached a log sink:" + Environment.NewLine + String.Join(Environment.NewLine, leaks))
+        let! back =
+            browser.Get(
+                $"/connect/{slug}/callback?code={Uri.EscapeDataString authorization.Code}&state={Uri.EscapeDataString authorization.State}"
+            )
 
-        // The security log: every column of every row.
-        let! rows = securityEventRows app
-        Assert.NotEmpty rows
+        return (back.Headers.Location |> string).Contains "/connect/authorize"
+    }
 
-        let eventLeaks = rows |> List.collect (leaksIn secrets) |> List.distinct
-        Assert.True(List.isEmpty eventLeaks, "secrets reached security_events: " + String.Join(", ", eventLeaks))
+/// SC-007: a connector secret that lives in an external store is in no log
+/// line and no event row, whichever way the store failed. The journey is the
+/// product's own: the Connectors screen, the sign-in callback and the offline
+/// `move-secrets` command, against an in-memory store registered as `aws`.
+///
+/// Every failure in it is deliberate, because a failure is where a careless
+/// `logger.LogError("... {Value}", ...)` or `Detail = $"... {message}"` hides:
+/// a refused write, a replaced secret, a read served from the grace period
+/// while the store is down, a delete the store refuses, a move.
+[<Fact>]
+let ``no connector secret reaches a log sink or the security log through an external store`` () =
+    task {
+        let provider = new CapturingProvider()
+        let store = InMemorySecretStore "aws"
+        let stub = create issuer
+        let secrets = List<Secret>()
+
+        let remember label (value: string) =
+            Assert.True(value.Length >= MinimumSecretLength, $"the test's own secret '{label}' is too short to search for")
+            secrets.Add { Label = label; Value = value }
+
+        let settings =
+            fakeSettings
+            @ verboseSettings
+            @ [ "UMBRAL:SECRET_STORE", "aws"; "AWS_REGION", "eu-west-1" ]
+
+        use! app =
+            Fixtures.createAppWithProviderHandler
+                (stub :> HttpMessageHandler)
+                settings
+                (fun builder ->
+                    captureAt provider builder
+                    Fixtures.withSecretStores [ store ] "aws" builder)
+
+        stub.Now <- fun () -> app.Clock.GetUtcNow()
+
+        let operator = Browser(app.Client)
+        remember "operator credential" OperatorCredential
+        do! claimInstance app operator
+
+        let fakeSecret = "fake-connector-secret-value"
+        remember "fake connector secret" fakeSecret
+        do! addFakeConnector app fakeSecret
+        let! clientId, clientSecret = createClientApp operator
+        remember "app client secret" clientSecret
+
+        let oidcFields (slug: string) (secret: string) =
+            [ "kind", "oidc"
+              "slug", slug
+              "displayName", "Home"
+              "issuer", issuer
+              "clientId", "umbral-client"
+              "clientSecret", secret
+              "shared", "true" ]
+
+        let githubFields (slug: string) (secret: string) =
+            [ "kind", "github"
+              "slug", slug
+              "displayName", "GitHub " + slug
+              "clientId", "gh-client"
+              "clientSecret", secret ]
+
+        // --- a write the store refuses: the value was typed, then dropped ----
+        let refused = "refused-client-secret-2b7e4d19"
+        remember "client secret the store refused" refused
+        store.FailEveryCall AccessDenied
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", oidcFields "home" refused)
+        store.Recover()
+
+        // --- create, sign in -----------------------------------------------------
+        let original = "original-client-secret-8d41c7aa"
+        remember "original connector client secret" original
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", oidcFields "home" original)
+
+        let! landed = signInThrough (Browser app.Client) stub clientId "home"
+        Assert.True(landed, "the first sign-in did not reach the authorize endpoint")
+        Assert.Equal(Some original, stub.LastTokenRequest.Value.BasicClientSecret)
+
+        // --- replace: the old value must be as absent as the new -------------
+        let replacement = "replacement-client-secret-93ab20f4"
+        remember "replacement connector client secret" replacement
+
+        let! _ =
+            operator.PostForm(
+                "/admin/connectors",
+                "/admin/connectors/home",
+                [ "displayName", "Home"
+                  "clientId", "umbral-client"
+                  "clientSecret", replacement
+                  "shared", "true" ]
+            )
+
+        let! landed = signInThrough (Browser app.Client) stub clientId "home"
+        Assert.True(landed, "the sign-in after the replace did not reach the authorize endpoint")
+        Assert.Equal(Some replacement, stub.LastTokenRequest.Value.BasicClientSecret)
+
+        // --- the store goes away: served from the grace period ---------------
+        // Past the 300 s cache lifetime, inside the 3 600 s grace.
+        store.FailEveryCall Unreachable
+        app.Clock.Advance(TimeSpan.FromSeconds 301.)
+
+        let! landed = signInThrough (Browser app.Client) stub clientId "home"
+        Assert.True(landed, "the sign-in during the outage was not served from the grace period")
+
+        // And past the grace period too: the read fails and the sign-in with it.
+        app.Clock.Advance(TimeSpan.FromSeconds 3600.)
+        let! landed = signInThrough (Browser app.Client) stub clientId "home"
+        Assert.False(landed, "a sign-in past the grace period must not succeed")
+
+        // --- a delete the store refuses (still down) ------------------------------
+        let other = "other-connector-secret-6c0d51e8"
+        remember "second connector client secret" other
+        store.Recover()
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github" other)
+        store.FailEveryCall Unreachable
+        let! deleted = operator.PostForm("/admin/connectors", "/admin/connectors/work-github/delete", [])
+        Assert.Contains("connector-secret-left-behind", deleted.Headers.Location |> string)
+        store.Recover()
+
+        // --- move to local ---------------------------------------------------------
+        // The app's own registry is active on `aws` and cannot be changed, so a
+        // second one over the same stores stands for the instance an operator
+        // restarts with `UMBRAL__SECRET_STORE` unset.
+        let local = LocalSecretStore(app.Services.GetRequiredService<IDataProtectionProvider>())
+        let toLocal = SecretStores(local, "local", Map [ "aws", lazy (Ok(store :> ISecretStore)) ])
+        let printed = List<string>()
+
+        // A move that stops on the first call it makes, so the failure report is
+        // written too, then the clean one.
+        store.FailEveryCall Unreachable
+
+        let! failedCode =
+            SecretMove.run toLocal (app.Services.GetRequiredService<SecretStoreSettings>()) app.DbConfig app.Clock false printed.Add
+
+        Assert.Equal(1, failedCode)
+        store.Recover()
+
+        let! code =
+            SecretMove.run toLocal (app.Services.GetRequiredService<SecretStoreSettings>()) app.DbConfig app.Clock false printed.Add
+
+        Assert.Equal(0, code)
+
+        // The journey reached what it set out to: both kinds of event, and the
+        // move really did move (so the report it printed is one worth searching).
+        let! stale = Flows.scalar app "SELECT count(*) FROM security_events WHERE event_type = 'secret_store_failed' AND detail LIKE '%stale=true'" []
+        Assert.NotEqual<string>("0", stale)
+        let! moved = Flows.scalar app "SELECT count(*) FROM security_events WHERE event_type = 'connector_secret_moved'" []
+        Assert.NotEqual<string>("0", moved)
+
+        do! assertNoLeaks app provider (List.ofSeq secrets) [ "the move-secrets output", String.Join(Environment.NewLine, printed) ]
     }
 
 /// The test above proves nothing leaked; this one proves WHY, and that it
