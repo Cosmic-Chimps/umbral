@@ -240,3 +240,12 @@ the safe places to fan out.
   and `.Xml` 10.0.11 in the test project (advisories published after these packages were
   pinned; unrelated to this feature, also on `main`). Local runs used `-p:NuGetAudit=false`;
   proposed as a separate alta task.
+- Review pass (2026-10-15): an adversarial review found 16 defects (1 high: `move-secrets`
+  racing an admin replace could leave the old secret as the manager's latest version).
+  All fixed in `21d3a35` / `f0ca1ee` with regression tests: a per-connector lease in
+  `settings`, cross-store-only deletes on replace, specific texts for soft-deleted /
+  ambiguous-provider / location-not-found, probe no longer treats not-found as healthy,
+  one refresh in flight per cache entry, `DELETE … RETURNING`, `store=<id>` on connector
+  events (FR-022), a global eviction generation, failed puts raise the page notice, GCP
+  token-endpoint outages are `Unreachable`, `CanRead` builds the store, a `WaitAsync`
+  backstop on the 10 s bound. Suite after the fixes: 829/829 on `f0ca1ee`.
