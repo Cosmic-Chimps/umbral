@@ -103,9 +103,7 @@ let allEventTypes =
       AppUpdated
       AppSecretRotated
       AppDeleted
-      // TODO(006 T030): add AllowedDomainsChanged here once the admin screens
-      // emit it (T020, T023) and the coverage journey drives it. Declared above
-      // so those tasks can use it; listed here it would fail the coverage test.
+      AllowedDomainsChanged
       AuthorizationCodeReplayed ]
 
 /// The `Detail` of a `secret_store_failed` event: which store, which operation

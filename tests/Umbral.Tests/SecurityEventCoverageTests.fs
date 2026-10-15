@@ -318,6 +318,11 @@ let ``every event type in the data model is emitted by the real product`` () =
         let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/secret", [])
         let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/delete", [])
 
+        // -- Who can sign in: the instance list, through the real endpoint
+        //    (allowed_domains_changed)
+        let! listed = operator.PostForm("/admin/connectors", "/admin/allowed-domains", [ "allowedDomains", "acme.com" ])
+        Assert.Contains("allowed-domains-saved", location listed)
+
         // -- The offline command: the instance goes back to `local`, so every
         //    connector's secret moves (connector_secret_moved)
         let! exitCode = moveToLocal app store
