@@ -491,11 +491,20 @@ New app, **from an image**:
 | Domain | your domain, for example `auth.example.com` |
 | Health check | HTTP, path `/healthz` |
 | Volume | one volume named `umbral-data`, mounted at `/data` (a named volume is what Caravana's coming volume backups will copy) |
-| Environment | `UMBRAL__PUBLIC_ORIGIN=https://auth.example.com` |
+| Environment | `UMBRAL__PUBLIC_ORIGIN=https://auth.example.com` and `UMBRAL__TRUSTED_PROXIES=10.99.0.1` |
 
 `UMBRAL__PUBLIC_ORIGIN` must match the domain exactly, scheme included; the
 [section above](#the-public-origin-must-match-exactly) explains why. The default
 memory (256 MB) is enough: Umbral idles under 150 MB.
+
+`UMBRAL__TRUSTED_PROXIES=10.99.0.1` tells Umbral to believe `X-Forwarded-*`
+only from Traefik. On a host set up by Caravana's installer, Traefik reaches
+Umbral from the `caravana0` address, `10.99.0.1`, on every host. Other apps on
+the same host can reach Umbral's port directly (Caravana does not isolate apps
+from each other yet). Without this setting, they could claim any client address
+and get past the sign-in limits. Their direct requests arrive from their own
+container address or from the bridge gateway (`172.26.64.1`), never from
+`10.99.0.1`, so do not trust the gateway.
 
 The image is stored with the moving tag `latest`. That is fine: Caravana pins
 the tag to a digest on every deploy, so each rollout is a specific image and
