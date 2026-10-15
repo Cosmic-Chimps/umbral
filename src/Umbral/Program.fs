@@ -96,14 +96,20 @@ let private requireSettings (config: IConfiguration) =
             let describe = (Texts.current ()).SecretStoreProblem
             failwith (problems |> List.map describe |> String.concat " ")
 
-    origin, dataDirectory, secretStore
+    // Optional: unset keeps today's behaviour, so only a bad value can fail here.
+    let trustedProxies =
+        match TrustedProxies.fromConfiguration read with
+        | Ok t -> t
+        | Error message -> failwith message
+
+    origin, dataDirectory, secretStore, trustedProxies
 
 // ---------------------------------------------------------------------------
 // Composition
 // ---------------------------------------------------------------------------
 
 let configureServices (config: IConfiguration) (services: IServiceCollection) =
-    let origin, dataDirectory, secretStore = requireSettings config
+    let origin, dataDirectory, secretStore, trustedProxies = requireSettings config
     let dbConfig: Database.DbConfig = { DataSource = dataDirectory.DatabaseFile }
 
     services.AddSingleton<PublicOrigin.PublicOrigin> origin |> ignore
@@ -111,6 +117,7 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     // Parsed once here; the registry wiring reads it when it builds the stores.
     services.AddSingleton<SecretStoreSettings.SecretStoreSettings> secretStore |> ignore
     services.AddSingleton<Database.DbConfig> dbConfig |> ignore
+    services.AddSingleton<TrustedProxies.Trust> trustedProxies |> ignore
     services.TryAddSingleton<TimeProvider> TimeProvider.System
 
     // The key ring protects the admin cookie, antiforgery tokens and every
@@ -145,19 +152,19 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
         options.UseOpenIddict() |> ignore)
     |> ignore
 
-    // Behind a reverse proxy the client IP and scheme arrive in headers. Only
-    // loopback proxies are trusted by default, and the proxy is a different
-    // container with a different address, so the lists are cleared. That is
-    // acceptable only because Umbral is not meant to be directly exposed — and
-    // note these feed logging and OpenIddict's scheme detection, never a
-    // connector redirect URI, which comes from the configured origin alone.
+    // Behind a reverse proxy the client IP and scheme arrive in headers. With
+    // UMBRAL__TRUSTED_PROXIES unset the lists are cleared and the headers are
+    // believed from any sender: the proxy is a different container with an
+    // address nobody can know in advance, and that is acceptable only while the
+    // proxy is the one thing that can reach Umbral's port. Where other
+    // containers can reach it too (apps on one shared bridge), any of them could
+    // send its own X-Forwarded-For on every request and dodge the rate limits,
+    // so the operator names the proxy there and the headers from every other
+    // connection address are ignored. Either way these feed rate limiting,
+    // logging and OpenIddict's scheme detection, never a connector redirect
+    // URI, which comes from the configured origin alone. See TrustedProxies.fs.
     services.Configure<ForwardedHeadersOptions>(fun (options: ForwardedHeadersOptions) ->
-        options.ForwardedHeaders <-
-            ForwardedHeaders.XForwardedFor ||| ForwardedHeaders.XForwardedProto ||| ForwardedHeaders.XForwardedHost
-
-        // KnownNetworks is deprecated in .NET 10; KnownIPNetworks replaces it.
-        options.KnownIPNetworks.Clear()
-        options.KnownProxies.Clear())
+        TrustedProxies.configure trustedProxies options)
     |> ignore
 
     // The end user's session with Umbral. The operator's admin cookie is a
@@ -413,6 +420,15 @@ let initialize (app: WebApplication) =
 
         do! Database.initializeSchema dbConfig
         do! probeSecretStore app dbConfig
+
+        // One line, at Information, whichever way it is set: an operator who
+        // needs to know which senders are believed should find it in the log
+        // without having to remember the default. Not a warning when unset,
+        // because unset is the supported setup for a single-proxy compose file.
+        app.Services
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Umbral.Startup")
+            .LogInformation("{TrustedProxies}", TrustedProxies.describe (app.Services.GetRequiredService<TrustedProxies.Trust>()))
 
         use scope = app.Services.CreateScope()
         let context = scope.ServiceProvider.GetRequiredService<UmbralContext>()

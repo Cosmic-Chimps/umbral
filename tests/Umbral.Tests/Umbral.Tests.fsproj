@@ -42,6 +42,7 @@
     <Compile Include="OidcProtocolTests.fs" />
     <Compile Include="OAuthRoundTripTests.fs" />
     <Compile Include="RateLimitTests.fs" />
+    <Compile Include="TrustedProxiesTests.fs" />
     <Compile Include="AdminLandingTests.fs" />
     <Compile Include="HomeTests.fs" />
     <Compile Include="MessagePageTests.fs" />

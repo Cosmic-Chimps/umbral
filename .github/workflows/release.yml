@@ -1,0 +1,260 @@
+# Release: push a tag like v1.2.3 and this workflow
+#
+#   1. runs the same tests as CI,
+#   2. builds linux/amd64 and linux/arm64 and pushes ghcr.io/<owner>/umbral:1.2.3
+#      (and :latest, unless the tag is a prerelease such as v1.2.0-rc.1),
+#   3. tells the Caravana host to roll it out and waits for the rollout to be
+#      healthy (skipped for prereleases, and when CARAVANA_URL is not set),
+#   4. keeps the last 10 image versions and deletes older ones.
+#
+# Setup (variables, secrets, the production environment): README, "Deploying on
+# Caravana".
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+# Two tags pushed close together run one after the other, never at once: the
+# prune of one must not race the push of the next. Nothing is cancelled, since
+# a half-finished rollout is worse than a queued one.
+concurrency: release
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR names are lowercase, and a GitHub owner can have capitals.
+      - name: Image name
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/umbral" >> "$GITHUB_OUTPUT"
+
+      # The runtime stage has a RUN that executes under the target
+      # architecture, so the arm64 image needs QEMU. The build stage does not:
+      # the Dockerfile cross-publishes it natively.
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # org.opencontainers.image.source (the repository) is among the labels
+      # this sets. It is what links the package to the repository on GHCR.
+      # `latest` only moves for a release: a tag with a "-" is a prerelease.
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ steps.name.outputs.image }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "### Image pushed"
+            echo
+            echo "Digest: \`$DIGEST\`"
+            echo
+            echo "Tags:"
+            echo
+            while read -r tag; do echo "- \`$tag\`"; done <<< "$TAGS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: image
+    # A prerelease is published but never deployed. Without CARAVANA_URL the
+    # repository does not deploy anywhere, and this job is skipped.
+    if: ${{ !contains(github.ref_name, '-') && vars.CARAVANA_URL != '' }}
+    runs-on: ubuntu-latest
+    # Add required reviewers to this environment to approve each rollout.
+    environment: production
+    permissions: {}
+    env:
+      CARAVANA_URL: ${{ vars.CARAVANA_URL }}
+      APP_ID: ${{ vars.CARAVANA_APP_ID || 'umbral' }}
+      WEBHOOK_TOKEN: ${{ secrets.CARAVANA_WEBHOOK_TOKEN }}
+      API_TOKEN: ${{ secrets.CARAVANA_API_TOKEN }}
+      DIGEST: ${{ needs.image.outputs.digest }}
+    steps:
+      - name: Roll out on Caravana
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base="${CARAVANA_URL%/}"
+          headers="$(mktemp)"
+          body="$(mktemp)"
+
+          # The token goes to curl on stdin as a config line, not as an
+          # argument, so it never shows up in a process list.
+          caravana() {
+            local token="$1"; shift
+            printf 'header = "Authorization: Bearer %s"\n' "$token" |
+              curl --silent --show-error --max-time 60 --config - "$@"
+          }
+
+          # Prints "code: message" from a Caravana error body, or the start of
+          # the body when it is not one.
+          describe_error() {
+            jq -er 'select(.error) | .error | "\(.code): \(.message)"' "$1" 2>/dev/null || head -c 500 "$1"
+          }
+
+          summary() { echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+
+          echo "Calling the webhook of app '$APP_ID' at $base"
+          code="$(caravana "$WEBHOOK_TOKEN" -X POST -o "$body" -D "$headers" \
+            -w '%{http_code}' "$base/v1/webhooks/$APP_ID")" || {
+            echo "::error::Could not reach $base"
+            exit 1
+          }
+
+          case "$code" in
+            200)
+              if [ "$(jq -r '.changed' "$body" 2>/dev/null)" = "false" ]; then
+                echo "::notice::Caravana says the image digest has not changed; nothing was deployed."
+                summary "### Caravana"
+                summary "Nothing to deploy: the image digest is unchanged (\`$DIGEST\`)."
+                exit 0
+              fi
+              echo "::error::Unexpected answer 200 from the webhook: $(head -c 500 "$body")"
+              exit 1
+              ;;
+            202) ;;
+            401)
+              echo "::error::Caravana answered 401: check CARAVANA_WEBHOOK_TOKEN and CARAVANA_APP_ID."
+              exit 1
+              ;;
+            *)
+              echo "::error::The webhook answered $code: $(describe_error "$body")"
+              exit 1
+              ;;
+          esac
+
+          location="$(tr -d '\r' < "$headers" | awk 'tolower($1) == "location:" { print $2 }')"
+          if [ -z "$location" ]; then
+            echo "::error::The webhook answered 202 without a Location header."
+            exit 1
+          fi
+          # Location is a path (/v1/apps/<app>/deployments/<id>); allow a full URL too.
+          case "$location" in http://*|https://*) url="$location" ;; *) url="$base$location" ;; esac
+          deployment="${location##*/}"
+          echo "Rollout started: deployment $deployment"
+
+          deadline=$((SECONDS + 600))
+          last=""
+          status=""
+          while :; do
+            if caravana "$API_TOKEN" -o "$body" -w '%{http_code}' "$url" > "$headers"; then
+              got="$(cat "$headers")"
+            else
+              got="000"
+            fi
+            case "$got" in
+              200)
+                status="$(jq -r '.status' "$body")"
+                if [ "$status" != "$last" ]; then echo "Status: $status"; last="$status"; fi
+                case "$status" in
+                  healthy|failed|reverted|superseded) break ;;
+                esac
+                ;;
+              401)
+                echo "::error::Caravana answered 401 reading the deployment: check CARAVANA_API_TOKEN."
+                exit 1
+                ;;
+              000)
+                echo "::warning::Could not read the deployment; trying again."
+                ;;
+              *)
+                echo "::error::Reading the deployment answered $got: $(describe_error "$body")"
+                exit 1
+                ;;
+            esac
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::The rollout was still '$status' after 10 minutes; giving up waiting."
+              summary "### Caravana"
+              summary "Deployment \`$deployment\` was still \`${status:-unknown}\` after 10 minutes."
+              exit 1
+            fi
+            sleep 5
+          done
+
+          # Warnings count on success too (a dropped secret, a changed meaning).
+          jq -r '.warnings[]? | "::warning::" + ((.field // "") | if . == "" then "" else . + ": " end) + (.message | gsub("\n"; " "))' "$body"
+
+          jobversion="$(jq -r '.jobVersion // "unknown"' "$body")"
+          {
+            echo "### Caravana"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Status | \`$status\` |"
+            echo "| Deployment | \`$deployment\` |"
+            echo "| Nomad job version | \`$jobversion\` |"
+            echo "| Image digest | \`$DIGEST\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$status" != "healthy" ]; then
+            message="$(jq -r '.error // "no reason given"' "$body" | tr '\n' ' ')"
+            echo "::error::The rollout ended '$status': $message"
+            summary ""
+            summary "The rollout ended \`$status\`: $message"
+            exit 1
+          fi
+          echo "Healthy: job version $jobversion"
+
+  # Keep the last 10 versions. This waits for the rollout so that a failed one,
+  # which Nomad reverts to the previous image, is never racing a deletion. It
+  # also runs when the deploy was skipped (prerelease, or no Caravana), but not
+  # when the deploy failed or was cancelled: then the old images stay until the
+  # next good release.
+  prune:
+    needs: [image, deploy]
+    if: ${{ always() && needs.image.result == 'success' && needs.deploy.result != 'failure' && needs.deploy.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete old image versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: "10"
+        run: .github/scripts/prune-images.sh

@@ -31,6 +31,7 @@ which are good at it.
 - [Quick start: a first login on your own machine](#quick-start-a-first-login-on-your-own-machine)
 - [Integrate an app](#integrate-an-app)
 - [Run it for real, behind HTTPS](#run-it-for-real-behind-https)
+- [Deploying on Caravana](#deploying-on-caravana)
 - [Your data: back it up](#your-data-back-it-up)
 - [Forgotten operator credential](#forgotten-operator-credential)
 - [Moving connector secrets between stores](#moving-connector-secrets-between-stores)
@@ -61,7 +62,9 @@ Where connector secrets can live (optional):
   create an OAuth app in, or an OpenID Connect provider of your own. Umbral
   cannot do that for you.
 
-No image is published to a registry yet, so you build it from this repository.
+The quick start builds the image from this repository, so it works from any
+checkout. Tagged releases are also published to GHCR; see
+[Deploying on Caravana](#deploying-on-caravana).
 
 ## Quick start: a first login on your own machine
 
@@ -446,14 +449,140 @@ nginx, Traefik and others work, if the proxy:
 - sends **`X-Forwarded-Proto`**. Without `X-Forwarded-Proto: https`, Umbral
   sees plain http and answers `This server only accepts HTTPS requests.`;
 - sends **`X-Forwarded-For`**, and replaces rather than trusts a value the
-  client sent. Umbral rate-limits sign-in attempts per client address, and
-  without it every visitor looks like the proxy and shares one limit.
+  client sent. Umbral rate-limits sign-in attempts per client address (an IPv6
+  client is counted per /64, and an IPv4-mapped address like
+  `::ffff:203.0.113.10` as its IPv4 form), and without it every visitor looks
+  like the proxy and shares one limit.
 
 Every URL Umbral publishes comes from `UMBRAL__PUBLIC_ORIGIN`, never from the
 `Host` header, so the proxy's host handling does not matter. Caddy's
 `reverse_proxy` does both of the above by default. nginx needs
 `proxy_set_header X-Forwarded-Proto $scheme;` and
 `proxy_set_header X-Forwarded-For $remote_addr;` written out.
+
+**Who may send those headers.** By default Umbral believes `X-Forwarded-*` from
+any sender, which is safe only while the proxy is the one thing that can reach
+Umbral's port. If anything else can reach it (other containers on a shared
+network, other apps on the same host), that thing can send its own
+`X-Forwarded-For` on every request, pick its own client address and so dodge the
+sign-in limits, and it can claim `https` or another host in the headers too. In
+that case set `UMBRAL__TRUSTED_PROXIES` to the proxy's address, for example
+`UMBRAL__TRUSTED_PROXIES=192.0.2.10`. Headers from every other connection
+address are then ignored and that connection's real address is used. Umbral logs
+one line at startup saying which proxies it trusts.
+
+With the bundled docker-compose and Caddy setup you can leave it unset: only
+Caddy is on that compose network, so only Caddy can reach Umbral.
+
+Use the address your proxy's connections actually arrive from, and nothing a
+neighbour can send from. A shared bridge's gateway is the wrong choice: other
+containers that reach Umbral through a published host port often arrive
+masqueraded as that gateway.
+
+## Deploying on Caravana
+
+Caravana is a self-hosted PaaS on Nomad. Its Traefik already terminates TLS
+and routes by domain, so on a Caravana host you use neither Caddy nor the
+compose file above. You create one image app
+and the release workflow does the rest: pushing a tag builds the image and tells
+Caravana to roll it out.
+
+### Create the app in Caravana
+
+New app, **from an image**:
+
+| Setting | Value |
+| --- | --- |
+| App ID | `umbral` |
+| Image | `ghcr.io/<owner>/umbral:latest` (`<owner>` is the GitHub user or organization that owns the repository, in lowercase) |
+| Container port | `8080` |
+| Domain | your domain, for example `auth.example.com` |
+| Health check | HTTP, path `/healthz` |
+| Volume | one volume named `umbral-data`, mounted at `/data` (a named volume is what Caravana's coming volume backups will copy) |
+| Environment | `UMBRAL__PUBLIC_ORIGIN=https://auth.example.com` and `UMBRAL__TRUSTED_PROXIES=10.99.0.1` |
+
+`UMBRAL__PUBLIC_ORIGIN` must match the domain exactly, scheme included; the
+[section above](#the-public-origin-must-match-exactly) explains why. The default
+memory (256 MB) is enough: Umbral idles under 150 MB.
+
+`UMBRAL__TRUSTED_PROXIES=10.99.0.1` tells Umbral to believe `X-Forwarded-*`
+only from Traefik. On a host set up by Caravana's installer, Traefik reaches
+Umbral from the `caravana0` address, `10.99.0.1`, on every host. Other apps on
+the same host can reach Umbral's port directly (Caravana does not isolate apps
+from each other yet). Without this setting, they could claim any client address
+and get past the sign-in limits. Their direct requests arrive from their own
+container address or from the bridge gateway (`172.26.64.1`), never from
+`10.99.0.1`, so do not trust the gateway.
+
+The image is stored with the moving tag `latest`. That is fine: Caravana pins
+the tag to a digest on every deploy, so each rollout is a specific image and
+Caravana can roll it back.
+
+**Make the GHCR package public after the first release.** Caravana pulls from
+GHCR anonymously and cannot use registry credentials yet. On GitHub, open the
+package (your profile or organization, Packages, `umbral`), then Package
+settings, Change visibility. The image holds no secrets: every secret lives in
+`/data`.
+
+The app needs an image to start from, so the first time, go in this order: push
+a tag with `CARAVANA_URL` not set yet (the release then only builds the image),
+make the package public, create the app, then add the variables and secrets
+below. Every later release deploys on its own.
+
+### Connect the repository
+
+In the GitHub repository, under Settings, Secrets and variables, Actions:
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Variable | `CARAVANA_URL` | The console domain, for example `https://caravana.example.com`, with no trailing slash. Without it the release builds the image and skips the deploy. |
+| Variable | `CARAVANA_APP_ID` | Optional. The app ID, if it is not `umbral`. |
+| Secret | `CARAVANA_WEBHOOK_TOKEN` | The app's webhook token: Configure, Webhook token. It starts with `cvwh_` and is shown once. It can only trigger a redeploy. |
+| Secret | `CARAVANA_API_TOKEN` | An API token that lets the workflow read the rollout and wait for it: Settings, API tokens, or `sudo caravana admin create-token --name umbral-ci` on the host. It starts with `cvat_`. |
+
+Also create an **environment** named `production` (Settings, Environments). The
+deploy job runs in it, so you can add required reviewers there and approve each
+rollout by hand.
+
+### Release
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+The workflow ([`release.yml`](.github/workflows/release.yml)) then:
+
+1. runs the same tests as CI;
+2. builds `linux/amd64` and `linux/arm64` and pushes `ghcr.io/<owner>/umbral:1.2.3`
+   and `:latest`;
+3. calls the app's webhook and waits, up to 10 minutes, until Caravana reports the
+   rollout healthy. It fails if the rollout fails or is reverted, and prints the
+   deployment's warnings;
+4. deletes image versions older than the last 10.
+
+Re-running a release is safe: when the image has not changed, Caravana deploys
+nothing and the workflow says so.
+
+Things to know:
+
+- **A deploy briefly stops the app.** `/data` is a volume that only one copy can
+  use, so Caravana stops the old copy before it starts the new one: a few seconds
+  of downtime, and a rollout takes 15 to 30 seconds. Pick a quiet moment, or put
+  a required reviewer on the `production` environment.
+- **Prereleases do not deploy.** A tag with a hyphen, such as `v1.2.0-rc.1`,
+  publishes its image but does not move `latest` and does not call Caravana. Pull
+  it by tag to try it.
+- **Only the last 10 versions are kept**, so rolling back in Caravana reaches 10
+  releases back; for an older one, Caravana answers `image_not_found`. The pruning
+  is careful with multi-arch images: it deletes an old version together with its
+  own per-architecture parts and nothing else
+  ([`prune-images.sh`](.github/scripts/prune-images.sh); run it with `DRY_RUN=1`
+  to see what it would delete). It does not run when the deploy failed, so the
+  image a failed rollout reverts to is never deleted under it.
+- **Caravana does not back up `/data` off the machine yet** (volume backups are a
+  coming Caravana feature). Until they exist, copy it yourself as described in
+  [Your data: back it up](#your-data-back-it-up), with Umbral stopped.
 
 ## Your data: back it up
 
@@ -587,6 +716,7 @@ Set these as environment variables on the container.
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `UMBRAL__PUBLIC_ORIGIN` | *required* | The address people reach Umbral at, e.g. `https://auth.example.com`. Scheme, host, optional port; no path. `http` is accepted only for `localhost`. |
+| `UMBRAL__TRUSTED_PROXIES` | unset (believe forwarded headers from any sender) | Comma-separated IP addresses and networks, IPv4 or IPv6, whose `X-Forwarded-For`, `-Proto` and `-Host` headers Umbral believes, e.g. `192.0.2.10, 10.0.0.0/8, fd00::/8`. Spaces around entries are ignored. Set it when anything other than your reverse proxy can reach Umbral's port, so it cannot choose its own client address and avoid the rate limits. A value that is not an address or network (including a network with bits set beyond its prefix, such as `10.0.0.5/8`) stops Umbral from starting and names the entry. See [Using a different reverse proxy](#using-a-different-reverse-proxy). |
 | `UMBRAL__DATA_DIRECTORY` | `/data` (set in the image) | Where Umbral keeps everything. Must be writable. |
 | `ASPNETCORE_ENVIRONMENT` + `UMBRAL__INSECURE_ALLOW_HTTP` | unset | `Development` **and** `true` together allow plain `http://localhost`. Laptop trial only. Never set them on a server. |
 | `UMBRAL__SECRET_STORE` | `local` | Where connector client secrets are kept: `local` (encrypted in `/data`), `aws`, `gcp`, `azure` or `bellabaxter`. Anything else stops the start. |
@@ -609,7 +739,8 @@ Commands below use the quick-start container name. With compose, write
 **The container exits right after starting.**
 `docker logs umbral`: Umbral names the setting. Usual causes:
 `UMBRAL__PUBLIC_ORIGIN` is missing, has a path (`https://auth.example.com/auth`)
-or is `http://` with a host other than `localhost`; or `/data` is not writable. For a bind mount, run
+or is `http://` with a host other than `localhost`; `UMBRAL__TRUSTED_PROXIES`
+holds an entry that is not an IP address or network; or `/data` is not writable. For a bind mount, run
 `chown -R 1654:1654 ./data`.
 
 **I added a connector and nobody sees it.**
