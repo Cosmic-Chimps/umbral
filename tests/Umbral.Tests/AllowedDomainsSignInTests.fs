@@ -34,7 +34,8 @@ type private Attempt =
 /// One whole sign-in through the fake provider, up to and including the
 /// callback. Does not follow the callback's redirect: the caller decides whether
 /// that is the replayed authorize request (admitted) or the sign-in page (refused).
-let private attempt
+let private attemptVia
+    (slug: string)
     (browser: Journeys.Browser)
     (clientId: string)
     (subject: string)
@@ -45,7 +46,7 @@ let private attempt
     task {
         let! toPicker = browser.Get(Journeys.authorizeUrl clientId "openid")
         let picker = toPicker.Headers.Location |> string
-        let! toProvider = browser.Get(picker.Replace("/signin", "/connect/fake/start"))
+        let! toProvider = browser.Get(picker.Replace("/signin", $"/connect/{slug}/start"))
 
         let providerUrl = toProvider.Headers.Location |> string
         let decoded = Uri.UnescapeDataString providerUrl
@@ -67,6 +68,8 @@ let private attempt
         let! back = browser.Get(approved.Headers.Location |> string)
         return { Callback = back; Location = back.Headers.Location |> string }
     }
+
+let private attempt = attemptVia "fake"
 
 let private signIn (browser: Journeys.Browser) (clientId: string) (subject: string) (email: string) (verified: bool) =
     attempt browser clientId subject email verified "Test User"
@@ -893,4 +896,122 @@ let ``a connector that is not Google is not sent hd whatever its list`` () =
             let picker = toPicker.Headers.Location |> string
             let! toProvider = browser.Get(picker.Replace("/signin", "/connect/fake/start"))
             Assert.DoesNotContain("hd=", toProvider.Headers.Location |> string)
+        })
+
+// ---------------------------------------------------------------------------
+// The rule is the connector's, not the person's (US3.4)
+// ---------------------------------------------------------------------------
+
+/// A second connector of kind Fake, shared and enabled, with no list of its own.
+let private addOpenConnector (app: Fixtures.TestApp) (slug: string) =
+    task {
+        let! reference = Fixtures.putSecret app slug "open-connector-secret"
+
+        do!
+            ConnectorStore.save
+                app.DbConfig
+                app.Clock
+                { Slug = slug
+                  Kind = Connectors.ProviderKind.Fake
+                  DisplayName = "Open"
+                  ClientId = slug
+                  ClientSecretRef = reference.Encoded
+                  ClientSecretHint = Secrets.hint "open-connector-secret"
+                  IssuerUrl = None
+                  AllowedEmailDomains = []
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = app.Clock.GetUtcNow()
+                  UpdatedUtc = app.Clock.GetUtcNow() }
+                None
+    }
+
+/// `fake` limited to acme.com, `open` with no list, and no instance list.
+let private withTwoConnectors (body: Fixtures.TestApp -> Journeys.Prepared -> Task<unit>) =
+    withApp [ "acme.com" ] [] (fun app _ prepared ->
+        task {
+            do! addOpenConnector app "open"
+            do! body app prepared
+        })
+
+[<Fact>]
+let ``a person refused by one connector gets in through another, as the same user`` () =
+    withTwoConnectors (fun app prepared ->
+        task {
+            // Through the open connector: admitted.
+            let first = Journeys.Browser app.Client
+            let! admitted = attemptVia "open" first prepared.ClientId "bob" "bob@gmail.com" true "Test User"
+            do! admittedCode first admitted
+            do! expectCount app "SELECT count(*) FROM users" 1
+            let! id = userId app
+            let! before = userRow app
+
+            // Through the limited one: refused, and the user is left alone.
+            let second = Journeys.Browser app.Client
+            let! refused = attemptVia "fake" second prepared.ClientId "bob" "bob@gmail.com" true "Test User"
+            Assert.StartsWith("/signin?", refused.Location)
+            Assert.Contains("msg=account-not-allowed", refused.Location)
+            Assert.False(second.Cookies.ContainsKey Sessions.CookieName)
+
+            let! events = failures app
+            let detail, userOfEvent, connector, _ = Assert.Single events
+            Assert.Equal("email_domain_refused;reason=domain_not_allowed;rule=connector;stage=callback;domain=gmail.com", detail)
+            Assert.Equal("", userOfEvent)
+            Assert.Equal("fake", connector)
+
+            do! expectCount app "SELECT count(*) FROM users" 1
+            let! after = userRow app
+            Assert.Equal(before, after)
+
+            // Through the open one again: the same user, not a second.
+            let third = Journeys.Browser app.Client
+            let! again = attemptVia "open" third prepared.ClientId "bob" "bob@gmail.com" true "Test User"
+            do! admittedCode third again
+            do! expectCount app "SELECT count(*) FROM users" 1
+            let! sameId = userId app
+            Assert.Equal(id, sameId)
+            do! expectCount app "SELECT count(*) FROM linked_accounts" 1
+        })
+
+[<Fact>]
+let ``a person admitted by the limited connector is the same user through the open one`` () =
+    withTwoConnectors (fun app prepared ->
+        task {
+            let first = Journeys.Browser app.Client
+            let! admitted = attemptVia "fake" first prepared.ClientId "ann" "ann@acme.com" true "Test User"
+            do! admittedCode first admitted
+            let! id = userId app
+
+            let second = Journeys.Browser app.Client
+            let! other = attemptVia "open" second prepared.ClientId "ann" "ann@acme.com" true "Test User"
+            do! admittedCode second other
+
+            do! expectCount app "SELECT count(*) FROM users" 1
+            let! sameId = userId app
+            Assert.Equal(id, sameId)
+            let! noFailures = failures app
+            Assert.Empty noFailures
+        })
+
+[<Fact>]
+let ``limiting one connector does not touch a session established through another`` () =
+    withApp [] [] (fun app _ prepared ->
+        task {
+            do! addOpenConnector app "open"
+
+            // The session comes through the open connector, while neither has a list.
+            let browser = Journeys.Browser app.Client
+            let! admitted = attemptVia "open" browser prepared.ClientId "bob" "bob@gmail.com" true "Test User"
+            do! admittedCode browser admitted
+
+            // Now `fake` is limited. `open` still has no list and there is no
+            // instance list, so this session's rule has not changed.
+            do! setConnectorList app [ "acme.com" ]
+
+            let! response = browser.Get(Journeys.authorizeUrl prepared.ClientId "openid")
+            Assert.Contains("code=", response.Headers.Location |> string)
+            Assert.True(browser.Cookies[Sessions.CookieName] <> "")
+
+            let! events = failures app
+            Assert.Empty events
         })

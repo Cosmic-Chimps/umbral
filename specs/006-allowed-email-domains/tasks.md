@@ -126,7 +126,7 @@ storage and its event shapes. No behaviour changes; the suite stays green.
 - [X] T028 [P] `docs/connectors/discord.md`: section — Discord's verified flag, accounts without a verified email are refused while a rule applies; the one-app recipe
 - [X] T029 [P] `docs/connectors/oidc.md`: section — a provider that does not assert `email_verified` refuses everyone while a rule applies; trust depends on how the provider verifies; the one-app recipe
 - [x] T030 Extend `tests/Umbral.Tests/SecurityEventCoverageTests.fs` so the coverage journey emits `allowed_domains_changed` and a domain refusal, and `tests/Umbral.Tests/LogRedactionTests.fs` (or the sign-in tests) so no full email address reaches `security_events` or the logs during a refusal
-- [x] T031 Run `dotnet build -c Release` and `dotnet test -c Release`; record the count here; check every acceptance scenario of spec.md maps to a passing test — 957/957 on 2026-10-15
+- [x] T031 Run `dotnet build -c Release` and `dotnet test -c Release`; record the count here; check every acceptance scenario of spec.md maps to a passing test — 960/960 on 2026-10-15
 - [ ] T032 Manual: walk [quickstart.md](./quickstart.md) "By hand" on a development instance
 
 ---
