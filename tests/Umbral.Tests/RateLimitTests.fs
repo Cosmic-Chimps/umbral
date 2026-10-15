@@ -168,3 +168,47 @@ let ``a normal operator sign-in is not affected`` () =
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
         Assert.Equal("/admin/connectors", response.Headers.Location |> string)
     }
+
+[<Fact>]
+let ``partitionKey leaves an IPv4 address as it is`` () =
+    Assert.Equal("203.0.113.10", RateLimits.partitionKey (IPAddress.Parse "203.0.113.10"))
+
+[<Fact>]
+let ``partitionKey folds an IPv4-mapped IPv6 address to IPv4`` () =
+    Assert.Equal("203.0.113.10", RateLimits.partitionKey (IPAddress.Parse "::ffff:203.0.113.10"))
+
+[<Fact>]
+let ``partitionKey is the /64 for IPv6, without a scope id`` () =
+    let key = RateLimits.partitionKey (IPAddress.Parse "2001:db8:1::1")
+    Assert.Equal("2001:db8:1::/64", key)
+    Assert.Equal(key, RateLimits.partitionKey (IPAddress.Parse "2001:db8:1:0:abcd:ef01:2345:6789"))
+    Assert.Equal(key, RateLimits.partitionKey (IPAddress.Parse "2001:db8:1::1%3"))
+    Assert.NotEqual<string>(key, RateLimits.partitionKey (IPAddress.Parse "2001:db8:2::1"))
+
+[<Fact>]
+let ``rotating addresses inside one IPv6 /64 does not get a new budget`` () =
+    task {
+        use! app = Fixtures.createApp ()
+
+        // Ten different addresses, one /64: together they spend the one budget.
+        for i in 1..adminLimit do
+            let! response = send app $"2001:db8:1::{i:x}" "POST" "/admin/signin"
+            Assert.NotEqual(HttpStatusCode.TooManyRequests, response.StatusCode)
+
+        let! over = send app "2001:db8:1::ff" "POST" "/admin/signin"
+        Assert.Equal(HttpStatusCode.TooManyRequests, over.StatusCode)
+
+        // A different /64 is a different client.
+        let! other = send app "2001:db8:2::1" "POST" "/admin/signin"
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, other.StatusCode)
+    }
+
+[<Fact>]
+let ``an IPv4 address and its IPv4-mapped IPv6 form share one budget`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! _ = burst app "203.0.113.10" "POST" "/admin/signin" (adminLimit / 2)
+        let! _ = burst app "::ffff:203.0.113.10" "POST" "/admin/signin" (adminLimit / 2)
+        let! over = send app "203.0.113.10" "POST" "/admin/signin"
+        Assert.Equal(HttpStatusCode.TooManyRequests, over.StatusCode)
+    }

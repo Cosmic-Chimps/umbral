@@ -438,8 +438,10 @@ nginx, Traefik and others work, if the proxy:
 - sends **`X-Forwarded-Proto`**. Without `X-Forwarded-Proto: https`, Umbral
   sees plain http and answers `This server only accepts HTTPS requests.`;
 - sends **`X-Forwarded-For`**, and replaces rather than trusts a value the
-  client sent. Umbral rate-limits sign-in attempts per client address, and
-  without it every visitor looks like the proxy and shares one limit.
+  client sent. Umbral rate-limits sign-in attempts per client address (an IPv6
+  client is counted per /64, and an IPv4-mapped address like
+  `::ffff:203.0.113.10` as its IPv4 form), and without it every visitor looks
+  like the proxy and shares one limit.
 
 Every URL Umbral publishes comes from `UMBRAL__PUBLIC_ORIGIN`, never from the
 `Host` header, so the proxy's host handling does not matter. Caddy's

@@ -13,6 +13,8 @@
 module Umbral.Infrastructure.RateLimits
 
 open System
+open System.Net
+open System.Net.Sockets
 open System.Threading.RateLimiting
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.RateLimiting
@@ -44,6 +46,27 @@ let SignIn = "sign-in"
 let private adminWindow = TimeSpan.FromMinutes 10.0
 let private signInWindow = TimeSpan.FromMinutes 1.0
 
+/// The partition key for one client address.
+///
+/// IPv6 is counted per /64, not per address. One client normally controls at
+/// least a /64 (2^64 addresses), so a limit per full address could be walked
+/// around by rotating the low half of the address on every attempt. The key is
+/// the network, written as `2001:db8:1::/64`. A scope id (`%eth0`) names a local
+/// interface, not a client, so it is dropped.
+///
+/// An IPv4-mapped IPv6 address (`::ffff:203.0.113.10`, which a dual-stack
+/// socket can report) is the same client as `203.0.113.10`, so it is folded to
+/// the IPv4 form. Otherwise a client would have two budgets, one per spelling.
+let partitionKey (address: IPAddress) : string =
+    if address.IsIPv4MappedToIPv6 then
+        string (address.MapToIPv4())
+    elif address.AddressFamily = AddressFamily.InterNetworkV6 then
+        let bytes = address.GetAddressBytes()
+        Array.fill bytes 8 8 0uy
+        $"{IPAddress bytes}/64"
+    else
+        string address
+
 /// The source of a request, as resolved after `UseForwardedHeaders`.
 ///
 /// When there is no address at all (a TestServer, or a unix socket) everything
@@ -53,7 +76,7 @@ let private signInWindow = TimeSpan.FromMinutes 1.0
 let source (ctx: HttpContext) : string =
     match ctx.Connection.RemoteIpAddress with
     | null -> "unknown"
-    | address -> string address
+    | address -> partitionKey address
 
 let private fixedWindow (permits: int) (window: TimeSpan) (key: string) =
     RateLimitPartition.GetFixedWindowLimiter(
@@ -69,7 +92,7 @@ let private fixedWindow (permits: int) (window: TimeSpan) (key: string) =
             )
     )
 
-/// Registers both policies. Partitioned by `source`, so one address being
+/// Registers both policies. Partitioned by `source`, so one client being
 /// limited does not affect any other.
 let configure (options: RateLimiterOptions) =
     options.AddPolicy(AdminAuth, fun ctx -> fixedWindow 10 adminWindow (source ctx)) |> ignore
