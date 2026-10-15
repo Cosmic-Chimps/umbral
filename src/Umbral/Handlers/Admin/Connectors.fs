@@ -927,6 +927,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   ClientSecretRef = ""
                   ClientSecretHint = ""
                   IssuerUrl = Some issuer
+                  AllowedEmailDomains = []
                   IsEnabled = enabled
                   IsShared = state.Shared
                   CreatedUtc = now
@@ -1031,6 +1032,7 @@ let create: EndpointHandler =
                       ClientSecretRef = ""
                       ClientSecretHint = ""
                       IssuerUrl = None
+                      AllowedEmailDomains = []
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
@@ -1106,6 +1108,7 @@ let save (slug: string) : EndpointHandler =
                           ClientSecretRef = ""
                           ClientSecretHint = ""
                           IssuerUrl = None
+                          AllowedEmailDomains = []
                           // A connector arrives enabled: the operator came here to
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true
@@ -1188,7 +1191,7 @@ let save (slug: string) : EndpointHandler =
                         | Ok written ->
 
                         let! updated =
-                            ConnectorStore.update config clock slug newName clientId newShared (written |> Option.map snd)
+                            ConnectorStore.update config clock slug newName clientId newShared None (written |> Option.map snd)
 
                         match written with
                         | Some(reference, _) when not updated ->

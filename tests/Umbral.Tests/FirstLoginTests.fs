@@ -134,6 +134,7 @@ let private claimAndConfigure (app: Fixtures.TestApp) (browser: Browser) : Task<
                   ClientSecretRef = secretRef.Encoded
                   ClientSecretHint = "cret"
                   IssuerUrl = None
+                  AllowedEmailDomains = []
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

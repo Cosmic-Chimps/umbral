@@ -38,6 +38,7 @@ let private connector: Connector =
       ClientSecretRef = "local:unused"
       ClientSecretHint = "ount"
       IssuerUrl = Some issuer
+      AllowedEmailDomains = []
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UtcNow

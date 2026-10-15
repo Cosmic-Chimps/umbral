@@ -47,6 +47,7 @@ let private connector: Connector =
       ClientSecretRef = ""
       ClientSecretHint = ""
       IssuerUrl = None
+      AllowedEmailDomains = []
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch

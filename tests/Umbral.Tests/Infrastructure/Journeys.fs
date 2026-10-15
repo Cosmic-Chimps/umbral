@@ -150,6 +150,7 @@ let addFakeConnector (app: Fixtures.TestApp) (secret: string) =
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = Secrets.hint secret
                   IssuerUrl = None
+                  AllowedEmailDomains = []
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
