@@ -536,7 +536,8 @@ let private view
                          t.Notice code
                      else
                          // Saved either way: the warning says so first.
-                         $"{t.Notice "app-connectors-saved"} {t.AppsUnrestrictedWarning unrestricted}")
+                         let saved = t.Notice "app-connectors-saved"
+                         $"{saved} {t.AppsUnrestrictedWarning unrestricted}")
             })
             :> HtmlElement
         | Some code, Some warning ->
