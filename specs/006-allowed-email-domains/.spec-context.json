@@ -2,8 +2,8 @@
   "workflow": "speckit",
   "specName": "Allowed Email Domains, per Instance or per Connector",
   "branch": "alta/sincere-bunting-jgtq",
-  "currentStep": "tasks",
-  "status": "ready-to-implement",
+  "currentStep": "implement",
+  "status": "implementing",
   "history": [
     {
       "step": "specify",
@@ -25,6 +25,13 @@
       "kind": "start",
       "by": "extension",
       "at": "2026-10-15T21:21:34.406Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-15T23:52:05.947Z"
     }
   ]
 }
