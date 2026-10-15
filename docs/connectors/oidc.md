@@ -364,6 +364,26 @@ JSON `true`. Check what your provider sends: with `curl` on its userinfo
 endpoint, or by decoding an identity token. Some providers
 only mark an address verified once the person or an admin has confirmed it.
 
+## Allowed email domains
+
+On the Connectors screen you can limit who can sign in by email domain, for the
+whole instance or for one connector (see
+[Who can sign in](../../README.md#who-can-sign-in)). While a rule applies, only
+an email your provider marks `email_verified: true` counts, and the domain must match exactly.
+
+- A provider that does not send `email_verified` as the JSON value `true`
+  refuses everyone while a rule applies. Check what yours sends (see
+  [Troubleshooting](#troubleshooting)).
+- How far to trust the domain depends on how your provider verifies addresses.
+  If it only marks an address verified once an admin or the person has
+  confirmed it, a rule is as strong as that step.
+
+To limit one app, create a connector for it with the domain rule and offer only
+that connector to the app. For example, add a second OpenID Connect connector, "Company login",
+with your domain in **Allowed email domains**, then on **Apps** set the app's
+**Sign-in methods** to **Only the connectors I choose** and tick only that
+connector. See [Who can sign in](../../README.md#who-can-sign-in).
+
 ## Gotchas
 
 - **One client per Umbral connector.** Create a client per connector; the

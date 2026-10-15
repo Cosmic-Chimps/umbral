@@ -195,6 +195,29 @@ them is fine.
   same address (see
   [How people are identified](../../README.md#how-people-are-identified)).
 
+## Allowed email domains
+
+On the Connectors screen you can limit who can sign in by email domain, for the
+whole instance or for one connector (see
+[Who can sign in](../../README.md#who-can-sign-in)). While a rule applies, only
+an email Google reports as verified counts, and the domain must match exactly.
+
+- A Google Workspace domain is owned by the company, so an address there was
+  created by the company.
+- A consumer Google account can also carry a verified address at that domain
+  if the person controls that inbox. Umbral checks the email Google returns,
+  not the kind of account.
+- With **exactly one** domain in the rule, Umbral sends Google's `hd` hint, so
+  the account chooser shows accounts of that domain first. It is only a hint:
+  Umbral checks every account Google returns itself. With two or more domains,
+  or none, no hint is sent.
+
+To limit one app, create a connector for it with the domain rule and offer only
+that connector to the app. For example, add a second Google connector, "Google (Acme)",
+with your domain in **Allowed email domains**, then on **Apps** set the app's
+**Sign-in methods** to **Only the connectors I choose** and tick only that
+connector. See [Who can sign in](../../README.md#who-can-sign-in).
+
 ## Gotchas
 
 - **`redirect_uri_mismatch` ("Error 400")** means the URL in the Google console
