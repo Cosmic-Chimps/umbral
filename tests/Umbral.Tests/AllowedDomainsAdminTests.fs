@@ -616,8 +616,9 @@ let ``saving that choice succeeds and shows the same text as a warning notice`` 
         let row = textAfter (rowOf screen clientId) warningMarker
         Assert.Contains("Fake", notice)
         Assert.DoesNotContain("Discord", notice)
-        // The notice carries the row's text.
-        Assert.Equal(row, notice)
+        // The notice says it saved, then carries the row's text.
+        Assert.StartsWith("Sign-in methods saved.", notice)
+        Assert.EndsWith(row, notice)
 
         // It is stored: the choice went through.
         let! choice = AppConnectors.choiceFor app.DbConfig clientId

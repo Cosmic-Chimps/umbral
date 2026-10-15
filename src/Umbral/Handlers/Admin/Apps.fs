@@ -532,7 +532,11 @@ let private view
             (div().data("notice", code) {
                 Components.alert
                     Components.Warning
-                    (if unrestricted.IsEmpty then t.Notice code else t.AppsUnrestrictedWarning unrestricted)
+                    (if unrestricted.IsEmpty then
+                         t.Notice code
+                     else
+                         // Saved either way: the warning says so first.
+                         $"{t.Notice "app-connectors-saved"} {t.AppsUnrestrictedWarning unrestricted}")
             })
             :> HtmlElement
         | Some code, Some warning ->

@@ -522,7 +522,7 @@ let private noticeEn (code: string) : string option =
     // Apps screen swaps in the names when it can tell them; this is what a
     // stale link still says.
     | "app-connectors-unrestricted" ->
-        Some "Some connectors this app offers have no domain rule and let anyone with an account sign in to it. To keep this app limited, offer only connectors with a domain rule."
+        Some "Sign-in methods saved. Some connectors this app offers have no domain rule and let anyone with an account sign in to it. To keep this app limited, offer only connectors with a domain rule."
     | "allowed-domains-saved" -> Some "Allowed email domains saved. They apply from the next sign-in."
     | "allowed-domains-removal" ->
         Some "Removing this list lets anyone with an account sign in through these connectors, which have no list of their own:"
@@ -714,10 +714,10 @@ let en: Texts =
       ConnectorRuleAnyone = "Who can sign in: anyone with an account"
       AppsUnrestrictedWarning =
         fun names ->
-            let verb = if List.length names = 1 then "has" else "have"
+            let has, lets = if List.length names = 1 then "has", "lets" else "have", "let"
             let joined = String.concat ", " names
 
-            $"{joined} {verb} no domain rule and let anyone with an account sign in to this app. To keep this app limited, offer only connectors with a domain rule."
+            $"{joined} {has} no domain rule and {lets} anyone with an account sign in to this app. To keep this app limited, offer only connectors with a domain rule."
       ConnectorAddTitle = "Add another connector"
       ConnectorAddLead = "A second Discord, GitHub or Google application, for example one with its own name for a single app, or an OpenID Connect provider such as Authentik, Keycloak or Pocket ID. The first connector of Discord, GitHub and Google needs no form here: use its card below."
       ConnectorAddKindLabel = "Provider"
