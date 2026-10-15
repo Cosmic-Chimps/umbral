@@ -338,7 +338,9 @@ work against the second instance.
 - **FR-025**: Any enabled Umbral user MAY sign in to any registered app. Umbral
   answers only "who is this person"; deciding what that person may do is the
   app's job. Umbral MUST NOT offer a per-app user allowlist or any other
-  authorization model.
+  authorization model. **Amended by [006](../006-allowed-email-domains/spec.md).**
+  The operator may limit sign-in to verified email domains, per connector or per
+  instance, never per app. That decides who can be a user, not what a user may do.
 
 #### Configuration and deployment
 

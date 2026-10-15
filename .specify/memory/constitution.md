@@ -1,41 +1,41 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 2.0.0
-Rationale: MAJOR. Principle V (Config-as-Code Parity) is removed, along with
-its "Config parity" question in the Constitution Check. It required a YAML file
-equivalent to the admin UI; spec 004 (specs/004-remove-config-document) removes
-that file.
+Version change: 2.0.0 → 2.1.0
+Rationale: MINOR. Principle VII gets a clarification, which materially expands
+its guidance. Spec 006 (specs/006-allowed-email-domains) lets the operator
+limit, per connector or per instance, which verified email domains may sign in.
+That is a rule on who can become an Umbral user, like disabling a user. It is not
+an authorization model. The exclusion list itself does not change, so this is
+not a MAJOR amendment.
 
 Principles:
   I.   Three Concepts, No More                     unchanged
   II.  One Artifact, Modest Hardware               unchanged
   III. Standards Over Hand-Rolled Protocol Code    unchanged
   IV.  Secure by Default, Not by Configuration     unchanged
-  V.   Config-as-Code Parity                       REMOVED (heading kept, see below)
+  V.   (Removed in 2.0.0)                          unchanged
   VI.  Documentation Is the Support Channel        unchanged
-  VII. The Default Answer Is No                    unchanged
-
-Not renumbered on purpose: code comments, specs and tests cite "Principle VI"
-and "Principle VII", and renumbering would silently repoint every one of them.
+  VII. The Default Answer Is No                    CLARIFIED (new bullet)
 
 Sections changed:
-  - Development Workflow & Quality Gates: the "Config parity" row is removed
-    from the Constitution Check table.
+  - Principle VII: a bullet says that limiting which verified email domains may
+    sign in decides who can be a user and is not authorization. A per-app rule
+    on who may use an app, and any rule on what a user may do, stay excluded.
+  - Version line: 2.1.0, Last Amended 2026-10-15.
+
+Related change outside this file:
+  - specs/001-umbral-mvp/spec.md, FR-025 ("Any enabled user may use any app")
+    gets an "Amended by 006" sentence. A domain list names people, never apps.
 
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md: the gate table lives here, not in the
-     template. No edit required.
-  ✅ .specify/templates/spec-template.md: does not mention the YAML file. No
+  ✅ .specify/templates/plan-template.md: the gate table lives in this file. No
      edit required.
-  ✅ .specify/templates/tasks-template.md: does not mention the YAML file. No
-     edit required.
-  ✅ README.md and docs/: the configuration file is removed from them in the same
-     change set (spec 004, FR-012 and FR-013).
-  ✅ docs/vision.md: the config-as-code goal is marked dropped.
+  ✅ .specify/templates/spec-template.md: no edit required.
+  ✅ .specify/templates/tasks-template.md: no edit required.
 
-Plans invalidated: none in flight. Specs 001, 002 and 003 carry requirements
-built on Principle V; 004 supersedes them (spec 004, FR-014).
+Plans invalidated: none. Specs 001 to 005 stay valid; 001 FR-025 is amended as
+above.
 
 Deferred items: none.
 -->
@@ -168,6 +168,11 @@ declined, and declining them is the job.
   lost user.
 - Reversing an entry on that list requires a MAJOR constitution amendment with
   written rationale, because it redefines what the product is.
+- Limiting, per connector or per instance, which verified email domains may
+  sign in is not an authorization model. It decides who can be an Umbral user,
+  the same way disabling a user does, and it says nothing about what anyone may
+  do. Any rule on which people may use a given app, and any rule on what a user
+  may do, stays excluded.
 
 **Rationale**: The vision names scope creep as the highest-likelihood risk. A
 risk that high needs a rule, not good intentions.
@@ -239,4 +244,4 @@ time and re-evaluated after design. Violations are either removed from the
 feature or recorded in the plan's Complexity Tracking table with an explicit
 justification; an unjustified violation blocks the plan.
 
-**Version**: 2.0.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-10
+**Version**: 2.1.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-15
