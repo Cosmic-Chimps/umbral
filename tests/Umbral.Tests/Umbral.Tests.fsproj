@@ -79,6 +79,16 @@
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
   </ItemGroup>
 
+  <!--
+    The tests host the web app, so they run on the ASP.NET Core shared framework
+    anyway. Saying so lets restore prune the packages that framework already ships
+    (DataProtection, System.Security.Cryptography.Xml/Pkcs, pulled in by OpenIddict)
+    instead of pinning their 10.0.11 copies, which fail the NuGet audit.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../src/Umbral/Umbral.fsproj" />
   </ItemGroup>
