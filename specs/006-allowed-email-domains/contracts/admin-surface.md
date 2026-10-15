@@ -40,6 +40,7 @@ Outcomes:
   kinds, OpenID Connect included) and on each connector card's save form.
 - Help: "Only people whose verified email is at one of these domains can sign in through this connector. Leave empty to use the instance list ({instance list, or "none: anyone can sign in"})."
 - Note (`data-note="limit-one-app"`): "To limit one app, create a connector for it with the domain rule and offer only that connector to the app."
+  On an existing OpenID Connect connector's card the same marker carries instead: "Umbral keeps one connector per issuer, so you can't add a second one for this provider. To limit one app, offer this connector only to that app, or limit the app at your provider."
 - Saving: invalid → the input-rule message, nothing saved (the secret is never
   redrawn, as today). A changed list → `allowed_domains_changed` with the slug.
   A card post without the field (the unshare confirmation) leaves the list as

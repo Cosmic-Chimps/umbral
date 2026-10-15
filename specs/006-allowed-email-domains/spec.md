@@ -308,6 +308,12 @@ exactly one domain and inspect the redirect to Google.
   tokens), they are not honoured, and the person or app signs in again. With
   no rule set, they work as before.
 - **Deleting a connector**: its list goes with it.
+- **Limiting one app with your own OpenID Connect provider**: Umbral keeps one
+  connector per issuer (002), so a second connector for the same provider cannot
+  be made for the app. The operator puts the rule on that connector and offers
+  it only to the apps to limit, or limits the app at the provider, which can
+  usually say which of its users may use a client. The note on an OpenID Connect
+  connector's card says so instead of the general recipe (FR-017).
 
 ## Requirements *(mandatory)*
 
@@ -395,7 +401,10 @@ exactly one domain and inspect the redirect to Google.
   connector's list. Its help MUST say that empty means the instance list (and
   what that list is, or that there is none), and MUST carry the note: "To limit
   one app, create a connector for it with the domain rule and offer only that
-  connector to the app."
+  connector to the app." On an existing OpenID Connect connector's card the note
+  MUST instead say that Umbral keeps one connector per issuer, so the way to
+  limit one app is to offer this connector only to that app or to limit the app
+  at the provider.
 - **FR-018**: Each connector on the Connectors screen MUST show which rule
   applies to it: its own list, the instance list, or "anyone".
 - **FR-019**: Saving an empty instance list when it was not empty MUST first
