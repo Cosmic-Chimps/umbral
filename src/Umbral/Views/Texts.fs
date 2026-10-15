@@ -271,7 +271,23 @@ type Texts =
 
       // Startup refusals about the external secret store (spec 005, FR-005):
       // one line per problem, each saying which variable and what to set.
-      SecretStoreProblem: SecretStoreSettings.SettingProblem -> string }
+      SecretStoreProblem: SecretStoreSettings.SettingProblem -> string
+
+      // Where a connector's secret is kept, and why a store is failing (spec
+      // 005, User Story 4). All take store ids as a `SecretRef` carries them
+      // and say what to do next; none can carry a value, a locator or a
+      // credential.
+      /// The card pill: "Kept in <store name>" (store id).
+      SecretStoreLabel: string -> string
+      /// The card warning for a secret kept in a store this instance cannot
+      /// build (store id).
+      SecretUnreadable: string -> string
+      /// The Connectors page notice when the active store failed its startup
+      /// probe (store id, cause word).
+      SecretStoreProblemNotice: string -> string -> string
+      /// The warning logged at startup for the same failure (store id, cause
+      /// word).
+      SecretStoreProbeWarning: string -> string -> string }
 
 /// The display name of a store, by the id a `SecretRef` carries.
 let private secretStoreNameEn (storeId: string) : string =
@@ -298,6 +314,12 @@ let private connectorSecretStoreFailedEn (store: string) (cause: string) : strin
 let private connectorSecretLeftBehindEn (store: string) (name: string) : string =
     $"The connector was deleted, but its client secret {name} could not be removed from {store}. Delete it there by hand, or anyone with access to that store can still read it."
 
+let private secretStoreLabelEn (storeId: string) : string =
+    $"Kept in {secretStoreNameEn storeId}"
+
+let private secretUnreadableEn (storeId: string) : string =
+    $"This connector's secret is kept in {secretStoreNameEn storeId}, which this instance cannot read, so signing in with it will fail. Enter the secret again on this card to keep it in the active store, or set up {secretStoreNameEn storeId} on this instance again as described in docs/secret-stores/."
+
 /// A report line: the word the line is matched on, padded so that the slugs
 /// line up in a terminal, then what it says.
 let private moveLine (word: string) (slug: string) (rest: string) = $"{word.PadRight 9} {slug.PadRight 10} {rest}"
@@ -320,6 +342,23 @@ let private moveStoreFailureEn (storeId: string) (cause: string) : string =
     | "not_found" -> $"the secret was not found in {name} (re-enter it on the Connectors screen)"
     | "not_configured" -> $"{name} is not set up on this instance (keep its credentials available while moving out of it)"
     | _ -> $"{name} rejected the request (check its permissions and settings)"
+
+/// What to check when the active store failed, by cause: the sentence the
+/// startup warning and the Connectors page notice share.
+let private whatToCheckEn (storeId: string) (cause: string) : string =
+    match cause with
+    | "access_denied" ->
+        "Check that the credentials Umbral was given are valid and that they may read and write secrets, following the permissions in docs/secret-stores/."
+    | "not_configured" ->
+        "Check the settings and credentials for it in the environment, following docs/secret-stores/."
+    | "unreachable" -> $"Check the network between this host and it, and that Umbral's credentials for it are valid ({reachHintEn storeId}), following docs/secret-stores/."
+    | _ -> "Check its settings and the permissions Umbral was given, following docs/secret-stores/."
+
+let private secretStoreProblemNoticeEn (storeId: string) (cause: string) : string =
+    $"The secret store {secretStoreNameEn storeId} {causeEn cause} when Umbral last checked it, so secrets kept in it cannot be read or saved right now. {whatToCheckEn storeId cause} This notice clears after a secret is saved to it successfully."
+
+let private secretStoreProbeWarningEn (storeId: string) (cause: string) : string =
+    $"The secret store {secretStoreNameEn storeId} {causeEn cause} at startup. Umbral started anyway, but secrets kept in it cannot be read or saved until this is fixed. {whatToCheckEn storeId cause}"
 
 let private moveSummaryEn (dryRun: bool) (total: int) (moved: int) (already: int) (changed: int) (failed: int) : string =
     let noun = if total = 1 then "connector" else "connectors"
@@ -670,7 +709,11 @@ let en: Texts =
         fun target -> $"{secretStoreNameEn target} did not return what was written to it"
       MoveReferenceUnreadable = "its stored secret reference is not readable (re-enter the secret on the Connectors screen)"
       MoveSummary = moveSummaryEn
-      SecretStoreProblem = secretStoreProblemEn }
+      SecretStoreProblem = secretStoreProblemEn
+      SecretStoreLabel = secretStoreLabelEn
+      SecretUnreadable = secretUnreadableEn
+      SecretStoreProblemNotice = secretStoreProblemNoticeEn
+      SecretStoreProbeWarning = secretStoreProbeWarningEn }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.

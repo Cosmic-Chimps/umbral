@@ -156,13 +156,13 @@ page notice.
 
 ### Tests for User Story 4
 
-- [ ] T037 [P] [US4] Extend `tests/Umbral.Tests/ExternalSecretConnectorTests.fs`: each card has `data-secret-store` matching its reference and the `Texts` label; a row whose reference is `azure:` on an instance that cannot build Azure has `data-secret-unreadable` with what to do; startup with an active store whose probe returns `Unreachable` or `AccessDenied` starts, logs a warning, records `secret_store_failed` (`op=probe`, actor System) and shows `data-secret-store-problem`; a following successful save clears it; a probe answering not found shows nothing; `/healthz` stays 200 with the store down
+- [X] T037 [P] [US4] Extend `tests/Umbral.Tests/ExternalSecretConnectorTests.fs`: each card has `data-secret-store` matching its reference and the `Texts` label; a row whose reference is `azure:` on an instance that cannot build Azure has `data-secret-unreadable` with what to do; startup with an active store whose probe returns `Unreachable` or `AccessDenied` starts, logs a warning, records `secret_store_failed` (`op=probe`, actor System) and shows `data-secret-store-problem`; a following successful save clears it; a probe answering not found shows nothing; `/healthz` stays 200 with the store down
 
 ### Implementation for User Story 4
 
-- [ ] T038 [US4] Add `SecretStoreStatus` (singleton, `Ok | Failed of StoreFailure * at`) to `src/Umbral/Infrastructure/SecretStores/Registry.fs`, set by the probe and by any successful `Put` on the active store; run `Active.Probe` in `initialize` in `src/Umbral/Program.fs` after the schema, under the 10 s bound, never failing the start, logging a warning whose text says what to check
-- [ ] T039 [US4] Card label (`Components.pill` next to the existing header badges), card warning (`um-alert um-alert-warning`, `role="note"`, `data-secret-unreadable`) and page notice (next to `originBanner`, `data-secret-store-problem`) in `src/Umbral/Handlers/Admin/Connectors.fs`, texts in `src/Umbral/Views/Texts.fs` per [contracts/admin-surface.md](./contracts/admin-surface.md)
-- [ ] T040 [US4] Run T037 and the full suite: all green
+- [X] T038 [US4] Add `SecretStoreStatus` (singleton, `Ok | Failed of StoreFailure * at`) to `src/Umbral/Infrastructure/SecretStores/Registry.fs`, set by the probe and by any successful `Put` on the active store; run `Active.Probe` in `initialize` in `src/Umbral/Program.fs` after the schema, under the 10 s bound, never failing the start, logging a warning whose text says what to check
+- [X] T039 [US4] Card label (`Components.pill` next to the existing header badges), card warning (`um-alert um-alert-warning`, `role="note"`, `data-secret-unreadable`) and page notice (next to `originBanner`, `data-secret-store-problem`) in `src/Umbral/Handlers/Admin/Connectors.fs`, texts in `src/Umbral/Views/Texts.fs` per [contracts/admin-surface.md](./contracts/admin-surface.md)
+- [X] T040 [US4] Run T037 and the full suite: all green
 
 ---
 

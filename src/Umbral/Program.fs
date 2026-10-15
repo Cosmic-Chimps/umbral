@@ -361,6 +361,46 @@ let configureApp (app: WebApplication) =
 
     app.Run(fun ctx -> Layout.notFound ctx)
 
+/// Asks the active external store once whether it can be used (specs/005
+/// research R11): reachable, and Umbral allowed in. Never stops the start: a
+/// manager that is down must not take the login server down with it, and
+/// secrets already in the cache or the local store keep working. What it finds
+/// is logged with what to check, recorded as a `secret_store_failed` event, and
+/// kept in the registry's status for the Connectors screen.
+///
+/// "Not found" is the healthy answer, since the probe reads a name that does not
+/// exist. The registry bounds the call at 10 seconds. `/healthz` does not look
+/// at this: a restart cannot repair a manager.
+let private probeSecretStore (app: WebApplication) (dbConfig: Database.DbConfig) =
+    task {
+        let secrets = app.Services.GetRequiredService<SecretStores>()
+        let active = secrets.Active
+
+        if active.Id <> Secrets.LocalStoreId then
+            try
+                match! active.Probe Threading.CancellationToken.None with
+                | Ok ()
+                | Error Secrets.NotFound -> ()
+                | Error failure ->
+                    let clock = app.Services.GetRequiredService<TimeProvider>()
+                    secrets.Status.Fail(failure, clock.GetUtcNow())
+
+                    app.Services
+                        .GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("Umbral.SecretStores")
+                        .LogWarning(Texts.current().SecretStoreProbeWarning active.Id failure.Cause)
+
+                    do! SecurityEvents.recordStoreProbeFailed dbConfig clock active.Id failure
+            with ex ->
+                // A probe that throws is a bug in an adapter, not a reason to
+                // refuse to start. The type name is logged, never the message,
+                // which a vendor SDK may fill with a name or a locator.
+                app.Services
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("Umbral.SecretStores")
+                    .LogWarning("The startup check of the secret store failed with {Exception}.", ex.GetType().Name)
+    }
+
 /// Everything that must happen before the first request: the schema Umbral owns,
 /// OpenIddict's migrations, and the key material.
 ///
@@ -371,6 +411,7 @@ let initialize (app: WebApplication) =
         let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
 
         do! Database.initializeSchema dbConfig
+        do! probeSecretStore app dbConfig
 
         use scope = app.Services.CreateScope()
         let context = scope.ServiceProvider.GetRequiredService<UmbralContext>()
