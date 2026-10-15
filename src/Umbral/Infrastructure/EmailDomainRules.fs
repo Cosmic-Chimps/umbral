@@ -93,3 +93,29 @@ let anyListSet (config: Database.DbConfig) : Task<bool> =
             let! count = command.ExecuteScalarAsync()
             return Convert.ToInt32 count > 0
     }
+
+/// Judges something that remembers a sign-in, by what that sign-in left behind:
+/// the slug of the connector it went through and the domain of its verified
+/// email. A session, an authorization code and a refresh token are all judged
+/// here, so none of them can read the rule differently.
+///
+/// - a connector that exists: its rule (its own list, else the instance's);
+/// - a connector that has since been deleted: the instance list alone;
+/// - no connector at all (issued before this feature): refused exactly while
+///   some list is set, since nothing says which one would have applied.
+let recheck (config: Database.DbConfig) (connectorSlug: string option) (emailDomain: string option) : Task<Decision> =
+    task {
+        match connectorSlug with
+        | Some slug ->
+            let! connector = ConnectorStore.findBySlug config slug
+
+            let! rule =
+                match connector with
+                | Some found -> ruleFor config found
+                | None -> instanceRule config
+
+            return checkDomain rule emailDomain
+        | None ->
+            let! any = anyListSet config
+            return if any then Refused(Instance, NoEmail) else Admitted
+    }

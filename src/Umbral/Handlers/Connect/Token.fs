@@ -8,6 +8,7 @@
 /// FR-022 says no new tokens in either case.
 module Umbral.Handlers.Connect.Token
 
+open System
 open System.Security.Claims
 open Microsoft.AspNetCore
 open Microsoft.AspNetCore.Authentication
@@ -17,6 +18,7 @@ open OpenIddict.Abstractions
 open OpenIddict.Server.AspNetCore
 open type OpenIddict.Abstractions.OpenIddictConstants
 open Oxpecker
+open Umbral.Domains
 open Umbral.Infrastructure
 
 let handler: EndpointHandler =
@@ -75,6 +77,33 @@ let handler: EndpointHandler =
                 return! Authorize.forbid ctx Errors.InvalidGrant "This account has been disabled."
 
             | Some u ->
+
+            // The allowed email domains (specs/006), judged again on both grants:
+            // a refresh token outlives the rule it was issued under, and a code
+            // can wait a few minutes for redemption. The connector and the domain
+            // come from the principal's private claims, which no app can read.
+            let config = ctx.GetService<Database.DbConfig>()
+            let connectorSlug = Option.ofObj (principal.GetClaim OpenIddictSetup.ConnectorClaim)
+            let emailDomain = Option.ofObj (principal.GetClaim OpenIddictSetup.EmailDomainClaim)
+
+            let! decision = EmailDomainRules.recheck config connectorSlug emailDomain
+
+            match decision with
+            | EmailDomains.Refused(level, reason) ->
+                do!
+                    SecurityEvents.record
+                        config
+                        (ctx.GetService<TimeProvider>())
+                        { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
+                            UserId = Some u.Id
+                            ClientId = Option.ofObj request.ClientId
+                            ConnectorSlug = connectorSlug
+                            RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+                            Detail = Some(SecurityEvents.refusalDetail reason level SecurityEvents.Token emailDomain) }
+
+                return! Authorize.forbid ctx Errors.InvalidGrant "This account can no longer be used to sign in."
+
+            | EmailDomains.Admitted ->
 
             // Rebuilt from the principal's own claims, not from scratch. The
             // private `oi_*` claims — scopes, authorization id, token lineage —

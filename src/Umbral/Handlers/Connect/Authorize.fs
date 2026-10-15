@@ -19,6 +19,7 @@ open OpenIddict.Abstractions
 open OpenIddict.Server.AspNetCore
 open type OpenIddict.Abstractions.OpenIddictConstants
 open Oxpecker
+open Umbral.Domains
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 
@@ -71,6 +72,13 @@ let destinationsFor (claim: Claim) : string seq =
             Destinations.IdentityToken
         }
 
+    // The private claims that let the token endpoint judge a code or a refresh
+    // token by the allowed email domains again. NO destination, on purpose and
+    // before the default below, which would send an unknown claim to the access
+    // token: they stay in the encrypted code and refresh token and nowhere an app
+    // can read them (specs/006 R7).
+    | t when t = OpenIddictSetup.ConnectorClaim || t = OpenIddictSetup.EmailDomainClaim -> Seq.empty
+
     | _ -> Seq.singleton Destinations.AccessToken
 
 // ---------------------------------------------------------------------------
@@ -108,7 +116,7 @@ let setProfileClaims (identity: ClaimsIdentity) (user: Users.User) (idp: string)
     | Some url -> identity.SetClaim(Claims.Picture, url) |> ignore
     | None -> ()
 
-let private buildIdentity (user: Users.User) (idp: string) (scopes: string seq) =
+let private buildIdentity (user: Users.User) (idp: string) (connector: string) (emailDomain: string option) (scopes: string seq) =
     // A ClaimsIdentity with a null authentication type is NOT authenticated and
     // SignInAsync rejects it. This constant is the thing that makes it valid.
     let identity =
@@ -119,6 +127,15 @@ let private buildIdentity (user: Users.User) (idp: string) (scopes: string seq) 
         )
 
     setProfileClaims identity user idp
+
+    // What the allowed-email-domains rule is judged by when this identity comes
+    // back in a code or a refresh token (see destinationsFor).
+    identity.SetClaim(OpenIddictSetup.ConnectorClaim, connector) |> ignore
+
+    match emailDomain with
+    | Some domain -> identity.SetClaim(OpenIddictSetup.EmailDomainClaim, domain) |> ignore
+    | None -> ()
+
     identity.SetScopes scopes |> ignore
     identity
 
@@ -201,9 +218,50 @@ let handler: EndpointHandler =
                         let! connectors = ConnectorStore.listAll config
                         let offered = offeredTo choice connectors
 
-                        return
+                        let isOffered =
                             Sessions.currentConnector principal
                             |> Option.exists (fun slug -> offered |> List.exists (fun c -> c.Slug = slug))
+
+                        if not isOffered then
+                            return false
+                        else
+                            // The allowed email domains (specs/006), judged again
+                            // on every reuse of a session: tightening a rule
+                            // reaches the people already signed in at their next
+                            // authorization. A session from before the feature
+                            // has no domain and counts as having no email.
+                            let! decision =
+                                EmailDomainRules.recheck
+                                    config
+                                    (Sessions.currentConnector principal)
+                                    (Sessions.currentEmailDomain principal)
+
+                            match decision with
+                            | EmailDomains.Admitted -> return true
+                            | EmailDomains.Refused(level, reason) ->
+                                do! Sessions.signOut ctx
+
+                                do!
+                                    SecurityEvents.record
+                                        config
+                                        (ctx.GetService<TimeProvider>())
+                                        { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
+                                            UserId = Sessions.currentSubject principal
+                                            ClientId = Option.ofObj request.ClientId
+                                            ConnectorSlug = Sessions.currentConnector principal
+                                            RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+                                            Detail =
+                                                Some(
+                                                    SecurityEvents.refusalDetail
+                                                        reason
+                                                        level
+                                                        SecurityEvents.Authorize
+                                                        (Sessions.currentEmailDomain principal)
+                                                ) }
+
+                                // Not honoured: the request falls to the same
+                                // branch as "no session".
+                                return false
                     }
                 | _ -> Task.FromResult false
 
@@ -259,7 +317,13 @@ let handler: EndpointHandler =
                         return! forbid ctx Errors.InvalidClient "The client application is not registered."
 
                     | application ->
-                        let identity = buildIdentity u idp (request.GetScopes())
+                        let identity =
+                            buildIdentity
+                                u
+                                idp
+                                (Sessions.currentConnector principal |> Option.defaultValue idp)
+                                (Sessions.currentEmailDomain principal)
+                                (request.GetScopes())
                         let! rawApplicationId = applications.GetIdAsync application
 
                         // GetIdAsync is typed nullable even though a resolved

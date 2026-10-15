@@ -203,3 +203,23 @@ let ``no rule always admits`` () =
     Assert.Equal(Admitted, check NoRule (Some "bob@gmail.com") false)
     Assert.Equal(Admitted, check NoRule None false)
     Assert.Equal(Admitted, check NoRule (Some "") true)
+
+// ---------------------------------------------------------------------------
+// checkDomain: the same rule, for something that remembers only the domain
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a remembered domain is admitted when listed and refused otherwise`` () =
+    Assert.Equal(Admitted, checkDomain acme (Some "acme.com"))
+    Assert.Equal(Refused(Connector, DomainNotAllowed(Some "gmail.com")), checkDomain acme (Some "gmail.com"))
+    Assert.Equal(Refused(Connector, DomainNotAllowed(Some "eu.acme.com")), checkDomain acme (Some "eu.acme.com"))
+
+[<Fact>]
+let ``no remembered domain counts as no email`` () =
+    Assert.Equal(Refused(Connector, NoEmail), checkDomain acme None)
+    Assert.Equal(Refused(Instance, NoEmail), checkDomain (Rule(Instance, [ "acme.com" ])) None)
+
+[<Fact>]
+let ``checkDomain with no rule admits whatever was remembered`` () =
+    Assert.Equal(Admitted, checkDomain NoRule None)
+    Assert.Equal(Admitted, checkDomain NoRule (Some "gmail.com"))
