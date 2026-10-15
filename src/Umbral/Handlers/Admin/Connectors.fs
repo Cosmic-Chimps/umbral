@@ -86,6 +86,50 @@ let private sharedBox (t: Texts.Texts) (isShared: bool) =
         p(class' = "um-hint") { t.ConnectorSharedHint }
     }
 
+/// A list the operator typed that was refused, and what to tell them. The card
+/// it belongs to is drawn with the text as typed and the reason under the field.
+type private DomainsDraft = { Typed: string; Problem: string }
+
+/// What the screen knows about allowed email domains beyond the connectors
+/// themselves: the instance list, a refused entry at either level, and the
+/// connectors a removal warning names (slug and name).
+type private Domains =
+    { Instance: string list
+      InstanceDraft: DomainsDraft option
+      CardDraft: (string * DomainsDraft) option
+      Removal: (string * string) list option }
+
+/// The two refusals of a list typed by hand, in the operator's words, naming the
+/// entry. The entry is theirs: the views draw it as text, never as markup.
+let private parseDomains (t: Texts.Texts) (typed: string) : Result<string list, string> =
+    match EmailDomains.parse typed with
+    | Ok list -> Ok list
+    | Error(EmailDomains.Wildcard entry) -> Error(t.AllowedDomainsWildcard entry)
+    | Error(EmailDomains.NotADomain entry) -> Error(t.AllowedDomainsNotADomain entry)
+
+/// The `allowedDomains` field of a connector (add form and card): the help names
+/// the instance list, which is what an empty field falls back to.
+let private connectorDomainsField (t: Texts.Texts) (instance: string list) (typed: string) (problem: string option) =
+    let help =
+        t.ConnectorDomainsHelp(
+            if instance.IsEmpty then t.AllowedDomainsNone else EmailDomains.display instance
+        )
+
+    Components.fieldWith
+        "text"
+        []
+        (fun i -> i.attr("placeholder", t.AllowedDomainsPlaceholder) |> ignore)
+        t.AllowedDomainsLabel
+        "allowedDomains"
+        typed
+        (Some help)
+        problem
+
+/// FR-017: how a connector is limited to one app. `oidc` says why the general
+/// recipe (a second connector) is not available there.
+let private limitOneAppNote (text: string) =
+    (p(class' = "um-hint").data("note", "limit-one-app") { text }) :> HtmlElement
+
 type private Row =
     { Kind: ProviderKind
       Existing: Connector option }
@@ -101,6 +145,7 @@ let private card
     (origin: PublicOrigin.PublicOrigin)
     (enabledCount: int)
     (chosenSlugs: Set<string>)
+    (domains: Domains)
     (row: Row)
     =
     let slug = row.Slug
@@ -139,6 +184,21 @@ let private card
     // without it the warning redirect would have no way to be answered.
     let isLastEnabled = isEnabled && enabledCount = 1
     let confirmed (path: string) = if isLastEnabled then path + "?confirm=yes" else path
+
+    // FR-018: which list applies to this card, as the operator reads it. The
+    // stored list decides, not what a refused save typed.
+    let storedList = row.Existing |> Option.map (fun c -> c.AllowedEmailDomains) |> Option.defaultValue []
+
+    let ruleMarker, ruleText =
+        match EmailDomains.applying storedList domains.Instance with
+        | EmailDomains.Rule(EmailDomains.Level.Connector, list) -> "connector", t.ConnectorRuleConnector(EmailDomains.display list)
+        | EmailDomains.Rule(EmailDomains.Level.Instance, list) -> "instance", t.ConnectorRuleInstance(EmailDomains.display list)
+        | EmailDomains.NoRule -> "anyone", t.ConnectorRuleAnyone
+
+    let typedDomains, domainsProblem =
+        match domains.CardDraft with
+        | Some(draftSlug, draft) when draftSlug = slug -> draft.Typed, Some draft.Problem
+        | _ -> EmailDomains.display storedList, None
 
     let element =
         article(class' = "um-card space-y-4")
@@ -188,6 +248,8 @@ let private card
                 span() { t.ConnectorOfferedNowhere }
             })
             :> HtmlElement
+
+        (p(class' = "text-body-md text-on-surface").data("rule", ruleMarker) { ruleText }) :> HtmlElement
 
         // FR-021: known without a network call, so an operator who lost a
         // store's credentials sees it here rather than as a failed sign-in.
@@ -291,6 +353,14 @@ let private card
                 None
 
             sharedBox t isShared
+
+            connectorDomainsField t domains.Instance typedDomains domainsProblem
+
+            limitOneAppNote (
+                match row.Kind with
+                | Oidc -> t.ConnectorLimitOneAppNoteOidc
+                | _ -> t.ConnectorLimitOneAppNote
+            )
 
             div(class' = "flex flex-wrap items-center gap-2") {
                 button(type' = "submit", class' = Components.btn Components.Primary) {
@@ -414,8 +484,11 @@ type private AddFormState =
       Issuer: string
       ClientId: string
       Shared: bool
+      /// The list as typed, for the field and for the refusal of an entry.
+      AllowedDomains: string
       /// The field the refusal is about (`slug`, `displayName`, `issuer`,
-      /// `clientId`, `clientSecret`) and what to tell the operator.
+      /// `clientId`, `clientSecret`, `allowedDomains`) and what to tell the
+      /// operator.
       Problem: (string * string) option }
 
 let private emptyAddForm =
@@ -425,6 +498,7 @@ let private emptyAddForm =
       Issuer = ""
       ClientId = ""
       Shared = true
+      AllowedDomains = ""
       Problem = None }
 
 
@@ -434,7 +508,13 @@ let private emptyAddForm =
 /// nothing to explain that a radio card would add. It is one plain form, so it
 /// works with no script: the issuer field is always there and says it is for
 /// OpenID Connect only.
-let private addForm (ctx: HttpContext) (t: Texts.Texts) (kinds: ProviderKind list) (state: AddFormState) =
+let private addForm
+    (ctx: HttpContext)
+    (t: Texts.Texts)
+    (instance: string list)
+    (kinds: ProviderKind list)
+    (state: AddFormState)
+    =
     let problemAt field =
         match state.Problem with
         | Some(at, message) when at = field -> Some message
@@ -510,6 +590,9 @@ let private addForm (ctx: HttpContext) (t: Texts.Texts) (kinds: ProviderKind lis
 
             sharedBox t state.Shared
 
+            connectorDomainsField t instance state.AllowedDomains (problemAt "allowedDomains")
+            limitOneAppNote t.ConnectorLimitOneAppNote
+
             // FR-009, before the operator submits and not after: what they are
             // agreeing to by adding a provider.
             (div(class' = "um-alert um-alert-warning").attr("role", "note").data("email-trust-warning", "") {
@@ -525,6 +608,60 @@ let private addForm (ctx: HttpContext) (t: Texts.Texts) (kinds: ProviderKind lis
         }
     }
 
+/// FR-016: the instance list, at the top of the screen. It posts to its own
+/// route, never under a connector's slug.
+let private instanceCard (ctx: HttpContext) (t: Texts.Texts) (domains: Domains) =
+    let typed, problem =
+        match domains.InstanceDraft with
+        | Some draft -> draft.Typed, Some draft.Problem
+        | None -> EmailDomains.display domains.Instance, None
+
+    section(class' = "um-card space-y-4").data("card", "allowed-domains") {
+        h2(class' = "text-headline-md text-on-surface") { t.AllowedDomainsTitle }
+        p(class' = "max-w-prose text-body-md text-on-surface-variant") { t.AllowedDomainsLead }
+
+        form(method = "post", action = "/admin/allowed-domains", class' = "space-y-4") {
+            ctx.GetAntiforgeryInput()
+
+            Components.fieldWith
+                "text"
+                []
+                (fun i -> i.attr("placeholder", t.AllowedDomainsPlaceholder) |> ignore)
+                t.AllowedDomainsLabel
+                "allowedDomains"
+                typed
+                None
+                problem
+
+            button(type' = "submit", class' = Components.btn Components.Primary) {
+                Components.icon Theme.CheckCircle
+                t.AllowedDomainsSaveButton
+            }
+        }
+    }
+
+/// FR-019: emptying the instance list opens every connector that has no list of
+/// its own to anyone with an account. Names them, with the button that goes
+/// ahead anyway: the empty list again, with the confirmation.
+let private removalWarning (ctx: HttpContext) (t: Texts.Texts) (code: string) (names: (string * string) list) =
+    div().data("notice", code) {
+        Components.alert Components.Warning (t.Notice code)
+
+        div(class' = "space-y-2") {
+            ul() {
+                for slug, name in names do
+                    li().data("opened-connector", slug) { name }
+            }
+
+            form(method = "post", action = "/admin/allowed-domains?confirm=yes", class' = "inline") {
+                ctx.GetAntiforgeryInput()
+                input(type' = "hidden", name = "allowedDomains", value = "")
+
+                button(type' = "submit", class' = Components.btnSm Components.Danger) { t.AllowedDomainsRemoveAnyway }
+            }
+        }
+    }
+
 let private view
     ctx
     (t: Texts.Texts)
@@ -532,6 +669,7 @@ let private view
     (rows: Row list)
     (enabledCount: int)
     (chosenSlugs: Set<string>)
+    (domains: Domains)
     (addableKinds: ProviderKind list)
     (add: AddFormState)
     (notice: string option)
@@ -544,6 +682,11 @@ let private view
         secretStoreBanner ctx t
 
         match notice, strand with
+        | Some("allowed-domains-removal" as code), _ ->
+            match domains.Removal with
+            | Some names -> (removalWarning ctx t code names) :> HtmlElement
+            // A link that outlived the list it was about: nothing to warn of.
+            | None -> Fragment() :> HtmlElement
         // A notice that carries what the provider said (`explained`) is a
         // warning, not a success: the provider was saved disabled, or would not
         // be enabled.
@@ -561,10 +704,12 @@ let private view
             :> HtmlElement
         | None, _ -> Fragment() :> HtmlElement
 
-        for row in rows do
-            card ctx t origin enabledCount chosenSlugs row
+        instanceCard ctx t domains
 
-        addForm ctx t addableKinds add
+        for row in rows do
+            card ctx t origin enabledCount chosenSlugs domains row
+
+        addForm ctx t domains.Instance addableKinds add
     }
     |> Layout.operatorPage ctx t t.ConnectorsTitle
 
@@ -598,14 +743,22 @@ let private rowsFor (existing: Connector list) =
 
     stored @ empty |> List.sortBy (fun row -> kindOrder row.Kind, row.Slug)
 
+/// A refused list at either level, to draw again with what was typed.
+type private Drafts =
+    { Instance: DomainsDraft option
+      Card: (string * DomainsDraft) option }
+
+let private noDrafts = { Instance = None; Card = None }
+
 /// The screen, with the add form as given. `page` draws it empty; a refused add
-/// draws it again with the operator's input.
-let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tasks.Task =
+/// draws it again with the operator's input, and so does a refused list.
+let private render (ctx: HttpContext) (add: AddFormState) (drafts: Drafts) : System.Threading.Tasks.Task =
         task {
             let t = Texts.current ()
             let config = ctx.GetService<Database.DbConfig>()
             let! existing = ConnectorStore.listAll config
             let! choices = AppConnectors.allChoices config
+            let! instanceList = EmailDomainRules.instanceList config
 
             // Counted over every stored connector, not over the cards, exactly
             // as the handlers count it.
@@ -622,6 +775,23 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                 |> Set.ofSeq
 
             let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
+
+            // FR-019: the removal warning names the connectors the removal would
+            // open, recomputed here so the redirect carries no names. A list
+            // that is no longer there has nothing to remove.
+            let removal =
+                match notice with
+                | Some "allowed-domains-removal" when not instanceList.IsEmpty ->
+                    match existing |> List.filter (fun c -> c.AllowedEmailDomains.IsEmpty) with
+                    | [] -> None
+                    | open' -> Some(open' |> List.map (fun c -> c.Slug, c.DisplayName))
+                | _ -> None
+
+            let domains =
+                { Instance = instanceList
+                  InstanceDraft = drafts.Instance
+                  CardDraft = drafts.Card
+                  Removal = removal }
 
             // The strand warnings carry the slug they are about. The apps are
             // recomputed here, with the connector as the action would leave it.
@@ -708,6 +878,7 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                         (rowsFor existing)
                         enabledCount
                         chosenSlugs
+                        domains
                         (addableKinds ctx)
                         add
                         notice
@@ -718,7 +889,7 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
 
 
 let page: EndpointHandler =
-    AdminAuth.requireOperator (fun ctx -> render ctx emptyAddForm)
+    AdminAuth.requireOperator (fun ctx -> render ctx emptyAddForm noDrafts)
 
 let private recordEventWith
     (ctx: HttpContext)
@@ -736,6 +907,23 @@ let private recordEventWith
 
 let private remoteIpOf (ctx: HttpContext) =
     ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+
+/// FR-021: a list changed. The slug is the connector's, absent for the instance
+/// list; the detail is how many domains the list now holds, never which.
+let private recordDomainsChanged (ctx: HttpContext) (slug: string option) (list: string list) =
+    SecurityEvents.record
+        (ctx.GetService<Database.DbConfig>())
+        (ctx.GetService<TimeProvider>())
+        { SecurityEvents.event SecurityEvents.AllowedDomainsChanged SecurityEvents.Success SecurityEvents.Actor.Operator with
+            ConnectorSlug = slug
+            Detail = Some $"count={List.length list}"
+            RemoteIp = remoteIpOf ctx }
+
+/// A refused list on a card or the instance card is drawn again with what was
+/// typed (the secret is the one thing never redrawn), as an unprocessable form.
+let private refuseDomains (ctx: HttpContext) (drafts: Drafts) =
+    ctx.SetStatusCode 422
+    render ctx emptyAddForm drafts
 
 let private prefixOf (ctx: HttpContext) =
     ctx.GetService<SecretStoreSettings.SecretStoreSettings>().Prefix
@@ -850,11 +1038,14 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
               Issuer = WebForms.value form "issuer"
               ClientId = WebForms.value form "clientId"
               Shared = WebForms.checkbox form "shared"
+              AllowedDomains = WebForms.value form "allowedDomains"
               Problem = None }
 
         let refuse (field: string) (message: string) =
             ctx.SetStatusCode 422
-            render ctx { state with Problem = Some(field, message) }
+            render ctx { state with Problem = Some(field, message) } noDrafts
+
+        let domainsParsed = parseDomains t state.AllowedDomains
 
         let! slugTaken = ConnectorStore.findBySlug config state.Slug
 
@@ -882,6 +1073,11 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
         elif newSecret.IsNone then
             return! refuse "clientSecret" t.ConnectorAddOidcSecretRequired
         else
+
+        // Before the provider is asked anything: a refused list costs no call.
+        match domainsParsed with
+        | Error message -> return! refuse "allowedDomains" message
+        | Ok domains ->
 
         let! holder = ConnectorStore.findByIssuer config issuer
 
@@ -927,7 +1123,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   ClientSecretRef = ""
                   ClientSecretHint = ""
                   IssuerUrl = Some issuer
-                  AllowedEmailDomains = []
+                  AllowedEmailDomains = domains
                   IsEnabled = enabled
                   IsShared = state.Shared
                   CreatedUtc = now
@@ -950,6 +1146,9 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                         | Some reason -> $"store={reference.Store};saved_disabled: {reason}"
                         | None -> $"store={reference.Store}"
                     ))
+
+            if not domains.IsEmpty then
+                do! recordDomainsChanged ctx (Some state.Slug) domains
 
             match reasonShort with
             | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added-oidc"
@@ -1013,6 +1212,27 @@ let create: EndpointHandler =
             | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-required"
             | Some plaintext ->
 
+            // Before the secret is written: a refused list leaves nothing behind.
+            let typedDomains = WebForms.value form "allowedDomains"
+
+            match parseDomains (Texts.current ()) typedDomains with
+            | Error message ->
+                ctx.SetStatusCode 422
+
+                return!
+                    render
+                        ctx
+                        { emptyAddForm with
+                            Kind = kind.Value
+                            Slug = slug
+                            DisplayName = displayName
+                            ClientId = clientId
+                            Shared = WebForms.checkbox form "shared"
+                            AllowedDomains = typedDomains
+                            Problem = Some("allowedDomains", message) }
+                        noDrafts
+            | Ok domains ->
+
             // The slug was just checked free, so writing the secret under it
             // cannot replace another connector's.
             let now = clock.GetUtcNow()
@@ -1032,7 +1252,7 @@ let create: EndpointHandler =
                       ClientSecretRef = ""
                       ClientSecretHint = ""
                       IssuerUrl = None
-                      AllowedEmailDomains = []
+                      AllowedEmailDomains = domains
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
@@ -1046,6 +1266,10 @@ let create: EndpointHandler =
             else
 
             do! recordEventWith ctx SecurityEvents.ConnectorCreated slug (Some $"store={reference.Store}")
+
+            if not domains.IsEmpty then
+                do! recordDomainsChanged ctx (Some slug) domains
+
             return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added"
         })
 
@@ -1085,6 +1309,32 @@ let save (slug: string) : EndpointHandler =
                 return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-display-name-required"
             | Some kind ->
 
+            // A card posts `allowedDomains` every time, an empty field meaning
+            // "clear it". A post without the field (the unshare confirmation)
+            // leaves the list as it is. Read before anything is written: a
+            // refused entry saves nothing, not even the rest of the card.
+            let typedDomains = WebForms.value form "allowedDomains"
+
+            let parsedDomains =
+                if form.ContainsKey "allowedDomains" then
+                    parseDomains (Texts.current ()) typedDomains |> Result.map Some
+                else
+                    Ok None
+
+            match parsedDomains with
+            | Error message ->
+                return!
+                    refuseDomains
+                        ctx
+                        { noDrafts with
+                            Card =
+                                Some(
+                                    slug,
+                                    { Typed = typedDomains
+                                      Problem = message }
+                                ) }
+            | Ok domains ->
+
             match existing, newSecret with
             // A new connector needs a secret; an existing one does not, because
             // the screen cannot show the saved value back for retyping.
@@ -1108,7 +1358,7 @@ let save (slug: string) : EndpointHandler =
                           ClientSecretRef = ""
                           ClientSecretHint = ""
                           IssuerUrl = None
-                          AllowedEmailDomains = []
+                          AllowedEmailDomains = defaultArg domains []
                           // A connector arrives enabled: the operator came here to
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true
@@ -1122,6 +1372,11 @@ let save (slug: string) : EndpointHandler =
                     return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
                 else
                     do! recordEventWith ctx SecurityEvents.ConnectorCreated slug (Some $"store={reference.Store}")
+
+                    match domains with
+                    | Some(_ :: _ as list) -> do! recordDomainsChanged ctx (Some slug) list
+                    | _ -> ()
+
                     return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
 
             | Some stored, _ ->
@@ -1191,7 +1446,7 @@ let save (slug: string) : EndpointHandler =
                         | Ok written ->
 
                         let! updated =
-                            ConnectorStore.update config clock slug newName clientId newShared None (written |> Option.map snd)
+                            ConnectorStore.update config clock slug newName clientId newShared domains (written |> Option.map snd)
 
                         match written with
                         | Some(reference, _) when not updated ->
@@ -1210,6 +1465,12 @@ let save (slug: string) : EndpointHandler =
                                     SecurityEvents.ConnectorUpdated
                                     slug
                                     (written |> Option.map (fun (reference, _) -> $"store={reference.Store}"))
+
+                            // FR-021: only when the stored list actually changed,
+                            // judged against the row as read under the lease.
+                            match domains with
+                            | Some list when list <> stored.AllowedEmailDomains -> do! recordDomainsChanged ctx (Some slug) list
+                            | _ -> ()
 
                             // A secret moved to another store leaves its old copy
                             // behind in the old one, which is removed now that no row
@@ -1275,7 +1536,58 @@ let save (slug: string) : EndpointHandler =
                     | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-busy"
         })
 
+/// Save the instance list (FR-016, FR-019). Emptying a list that is not empty
+/// while some connector has no list of its own opens those connectors to anyone
+/// with an account, so it asks first, naming them; `?confirm=yes` is the answer.
+/// A post without the field changes nothing, rather than reading as "clear it".
+let saveAllowedDomains: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let t = Texts.current ()
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let! form = WebForms.readValidated ctx
+
+            let typed = WebForms.value form "allowedDomains"
+
+            if not (form.ContainsKey "allowedDomains") then
+                return! WebForms.redirectWithNotice ctx "/admin/connectors" "allowed-domains-saved"
+            else
+
+            match parseDomains t typed with
+            | Error message ->
+                return!
+                    refuseDomains
+                        ctx
+                        { noDrafts with
+                            Instance =
+                                Some
+                                    { Typed = typed
+                                      Problem = message } }
+            | Ok list ->
+
+            let! stored = EmailDomainRules.instanceList config
+            let! connectors = ConnectorStore.listAll config
+            let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
+
+            let opens =
+                list.IsEmpty
+                && not stored.IsEmpty
+                && connectors |> List.exists (fun c -> c.AllowedEmailDomains.IsEmpty)
+
+            if opens && not confirmed then
+                return! WebForms.redirectWithNotice ctx "/admin/connectors" "allowed-domains-removal"
+            else
+
+            if list <> stored then
+                do! EmailDomainRules.setInstanceList config clock list
+                do! recordDomainsChanged ctx None list
+
+            return! WebForms.redirectWithNotice ctx "/admin/connectors" "allowed-domains-saved"
+        })
+
 let endpoint =
     [ GET [ route "/admin/connectors" page ]
       POST [ route "/admin/connectors" create ]
+      POST [ route "/admin/allowed-domains" saveAllowedDomains ]
       POST [ routef "/admin/connectors/{%s}" save ] ]
