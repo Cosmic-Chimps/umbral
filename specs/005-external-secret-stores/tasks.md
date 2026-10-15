@@ -176,7 +176,7 @@ page notice.
 - [X] T046 [P] Write `docs/secret-stores/azure.md`: a dedicated vault, `Key Vault Secrets Officer` at vault scope, service principal or managed identity variables, `UMBRAL__AZURE_KEY_VAULT_URI`, soft-delete note, move in and out, messages
 - [X] T047 [P] Write `docs/secret-stores/bellabaxter.md`: the same `BELLA_BAXTER_*` variables as Frunchy, a dedicated environment advised (or the `UMBRAL_` prefix and why), `UMBRAL__BELLABAXTER_PROVIDER`, zero-knowledge `BELLA_BAXTER_PRIVATE_KEY`, move in and out, messages
 - [X] T048 Update `README.md`: walkthrough links next to the connector ones; Settings reference rows for every `UMBRAL__SECRET_*`, `UMBRAL__AZURE_KEY_VAULT_URI`, `UMBRAL__BELLABAXTER_PROVIDER` with a pointer to the walkthroughs for vendor variables (FR-023); "Your data: back it up" says that with an external store connector secrets are not in `/data` and a restore needs the same manager, and that two instances with the same prefix share secrets (FR-024); `move-secrets` next to "Forgotten operator credential"; correct "app secrets are encrypted with the key ring" to "hashed" (README around lines 453–456 and 521–523) and the same claim in the `Dockerfile` comment above `/data`
-- [ ] T049 Run quickstart steps 1–4 and the full `dotnet test -c Release`; record the test count in this file's notes
+- [X] T049 Run quickstart steps 1–4 and the full `dotnet test -c Release`; record the test count in this file's notes
 - [ ] T050 Manual, needs accounts: quickstart step 5 for each store and step 6 for BellaBaxter; record results (and any fixture corrections) in `research.md` R7 and the walkthroughs; time steps 1–3 for SC-001
 
 ---
@@ -231,3 +231,12 @@ the safe places to fan out.
   "Implementation order") is the same as the phase order here.
 - Every task that adds an event, a notice or a text adds it in the file named
   and nowhere else.
+- T049 (2026-10-15, on `bccdbaa`): `dotnet build -c Release` 0 warnings; `dotnet test -c Release`
+  798 tests, 798 passed (baseline before the feature: ~550). Quickstart steps 1–4 are those
+  classes (`SecretStore*`, `ExternalSecret*`, `SecretCache*`, `SecretMove*`, `IdleMemory*`).
+  Idle memory measured on macOS only (164.8 MiB, under the 250 MiB sanity ceiling); the
+  150 MiB assertion runs on Linux CI.
+- A fresh restore currently fails with NU1902/NU1903 for `System.Security.Cryptography.Pkcs`
+  and `.Xml` 10.0.11 in the test project (advisories published after these packages were
+  pinned; unrelated to this feature, also on `main`). Local runs used `-p:NuGetAudit=false`;
+  proposed as a separate alta task.
