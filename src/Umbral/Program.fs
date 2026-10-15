@@ -501,6 +501,28 @@ let resetCredential (app: WebApplication) (write: string -> unit) =
 /// directory, no database — only a request to the one that is already running.
 /// The port is the one the image already sets for the listener
 /// (ASPNETCORE_HTTP_PORTS), so there is no second setting to keep in step.
+/// Brings every connector secret into the store `UMBRAL__SECRET_STORE` names
+/// (specs/005 research R8). An offline command like `reset-credential`, and for
+/// the same reasons: the authority it needs is running a process against the
+/// data directory, and `initialize` is skipped because its banner and probe
+/// have nothing to say here. The schema is ensured because an instance that
+/// never started has no connectors table to read. It may run beside the live
+/// instance; the switch of each connector is guarded (see `SecretMove`).
+let moveSecrets (app: WebApplication) (dryRun: bool) (write: string -> unit) =
+    task {
+        let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
+        do! Database.initializeSchema dbConfig
+
+        return!
+            Umbral.Infrastructure.SecretMove.run
+                (app.Services.GetRequiredService<SecretStores>())
+                (app.Services.GetRequiredService<SecretStoreSettings.SecretStoreSettings>())
+                dbConfig
+                (app.Services.GetRequiredService<TimeProvider>())
+                dryRun
+                write
+    }
+
 let healthcheck () =
     let port =
         match Environment.GetEnvironmentVariable "ASPNETCORE_HTTP_PORTS" with
@@ -528,6 +550,8 @@ let main args =
 
         if args |> Array.contains "reset-credential" then
             (resetCredential app Console.WriteLine).GetAwaiter().GetResult()
+        elif args |> Array.contains "move-secrets" then
+            (moveSecrets app (args |> Array.contains "--dry-run") Console.WriteLine).GetAwaiter().GetResult()
         else
             (initialize app).GetAwaiter().GetResult()
             app.Run()

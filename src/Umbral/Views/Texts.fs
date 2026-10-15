@@ -243,6 +243,32 @@ type Texts =
       /// the name the operator has to remove it under there.
       ConnectorSecretLeftBehind: string -> string -> string
 
+      // The `move-secrets` command (spec 005, FR-016 to FR-019): one plain line
+      // per connector, then a summary. Store arguments are store ids as a
+      // `SecretRef` carries them (`local`, `aws`), because the lines are read by
+      // an operator at a shell and matched on their first word by tests. No
+      // line ever carries a value, a locator or a credential.
+      MoveMoved: string -> string -> string -> string
+      MoveWouldMove: string -> string -> string -> string
+      MoveAlreadyIn: string -> string -> string
+      /// The row changed while the move was copying, so the switch was refused
+      /// and nothing was overwritten (slug).
+      MoveChangedMeanwhile: string -> string
+      /// slug, from, to, then why in plain words.
+      MoveFailed: string -> string -> string -> string -> string
+      /// slug, from, to, the cause word of the failed delete (in the `from`
+      /// store), and the name the leftover has under there.
+      MoveLeftBehind: string -> string -> string -> string -> string -> string
+      /// Why a call to a store failed: the store's id and the cause word.
+      MoveStoreFailure: string -> string -> string
+      /// The target did not give back what was written (target store id).
+      MoveMismatch: string -> string
+      /// The stored reference could not even be read (slug has no store prefix).
+      MoveReferenceUnreadable: string
+      /// dry run, connectors, moved (or would move), already in place, changed
+      /// meanwhile, failed.
+      MoveSummary: bool -> int -> int -> int -> int -> int -> string
+
       // Startup refusals about the external secret store (spec 005, FR-005):
       // one line per problem, each saying which variable and what to set.
       SecretStoreProblem: SecretStoreSettings.SettingProblem -> string }
@@ -271,6 +297,35 @@ let private connectorSecretStoreFailedEn (store: string) (cause: string) : strin
 
 let private connectorSecretLeftBehindEn (store: string) (name: string) : string =
     $"The connector was deleted, but its client secret {name} could not be removed from {store}. Delete it there by hand, or anyone with access to that store can still read it."
+
+/// A report line: the word the line is matched on, padded so that the slugs
+/// line up in a terminal, then what it says.
+let private moveLine (word: string) (slug: string) (rest: string) = $"{word.PadRight 9} {slug.PadRight 10} {rest}"
+
+/// What to look at when a store cannot be reached, which differs by store.
+let private reachHintEn (storeId: string) : string =
+    match storeId with
+    | "aws" -> "check the network and AWS_REGION"
+    | "gcp" -> "check the network and GOOGLE_CLOUD_PROJECT"
+    | "azure" -> "check the network and UMBRAL__AZURE_KEY_VAULT_URI"
+    | "bellabaxter" -> "check the network and the BellaBaxter URL"
+    | _ -> "check the network"
+
+let private moveStoreFailureEn (storeId: string) (cause: string) : string =
+    let name = secretStoreNameEn storeId
+
+    match cause with
+    | "unreachable" -> $"could not reach {name} ({reachHintEn storeId})"
+    | "access_denied" -> $"{name} refused Umbral's credentials or permissions (check that they may read and write secrets)"
+    | "not_found" -> $"the secret was not found in {name} (re-enter it on the Connectors screen)"
+    | "not_configured" -> $"{name} is not set up on this instance (keep its credentials available while moving out of it)"
+    | _ -> $"{name} rejected the request (check its permissions and settings)"
+
+let private moveSummaryEn (dryRun: bool) (total: int) (moved: int) (already: int) (changed: int) (failed: int) : string =
+    let noun = if total = 1 then "connector" else "connectors"
+    let movedWords = if dryRun then "would move" else "moved"
+    let changedPart = if changed > 0 then $", {changed} changed meanwhile (run it again)" else ""
+    $"{total} {noun}: {moved} {movedWords}, {already} already in place{changedPart}, {failed} failed."
 
 /// The notice texts, by code; `None` for a code no screen sends.
 let private noticeEn (code: string) : string option =
@@ -596,6 +651,25 @@ let en: Texts =
       SecretStoreName = secretStoreNameEn
       ConnectorSecretStoreFailed = connectorSecretStoreFailedEn
       ConnectorSecretLeftBehind = connectorSecretLeftBehindEn
+      MoveMoved = fun slug from target -> moveLine "moved" slug $"{from} → {target}"
+      MoveWouldMove = fun slug from target -> $"would move  {slug}  {from} → {target}"
+      MoveAlreadyIn = fun slug store -> moveLine "skipped" slug $"already in {store}"
+      MoveChangedMeanwhile =
+        fun slug -> moveLine "skipped" slug "changed while it was being moved, so nothing was overwritten; run the command again"
+      MoveFailed =
+        fun slug from target why ->
+            moveLine "failed" slug $"{from} → {target}: {why}. It still uses its old, readable copy"
+      MoveLeftBehind =
+        fun slug from target cause name ->
+            moveLine
+                "warning"
+                slug
+                $"moved {from} → {target}; the old copy could not be deleted from {from} ({moveStoreFailureEn from cause}): remove {name} there by hand, or anyone with access to it can still read the secret"
+      MoveStoreFailure = moveStoreFailureEn
+      MoveMismatch =
+        fun target -> $"{secretStoreNameEn target} did not return what was written to it"
+      MoveReferenceUnreadable = "its stored secret reference is not readable (re-enter the secret on the Connectors screen)"
+      MoveSummary = moveSummaryEn
       SecretStoreProblem = secretStoreProblemEn }
 
 /// The code itself when it is one a screen has a message for, so that a screen

@@ -249,6 +249,48 @@ let update
         return changed > 0
     }
 
+/// Points a connector at a new secret reference, but only if it still points at
+/// `oldRef`, and records `event` in the same transaction. The guard is the whole
+/// safety of the move command (specs/005 research R8): if an operator replaced
+/// the secret (a new reference) or deleted the connector while the move was
+/// copying, the move's copy is stale and must not overwrite that, so no row
+/// changes, no event is written, and the caller reports the connector skipped.
+/// Event and change commit together, so a switch nobody can see in the log
+/// cannot exist. The hint is left alone: the plaintext is the same.
+let switchSecretRef
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (slug: string)
+    (oldRef: string)
+    (newRef: string)
+    (event: SecurityEvents.SecurityEvent)
+    : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        use transaction = connection.BeginTransaction()
+        use command = connection.CreateCommand()
+        command.Transaction <- transaction
+
+        command.CommandText <-
+            "UPDATE connectors SET client_secret_ref = @new, updated_utc = @now
+             WHERE slug = @slug AND client_secret_ref = @old"
+
+        command.Parameters.AddWithValue("@new", newRef) |> ignore
+        command.Parameters.AddWithValue("@old", oldRef) |> ignore
+        command.Parameters.AddWithValue("@slug", slug) |> ignore
+        command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+
+        let! changed = command.ExecuteNonQueryAsync()
+
+        if changed > 0 then
+            do! SecurityEvents.recordIn connection transaction clock event
+            transaction.Commit()
+            return true
+        else
+            transaction.Rollback()
+            return false
+    }
+
 let setEnabled (config: Database.DbConfig) (clock: TimeProvider) (slug: string) (isEnabled: bool) : Task<unit> =
     task {
         use! connection = Database.openConnection config

@@ -133,15 +133,15 @@ unreachable manager, immediate failure for not found / denied.
 
 ### Tests for User Story 3
 
-- [ ] T031 [P] [US3] `tests/Umbral.Tests/SecretMoveTests.fs`, in process: three local connectors move to an in-memory `aws` and back to `local`, each signs in after each move, source copies deleted; for every N from 1 to the total number of store calls, a store failing on its Nth call then a clean re-run leaves all three readable, no reference to a missing secret, and exactly one secret per connector in the target; a concurrent change of one row between read and switch → that connector `skipped`, row untouched; dry run makes no write or delete call and prints `would move`; second run prints only `skipped` and returns 0; one failure returns 1; a source delete failure prints `warning` and returns 0; one `connector_secret_moved` event per moved connector, none for skipped
-- [ ] T032 [P] [US3] Extend `tests/Umbral.Tests/SubcommandTests.fs`: the built `Umbral.dll move-secrets --dry-run` with only environment variables on a temp data directory exits 0 and prints the summary; with `UMBRAL__SECRET_STORE=nonsense` it exits non-zero with the settings message before any connector line
+- [X] T031 [P] [US3] `tests/Umbral.Tests/SecretMoveTests.fs`, in process: three local connectors move to an in-memory `aws` and back to `local`, each signs in after each move, source copies deleted; for every N from 1 to the total number of store calls, a store failing on its Nth call then a clean re-run leaves all three readable, no reference to a missing secret, and exactly one secret per connector in the target; a concurrent change of one row between read and switch → that connector `skipped`, row untouched; dry run makes no write or delete call and prints `would move`; second run prints only `skipped` and returns 0; one failure returns 1; a source delete failure prints `warning` and returns 0; one `connector_secret_moved` event per moved connector, none for skipped
+- [X] T032 [P] [US3] Extend `tests/Umbral.Tests/SubcommandTests.fs`: the built `Umbral.dll move-secrets --dry-run` with only environment variables on a temp data directory exits 0 and prints the summary; with `UMBRAL__SECRET_STORE=nonsense` it exits non-zero with the settings message before any connector line
 
 ### Implementation for User Story 3
 
-- [ ] T033 [US3] Add `switchSecretRef dbConfig clock slug oldRef newRef event` to `src/Umbral/Infrastructure/ConnectorStore.fs`: one transaction with `UPDATE connectors SET client_secret_ref = @new, updated_utc = @now WHERE slug = @slug AND client_secret_ref = @old` and `SecurityEvents.recordIn` of the given event; returns whether a row changed
-- [ ] T034 [US3] Implement `src/Umbral/Infrastructure/SecretMove.fs`: `run (registry) (dbConfig) (clock) (dryRun) (write: string -> unit) : Task<int>` doing research R8 steps 1–5 per connector in slug order, output lines and exit codes exactly as the contract, all texts from `Texts.fs`
-- [ ] T035 [US3] Dispatch `move-secrets` in `main` of `src/Umbral/Program.fs` next to `reset-credential` (`buildApp`, schema ensured, no `initialize`, no `Run`), passing `--dry-run` through
-- [ ] T036 [US3] Run T031, T032 and the full suite: all green
+- [X] T033 [US3] Add `switchSecretRef dbConfig clock slug oldRef newRef event` to `src/Umbral/Infrastructure/ConnectorStore.fs`: one transaction with `UPDATE connectors SET client_secret_ref = @new, updated_utc = @now WHERE slug = @slug AND client_secret_ref = @old` and `SecurityEvents.recordIn` of the given event; returns whether a row changed
+- [X] T034 [US3] Implement `src/Umbral/Infrastructure/SecretMove.fs`: `run (registry) (dbConfig) (clock) (dryRun) (write: string -> unit) : Task<int>` doing research R8 steps 1–5 per connector in slug order, output lines and exit codes exactly as the contract, all texts from `Texts.fs`
+- [X] T035 [US3] Dispatch `move-secrets` in `main` of `src/Umbral/Program.fs` next to `reset-credential` (`buildApp`, schema ensured, no `initialize`, no `Run`), passing `--dry-run` through
+- [X] T036 [US3] Run T031, T032 and the full suite: all green
 
 **Checkpoint**: existing instances can adopt and leave a manager.
 
