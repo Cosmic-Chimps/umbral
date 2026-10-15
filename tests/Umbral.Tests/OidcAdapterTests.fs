@@ -69,7 +69,8 @@ let private authorizeRequest (endpoints: ProviderEndpoints) : AuthorizeRequest =
       RedirectUri = redirectUri
       State = state
       CodeChallenge = Flows.Challenge
-      Nonce = nonce }
+      Nonce = nonce
+      HostedDomainHint = None }
 
 let private resolved (rig: Rig) =
     task {
@@ -144,6 +145,15 @@ let ``the authorize URL carries the scopes, the S256 challenge, nonce, state and
             + "&nonce=nonce-0123456789"
 
         Assert.Equal(expected, url.AbsoluteUri)
+    }
+
+[<Fact>]
+let ``an OpenID Connect provider is never sent Google's hosted-domain hint`` () =
+    task {
+        let rig = newRig ()
+        let! endpoints = resolved rig
+        let url = rig.Adapter.BuildAuthorizeUrl { authorizeRequest endpoints with HostedDomainHint = Some "acme.com" }
+        Assert.DoesNotContain("hd=", url.ToString())
     }
 
 [<Fact>]

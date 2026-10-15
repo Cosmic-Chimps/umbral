@@ -209,7 +209,13 @@ type GoogleAdapter(httpClient: HttpClient) =
             Task.FromResult(Ok(endpointsFor connector.Kind))
 
         member _.BuildAuthorizeUrl(request: AuthorizeRequest) =
-            buildUrl request.Endpoints.AuthorizationUrl (commonAuthorizeParameters request)
+            // `hd` narrows the account chooser to one Google Workspace domain. It
+            // is a convenience for the person; the check that matters is the
+            // callback's.
+            buildUrl
+                request.Endpoints.AuthorizationUrl
+                (commonAuthorizeParameters request
+                 @ (request.HostedDomainHint |> Option.map (fun domain -> "hd", domain) |> Option.toList))
 
         member _.ExchangeAndFetch(request: ExchangeRequest) =
             task {

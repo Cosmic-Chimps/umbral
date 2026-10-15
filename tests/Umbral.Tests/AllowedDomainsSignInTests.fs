@@ -803,3 +803,94 @@ let ``the private claims never reach an access token, an id token or userinfo`` 
             Assert.DoesNotContain("umbral_", body)
             Assert.DoesNotContain("gmail.com", body.Replace("bob@gmail.com", ""))
     }
+
+// ---------------------------------------------------------------------------
+// Google's hosted-domain hint at the start of a sign-in (US5)
+// ---------------------------------------------------------------------------
+
+/// A Google connector alongside the fake one, started through the real endpoint.
+/// Resolving Google's endpoints needs no network, so the redirect is the adapter's
+/// own authorize URL.
+let private googleStartUrl (connectorList: string list) (instanceList: string list) =
+    task {
+        use! app = Fixtures.createAppWith Journeys.fakeSettings ignore
+        let browser = Journeys.Browser app.Client
+        do! Journeys.claimInstance app browser
+        let! reference = Fixtures.putSecret app "google" "google-client-secret"
+
+        do!
+            ConnectorStore.save
+                app.DbConfig
+                app.Clock
+                { Slug = "google"
+                  Kind = Connectors.ProviderKind.Google
+                  DisplayName = "Google"
+                  ClientId = "google-client-id"
+                  ClientSecretRef = reference.Encoded
+                  ClientSecretHint = Secrets.hint "google-client-secret"
+                  IssuerUrl = None
+                  AllowedEmailDomains = connectorList
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = app.Clock.GetUtcNow()
+                  UpdatedUtc = app.Clock.GetUtcNow() }
+                None
+
+        if not (List.isEmpty instanceList) then
+            do! EmailDomainRules.setInstanceList app.DbConfig app.Clock instanceList
+
+        let person = Journeys.Browser app.Client
+        let! response = person.Get "/connect/google/start"
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        let location = response.Headers.Location |> string
+        Assert.StartsWith("https://accounts.google.com/", location)
+        return location
+    }
+
+[<Fact>]
+let ``a Google connector limited to one domain starts with the hd hint`` () =
+    task {
+        let! url = googleStartUrl [ "acme.com" ] []
+        Assert.Contains("&hd=acme.com", url)
+    }
+
+[<Fact>]
+let ``a Google connector limited to one domain by the instance list starts with the hd hint`` () =
+    task {
+        let! url = googleStartUrl [] [ "acme.com" ]
+        Assert.Contains("&hd=acme.com", url)
+    }
+
+[<Fact>]
+let ``a Google connector with two domains starts with no hd`` () =
+    task {
+        let! url = googleStartUrl [ "acme.com"; "example.org" ] []
+        Assert.DoesNotContain("hd=", url)
+
+        let! byInstance = googleStartUrl [] [ "acme.com"; "example.org" ]
+        Assert.DoesNotContain("hd=", byInstance)
+    }
+
+[<Fact>]
+let ``a Google connector's own list replaces a one-domain instance list for the hint`` () =
+    task {
+        let! url = googleStartUrl [ "example.org"; "corp.net" ] [ "acme.com" ]
+        Assert.DoesNotContain("hd=", url)
+    }
+
+[<Fact>]
+let ``a Google connector with no list starts with no hd`` () =
+    task {
+        let! url = googleStartUrl [] []
+        Assert.DoesNotContain("hd=", url)
+    }
+
+[<Fact>]
+let ``a connector that is not Google is not sent hd whatever its list`` () =
+    withApp [ "acme.com" ] [] (fun _ browser prepared ->
+        task {
+            let! toPicker = browser.Get(Journeys.authorizeUrl prepared.ClientId "openid")
+            let picker = toPicker.Headers.Location |> string
+            let! toProvider = browser.Get(picker.Replace("/signin", "/connect/fake/start"))
+            Assert.DoesNotContain("hd=", toProvider.Headers.Location |> string)
+        })

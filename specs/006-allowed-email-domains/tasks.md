@@ -92,8 +92,8 @@ storage and its event shapes. No behaviour changes; the suite stays green.
 
 **Goal**: `hd` sent for a Google connector whose rule is exactly one domain.
 
-- [ ] T016 [P] [US5] Golden URL tests in `tests/Umbral.Tests/ProviderAdapterTests.fs`: Google with `HostedDomainHint = Some "acme.com"` carries `hd=acme.com`; `None` carries no `hd`; GitHub/Discord/OIDC ignore the hint; plus a `Start` test that a Google connector with one domain (own or instance) redirects with `hd` and with two domains without
-- [ ] T017 [US5] Add `HostedDomainHint: string option` to `AuthorizeRequest` in `src/Umbral/Infrastructure/ProviderAdapters.fs`; append `hd` in `src/Umbral/Infrastructure/Providers/Google.fs`; compute it in `src/Umbral/Handlers/Connect/Start.fs` from `EmailDomainRules.ruleFor` (Google kind and exactly one domain); update every other construction site with `None`. T016 passes
+- [X] T016 [P] [US5] Golden URL tests in `tests/Umbral.Tests/ProviderAdapterTests.fs`: Google with `HostedDomainHint = Some "acme.com"` carries `hd=acme.com`; `None` carries no `hd`; GitHub/Discord/OIDC ignore the hint; plus a `Start` test that a Google connector with one domain (own or instance) redirects with `hd` and with two domains without
+- [X] T017 [US5] Add `HostedDomainHint: string option` to `AuthorizeRequest` in `src/Umbral/Infrastructure/ProviderAdapters.fs`; append `hd` in `src/Umbral/Infrastructure/Providers/Google.fs`; compute it in `src/Umbral/Handlers/Connect/Start.fs` from `EmailDomainRules.ruleFor` (Google kind and exactly one domain); update every other construction site with `None`. T016 passes
 
 ---
 
