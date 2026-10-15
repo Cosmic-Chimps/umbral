@@ -26,6 +26,13 @@
 ///            a 150 MB assertion there would fail on a developer's laptop for
 ///            reasons that say nothing about a Raspberry Pi. CI on Linux runs
 ///            the strict one.
+///
+/// It runs twice (specs/005 SC-006). The second time the instance has an
+/// external secret store, `aws`, because that is the configuration that pulls a
+/// vendor SDK, its HTTP stack and its credential chain into the process: the
+/// promise to a Pi owner has to hold with the SDK loaded, not only without it.
+/// There is no AWS in a test, so the SDK is pointed at a stub on a local port
+/// that refuses everything the way a manager would an unknown secret.
 module Umbral.Tests.IdleMemoryTests
 
 open System
@@ -36,6 +43,8 @@ open System.Net
 open System.Net.Http
 open System.Net.Sockets
 open System.Runtime.InteropServices
+open System.Text
+open System.Threading
 open System.Threading.Tasks
 open Xunit
 
@@ -83,8 +92,55 @@ let private dotnetHost () =
     let candidate = Path.Combine(root, name)
     if File.Exists candidate then candidate else name
 
-[<Fact>]
-let ``an idle instance stays under 150 MB resident`` () =
+/// A stand-in for AWS Secrets Manager: every request, whatever it is, gets the
+/// answer the service gives for a secret that does not exist (JSON 1.1 over HTTP
+/// 400). That is what the SDK's startup probe for `umbral-probe` expects, and a
+/// store that is up but holds nothing is the quiet state of a fresh instance.
+/// Answering ALL requests this way means the test does not depend on whether, or
+/// when, the product probes. `Requests` says how many it saw.
+type private ManagerStub(port: int) =
+    let listener = new HttpListener()
+    let cancel = new CancellationTokenSource()
+    let mutable requests = 0
+
+    let body =
+        Encoding.UTF8.GetBytes """{"__type":"ResourceNotFoundException","message":"x"}"""
+
+    do listener.Prefixes.Add $"http://127.0.0.1:{port}/"
+
+    member _.Requests = Volatile.Read &requests
+
+    member this.Start() =
+        listener.Start()
+
+        Task.Run(fun () ->
+            task {
+                while not cancel.IsCancellationRequested do
+                    try
+                        let! context = listener.GetContextAsync()
+                        Interlocked.Increment &requests |> ignore
+                        context.Response.StatusCode <- 400
+                        context.Response.ContentType <- "application/x-amz-json-1.1"
+                        context.Response.ContentLength64 <- int64 body.Length
+                        do! context.Response.OutputStream.WriteAsync(body, 0, body.Length)
+                        context.Response.Close()
+                    with _ ->
+                        // Stopped, or a client that hung up: neither matters here.
+                        ()
+            }
+            :> Task)
+        |> ignore
+
+    interface IDisposable with
+        member _.Dispose() =
+            cancel.Cancel()
+            listener.Close()
+            cancel.Dispose()
+
+/// Starts Umbral as its own process with `extraEnvironment` on top of the
+/// production one, waits until it answers and sits idle, and asserts the
+/// resident set. `label` names the run in the report and the job summary.
+let private assertIdleUnderCeiling (label: string) (extraEnvironment: (string * string) list) =
     task {
         let umbralDll = Path.Combine(AppContext.BaseDirectory, "Umbral.dll")
 
@@ -111,6 +167,9 @@ let ``an idle instance stays under 150 MB resident`` () =
         start.Environment["UMBRAL__PUBLIC_ORIGIN"] <- "https://umbral.test"
         start.Environment["UMBRAL__DATA_DIRECTORY"] <- dataDirectory
         start.Environment["DOTNET_gcServer"] <- "0"
+
+        for name, value in extraEnvironment do
+            start.Environment[name] <- value
 
         // What the child said, for the failure message: a process that dies at
         // startup should fail with its own explanation, not a timeout.
@@ -181,7 +240,7 @@ let ``an idle instance stays under 150 MB resident`` () =
             // Visible in the test output, because a number that passes with
             // 3 MB to spare and one that passes with 90 MB are different news.
             let mebibytes (bytes: int64) = float bytes / 1_048_576.0
-            let report = $"[SC-007] idle resident set: {mebibytes resident:F1} MiB (ceiling {mebibytes ceiling:F0} MiB, {RuntimeInformation.OSDescription})"
+            let report = $"[SC-007] {label}: idle resident set: {mebibytes resident:F1} MiB (ceiling {mebibytes ceiling:F0} MiB, {RuntimeInformation.OSDescription})"
             Console.WriteLine report
             TestContext.Current.SendDiagnosticMessage report
 
@@ -193,11 +252,11 @@ let ``an idle instance stays under 150 MB resident`` () =
             | "" -> ()
             | summary ->
                 let arch = RuntimeInformation.OSArchitecture
-                File.AppendAllText(summary, $"- {arch}: **{mebibytes resident:F1} MiB** idle resident set, ceiling {mebibytes ceiling:F0} MiB{Environment.NewLine}")
+                File.AppendAllText(summary, $"- {arch}, {label}: **{mebibytes resident:F1} MiB** idle resident set, ceiling {mebibytes ceiling:F0} MiB{Environment.NewLine}")
 
             Assert.True(
                 resident < ceiling,
-                $"idle resident set was {mebibytes resident:F1} MiB, over the {mebibytes ceiling:F0} MiB ceiling (SC-007)"
+                $"idle resident set ({label}) was {mebibytes resident:F1} MiB, over the {mebibytes ceiling:F0} MiB ceiling (SC-007)"
             )
         finally
             if not child.HasExited then
@@ -210,4 +269,40 @@ let ``an idle instance stays under 150 MB resident`` () =
                 Directory.Delete(dataDirectory, true)
             with _ ->
                 ()
+    }
+
+[<Fact>]
+let ``an idle instance stays under 150 MB resident`` () =
+    assertIdleUnderCeiling "local store" []
+
+[<Fact>]
+let ``an idle instance with an external secret store stays under 150 MB resident`` () =
+    task {
+        let port = freePort ()
+        use stub = new ManagerStub(port)
+        stub.Start()
+
+        // Static fake credentials and no instance-metadata lookup: the SDK's
+        // credential chain finds the first at once instead of walking on to a
+        // link-local address that nothing here answers.
+        do!
+            assertIdleUnderCeiling
+                "aws store"
+                [ "UMBRAL__SECRET_STORE", "aws"
+                  "AWS_REGION", "eu-west-1"
+                  "AWS_ACCESS_KEY_ID", "AKIAIDLEMEMORYTEST"
+                  "AWS_SECRET_ACCESS_KEY", "idle-memory-test-not-a-real-secret"
+                  "AWS_EC2_METADATA_DISABLED", "true"
+                  "AWS_ENDPOINT_URL_SECRETS_MANAGER", $"http://127.0.0.1:{port}" ]
+
+        // How many calls the SDK made, so that a run where the store was never
+        // reached (and the figure above is just the local one again) shows.
+        let report = $"[SC-006] the stub manager saw {stub.Requests} request(s)"
+        Console.WriteLine report
+        TestContext.Current.SendDiagnosticMessage report
+
+        match Environment.GetEnvironmentVariable "GITHUB_STEP_SUMMARY" with
+        | null
+        | "" -> ()
+        | summary -> File.AppendAllText(summary, $"- aws store: the stub manager saw {stub.Requests} request(s){Environment.NewLine}")
     }
