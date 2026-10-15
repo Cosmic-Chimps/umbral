@@ -574,6 +574,10 @@ docker compose exec umbral /app/Umbral move-secrets
 It prints one line per connector (`moved`, `skipped`, `failed`, `warning`) and a
 summary, never a secret. It exits 1 if any connector failed; that connector
 keeps its old, readable copy, and running the command again finishes the rest.
+It can run while Umbral is serving: a connector you are saving or deleting at
+that moment is `skipped` (**being edited; run move-secrets again**), and the
+Connectors screen says **A secret move is working on this connector. Try again
+in a minute.** if you touch a connector while it is being moved.
 Details are in the [walkthroughs](docs/secret-stores/aws.md).
 
 ## Settings reference

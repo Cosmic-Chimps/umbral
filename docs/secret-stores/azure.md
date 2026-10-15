@@ -112,6 +112,15 @@ the vault is `skipped`, and one that failed keeps its old, readable copy. Each
 secret is read back and compared before its connector is switched, and the old
 copy is deleted last.
 
+Umbral may be serving while you move. Each connector is locked for the few
+seconds its move takes: if you are saving or deleting that connector on the
+Connectors screen at that moment, its line is `skipped` and says **being edited;
+run move-secrets again**, and the screen in turn says **A secret move is working
+on this connector. Try again in a minute.** if you try to save or delete it
+during the move. A connector that changed while it was being copied is also
+`skipped` (**changed while it was being moved**). Neither makes the command
+exit 1; run it again for those.
+
 To move **out**, set `UMBRAL__SECRET_STORE=local`, **keep the Azure variables**,
 recreate the container and run the same command. Remove them only afterwards.
 
@@ -132,6 +141,12 @@ If Azure refuses the delete, the connector is still deleted and Umbral shows
 **The connector was deleted, but its client secret … could not be removed** with
 the secret's name. Delete it by hand, or anyone with access to the vault can
 still read it.
+
+If you replace a secret that is still in another store (after switching
+`UMBRAL__SECRET_STORE`), Umbral saves the new one here and removes the old copy
+from the other store. If that removal is refused, the connector is saved and
+Umbral shows **The connector was saved, but its previous secret could not be
+removed from …** with the secret's name there: remove it by hand.
 
 ## What is where
 
@@ -161,9 +176,9 @@ grace to `0` to refuse at once.
 | `UMBRAL__AZURE_KEY_VAULT_URI is "…". Give your vault's address as an https URL with no path …` | Copy the **Vault URI** from the vault's overview page; remove anything after the host name. |
 | `UMBRAL__SECRET_STORE is "…", which is not a store Umbral knows. …` | Check the spelling: `local`, `aws`, `gcp`, `azure` or `bellabaxter`. |
 | `UMBRAL__SECRET_STORE_PREFIX is "…". Use 1 to 32 lowercase letters, digits or hyphens …` | Fix the prefix, or remove the variable to use `umbral`. |
-| The Connectors screen shows a warning that starts **The secret store Azure Key Vault could not be reached when Umbral last checked it** (or **refused Umbral's credentials or permissions**), and the log has a warning that starts the same way | Umbral started but Azure did not answer. Check the vault URI, the three `AZURE_` values, that the role is assigned at the vault (it can take minutes) and that the vault uses Azure roles (`--enable-rbac-authorization`). If the vault has a firewall, allow this host. The log line gives the cause. Sign-ins keep working from the cache and grace period meanwhile. The notice clears once a secret is next saved to the store successfully; no restart is needed. |
-| Saving a connector says **Azure Key Vault refused Umbral's credentials or permissions, so the client secret was not saved** | Nothing was saved. Check the **Key Vault Secrets Officer** assignment, then enter the secret again. |
-| … **could not be reached, so the client secret was not saved** | Nothing was saved. Check the network from the container to the vault. |
-| … **rejected the request** and the log says `soft_deleted` | A secret of that exact name is soft-deleted. Recover or purge it (step 6), or save again: Umbral picks a new name. |
+| The Connectors screen shows a warning that starts **Azure Key Vault could not be reached.** (or **Azure Key Vault refused Umbral's credentials or permissions.**), and the log has a warning that starts **Secret store check at startup:** followed by the same words | Umbral started but Azure did not answer. Check the vault URI, the three `AZURE_` values, that the role is assigned at the vault (it can take minutes) and that the vault uses Azure roles (`--enable-rbac-authorization`). If the vault has a firewall, allow this host. The first sentence of the warning says which: could not be reached, or refused the credentials or permissions. Sign-ins keep working from the cache and grace period meanwhile. A refused save raises the same notice. It clears once a secret is next saved to the store successfully; no restart is needed. |
+| Saving a connector says **Azure Key Vault refused Umbral's credentials or permissions.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the **Key Vault Secrets Officer** assignment, then enter the secret again. |
+| … **Azure Key Vault could not be reached.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the network from the container to the vault. |
+| Saving a connector says **Azure Key Vault holds a deleted secret under this connector's name. Restore it (or purge it) in the console, then save again.** | Someone deleted that connector's secret in the vault, and it is still soft-deleted, so its name cannot be written to. Recover or purge it (step 6), then save again. |
 | A connector card shows the warning **This connector's secret is kept in Azure Key Vault, which this instance cannot read** | Restore the variables of that store, or set the store back, or use **Replace client secret** to save a new secret into the active store. |
 | A `move-secrets` line starts with `failed` | That connector was not changed. Read the cause on the line, fix it and run the command again. |

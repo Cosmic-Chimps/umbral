@@ -135,6 +135,15 @@ Google Cloud is `skipped`, and one that failed keeps its old, readable copy. Eac
 secret is read back and compared before its connector is switched, and the old
 copy is deleted last.
 
+Umbral may be serving while you move. Each connector is locked for the few
+seconds its move takes: if you are saving or deleting that connector on the
+Connectors screen at that moment, its line is `skipped` and says **being edited;
+run move-secrets again**, and the screen in turn says **A secret move is working
+on this connector. Try again in a minute.** if you try to save or delete it
+during the move. A connector that changed while it was being copied is also
+`skipped` (**changed while it was being moved**). Neither makes the command
+exit 1; run it again for those.
+
 To move **out**, set `UMBRAL__SECRET_STORE=local`, **keep the Google variables
 and key file**, recreate the container and run the same command. Remove them
 only afterwards.
@@ -146,6 +155,12 @@ recovery window. If Google refuses the delete, the connector is still deleted
 and Umbral shows **The connector was deleted, but its client secret … could not
 be removed** with the secret's name. Delete it by hand (`gcloud secrets delete
 NAME`), or anyone with access to the project can still read it.
+
+If you replace a secret that is still in another store (after switching
+`UMBRAL__SECRET_STORE`), Umbral saves the new one here and removes the old copy
+from the other store. If that removal is refused, the connector is saved and
+Umbral shows **The connector was saved, but its previous secret could not be
+removed from …** with the secret's name there: remove it by hand.
 
 ## What is where
 
@@ -174,8 +189,8 @@ grace to `0` to refuse at once.
 | `UMBRAL__SECRET_STORE is gcp but GOOGLE_CLOUD_PROJECT is not set. …` | The container did not start. Set it to the project **ID**. |
 | `UMBRAL__SECRET_STORE is "…", which is not a store Umbral knows. …` | Check the spelling: `local`, `aws`, `gcp`, `azure` or `bellabaxter`. |
 | `UMBRAL__SECRET_STORE_PREFIX is "…". Use 1 to 32 lowercase letters, digits or hyphens …` | Fix the prefix, or remove the variable to use `umbral`. |
-| The Connectors screen shows a warning that starts **The secret store Google Cloud Secret Manager could not be reached when Umbral last checked it** (or **refused Umbral's credentials or permissions**), and the log has a warning that starts the same way | Umbral started but Google did not answer. Check the API is enabled, the key file is mounted, readable and the right project's, billing is on, and the role is bound to the service account. The log line gives the cause. Sign-ins keep working from the cache and grace period meanwhile. The notice clears once a secret is next saved to the store successfully; no restart is needed. |
-| Saving a connector says **Google Cloud Secret Manager refused Umbral's credentials or permissions, so the client secret was not saved** | Nothing was saved. The usual cause is `secretmanager.secrets.create` bound **with** a prefix condition: bind it without one, as in step 2. Then enter the secret again. |
-| … **could not be reached, so the client secret was not saved** | Nothing was saved. Check the network from the container to Google, and that `GOOGLE_APPLICATION_CREDENTIALS` points at a file that exists inside the container. |
+| The Connectors screen shows a warning that starts **Google Cloud Secret Manager could not be reached.** (or **Google Cloud Secret Manager refused Umbral's credentials or permissions.**), and the log has a warning that starts **Secret store check at startup:** followed by the same words | Umbral started but Google did not answer. Check the API is enabled, the key file is mounted, readable and the right project's, billing is on, and the role is bound to the service account. The first sentence of the warning says which: could not be reached, or refused the credentials or permissions. Sign-ins keep working from the cache and grace period meanwhile. A refused save raises the same notice. It clears once a secret is next saved to the store successfully; no restart is needed. |
+| Saving a connector says **Google Cloud Secret Manager refused Umbral's credentials or permissions.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. The usual cause is `secretmanager.secrets.create` bound **with** a prefix condition: bind it without one, as in step 2. Then enter the secret again. |
+| … **Google Cloud Secret Manager could not be reached.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the network from the container to Google, and that `GOOGLE_APPLICATION_CREDENTIALS` points at a file that exists inside the container. |
 | A connector card shows the warning **This connector's secret is kept in Google Cloud Secret Manager, which this instance cannot read** | Restore the variables of that store, or set the store back, or use **Replace client secret** to save a new secret into the active store. |
 | A `move-secrets` line starts with `failed` | That connector was not changed. Read the cause on the line, fix it and run the command again. |

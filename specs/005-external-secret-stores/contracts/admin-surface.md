@@ -38,6 +38,16 @@ is rendered from the code plus server-side state, as existing notices do.
 | --- | --- | --- |
 | `connector-secret-store-failed` | A create or replace whose write to the store failed. Nothing was saved. | Which store, the cause (could not reach / access denied / rejected), and what to check: credentials, permissions per the walkthrough, network. The secret must be entered again. |
 | `connector-secret-left-behind` | A delete whose store delete failed. The connector is gone. | The secret's name in the manager and that it should be removed there by hand. |
+| `connector-secret-replaced-left-behind` | A replace that moved the secret to the active store and could not remove the old copy from the other one. The connector is saved. | The connector was saved, and the old copy's name and store, to be removed by hand. |
+| `connector-secret-busy` | A replace or delete refused because a move holds the connector's lease. Nothing was saved. | "A secret move is working on this connector. Try again in a minute." |
+
+The text of a store failure is chosen by the failure, not only by its cause
+word: a `Rejected` with a closed reason the product knows (`soft_deleted` — a
+secret deleted in the console and still recoverable; `provider_ambiguous` —
+names `UMBRAL__BELLABAXTER_PROVIDER`; `location_not_found` — names
+`BELLA_BAXTER_PROJECT`, `BELLA_BAXTER_ENV` and `UMBRAL__BELLABAXTER_PROVIDER`)
+says what to do about it, in the startup warning, the page notice and the
+refusal alike. Any other `Rejected` reason is never shown.
 
 The OpenID Connect add form keeps its re-render-with-input behaviour and shows
 the first text inline. The other add path and the card save redirect with the
@@ -51,6 +61,9 @@ Two new kinds, stored values `secret_store_failed` and
 
 | Path | Events |
 | --- | --- |
+| Create | `ConnectorCreated` with `Detail = store=<id>` of the store holding the secret (FR-022). |
+| Replace | `ConnectorUpdated`, with `Detail = store=<id>` when the secret changed. |
+| Delete | `ConnectorDeleted` with `Detail = store=<id>` of the store that held the secret. |
 | Create, store write fails | `secret_store_failed` (`op=put`), actor Operator. No `ConnectorCreated`. |
 | Replace, store write fails | `secret_store_failed` (`op=put`). No `ConnectorUpdated`. |
 | Delete, store delete fails | `ConnectorDeleted` (Success, as today) **and** `secret_store_failed` (`op=delete`). |

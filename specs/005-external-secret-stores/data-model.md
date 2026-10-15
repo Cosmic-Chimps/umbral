@@ -55,7 +55,9 @@ Both kinds join `allEventTypes`, so `SecurityEventCoverageTests` requires a test
 that emits each.
 
 Existing events keep their meaning: `ConnectorCreated`, `ConnectorUpdated` and
-`ConnectorDeleted` are recorded as today. A sign-in that cannot read its secret
+`ConnectorDeleted` are recorded as today, with `Detail = store=<id>` naming the
+store that holds the secret (FR-022; `ConnectorUpdated` only when the secret
+changed). A sign-in that cannot read its secret
 still records `SignInFailed`, with `Detail` becoming
 `connector_secret_unreadable;store=<id>;cause=<cause>` (FR-015).
 
@@ -112,9 +114,11 @@ Lost on restart by construction (FR-013, Story 2 scenario 6).
 
 Singleton holding the outcome of the startup probe of the active store
 (`Ok | Failed of StoreFailure * message`) and when it ran. Read by the
-Connectors screen for its page notice (Story 4 scenario 3). Updated again by a
-successful write, so the notice clears once the operator has fixed the cause
-and saved something, without a restart.
+Connectors screen for its page notice (Story 4 scenario 3). Updated again by
+every write to the active store: a failed one (unreachable, access denied, not
+configured, rejected) raises the notice, a successful one clears it, so the
+notice goes away once the operator has fixed the cause and saved something,
+without a restart.
 
 ## Derived for display
 

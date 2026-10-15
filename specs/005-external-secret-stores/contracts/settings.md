@@ -75,6 +75,6 @@ Same variables and precedence as `BellaBaxter.AspNet.Configuration` in Frunchy.
 | No setting | Local store. No vendor assembly loaded, no outbound call. |
 | Malformed or incomplete setting (table above) | Start refused. One message per problem, naming the variable and what to set, in the style of `PublicOrigin.describe`. The offline commands refuse the same way. |
 | Complete setting, manager unreachable or access refused | Starts. Warning logged with cause and next step; `secret_store_failed` event with `op=probe`; Connectors screen notice (contract [admin-surface.md](./admin-surface.md)). |
-| Complete setting, probe answers "not found" | Healthy. Nothing shown. |
+| Complete setting, the probe's own read of a name that does not exist | Healthy (the adapter reads the 404 as "reachable and allowed"). Nothing shown. A "not found" that the adapter does not read that way, such as BellaBaxter's project or environment missing, is a failure with its own text. |
 
 `/healthz` does not check the manager.

@@ -119,6 +119,15 @@ AWS is `skipped`, and one that failed keeps its old, readable copy until the
 next run succeeds. Each secret is read back and compared before its connector is
 switched, and the old copy is deleted last.
 
+Umbral may be serving while you move. Each connector is locked for the few
+seconds its move takes: if you are saving or deleting that connector on the
+Connectors screen at that moment, its line is `skipped` and says **being edited;
+run move-secrets again**, and the screen in turn says **A secret move is working
+on this connector. Try again in a minute.** if you try to save or delete it
+during the move. A connector that changed while it was being copied is also
+`skipped` (**changed while it was being moved**). Neither makes the command
+exit 1; run it again for those.
+
 To move **out**, set `UMBRAL__SECRET_STORE=local`, **keep the AWS variables**
 (Umbral still needs them to read the secrets it is moving), recreate the
 container and run the same command. Remove the AWS variables only afterwards.
@@ -137,6 +146,12 @@ If AWS refuses the delete, the connector is still deleted and Umbral shows
 **The connector was deleted, but its client secret … could not be removed**
 with the secret's name. Delete it by hand in the console, or anyone with access
 to the account can still read it.
+
+If you replace a secret that is still in another store (after switching
+`UMBRAL__SECRET_STORE`), Umbral saves the new one here and removes the old copy
+from the other store. If that removal is refused, the connector is saved and
+Umbral shows **The connector was saved, but its previous secret could not be
+removed from …** with the secret's name there: remove it by hand.
 
 ## What is where
 
@@ -166,9 +181,10 @@ sign-in on this instance.
 | `UMBRAL__SECRET_STORE is aws but AWS_REGION is not set. …` | The container did not start. Set `AWS_REGION`, for example `eu-west-1`. |
 | `UMBRAL__SECRET_STORE is "…", which is not a store Umbral knows. …` | Check the spelling: `local`, `aws`, `gcp`, `azure` or `bellabaxter`. |
 | `UMBRAL__SECRET_STORE_PREFIX is "…". Use 1 to 32 lowercase letters, digits or hyphens …` | Fix the prefix, or remove the variable to use `umbral`. |
-| The Connectors screen shows a warning that starts **The secret store AWS Secrets Manager could not be reached when Umbral last checked it** (or **refused Umbral's credentials or permissions**), and the log has a warning that starts the same way | Umbral started but AWS did not answer. Check the network and `AWS_REGION`; check the key has not been rotated or disabled; check the policy above is attached and its `Resource` matches your region, account and prefix. The log line gives the cause (`unreachable` or `access_denied`). Sign-ins keep working from the cache and grace period meanwhile. The notice clears once a secret is next saved to the store successfully; no restart is needed. |
-| Saving a connector says **AWS Secrets Manager refused Umbral's credentials or permissions, so the client secret was not saved** | Nothing was saved. Check the policy has `CreateSecret` and `PutSecretValue` on `umbral-*`, then enter the secret again. |
-| … **could not be reached, so the client secret was not saved** | Nothing was saved. Check the network from the container to AWS, and `AWS_REGION`. If you are off AWS and it is slow, set `AWS_EC2_METADATA_DISABLED=true`. |
+| The Connectors screen shows a warning that starts **AWS Secrets Manager could not be reached.** (or **AWS Secrets Manager refused Umbral's credentials or permissions.**), and the log has a warning that starts **Secret store check at startup:** followed by the same words | Umbral started but AWS did not answer. Check the network and `AWS_REGION`; check the key has not been rotated or disabled; check the policy above is attached and its `Resource` matches your region, account and prefix. The first sentence of the warning says which: could not be reached (the network and the region) or refused the credentials or permissions (the key and the policy). Sign-ins keep working from the cache and grace period meanwhile. A refused save raises the same notice. It clears once a secret is next saved to the store successfully; no restart is needed. |
+| Saving a connector says **AWS Secrets Manager refused Umbral's credentials or permissions.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the policy has `CreateSecret` and `PutSecretValue` on `umbral-*`, then enter the secret again. |
+| … **AWS Secrets Manager could not be reached.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the network from the container to AWS, and `AWS_REGION`. If you are off AWS and it is slow, set `AWS_EC2_METADATA_DISABLED=true`. |
+| Saving a connector says **AWS Secrets Manager holds a deleted secret under this connector's name. Restore it (or purge it) in the console, then save again.** | Someone deleted that connector's secret in the AWS console and it is still inside its recovery window, so its name cannot be written to. Restore it (or delete it with no recovery window), then save again. |
 | A connector card shows the warning **This connector's secret is kept in AWS Secrets Manager, which this instance cannot read** | The connector's secret is in a store this instance is not set up for (you changed or removed the variables). Restore them, or set the store back, or use **Replace client secret** to save a new secret into the active store. |
 | Someone signs in and sees "Sign-in didn't complete" after the AWS outage | The cache and the grace period ran out. Fix AWS access; the next sign-in works. The security log has a `secret_store_failed` event. |
 | A `move-secrets` line starts with `failed` | That connector was not changed. Read the cause on the line, fix it and run the command again. |

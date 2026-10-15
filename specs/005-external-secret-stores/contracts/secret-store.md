@@ -54,4 +54,4 @@ runs (`Fixtures.fs`). External stores are built on first use.
 | Admin delete | `For(ref.Store).Delete`, `Evict` | `Ok` when already gone |
 | Callback | `Read` | Cache semantics of [data-model.md](../data-model.md#cache-entry) |
 | Move command | `For(source).Get`, `Active.Put`, `Active.Get`, `Evict`, `For(source).Delete` | All of the above |
-| Startup | `Active.Probe` | `NotFound` from a read of the probe name means healthy |
+| Startup | `Active.Probe` | The adapter maps the probe's own 404 to `Ok`; any `Error`, `NotFound` included, is a failure |

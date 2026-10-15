@@ -11,9 +11,15 @@ docker exec umbral /app/Umbral move-secrets
 
 Runs in the container like `reset-credential`, with the same environment as
 the running instance. It does not start a web host. It may run while the
-instance is serving: each connector's switch is guarded by its old reference
-(research R8), so a concurrent edit wins and the connector is reported as
-skipped.
+instance is serving. Each connector is moved under a short **lease** on its
+secret (a row in the `settings` table, two minutes; research R8), which the
+admin screen also takes when it replaces or deletes that connector's secret.
+Whichever arrives second does not write: the admin screen refuses with the
+notice `connector-secret-busy` ("A secret move is working on this connector.
+Try again in a minute."), and the command reports the connector as skipped
+(`being edited; run move-secrets again`). Behind the lease, each connector's
+switch is still guarded by its old reference, so an edit that got in anyway
+wins and the connector is reported as skipped.
 
 The target is always the store `UMBRAL__SECRET_STORE` names. To move out of a
 manager, set `UMBRAL__SECRET_STORE=local` (keeping that manager's credentials
@@ -32,6 +38,11 @@ warning  my-oidc    moved local → aws; the old copy could not be deleted from 
 
 3 connectors: 1 moved, 1 already in place, 1 failed.
 ```
+
+A connector that is being edited, or changed while it was being copied, is a
+`skipped` line too (`being edited; run move-secrets again`, `changed while it was
+being moved, so nothing was overwritten; run the command again`); neither
+changes the exit code, and the summary counts them under "changed meanwhile".
 
 Dry run prints `would move  <slug>  <from> → <to>` for each connector to move,
 `skipped` for the rest, and the summary with "would move". It makes no call that

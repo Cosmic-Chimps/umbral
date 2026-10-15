@@ -221,7 +221,20 @@ store decrypts in microseconds and has no outage.
 - Time comes from the registered `TimeProvider`, so tests drive it with the
   existing `FakeTimeProvider`.
 - Concurrent misses for one key may both call the manager; at the scale of a
-  homelab that is cheaper than a single-flight lock to get right.
+  homelab that is cheaper than a single-flight lock to get right. An entry that
+  has expired but is still within the grace period is different: the reader that
+  refreshes it marks the entry "refresh in flight" with a compare-and-swap, and
+  every other reader serves the stale value at once, without a call and without
+  an event, until the refresh ends or its mark is older than the 10 s bound plus
+  a margin. So an outage costs at most one call and one `stale=true` event per
+  entry per 30 s however many sign-ins arrive.
+- Eviction is one global generation counter. A read notes it before calling
+  the store, writes its answer only if it has not moved, and checks again after
+  writing (removing the entry if it moved); `Evict` increments it and then
+  removes the key.
+- The 10 s bound is the caller's token linked to a timer, and also a
+  `WaitAsync` of the bound plus a second, so an SDK that ignores its token still
+  ends as `Unreachable`; the abandoned call's later failure is observed.
 
 **Alternatives**: no cache (spec rejected it); a disk cache (defeats the
 point); grace on by default but served without retrying (hides the outage from
@@ -265,9 +278,26 @@ Per connector whose reference is not in the active store:
 4. Switch the reference in one statement guarded by the old value
    (`UPDATE … SET client_secret_ref = @new WHERE slug = @slug AND client_secret_ref = @old`),
    in the same transaction as its security event (`SecurityEvents.recordIn`).
-   No row updated → somebody changed it meanwhile; report, skip.
+   No row updated → somebody changed it meanwhile; report, skip. If the row is
+   gone altogether, the copy just written belongs to nothing and is deleted
+   (safe: a connector created again under the slug gets another name).
 5. Evict the cache entry, then `Delete` from the source. Failure → reported as
    a warning naming the leftover; the connector is already moved.
+
+Steps 1 to 5 run under a **per-connector lease**. Both the move and an admin
+replace of the secret write the same derived name, and the guard in step 4
+protects the row, not the store: a move that read the old value, an operator who
+then replaced it, and a move that then wrote would leave the old value as the
+manager's latest version while the row names the new one. The lease is a row in
+the existing `settings` table (`secret-lease:{slug}`, value a fresh GUID per
+acquisition, time the instant it was taken), taken with one atomic upsert whose
+update applies only to a lease older than two minutes, and removed in a
+`finally` by whoever holds that GUID. The admin replace and delete take it too
+(a create needs none: its name has a fresh `created_utc`). An admin path that
+finds it held refuses with notice `connector-secret-busy` and saves nothing; the
+move prints `skipped … being edited; run move-secrets again`. Two minutes covers
+the four bounded store calls; a process that dies holding it blocks that
+connector for at most that long. The row is read again once the lease is held.
 
 Every step before 4 leaves the old reference in place; after 4 the new one is
 complete. A re-run starts from what the references say, and step 2 hits the
@@ -292,10 +322,16 @@ behind a form, and a fourth kind of thing on the Connectors screen.
   the operator typed" is narrowed to "nothing is saved and the screen says
   why", because two of the three paths are redirects today and the secret
   must be retyped in every case.
-- **Replace**: R5. A failure refuses with the same notice; the connector keeps
-  its old secret.
+- **Replace**: R5, under the lease of R8. A failure refuses with the same
+  notice; the connector keeps its old secret. The old copy is deleted only when
+  it is in a different store than the new one (a locator that merely reads
+  differently within a store names the same secret); a refused delete there is
+  notice `connector-secret-replaced-left-behind` ("The connector was saved, but
+  its previous secret could not be removed from …").
 - **Delete**: delete the row and record `ConnectorDeleted` first, then
-  `Delete` in the store with a catch. Failure → notice
+  `Delete` in the store with a catch, under the lease of R8. The reference to
+  delete is the one the deleted row held (`DELETE … RETURNING
+  client_secret_ref`), not one read earlier. Failure → notice
   `connector-secret-left-behind` carrying the secret's name in the manager,
   and a `SecretStoreFailed` event (FR-010).
 - **Callback**: `Get` through the registry and cache. On failure the person
@@ -317,8 +353,11 @@ name that does not exist, so it needs no permission beyond these.
 ## R11 — Startup probe and tests
 
 - **Probe**: in `initialize`, after the schema, the active external store gets
-  `Probe`: a read of `{prefix}-probe` (the store's rendering). `NotFound` means
-  reachable and allowed; anything else is logged with what to do and kept in a
+  `Probe`: a read of `{prefix}-probe` (the store's rendering). Each adapter maps
+  the 404 of that read to `Ok` (reachable and allowed), so a `NotFound` that
+  reaches the caller means something else was not found and is a failure like
+  any other; BellaBaxter reports a 404 while resolving the project, environment
+  or provider as `Rejected "location_not_found"`. A failure is logged with what to do and kept in a
   `SecretStoreStatus` singleton the Connectors screen reads (FR-005, Story 4).
   It runs under the 10 s bound and never stops the start. `/healthz` stays a
   SQLite check (`Health.fs:8-12` excludes what a restart cannot fix).
