@@ -49,6 +49,21 @@ let originBanner (ctx: HttpContext) (t: Texts.Texts) (origin: PublicOrigin.Publi
         :> HtmlElement
     | _ -> Fragment() :> HtmlElement
 
+/// FR-005, Story 4: the active store failed its startup probe, and nothing
+/// since has written to it successfully. Names the store, the cause and what to
+/// check, all from `Texts`; nothing is read from the request.
+let private secretStoreBanner (ctx: HttpContext) (t: Texts.Texts) =
+    let secrets = ctx.GetService<SecretStores>()
+
+    match secrets.Status.Current with
+    | Failed(failure, _) ->
+        (div(class' = "um-alert um-alert-warning").attr("role", "alert").data("secret-store-problem", "") {
+            Components.icon Theme.Warning
+            span() { t.SecretStoreProblemNotice secrets.Active.Id failure.Cause }
+        })
+        :> HtmlElement
+    | Healthy -> Fragment() :> HtmlElement
+
 // ---------------------------------------------------------------------------
 // One connector card
 // ---------------------------------------------------------------------------
@@ -100,6 +115,17 @@ let private card
         | Oidc, None -> t.ConnectorOidcProviderName
         | kind, _ -> kind.DisplayName
     let isEnabled = row.Existing |> Option.map (fun c -> c.IsEnabled) |> Option.defaultValue false
+
+    // Where the secret is kept, from the reference the row carries. A row whose
+    // reference cannot be read as one (an unclaimed card, a connector with no
+    // secret) has no store to name.
+    let secretStore =
+        row.Existing
+        |> Option.bind (fun c ->
+            match Secrets.SecretRef.Decode c.ClientSecretRef with
+            | Ok reference -> Some reference.Store
+            | Error _ -> None)
+
     // An empty card is offered as shared, like the add form (FR-014).
     let isShared = row.Existing |> Option.map (fun c -> c.IsShared) |> Option.defaultValue true
 
@@ -144,6 +170,11 @@ let private card
                         Components.MutedTone
                         (if isShared then t.ConnectorSharedBadge else t.ConnectorNotSharedBadge)
 
+                match secretStore with
+                | Some store ->
+                    (Components.pill Components.MutedTone (t.SecretStoreLabel store)).data("secret-store", store)
+                | None -> Fragment() :> HtmlElement
+
                 if isConfigured then
                     Components.stateBadge isEnabled t.Enabled t.Disabled
                 else
@@ -157,6 +188,17 @@ let private card
                 span() { t.ConnectorOfferedNowhere }
             })
             :> HtmlElement
+
+        // FR-021: known without a network call, so an operator who lost a
+        // store's credentials sees it here rather than as a failed sign-in.
+        match secretStore with
+        | Some store when not ((ctx.GetService<SecretStores>()).CanRead store) ->
+            (div(class' = "um-alert um-alert-warning").attr("role", "note").data("secret-unreadable", slug) {
+                Components.icon Theme.Warning
+                span() { t.SecretUnreadable store }
+            })
+            :> HtmlElement
+        | _ -> Fragment() :> HtmlElement
 
         // FR-003: said on every card, because the first time an operator
         // learns what the name matters for should not be a person asking
@@ -499,6 +541,7 @@ let private view
     div(class' = "space-y-6").data("screen", "connectors") {
         Components.pageHeading t.ConnectorsTitle (Some t.ConnectorsLead)
         originBanner ctx t origin
+        secretStoreBanner ctx t
 
         match notice, strand with
         // A notice that carries what the provider said (`explained`) is a

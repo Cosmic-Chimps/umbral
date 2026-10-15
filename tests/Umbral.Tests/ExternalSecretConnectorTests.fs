@@ -16,6 +16,7 @@ open System.Text.RegularExpressions
 open System.Threading
 open System.Threading.Tasks
 open Microsoft.Extensions.DependencyInjection
+open Microsoft.Extensions.Logging
 open Xunit
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
@@ -627,4 +628,208 @@ let ``a new app host over the same data directory starts with an empty cache`` (
                     Directory.Delete(directory, true)
             with _ ->
                 ()
+    }
+
+// ---------------------------------------------------------------------------
+// User Story 4: knowing where secrets are, and why something fails
+// ---------------------------------------------------------------------------
+
+/// The markup of one connector card, so an assertion about a card cannot be
+/// satisfied by another card's marker.
+let private cardOf (html: string) (slug: string) =
+    let m = Regex.Match(html, $"<article[^>]*data-connector=\"{Regex.Escape slug}\"[^>]*>.*?</article>", RegexOptions.Singleline)
+    Assert.True(m.Success, $"no card for '{slug}'")
+    m.Value
+
+/// The app with `store` failing (or answering) as given BEFORE it starts, so the
+/// startup probe meets it, and no fake connector: seeding one would write to the
+/// store and clear the very state under test. Logs are captured at warning and
+/// above.
+let private startProbed (store: InMemorySecretStore) =
+    task {
+        let logs = new LogRedactionTests.CapturingProvider()
+
+        let! app =
+            Fixtures.createAppWithProviderHandler
+                (create issuer :> HttpMessageHandler)
+                (fakeSettings @ awsSettings)
+                (fun builder ->
+                    Fixtures.withSecretStores [ store ] "aws" builder
+                    builder.Logging.AddProvider logs |> ignore)
+
+        let operator = Browser app.Client
+        do! claimInstance app operator
+        return app, operator, logs
+    }
+
+let private problemMarker = "data-secret-store-problem"
+
+[<Fact>]
+let ``each card says which store keeps its secret, with the Texts label`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", oidcFields "home")
+
+        // Seeded straight into the table with a local reference: an instance
+        // that switched to aws after this connector was made.
+        let! stored = ConnectorStore.findBySlug app.DbConfig "fake"
+        let local = LocalSecretStore(app.Services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>()) :> ISecretStore
+
+        let! put = local.Put(SecretName.derive "umbral" "fake" (app.Clock.GetUtcNow()), "fake-connector-secret-value", CancellationToken.None)
+        let reference = match put with | Ok r -> r | Error _ -> failwith "local put"
+        do! ConnectorStore.save app.DbConfig app.Clock { stored.Value with ClientSecretRef = reference.Encoded } None
+
+        let! html = operator.GetHtml "/admin/connectors"
+        let texts = Umbral.Views.Texts.current ()
+
+        let home = cardOf html "home"
+        Assert.Contains("data-secret-store=\"aws\"", home)
+        Assert.Contains(texts.SecretStoreLabel "aws", home)
+        Assert.Contains("Kept in AWS Secrets Manager", home)
+        Assert.DoesNotContain("data-secret-unreadable", home)
+
+        let fake = cardOf html "fake"
+        Assert.Contains("data-secret-store=\"local\"", fake)
+        Assert.Contains("Kept in this instance (encrypted)", fake)
+        Assert.DoesNotContain("data-secret-unreadable", fake)
+    }
+
+[<Fact>]
+let ``a card whose reference names a store this instance cannot build warns, with what to do`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app, operator = start store (create issuer) awsSettings
+        use _ = app
+
+        let! _ = operator.PostForm("/admin/connectors", "/admin/connectors", oidcFields "home")
+
+        // Only `aws` is registered here, so `azure` is a store this instance has
+        // no way to build, as after its credentials were removed.
+        do!
+            ConnectorStore.save
+                app.DbConfig
+                app.Clock
+                { Slug = "github"
+                  Kind = ProviderKind.GitHub
+                  DisplayName = "GitHub"
+                  ClientId = "gh-client"
+                  ClientSecretRef = "azure:https://vault.example.net/secrets/umbral-github-abcdefgh"
+                  ClientSecretHint = "••••••••abcd"
+                  IssuerUrl = None
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = app.Clock.GetUtcNow()
+                  UpdatedUtc = app.Clock.GetUtcNow() }
+                None
+
+        let! html = operator.GetHtml "/admin/connectors"
+
+        let github = cardOf html "github"
+        Assert.Contains("data-secret-store=\"azure\"", github)
+        Assert.Contains("data-secret-unreadable", github)
+        Assert.Contains("Azure Key Vault", github)
+        Assert.Contains("cannot read", github)
+        Assert.Contains("docs/secret-stores", github)
+        Assert.Contains("role=\"note\"", github)
+
+        // The warning is the unreadable card's, not every card's.
+        Assert.DoesNotContain("data-secret-unreadable", cardOf html "home")
+    }
+
+[<Theory>]
+[<InlineData("unreachable")>]
+[<InlineData("access_denied")>]
+let ``a failing probe at startup starts anyway, warns, records the event and shows the page notice`` (cause: string) =
+    task {
+        let failure = if cause = "unreachable" then Unreachable else AccessDenied
+        let store = InMemorySecretStore "aws"
+        store.FailEveryCall failure
+
+        let! app, operator, logs = startProbed store
+        use _ = app
+
+        // Started: the page is served, and /healthz does not look at the manager.
+        let! health = app.Client.GetAsync "/healthz"
+        Assert.Equal(HttpStatusCode.OK, health.StatusCode)
+
+        let! html = operator.GetHtml "/admin/connectors"
+        Assert.Contains(problemMarker, html)
+        Assert.Contains("AWS Secrets Manager", html)
+
+        let! recorded = events app "secret_store_failed"
+        Assert.Equal($"system|failure||store=aws;op=probe;cause={cause}", recorded)
+
+        let warnings = logs.Entries |> Array.filter (fun e -> e.Level = LogLevel.Warning)
+        Assert.Contains(warnings, fun e -> e.Everything.Contains "AWS Secrets Manager" && e.Everything.Contains "docs/secret-stores")
+    }
+
+[<Fact>]
+let ``a successful save to the store clears the startup notice`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        store.FailEveryCall Unreachable
+
+        let! app, operator, _ = startProbed store
+        use _ = app
+
+        let! before = operator.GetHtml "/admin/connectors"
+        Assert.Contains(problemMarker, before)
+
+        // Still failing: a refused save does not clear it.
+        let! refused = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+        Assert.Contains("connector-secret-store-failed", location refused)
+        let! stillThere = operator.GetHtml "/admin/connectors"
+        Assert.Contains(problemMarker, stillThere)
+
+        store.Recover()
+        let! saved = operator.PostForm("/admin/connectors", "/admin/connectors", githubFields "work-github")
+        Assert.Contains("connector-added", location saved)
+
+        let! after = operator.GetHtml "/admin/connectors"
+        Assert.DoesNotContain(problemMarker, after)
+    }
+
+[<Fact>]
+let ``a probe answering not found, or succeeding, shows no notice and records nothing`` () =
+    task {
+        for failure in [ Some NotFound; None ] do
+            let store = InMemorySecretStore "aws"
+            failure |> Option.iter store.FailEveryCall
+
+            let! app, operator, logs = startProbed store
+            use _ = app
+
+            let! html = operator.GetHtml "/admin/connectors"
+            Assert.DoesNotContain(problemMarker, html)
+
+            let! recorded = events app "secret_store_failed"
+            Assert.Equal("", recorded)
+            Assert.DoesNotContain(logs.Entries, fun e -> e.Everything.Contains "docs/secret-stores")
+            // One probe, and nothing else asked of the store.
+            Assert.Equal<string list>([ "probe" ], store.Calls |> List.map (fun c -> c.Op))
+    }
+
+[<Fact>]
+let ``with the local store nothing is probed and no notice is shown`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        store.FailEveryCall Unreachable
+
+        // `aws` is registered but is not the active store.
+        let! app =
+            Fixtures.createAppWithProviderHandler
+                (create issuer :> HttpMessageHandler)
+                fakeSettings
+                (Fixtures.withSecretStores [ store ] "local")
+
+        use _ = app
+        let operator = Browser app.Client
+        do! claimInstance app operator
+
+        let! html = operator.GetHtml "/admin/connectors"
+        Assert.DoesNotContain(problemMarker, html)
+        Assert.Equal(0, store.CallCount)
     }

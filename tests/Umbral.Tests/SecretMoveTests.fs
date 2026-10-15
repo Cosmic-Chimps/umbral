@@ -266,8 +266,11 @@ let ``a store failing on any one call while moving to aws, then a clean re-run, 
             task {
                 use app = reference
                 do! seedAll app
+                // The startup probe is the store's first call; a move's own
+                // calls are counted from after it.
+                let before = measured.CallCount
                 let! _ = move app (app.Services.GetRequiredService<SecretStores>()) false
-                return measured.CallCount
+                return measured.CallCount - before
             }
 
         let! total = total
@@ -280,7 +283,7 @@ let ``a store failing on any one call while moving to aws, then a clean re-run, 
             do! seedAll app
             let stores = app.Services.GetRequiredService<SecretStores>()
 
-            store.FailCall(n, Unreachable)
+            store.FailCall(store.CallCount + n, Unreachable)
             let! code, _ = move app stores false
 
             Assert.True((code = 1), $"call {n}: a failing store must make the exit code 1, got {code}")
@@ -393,6 +396,8 @@ let ``a dry run makes no call to any store, changes nothing and says would move`
         let store = InMemorySecretStore "aws"
         let! app = startWith store
         use _ = app
+        // The startup probe has already asked the store once.
+        let probed = store.CallCount
         do! seedAll app
         let before = [ for slug in slugs -> referenceOf app slug |> fun t -> t.Result ]
 
@@ -402,7 +407,7 @@ let ``a dry run makes no call to any store, changes nothing and says would move`
         Assert.Equal<string list>([ "would"; "would"; "would" ], reportLines lines |> List.map firstWord)
         Assert.Contains(lines, fun l -> l.StartsWith "would move  alpha  local → aws")
         Assert.Contains("3 connectors: 3 would move, 0 already in place, 0 failed.", lines)
-        Assert.Equal(0, store.CallCount)
+        Assert.Equal(probed, store.CallCount)
         Assert.Equal<string list>(before, [ for slug in slugs -> referenceOf app slug |> fun t -> t.Result ])
 
         for slug in slugs do
@@ -442,8 +447,9 @@ let ``one failure returns 1, reports it without a locator or value, and the conn
         do! seedAll app
         let! before = referenceOf app "bravo"
 
-        // Calls 1 and 2 are alpha's put and read-back; 3 is bravo's put.
-        store.FailCall(3, AccessDenied)
+        // The move's calls 1 and 2 are alpha's put and read-back; 3 is bravo's
+        // put. Counted from after the startup probe.
+        store.FailCall(store.CallCount + 3, AccessDenied)
         let! code, lines = move app (app.Services.GetRequiredService<SecretStores>()) false
 
         Assert.Equal(1, code)

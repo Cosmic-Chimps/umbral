@@ -230,6 +230,21 @@ let recordStoreFailure
             RemoteIp = remoteIp
             Detail = Some(storeDetail store op cause false) }
 
+/// The startup probe of the active store failed (`secret_store_failed`,
+/// `op=probe`). Actor System and no connector: nobody asked for it and it is
+/// about the store, not any one connector.
+let recordStoreProbeFailed
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (store: string)
+    (cause: Secrets.StoreFailure)
+    : Task<unit> =
+    record
+        config
+        clock
+        { event SecretStoreFailed Failure System with
+            Detail = Some(storeDetail store "probe" cause false) }
+
 /// A sign-in was served the cached secret because the refresh could not reach
 /// the store (`secret_store_failed` with `stale=true`, FR-014). Actor User: the
 /// person signing in is the one whose request it happened on.

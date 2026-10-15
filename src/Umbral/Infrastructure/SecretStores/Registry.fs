@@ -64,6 +64,52 @@ type private Entry =
       FetchedAt: DateTimeOffset
       LastFailedRefreshAt: DateTimeOffset option }
 
+/// What the Connectors screen shows about the active store beyond its cards.
+/// `Healthy` also covers "never checked" and a local store, which have nothing
+/// to say.
+type SecretStoreState =
+    | Healthy
+    | Failed of StoreFailure * at: DateTimeOffset
+
+/// Whether the active store was last seen failing (specs/005 data-model,
+/// Story 4). The startup probe sets it; a successful `Put` on the active store
+/// clears it, so the notice goes away once the operator has fixed the cause and
+/// saved something, without a restart. In process memory only: a restart probes
+/// again.
+///
+/// Owned by the registry (`SecretStores.Status`) rather than registered next to
+/// it, because the clearing happens inside the registry's `Active` and a
+/// registry a test builds must carry its own.
+type SecretStoreStatus() =
+    // A reference to an immutable value, so a reader never sees half a state.
+    [<VolatileField>]
+    let mutable state = Healthy
+
+    member _.Current = state
+    member _.Fail(failure: StoreFailure, at: DateTimeOffset) = state <- Failed(failure, at)
+    member _.Clear() = state <- Healthy
+
+/// The active store as callers get it: a successful write proves the store works
+/// and the credentials may write, which is what the notice says is wrong.
+type private ClearsStatusOnPut(inner: ISecretStore, status: SecretStoreStatus) =
+    interface ISecretStore with
+        member _.Id = inner.Id
+
+        member _.Put(name, plaintext, ct) =
+            task {
+                let! result = inner.Put(name, plaintext, ct)
+
+                match result with
+                | Ok _ -> status.Clear()
+                | Error _ -> ()
+
+                return result
+            }
+
+        member _.Get(reference, ct) = inner.Get(reference, ct)
+        member _.Delete(reference, ct) = inner.Delete(reference, ct)
+        member _.Probe ct = inner.Probe ct
+
 /// What `Active` is when the configured store cannot be built: every call says
 /// so, instead of the process failing to start or a handler throwing.
 type private Unavailable(id: string, failure: StoreFailure) =
@@ -124,6 +170,8 @@ type SecretStores
     // revoked (FR-013: replacing discards the cached value at once).
     let evictions = Collections.Concurrent.ConcurrentDictionary<string, int64>()
 
+    let status = SecretStoreStatus()
+
     let evictionsOf (key: string) =
         match evictions.TryGetValue key with
         | true, count -> count
@@ -139,9 +187,16 @@ type SecretStores
 
     /// The store new and replaced secrets go to.
     member this.Active: ISecretStore =
-        match this.For activeId with
-        | Ok store -> store
-        | Error failure -> Unavailable(activeId, failure) :> ISecretStore
+        let store =
+            match this.For activeId with
+            | Ok store -> store
+            | Error failure -> Unavailable(activeId, failure) :> ISecretStore
+
+        // The local store has no outage to report, so nothing to clear.
+        if activeId = LocalStoreId then store else ClearsStatusOnPut(store, status) :> ISecretStore
+
+    /// What the startup probe found, for the Connectors screen.
+    member _.Status = status
 
     /// The store that reads, replaces and deletes a reference with this store
     /// id. `NotConfigured` when it cannot be built here.
