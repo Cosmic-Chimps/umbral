@@ -456,12 +456,17 @@ network, other apps on the same host), that thing can send its own
 `X-Forwarded-For` on every request, pick its own client address and so dodge the
 sign-in limits, and it can claim `https` or another host in the headers too. In
 that case set `UMBRAL__TRUSTED_PROXIES` to the proxy's address, for example
-`UMBRAL__TRUSTED_PROXIES=172.26.64.1`. Headers from every other connection
+`UMBRAL__TRUSTED_PROXIES=192.0.2.10`. Headers from every other connection
 address are then ignored and that connection's real address is used. Umbral logs
 one line at startup saying which proxies it trusts.
 
 With the bundled docker-compose and Caddy setup you can leave it unset: only
 Caddy is on that compose network, so only Caddy can reach Umbral.
+
+Use the address your proxy's connections actually arrive from, and nothing a
+neighbour can send from. A shared bridge's gateway is the wrong choice: other
+containers that reach Umbral through a published host port often arrive
+masqueraded as that gateway.
 
 ## Your data: back it up
 
@@ -563,7 +568,7 @@ Set these as environment variables on the container.
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `UMBRAL__PUBLIC_ORIGIN` | *required* | The address people reach Umbral at, e.g. `https://auth.example.com`. Scheme, host, optional port; no path. `http` is accepted only for `localhost`. |
-| `UMBRAL__TRUSTED_PROXIES` | unset (believe forwarded headers from any sender) | Comma-separated IP addresses and networks, IPv4 or IPv6, whose `X-Forwarded-For`, `-Proto` and `-Host` headers Umbral believes, e.g. `172.26.64.1, 10.0.0.0/8, fd00::/8`. Spaces around entries are ignored. Set it when anything other than your reverse proxy can reach Umbral's port, so it cannot choose its own client address and avoid the rate limits. A value that is not an address or network (including a network with bits set beyond its prefix, such as `10.0.0.5/8`) stops Umbral from starting and names the entry. See [Using a different reverse proxy](#using-a-different-reverse-proxy). |
+| `UMBRAL__TRUSTED_PROXIES` | unset (believe forwarded headers from any sender) | Comma-separated IP addresses and networks, IPv4 or IPv6, whose `X-Forwarded-For`, `-Proto` and `-Host` headers Umbral believes, e.g. `192.0.2.10, 10.0.0.0/8, fd00::/8`. Spaces around entries are ignored. Set it when anything other than your reverse proxy can reach Umbral's port, so it cannot choose its own client address and avoid the rate limits. A value that is not an address or network (including a network with bits set beyond its prefix, such as `10.0.0.5/8`) stops Umbral from starting and names the entry. See [Using a different reverse proxy](#using-a-different-reverse-proxy). |
 | `UMBRAL__DATA_DIRECTORY` | `/data` (set in the image) | Where Umbral keeps everything. Must be writable. |
 | `ASPNETCORE_ENVIRONMENT` + `UMBRAL__INSECURE_ALLOW_HTTP` | unset | `Development` **and** `true` together allow plain `http://localhost`. Laptop trial only. Never set them on a server. |
 

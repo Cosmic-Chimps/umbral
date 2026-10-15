@@ -47,7 +47,7 @@ let private fail (entry: string) (problem: string) =
     Error(
         $"%s{EnvironmentVariable} contains \"%s{entry}\", which %s{problem}. "
         + $"Fix or remove that entry. The setting takes a comma-separated list of IP addresses and networks, "
-        + "for example \"172.26.64.1, 10.0.0.0/8, fd00::/8\". Leaving the setting out entirely "
+        + "for example \"192.0.2.10, 10.0.0.0/8, fd00::/8\". Leaving the setting out entirely "
         + "makes Umbral believe forwarded headers from any sender."
     )
 
@@ -124,7 +124,7 @@ let parse (raw: string | null) : Result<Trust, string> =
         if entries.Length = 0 then
             Error(
                 $"%s{EnvironmentVariable} is \"%s{text}\", which holds no address. "
-                + "List the proxy's IP addresses or networks, for example \"172.26.64.1, 10.0.0.0/8\", "
+                + "List the proxy's IP addresses or networks, for example \"192.0.2.10, 10.0.0.0/8\", "
                 + "or leave the setting out to believe forwarded headers from any sender."
             )
         else
