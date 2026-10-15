@@ -449,6 +449,20 @@ Every URL Umbral publishes comes from `UMBRAL__PUBLIC_ORIGIN`, never from the
 `proxy_set_header X-Forwarded-Proto $scheme;` and
 `proxy_set_header X-Forwarded-For $remote_addr;` written out.
 
+**Who may send those headers.** By default Umbral believes `X-Forwarded-*` from
+any sender, which is safe only while the proxy is the one thing that can reach
+Umbral's port. If anything else can reach it (other containers on a shared
+network, other apps on the same host), that thing can send its own
+`X-Forwarded-For` on every request, pick its own client address and so dodge the
+sign-in limits, and it can claim `https` or another host in the headers too. In
+that case set `UMBRAL__TRUSTED_PROXIES` to the proxy's address, for example
+`UMBRAL__TRUSTED_PROXIES=172.26.64.1`. Headers from every other connection
+address are then ignored and that connection's real address is used. Umbral logs
+one line at startup saying which proxies it trusts.
+
+With the bundled docker-compose and Caddy setup you can leave it unset: only
+Caddy is on that compose network, so only Caddy can reach Umbral.
+
 ## Your data: back it up
 
 > **Everything Umbral keeps is in one directory, `/data`. If you lose it, you
@@ -549,6 +563,7 @@ Set these as environment variables on the container.
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `UMBRAL__PUBLIC_ORIGIN` | *required* | The address people reach Umbral at, e.g. `https://auth.example.com`. Scheme, host, optional port; no path. `http` is accepted only for `localhost`. |
+| `UMBRAL__TRUSTED_PROXIES` | unset (believe forwarded headers from any sender) | Comma-separated IP addresses and networks, IPv4 or IPv6, whose `X-Forwarded-For`, `-Proto` and `-Host` headers Umbral believes, e.g. `172.26.64.1, 10.0.0.0/8, fd00::/8`. Spaces around entries are ignored. Set it when anything other than your reverse proxy can reach Umbral's port, so it cannot choose its own client address and avoid the rate limits. A value that is not an address or network (including a network with bits set beyond its prefix, such as `10.0.0.5/8`) stops Umbral from starting and names the entry. See [Using a different reverse proxy](#using-a-different-reverse-proxy). |
 | `UMBRAL__DATA_DIRECTORY` | `/data` (set in the image) | Where Umbral keeps everything. Must be writable. |
 | `ASPNETCORE_ENVIRONMENT` + `UMBRAL__INSECURE_ALLOW_HTTP` | unset | `Development` **and** `true` together allow plain `http://localhost`. Laptop trial only. Never set them on a server. |
 
@@ -560,7 +575,8 @@ Commands below use the quick-start container name. With compose, write
 **The container exits right after starting.**
 `docker logs umbral`: Umbral names the setting. Usual causes:
 `UMBRAL__PUBLIC_ORIGIN` is missing, has a path (`https://auth.example.com/auth`)
-or is `http://` with a host other than `localhost`; or `/data` is not writable. For a bind mount, run
+or is `http://` with a host other than `localhost`; `UMBRAL__TRUSTED_PROXIES`
+holds an entry that is not an IP address or network; or `/data` is not writable. For a bind mount, run
 `chown -R 1654:1654 ./data`.
 
 **I added a connector and nobody sees it.**

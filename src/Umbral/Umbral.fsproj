@@ -41,6 +41,7 @@
     <Compile Include="Domains/RedirectUris.fs" />
     <Compile Include="Infrastructure/PublicOrigin.fs" />
     <Compile Include="Infrastructure/DataDirectory.fs" />
+    <Compile Include="Infrastructure/TrustedProxies.fs" />
     <Compile Include="Infrastructure/Keys.fs" />
     <Compile Include="Infrastructure/Secrets.fs" />
     <Compile Include="Infrastructure/Database.fs" />
