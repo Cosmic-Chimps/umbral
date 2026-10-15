@@ -378,11 +378,19 @@ an email your provider marks `email_verified: true` counts, and the domain must 
   If it only marks an address verified once an admin or the person has
   confirmed it, a rule is as strong as that step.
 
-To limit one app, create a connector for it with the domain rule and offer only
-that connector to the app. For example, add a second OpenID Connect connector, "Company login",
-with your domain in **Allowed email domains**, then on **Apps** set the app's
-**Sign-in methods** to **Only the connectors I choose** and tick only that
-connector. See [Who can sign in](../../README.md#who-can-sign-in).
+To limit one app, Umbral's usual recipe is a connector made for it, with the
+domain rule, offered only to that app. With your own provider that recipe has a
+limit: Umbral keeps **one connector per issuer**, so you cannot add a second
+connector for the same provider. Instead, either:
+
+- put the domain rule on this connector and offer it only to the apps that
+  should be limited (on **Apps**, **Sign-in methods**, **Only the connectors I
+  choose**), or
+- limit the app at the provider itself. Most providers you would run (authentik,
+  Keycloak, Zitadel) can say which of their users may use a client, and that is
+  the right place for a rule about one app.
+
+See [Who can sign in](../../README.md#who-can-sign-in).
 
 ## Gotchas
 
