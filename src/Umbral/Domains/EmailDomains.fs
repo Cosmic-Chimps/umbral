@@ -176,3 +176,21 @@ let check (rule: Rule) (email: string option) (verified: bool) : Decision =
                 Admitted
             else
                 Refused(level, DomainNotAllowed(Some name))
+
+/// Decide again, later, from what a sign-in left behind. A session, an
+/// authorization code and a refresh token carry only the normalised domain of
+/// the verified email checked at sign-in (specs/006 R6, R7), never the address,
+/// so there is nothing else to judge by. A domain present was a verified one;
+/// absent means the sign-in had no verified email, or came from before this
+/// feature, and a rule that applies cannot admit it.
+let checkDomain (rule: Rule) (domain: string option) : Decision =
+    match rule with
+    | NoRule -> Admitted
+    | Rule(level, domains) ->
+        match domain with
+        | None -> Refused(level, NoEmail)
+        | Some name ->
+            if List.contains name domains then
+                Admitted
+            else
+                Refused(level, DomainNotAllowed(Some name))

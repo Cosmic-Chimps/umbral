@@ -468,3 +468,338 @@ let ``currentEmailDomain reads the claim and is none without one`` () =
 
     // A session from before this feature has none.
     Assert.Equal(None, Sessions.currentEmailDomain (ClaimsPrincipal(ClaimsIdentity(Sessions.Scheme))))
+
+// ---------------------------------------------------------------------------
+// Tightening a rule locks out the people already signed in (US3)
+// ---------------------------------------------------------------------------
+
+[<Literal>]
+let private OfflineScopes = "openid email profile offline_access"
+
+let private setConnectorList (app: Fixtures.TestApp) (list: string list) =
+    task {
+        let! stored = ConnectorStore.findBySlug app.DbConfig "fake"
+        do! ConnectorStore.save app.DbConfig app.Clock { stored.Value with AllowedEmailDomains = list } None
+    }
+
+/// A sign-in that ends in an authorization code, plus the tokens it buys when
+/// redeemed at once.
+let private tokensFor (app: Fixtures.TestApp) (browser: Journeys.Browser) (prepared: Journeys.Prepared) (email: string) =
+    task {
+        let! signedIn = Journeys.signInThroughFake browser prepared.ClientId OfflineScopes "ann" email
+        let! response = Journeys.exchangeCode app.Client prepared.ClientId prepared.ClientSecret signedIn.Code
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+        return! Journeys.json response
+    }
+
+let private refreshWith (app: Fixtures.TestApp) (prepared: Journeys.Prepared) (token: string) =
+    Journeys.refresh app.Client prepared.ClientId prepared.ClientSecret token
+
+let private expectInvalidGrant (response: HttpResponseMessage) =
+    task {
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        let! body = Journeys.json response
+        Assert.Equal("invalid_grant", Journeys.strOf body "error")
+    }
+
+let private userRow (app: Fixtures.TestApp) =
+    Flows.scalar app "SELECT id || '|' || display_name || '|' || is_enabled || '|' || last_seen_utc FROM users" []
+
+let private userId (app: Fixtures.TestApp) =
+    Flows.scalar app "SELECT id FROM users" []
+
+[<Fact>]
+let ``after tightening, the session is signed out at authorize and sent to sign in`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            let! first = signIn browser prepared.ClientId "bob" "bob@gmail.com" true
+            do! admittedCode browser first
+            let! before = userRow app
+
+            do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "acme.com" ]
+
+            let! response = browser.Get(Journeys.authorizeUrl prepared.ClientId "openid")
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+            Assert.StartsWith("/signin?returnUrl=", response.Headers.Location |> string)
+
+            // The cookie was removed, not just ignored.
+            Assert.Equal("", browser.Cookies[Sessions.CookieName])
+
+            let! events = failures app
+            let detail, subject, _, clientId = Assert.Single events
+            Assert.Equal("email_domain_refused;reason=domain_not_allowed;rule=instance;stage=authorize;domain=gmail.com", detail)
+            let! expectedUser = userId app
+            Assert.Equal(expectedUser, subject)
+            Assert.Equal(prepared.ClientId, clientId)
+
+            // Nothing about the user changed: they are still enabled.
+            let! after = userRow app
+            Assert.Equal(before, after)
+        })
+
+[<Fact>]
+let ``after tightening, prompt=none gets login_required and the session is gone`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            let! first = signIn browser prepared.ClientId "bob" "bob@gmail.com" true
+            do! admittedCode browser first
+            do! setConnectorList app [ "acme.com" ]
+
+            let! response = browser.Get(Journeys.authorizeUrl prepared.ClientId "openid" + "&prompt=none")
+            let location = response.Headers.Location |> string
+            Assert.StartsWith(Journeys.RedirectUri, location)
+            Assert.Contains("error=login_required", location)
+            Assert.Equal("", browser.Cookies[Sessions.CookieName])
+
+            let! events = failures app
+            let detail, _, _, _ = Assert.Single events
+            Assert.Equal("email_domain_refused;reason=domain_not_allowed;rule=connector;stage=authorize;domain=gmail.com", detail)
+        })
+
+[<Fact>]
+let ``a session still admitted by the tightened rule is honoured`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            let! first = signIn browser prepared.ClientId "ann" "ann@acme.com" true
+            do! admittedCode browser first
+            do! setConnectorList app [ "acme.com" ]
+
+            let! response = browser.Get(Journeys.authorizeUrl prepared.ClientId "openid")
+            Assert.Contains("code=", response.Headers.Location |> string)
+            Assert.True(browser.Cookies[Sessions.CookieName] <> "")
+            let! events = failures app
+            Assert.Empty events
+        })
+
+[<Fact>]
+let ``a session admitted without an email is refused only while a rule applies`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            // No rule: an unverified address gets in, and the session has no
+            // email_domain claim, as every session did before this feature.
+            let! first = signIn browser prepared.ClientId "bob" "bob@gmail.com" false
+            do! admittedCode browser first
+            Assert.Equal(None, Sessions.currentEmailDomain (sessionOf app browser))
+
+            let! stillHonoured = browser.Get(Journeys.authorizeUrl prepared.ClientId "openid")
+            Assert.Contains("code=", stillHonoured.Headers.Location |> string)
+
+            // A rule appears: the same session no longer counts.
+            do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "acme.com" ]
+            let! refused = browser.Get(Journeys.authorizeUrl prepared.ClientId "openid")
+            Assert.StartsWith("/signin?returnUrl=", refused.Headers.Location |> string)
+
+            let! events = failures app
+            let detail, _, _, _ = Assert.Single events
+            Assert.Equal("email_domain_refused;reason=no_email;rule=instance;stage=authorize;domain=-", detail)
+        })
+
+[<Fact>]
+let ``after tightening, a refresh is invalid_grant and the user is untouched`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            let! tokens = tokensFor app browser prepared "bob@gmail.com"
+            let! before = userRow app
+
+            do! setConnectorList app [ "acme.com" ]
+
+            let! response = refreshWith app prepared (Journeys.strOf tokens "refresh_token")
+            do! expectInvalidGrant response
+
+            let! events = failures app
+            let detail, subject, connector, clientId = Assert.Single events
+            Assert.Equal("email_domain_refused;reason=domain_not_allowed;rule=connector;stage=token;domain=gmail.com", detail)
+            let! expectedUser = userId app
+            Assert.Equal(expectedUser, subject)
+            Assert.Equal("fake", connector)
+            Assert.Equal(prepared.ClientId, clientId)
+
+            let! after = userRow app
+            Assert.Equal(before, after)
+        })
+
+[<Fact>]
+let ``a code issued before the tightening is refused when redeemed`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            let! signedIn = Journeys.signInThroughFake browser prepared.ClientId "openid" "bob" "bob@gmail.com"
+            do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "acme.com" ]
+
+            let! response = Journeys.exchangeCode app.Client prepared.ClientId prepared.ClientSecret signedIn.Code
+            do! expectInvalidGrant response
+
+            let! events = failures app
+            let detail, _, _, _ = Assert.Single events
+            Assert.Equal("email_domain_refused;reason=domain_not_allowed;rule=instance;stage=token;domain=gmail.com", detail)
+        })
+
+[<Fact>]
+let ``the connector and domain claims ride every refresh, so a later tightening reaches the third token`` () =
+    withApp [ "gmail.com" ] [ "example.org" ] (fun app browser prepared ->
+        task {
+            let! tokens = tokensFor app browser prepared "bob@gmail.com"
+
+            // Code -> refresh -> refresh, all admitted.
+            let! first = refreshWith app prepared (Journeys.strOf tokens "refresh_token")
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode)
+            let! firstBody = Journeys.json first
+
+            let! second = refreshWith app prepared (Journeys.strOf firstBody "refresh_token")
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode)
+            let! secondBody = Journeys.json second
+
+            // Tightened on that connector only. Were the connector claim lost
+            // along the way, the refusal would be rule=instance with
+            // reason=no_email; were the domain claim lost, reason=no_email.
+            do! setConnectorList app [ "acme.com" ]
+            let! third = refreshWith app prepared (Journeys.strOf secondBody "refresh_token")
+            do! expectInvalidGrant third
+
+            let! events = failures app
+            let detail, _, _, _ = Assert.Single events
+            Assert.Equal("email_domain_refused;reason=domain_not_allowed;rule=connector;stage=token;domain=gmail.com", detail)
+        })
+
+[<Fact>]
+let ``a refresh still admitted by the tightened rule works`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            let! tokens = tokensFor app browser prepared "ann@acme.com"
+            do! setConnectorList app [ "acme.com" ]
+
+            let! response = refreshWith app prepared (Journeys.strOf tokens "refresh_token")
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+            let! events = failures app
+            Assert.Empty events
+        })
+
+[<Fact>]
+let ``a refresh whose connector was deleted is judged by the instance list alone`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            let! tokens = tokensFor app browser prepared "ann@acme.com"
+            let! _ = ConnectorStore.delete app.DbConfig "fake"
+
+            // No list anywhere: honoured, as before this feature.
+            let! open' = refreshWith app prepared (Journeys.strOf tokens "refresh_token")
+            Assert.Equal(HttpStatusCode.OK, open'.StatusCode)
+            let! openBody = Journeys.json open'
+
+            // The instance list admits the domain: still honoured.
+            do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "acme.com" ]
+            let! admitted = refreshWith app prepared (Journeys.strOf openBody "refresh_token")
+            Assert.Equal(HttpStatusCode.OK, admitted.StatusCode)
+            let! admittedBody = Journeys.json admitted
+
+            // The instance list does not: refused, and the event says instance.
+            do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "example.org" ]
+            let! refused = refreshWith app prepared (Journeys.strOf admittedBody "refresh_token")
+            do! expectInvalidGrant refused
+
+            let! events = failures app
+            let detail, _, _, _ = Assert.Single events
+            Assert.Equal("email_domain_refused;reason=domain_not_allowed;rule=instance;stage=token;domain=acme.com", detail)
+        })
+
+[<Fact>]
+let ``a grant with no connector claim is judged by whether any list is set`` () =
+    task {
+        use! app = Fixtures.createAppWith Journeys.fakeSettings ignore
+        let browser = Journeys.Browser app.Client
+        do! Journeys.claimInstance app browser
+        do! Journeys.addFakeConnector app "unused"
+        let config = app.DbConfig
+
+        // The shape of a refresh token issued before this feature: no connector
+        // and no domain. Nothing limits sign-in, so it is honoured.
+        let! plain = EmailDomainRules.recheck config None None
+        Assert.Equal(EmailDomains.Admitted, plain)
+
+        // An instance list, or a list on any connector, closes it.
+        do! EmailDomainRules.setInstanceList config app.Clock [ "acme.com" ]
+        let! instance = EmailDomainRules.recheck config None None
+        Assert.Equal(EmailDomains.Refused(EmailDomains.Instance, EmailDomains.NoEmail), instance)
+
+        do! EmailDomainRules.setInstanceList config app.Clock []
+        do! setConnectorList app [ "acme.com" ]
+        let! connector = EmailDomainRules.recheck config None None
+        Assert.Equal(EmailDomains.Refused(EmailDomains.Instance, EmailDomains.NoEmail), connector)
+    }
+
+/// Lets a test read the access token the way a resource server would: a
+/// request to `/test/access-claims` answers with the claim types OpenIddict's
+/// validation finds in the bearer token.
+type private AccessClaimsProbe() =
+    interface Microsoft.AspNetCore.Hosting.IStartupFilter with
+        member _.Configure(next) =
+            Action<Microsoft.AspNetCore.Builder.IApplicationBuilder>(fun app ->
+                // OpenIddict's validation needs the authentication middleware
+                // to have run before it can read a bearer token.
+                Microsoft.AspNetCore.Builder.AuthAppBuilderExtensions.UseAuthentication app |> ignore
+
+                app.Use(
+                    Func<Microsoft.AspNetCore.Http.RequestDelegate, Microsoft.AspNetCore.Http.RequestDelegate>(fun following ->
+                        Microsoft.AspNetCore.Http.RequestDelegate(fun ctx ->
+                            if ctx.Request.Path = Microsoft.AspNetCore.Http.PathString "/test/access-claims" then
+                                task {
+                                    let! result =
+                                        Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.AuthenticateAsync(
+                                            ctx,
+                                            OpenIddict.Validation.AspNetCore.OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
+                                        )
+
+                                    let types =
+                                        match Option.ofObj result.Principal with
+                                        | Some principal -> principal.Claims |> Seq.map _.Type |> String.concat " "
+                                        | None -> "unauthenticated"
+
+                                    do! Microsoft.AspNetCore.Http.HttpResponseWritingExtensions.WriteAsync(ctx.Response, types)
+                                }
+                                :> Task
+                            else
+                                following.Invoke ctx))
+                )
+                |> ignore
+
+                next.Invoke app)
+
+[<Fact>]
+let ``the private claims never reach an access token, an id token or userinfo`` () =
+    task {
+        use! app =
+            Fixtures.createAppWith Journeys.fakeSettings (fun builder ->
+                builder.Services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, AccessClaimsProbe>()
+                |> ignore)
+
+        let browser = Journeys.Browser app.Client
+        let! prepared = Journeys.prepare app browser
+        do! setConnectorList app [ "gmail.com" ]
+        let person = Journeys.Browser app.Client
+        let! first = tokensFor app person prepared "bob@gmail.com"
+
+        // The first tokens, and the ones a refresh gives.
+        let! refreshed = refreshWith app prepared (Journeys.strOf first "refresh_token")
+        let! second = Journeys.json refreshed
+
+        for tokens in [ first; second ] do
+            let idToken = Journeys.strOf tokens "id_token"
+            let payload = (Journeys.segmentOf 1 idToken).GetRawText()
+            Assert.Contains("\"sub\"", payload)
+            Assert.DoesNotContain("umbral_", payload)
+
+            let accessToken = Journeys.strOf tokens "access_token"
+
+            let probe = new HttpRequestMessage(HttpMethod.Get, "/test/access-claims")
+            probe.Headers.Add("Authorization", "Bearer " + accessToken)
+            let! probed = app.Client.SendAsync probe
+            let! claimTypes = probed.Content.ReadAsStringAsync()
+            // Not vacuous: the token validated and carries the profile claims.
+            Assert.Contains("email", claimTypes)
+            Assert.DoesNotContain("umbral_", claimTypes)
+
+            let! info = Journeys.userInfo app.Client accessToken
+            let! body = info.Content.ReadAsStringAsync()
+            Assert.Equal(HttpStatusCode.OK, info.StatusCode)
+            Assert.DoesNotContain("umbral_", body)
+            Assert.DoesNotContain("gmail.com", body.Replace("bob@gmail.com", ""))
+    }
