@@ -45,6 +45,17 @@ let IntrospectionEndpoint = "connect/introspect"
 [<Literal>]
 let IdpClaim = "idp"
 
+/// The two private claims that let the token endpoint judge a code or a refresh
+/// token by the rule again (specs/006 R7): the slug of the connector the sign-in
+/// went through, and the domain of the verified email that was checked. Given
+/// NO destination, so they live only in the encrypted code and refresh token and
+/// never in an access token, an id token or the userinfo response.
+[<Literal>]
+let ConnectorClaim = "umbral_connector"
+
+[<Literal>]
+let EmailDomainClaim = "umbral_email_domain"
+
 // ---------------------------------------------------------------------------
 // T105 — refusing `plain` PKCE
 //

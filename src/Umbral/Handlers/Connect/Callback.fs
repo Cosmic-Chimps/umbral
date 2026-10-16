@@ -9,6 +9,7 @@ open System
 open Microsoft.AspNetCore.DataProtection
 open Microsoft.AspNetCore.Builder
 open Oxpecker
+open Umbral.Domains
 open Umbral.Infrastructure
 open Umbral.Infrastructure.ProviderAdapters
 open Umbral.Infrastructure.SecretStores.Registry
@@ -158,6 +159,25 @@ let handler (slug: string) : EndpointHandler =
 
             | Ok profile ->
 
+            // The allowed email domains (specs/006), judged on what the provider
+            // has just said about THIS sign-in and before anything is written: a
+            // person who is refused leaves no user, link or update behind.
+            let! rule = EmailDomainRules.ruleFor config connector
+
+            match EmailDomains.check rule profile.Email profile.EmailVerified with
+            | EmailDomains.Refused(level, reason) ->
+                // The event names the reason, the level and the normalised
+                // domain; never the address, and no user (there is none yet).
+                do!
+                    record
+                        Failure
+                        SignInFailed
+                        (Some(refusalDetail reason level Callback (EmailDomains.domainOf profile.Email)))
+
+                return fail ctx "account-not-allowed"
+
+            | EmailDomains.Admitted ->
+
             let! resolution = UserStore.resolve config clock connector.Kind profile
 
             let userId = Some resolution.User.Id
@@ -179,7 +199,12 @@ let handler (slug: string) : EndpointHandler =
                 return fail ctx "account-disabled"
             else
 
-            do! Sessions.signIn ctx resolution.User.Id connector.Kind.Value connector.Slug
+            // The session remembers the domain it was admitted on, but only when
+            // the email was verified: that is what a later re-check may rely on.
+            let admittedDomain =
+                if profile.EmailVerified then EmailDomains.domainOf profile.Email else None
+
+            do! Sessions.signIn ctx resolution.User.Id connector.Kind.Value connector.Slug admittedDomain
             do! recordFor userId Success SignInSucceeded None
 
             // Back to the authorization request this all started for, replayed

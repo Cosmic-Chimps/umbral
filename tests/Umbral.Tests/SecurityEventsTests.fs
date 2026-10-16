@@ -136,3 +136,42 @@ let ``every event type can actually be written`` () =
             let! count = rows config "SELECT count(DISTINCT event_type) FROM security_events"
             Assert.Equal(string allEventTypes.Length, count)
         })
+
+// ---------------------------------------------------------------------------
+// The detail of a refused email domain (specs/006 research R10).
+// ---------------------------------------------------------------------------
+
+open Umbral.Domains.EmailDomains
+
+[<Fact>]
+let ``allowed_domains_changed has its stored value`` () =
+    Assert.Equal("allowed_domains_changed", AllowedDomainsChanged.Value)
+
+[<Fact>]
+let ``the refusal detail is built from closed words and the domain`` () =
+    Assert.Equal(
+        "email_domain_refused;reason=domain_not_allowed;rule=connector;stage=callback;domain=gmail.com",
+        refusalDetail (DomainNotAllowed(Some "gmail.com")) Connector Callback (Some "gmail.com")
+    )
+
+    Assert.Equal(
+        "email_domain_refused;reason=email_not_verified;rule=instance;stage=authorize;domain=acme.com",
+        refusalDetail EmailNotVerified Instance Authorize (Some "acme.com")
+    )
+
+    Assert.Equal(
+        "email_domain_refused;reason=no_email;rule=instance;stage=token;domain=-",
+        refusalDetail NoEmail Instance Token None
+    )
+
+[<Theory>]
+[<InlineData("evil;rule=x")>]
+[<InlineData("a b.com")>]
+[<InlineData("UPPER.com")>]
+[<InlineData("münchen.de")>]
+[<InlineData("")>]
+let ``a domain that is not in the normalised form is written as a dash`` (domain: string) =
+    let detail = refusalDetail (DomainNotAllowed(Some domain)) Connector Callback (Some domain)
+    Assert.EndsWith(";domain=-", detail)
+    // Whatever the provider sent, the detail still has exactly its five parts.
+    Assert.Equal(5, detail.Split(';').Length)

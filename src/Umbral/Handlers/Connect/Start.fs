@@ -9,6 +9,7 @@ module Umbral.Handlers.Connect.Start
 open Microsoft.AspNetCore.DataProtection
 open Microsoft.AspNetCore.Builder
 open Oxpecker
+open Umbral.Domains
 open Umbral.Infrastructure
 open Umbral.Infrastructure.SecurityEvents
 open Umbral.Views
@@ -76,6 +77,17 @@ let handler (slug: string) : EndpointHandler =
                     let origin = ctx.GetService<PublicOrigin.PublicOrigin>()
                     let redirectUri = PublicOrigin.callbackUri origin connector.Slug
 
+                    // Google's `hd` hint, when the rule that applies names exactly
+                    // one domain (specs/006 R9). With none or several there is
+                    // nothing to narrow the chooser to; with another provider
+                    // there is no such parameter.
+                    let! rule = EmailDomainRules.ruleFor config connector
+
+                    let hostedDomainHint =
+                        match connector.Kind, rule with
+                        | Connectors.Google, EmailDomains.Rule(_, [ domain ]) -> Some domain
+                        | _ -> None
+
                     let url =
                         adapter.BuildAuthorizeUrl
                             { Connector = connector
@@ -83,7 +95,8 @@ let handler (slug: string) : EndpointHandler =
                               RedirectUri = redirectUri
                               State = started.Correlation.State
                               CodeChallenge = started.CodeChallenge
-                              Nonce = started.Correlation.Nonce }
+                              Nonce = started.Correlation.Nonce
+                              HostedDomainHint = hostedDomainHint }
 
                     ctx.Response.Redirect(url.ToString())
                     return ()

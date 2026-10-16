@@ -91,6 +91,7 @@ let private seedLocal (app: Fixtures.TestApp) (kind: ProviderKind) (slug: string
                       ClientSecretRef = ""
                       ClientSecretHint = ""
                       IssuerUrl = issuerUrl
+                      AllowedEmailDomains = []
                       IsEnabled = true
                       IsShared = true
                       CreatedUtc = now
@@ -363,6 +364,7 @@ let ``a row changed between the copy and the switch is skipped and left as it is
                             "bravo"
                             "client-bravo"
                             true
+                            None
                             (Some("local:replaced-meanwhile", "ably"))
 
                     ()

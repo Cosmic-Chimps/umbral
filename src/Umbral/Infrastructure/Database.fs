@@ -97,7 +97,12 @@ let private schema =
         -- every person's identity there (specs/002 data-model). NULL for every
         -- other kind. A database from before schema version 3 gets this column
         -- from `upgradeSteps`; its unique index is `issuerIndex`, below.
-        issuer_url              TEXT        NULL
+        issuer_url              TEXT        NULL,
+        -- The verified email domains allowed to sign in through this connector
+        -- (specs/006), normalised ASCII joined by one space. Empty: the
+        -- instance list applies, if there is one. A database from before schema
+        -- version 5 gets this column from `upgradeSteps`.
+        allowed_email_domains   TEXT    NOT NULL DEFAULT ''
     );
 
     -- A marker: one row per app limited to a chosen set. No row means "all
@@ -179,7 +184,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 4
+let SchemaVersion = 5
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -213,6 +218,13 @@ let private UpgradeToVersion4 =
          CHECK ((logo_png IS NULL) = (logo_width IS NULL) AND (logo_png IS NULL) = (logo_height IS NULL))
      );"
 
+/// Spec 006 (allowed email domains). Empty for every connector that exists today, which means "use the
+/// instance list", and an instance has none until the operator sets one: nothing
+/// about who can sign in changes on upgrade.
+[<Literal>]
+let private UpgradeToVersion5 =
+    "ALTER TABLE connectors ADD COLUMN allowed_email_domains TEXT NOT NULL DEFAULT '';"
+
 /// What takes a database from the version before to the version named. Applied
 /// in order, inside `initializeSchema`'s transaction, to a database stamped
 /// lower than `SchemaVersion`; a fresh database skips them, because `schema`
@@ -228,7 +240,8 @@ let private UpgradeToVersion4 =
 let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
     [ 2, (fun command -> command.CommandText <- UpgradeToVersion2)
       3, (fun command -> command.CommandText <- UpgradeToVersion3)
-      4, (fun command -> command.CommandText <- UpgradeToVersion4) ]
+      4, (fun command -> command.CommandText <- UpgradeToVersion4)
+      5, (fun command -> command.CommandText <- UpgradeToVersion5) ]
 
 let initializeSchema (config: DbConfig) : Task<unit> =
     task {

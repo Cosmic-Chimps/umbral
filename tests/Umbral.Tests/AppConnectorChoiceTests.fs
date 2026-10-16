@@ -31,6 +31,7 @@ let private seedDiscord (app: Fixtures.TestApp) (enabled: bool) (shared: bool) =
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = Secrets.hint "discord-secret"
                   IssuerUrl = None
+                  AllowedEmailDomains = []
                   IsEnabled = enabled
                   IsShared = shared
                   CreatedUtc = app.Clock.GetUtcNow()

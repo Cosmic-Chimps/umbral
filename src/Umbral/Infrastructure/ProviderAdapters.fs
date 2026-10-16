@@ -61,7 +61,12 @@ type AuthorizeRequest =
       RedirectUri: Uri
       State: string
       CodeChallenge: string
-      Nonce: string }
+      Nonce: string
+      /// The one domain a sign-in is limited to, for a provider that can be told
+      /// (Google's `hd`). Advisory only: the provider may ignore it and a person
+      /// may edit the URL, so the rule is still checked on what comes back
+      /// (specs/006 R9). Every adapter but Google's ignores it.
+      HostedDomainHint: string option }
 
 type ExchangeRequest =
     { Connector: Connector

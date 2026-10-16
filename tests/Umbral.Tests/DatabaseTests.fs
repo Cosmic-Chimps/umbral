@@ -211,10 +211,11 @@ let ``a version 1 database comes up as the current version with every connector 
             do! seedVersionOne config
             do! initializeSchema config
 
-            // Every step ran in order: 1 -> 2 (is_shared), 2 -> 3 (issuer_url), 3 -> 4 (app_branding).
+            // Every step ran in order: 1 -> 2 (is_shared), 2 -> 3 (issuer_url),
+            // 3 -> 4 (app_branding), 4 -> 5 (allowed_email_domains).
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
             Assert.Equal(string SchemaVersion, version)
-            Assert.Equal("4", version)
+            Assert.Equal("5", version)
 
             let! issuers = scalar config "SELECT count(*) FROM connectors WHERE issuer_url IS NULL"
             Assert.Equal("2", issuers)
@@ -245,11 +246,12 @@ let ``a fresh database is stamped with the current version and has every column 
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("4", version)
+            Assert.Equal("5", version)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('connectors')"
             Assert.Contains("is_shared", columns)
             Assert.Contains("issuer_url", columns)
+            Assert.Contains("allowed_email_domains", columns)
 
             let! issuerIndex = scalar config "SELECT sql FROM sqlite_master WHERE name = 'ux_connectors_issuer'"
             Assert.Contains("UNIQUE", issuerIndex)
@@ -403,7 +405,7 @@ let ``a version 2 database upgrades in place with its rows intact and accepts an
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("4", version)
+            Assert.Equal("5", version)
 
             // Nothing that was there changed.
             let! connector = scalar config "SELECT client_id || '|' || is_shared || '|' || ifnull(issuer_url, 'none') FROM connectors WHERE slug = 'discord'"
@@ -447,20 +449,20 @@ let ``a database written by a newer build refuses to start, naming both versions
     withDb (fun config ->
         task {
             do! initializeSchema config
-            do! exec config "UPDATE settings SET value = '5' WHERE key = 'schema_version'"
+            do! exec config "UPDATE settings SET value = '6' WHERE key = 'schema_version'"
 
             let! error = Record.ExceptionAsync(fun () -> initializeSchema config :> Task)
 
             // Both versions, and what to do about it.
             let message = messageOf error
-            Assert.Contains("version 5", message)
+            Assert.Contains("version 6", message)
             Assert.Contains($"version {SchemaVersion}", message)
             Assert.Contains("newer image", message)
             Assert.Contains("backup", message)
 
             // Refusing is not partly starting: the stamp is still the newer one.
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("5", version)
+            Assert.Equal("6", version)
         })
 
 [<Fact>]
@@ -476,18 +478,18 @@ let ``a schema version that is not a number refuses to start`` () =
         })
 
 // ---------------------------------------------------------------------------
-// Schema version 4 (spec 006): app_branding
+// Schema version 4 (spec 006, app sign-in branding): app_branding
 // ---------------------------------------------------------------------------
 
 [<Fact>]
-let ``a fresh database is at version 4 and has the app_branding table`` () =
+let ``a fresh database is at the current version and has the app_branding table`` () =
     withDb (fun config ->
         task {
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("4", version)
-            Assert.Equal(4, SchemaVersion)
+            Assert.Equal("5", version)
+            Assert.Equal(5, SchemaVersion)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('app_branding')"
 
@@ -500,14 +502,16 @@ let ``a fresh database is at version 4 and has the app_branding table`` () =
         })
 
 [<Fact>]
-let ``a version 3 database upgrades to 4 with an empty app_branding table and its rows untouched`` () =
+let ``a version 3 database upgrades with an empty app_branding table and its rows untouched`` () =
     withDb (fun config ->
         task {
-            // Version 3 is today's schema without the table, so build that: the
-            // newest shape, the table dropped, the stamp moved back. Rows of the
-            // older tables go in before the upgrade runs.
+            // Version 3 is today's schema without the table and without
+            // version 5's column, so build that: the newest shape, both dropped,
+            // the stamp moved back. Rows of the older tables go in before the
+            // upgrade runs.
             do! initializeSchema config
             do! exec config "DROP TABLE app_branding"
+            do! exec config "ALTER TABLE connectors DROP COLUMN allowed_email_domains"
             do! exec config "UPDATE settings SET value = '3' WHERE key = 'schema_version'"
 
             do!
@@ -523,7 +527,7 @@ let ``a version 3 database upgrades to 4 with an empty app_branding table and it
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("4", version)
+            Assert.Equal("5", version)
 
             let! rows = scalar config "SELECT count(*) FROM app_branding"
             Assert.Equal("0", rows)
@@ -537,7 +541,7 @@ let ``a version 3 database upgrades to 4 with an empty app_branding table and it
             // Running it again changes nothing: the step is idempotent as well as versioned.
             do! initializeSchema config
             let! again = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("4", again)
+            Assert.Equal("5", again)
         })
 
 /// Each statement is one row that breaks one CHECK of `app_branding`. Both
@@ -589,4 +593,110 @@ let ``the app_branding constraints reject a malformed accent and a half-stored l
 
             let! accepted = scalar config "SELECT count(*) FROM app_branding"
             Assert.Equal("3", accepted)
+        })
+
+// ---------------------------------------------------------------------------
+// Schema version 5 (feature 006, allowed email domains): `allowed_email_domains`
+// on connectors.
+// ---------------------------------------------------------------------------
+
+/// A database as version 3 left it: a connector of each kind that matters (one
+/// shared and enabled, one not shared and disabled, an oidc one with an issuer),
+/// a user and a linked account, and the stored version 3.
+let private seedVersionThree (config: DbConfig) =
+    exec
+        config
+        "CREATE TABLE connectors (
+             slug                    TEXT    NOT NULL PRIMARY KEY,
+             kind                    TEXT    NOT NULL,
+             display_name            TEXT    NOT NULL,
+             client_id               TEXT    NOT NULL,
+             client_secret_ref       TEXT    NOT NULL,
+             client_secret_hint      TEXT    NOT NULL,
+             is_enabled              INTEGER NOT NULL DEFAULT 1,
+             is_shared               INTEGER NOT NULL DEFAULT 1,
+             created_utc             TEXT    NOT NULL,
+             updated_utc             TEXT    NOT NULL,
+             issuer_url              TEXT        NULL
+         );
+         CREATE UNIQUE INDEX ux_connectors_issuer ON connectors (issuer_url) WHERE issuer_url IS NOT NULL;
+         CREATE TABLE users (
+             id               TEXT    NOT NULL PRIMARY KEY,
+             display_name     TEXT    NOT NULL,
+             email            TEXT        NULL,
+             email_verified   INTEGER NOT NULL DEFAULT 0,
+             avatar_url       TEXT        NULL,
+             is_enabled       INTEGER NOT NULL DEFAULT 1,
+             first_seen_utc   TEXT    NOT NULL,
+             last_seen_utc    TEXT    NOT NULL
+         );
+         CREATE TABLE settings (
+             key         TEXT NOT NULL PRIMARY KEY,
+             value       TEXT NOT NULL,
+             updated_utc TEXT NOT NULL
+         );
+         INSERT INTO connectors
+             (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint, is_enabled, is_shared, created_utc, updated_utc, issuer_url)
+         VALUES ('discord', 'discord', 'Discord', 'd-id', 'local:x', 'abcd', 1, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', NULL),
+                ('github', 'github', 'GitHub', 'g-id', 'local:y', 'efgh', 0, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', NULL),
+                ('home', 'oidc', 'Home', 'h-id', 'local:z', 'ijkl', 1, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'https://auth.example.com/o/umbral');
+         INSERT INTO users (id, display_name, email, email_verified, first_seen_utc, last_seen_utc)
+         VALUES ('user-1', 'Jane', 'jane@example.com', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+         INSERT INTO settings (key, value, updated_utc) VALUES ('schema_version', '3', '2026-01-01T00:00:00Z');"
+
+[<Fact>]
+let ``a version 3 database upgrades in place with every allowed domains list empty`` () =
+    withDb (fun config ->
+        task {
+            do! seedVersionThree config
+            do! initializeSchema config
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("5", version)
+
+            // Step 4 ran on the way: the branding table is there and empty.
+            let! branding = scalar config "SELECT count(*) FROM app_branding"
+            Assert.Equal("0", branding)
+
+            // Every connector that existed has an empty list: "use the instance
+            // list", and there is none, so nobody is newly refused (SC-006).
+            let! total = scalar config "SELECT count(*) FROM connectors"
+            Assert.Equal("3", total)
+
+            let! empty = scalar config "SELECT count(*) FROM connectors WHERE allowed_email_domains = ''"
+            Assert.Equal("3", empty)
+
+            let! instanceList = scalar config "SELECT count(*) FROM settings WHERE key = 'allowed_email_domains'"
+            Assert.Equal("0", instanceList)
+
+            // Nothing else about them moved.
+            let! github = scalar config "SELECT client_id || '|' || is_enabled || '|' || is_shared FROM connectors WHERE slug = 'github'"
+            Assert.Equal("g-id|0|0", github)
+
+            let! issuer = scalar config "SELECT issuer_url FROM connectors WHERE slug = 'home'"
+            Assert.Equal("https://auth.example.com/o/umbral", issuer)
+
+            let! user = scalar config "SELECT display_name || '|' || email FROM users WHERE id = 'user-1'"
+            Assert.Equal("Jane|jane@example.com", user)
+
+            // And the column takes a list.
+            do! exec config "UPDATE connectors SET allowed_email_domains = 'acme.com example.org' WHERE slug = 'discord'"
+            let! stored = scalar config "SELECT allowed_email_domains FROM connectors WHERE slug = 'discord'"
+            Assert.Equal("acme.com example.org", stored)
+        })
+
+[<Fact>]
+let ``upgrading a version 3 database twice changes nothing the second time`` () =
+    withDb (fun config ->
+        task {
+            do! seedVersionThree config
+            do! initializeSchema config
+            do! exec config "UPDATE connectors SET allowed_email_domains = 'acme.com' WHERE slug = 'discord'"
+
+            // The second start finds version 5 and runs no step, so the list
+            // an operator set survives a restart.
+            do! initializeSchema config
+
+            let! stored = scalar config "SELECT allowed_email_domains FROM connectors WHERE slug = 'discord'"
+            Assert.Equal("acme.com", stored)
         })

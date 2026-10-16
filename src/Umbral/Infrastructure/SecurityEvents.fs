@@ -44,6 +44,8 @@ type EventType =
     | AppUpdated
     | AppSecretRotated
     | AppDeleted
+    // Allowed email domains (specs/006-allowed-email-domains)
+    | AllowedDomainsChanged
     // Protocol
     | AuthorizationCodeReplayed
 
@@ -73,6 +75,7 @@ type EventType =
         | AppUpdated -> "app_updated"
         | AppSecretRotated -> "app_secret_rotated"
         | AppDeleted -> "app_deleted"
+        | AllowedDomainsChanged -> "allowed_domains_changed"
         | AuthorizationCodeReplayed -> "authorization_code_replayed"
 
 /// Every event type, for the test that asserts each one is emitted somewhere in
@@ -100,6 +103,7 @@ let allEventTypes =
       AppUpdated
       AppSecretRotated
       AppDeleted
+      AllowedDomainsChanged
       AuthorizationCodeReplayed ]
 
 /// The `Detail` of a `secret_store_failed` event: which store, which operation
@@ -110,6 +114,57 @@ let allEventTypes =
 let storeDetail (store: string) (op: string) (cause: Secrets.StoreFailure) (stale: bool) =
     let core = $"store={store};op={op};cause={cause.Cause}"
     if stale then core + ";stale=true" else core
+
+/// Where a domain refusal happened: the provider's return, an existing session
+/// at the authorize endpoint, or a code or refresh token at the token endpoint.
+type RefusalStage =
+    | Callback
+    | Authorize
+    | Token
+
+    member this.Value =
+        match this with
+        | Callback -> "callback"
+        | Authorize -> "authorize"
+        | Token -> "token"
+
+/// A domain is only written into an event when it is already in the normalised
+/// form `EmailDomains` produces: lower-case letters, digits, dots and hyphens.
+/// The detail is `;`- and `=`-separated, so anything else (a provider's odd
+/// address reaching here through `domainOf`) is written as `-` instead of
+/// being allowed to add fields of its own.
+let private safeDomain (domain: string option) =
+    match domain with
+    | Some name when
+        name.Length > 0
+        && name.Length <= 253
+        && name |> Seq.forall (fun c -> (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c = '.' || c = '-')
+        ->
+        name
+    | _ -> "-"
+
+/// The `Detail` of a `sign_in_failed` event for a refused email domain:
+/// `email_domain_refused;reason=…;rule=…;stage=…;domain=…`. Built from closed
+/// words and the normalised domain only, never from the address: the full
+/// address does not reach the event table (specs/006 research R10).
+let refusalDetail
+    (reason: Umbral.Domains.EmailDomains.Refusal)
+    (level: Umbral.Domains.EmailDomains.Level)
+    (stage: RefusalStage)
+    (domain: string option)
+    =
+    let reasonWord =
+        match reason with
+        | Umbral.Domains.EmailDomains.NoEmail -> "no_email"
+        | Umbral.Domains.EmailDomains.EmailNotVerified -> "email_not_verified"
+        | Umbral.Domains.EmailDomains.DomainNotAllowed _ -> "domain_not_allowed"
+
+    let levelWord =
+        match level with
+        | Umbral.Domains.EmailDomains.Connector -> "connector"
+        | Umbral.Domains.EmailDomains.Instance -> "instance"
+
+    $"email_domain_refused;reason={reasonWord};rule={levelWord};stage={stage.Value};domain={safeDomain domain}"
 
 type Outcome =
     | Success

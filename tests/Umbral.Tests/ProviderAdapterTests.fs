@@ -80,6 +80,7 @@ let private testConnector (kind: ProviderKind) : Connector =
       ClientSecretRef = "local:unused"
       ClientSecretHint = "1234"
       IssuerUrl = None
+      AllowedEmailDomains = []
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch
@@ -91,7 +92,8 @@ let private authorizeRequestFor (connector: Connector) : AuthorizeRequest =
       RedirectUri = Uri $"https://umbral.test/connect/{connector.Slug}/callback"
       State = "STATE123"
       CodeChallenge = "CHALLENGE123"
-      Nonce = "NONCE123" }
+      Nonce = "NONCE123"
+      HostedDomainHint = None }
 
 let private exchangeRequestFor (connector: Connector) (nonce: string) : ExchangeRequest =
     { Connector = connector
@@ -153,6 +155,41 @@ let ``Google golden authorize URL`` () =
         "https://accounts.google.com/o/oauth2/v2/auth?client_id=test-client-id&redirect_uri=https%3A%2F%2Fumbral.test%2Fconnect%2Fgoogle%2Fcallback&response_type=code&scope=openid email profile&state=STATE123&code_challenge=CHALLENGE123&code_challenge_method=S256&nonce=NONCE123"
 
     Assert.Equal(expected, url.ToString())
+
+[<Fact>]
+let ``Google carries the hosted-domain hint when given one`` () =
+    let connector = testConnector Google
+    use httpClient = new HttpClient()
+    let adapter = GoogleAdapter(httpClient) :> IProviderAdapter
+
+    let url = adapter.BuildAuthorizeUrl { authorizeRequestFor connector with HostedDomainHint = Some "acme.com" }
+
+    let expected =
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id=test-client-id&redirect_uri=https%3A%2F%2Fumbral.test%2Fconnect%2Fgoogle%2Fcallback&response_type=code&scope=openid email profile&state=STATE123&code_challenge=CHALLENGE123&code_challenge_method=S256&nonce=NONCE123&hd=acme.com"
+
+    Assert.Equal(expected, url.ToString())
+
+[<Fact>]
+let ``Google carries no hosted-domain parameter without a hint`` () =
+    let connector = testConnector Google
+    use httpClient = new HttpClient()
+    let adapter = GoogleAdapter(httpClient) :> IProviderAdapter
+
+    let url = adapter.BuildAuthorizeUrl(authorizeRequestFor connector)
+
+    Assert.DoesNotContain("hd=", url.ToString())
+
+[<Fact>]
+let ``GitHub and Discord ignore the hosted-domain hint`` () =
+    use httpClient = new HttpClient()
+
+    for connector, adapter in
+        [ testConnector GitHub, (GitHubAdapter(httpClient) :> IProviderAdapter)
+          testConnector Discord, (DiscordAdapter(httpClient) :> IProviderAdapter) ] do
+        let plain = adapter.BuildAuthorizeUrl(authorizeRequestFor connector)
+        let hinted = adapter.BuildAuthorizeUrl { authorizeRequestFor connector with HostedDomainHint = Some "acme.com" }
+        Assert.Equal(plain, hinted)
+        Assert.DoesNotContain("hd=", hinted.ToString())
 
 // ---------------------------------------------------------------------------
 // Discord

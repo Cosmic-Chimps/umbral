@@ -14,6 +14,7 @@ let private connector slug kind enabled shared : Connector =
       ClientSecretRef = "ref"
       ClientSecretHint = "hint"
       IssuerUrl = None
+      AllowedEmailDomains = []
       IsEnabled = enabled
       IsShared = shared
       CreatedUtc = DateTimeOffset.UnixEpoch

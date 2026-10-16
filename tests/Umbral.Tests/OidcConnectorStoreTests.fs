@@ -16,6 +16,7 @@ let private connector (slug: string) (kind: ProviderKind) (issuer: string option
       ClientSecretRef = ""
       ClientSecretHint = ""
       IssuerUrl = issuer
+      AllowedEmailDomains = []
       IsEnabled = true
       IsShared = true
       CreatedUtc = System.DateTimeOffset.UnixEpoch

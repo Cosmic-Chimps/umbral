@@ -156,6 +156,7 @@ let private addLabConnector (app: Fixtures.TestApp) =
                   ClientSecretRef = reference.Encoded
                   ClientSecretHint = "used"
                   IssuerUrl = None
+                  AllowedEmailDomains = []
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

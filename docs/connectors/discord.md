@@ -125,6 +125,23 @@ Umbral sends PKCE (`S256`) with the request.
 - **Email** only when Discord provides one, and it counts as **verified** only
   when Discord says it is.
 
+## Allowed email domains
+
+On the Connectors screen you can limit who can sign in by email domain, for the
+whole instance or for one connector (see
+[Who can sign in](../../README.md#who-can-sign-in)). While a rule applies, only
+an email Discord reports as verified counts, and the domain must match exactly.
+
+- Discord lets an account exist with an unverified email, or with none. While a
+  rule applies, that person is refused. They can verify the address in Discord
+  and try again.
+
+To limit one app, create a connector for it with the domain rule and offer only
+that connector to the app. For example, add a second Discord connector, "Discord (Acme)",
+with your domain in **Allowed email domains**, then on **Apps** set the app's
+**Sign-in methods** to **Only the connectors I choose** and tick only that
+connector. See [Who can sign in](../../README.md#who-can-sign-in).
+
 ## Gotchas
 
 - **The email may be missing or unverified.** Discord lets an account exist with

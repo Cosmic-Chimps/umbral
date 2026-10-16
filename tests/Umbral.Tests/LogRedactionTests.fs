@@ -515,3 +515,129 @@ let ``an operator asking for verbose logging cannot switch the leaking categorie
             Assert.False(logger.IsEnabled LogLevel.Information, $"{category} can log at Information")
             Assert.True(logger.IsEnabled LogLevel.Warning, $"{category} lost its warnings too")
     }
+
+/// specs/006, FR-011 and SC-005: a refusal by an email-domain rule names the
+/// domain and never the address. The person was refused; their address is not
+/// something an operator pasting a log into an issue should be handing out.
+///
+/// All three stages refuse here, each for a different person: the callback (a
+/// verified address at the wrong domain, an unverified one at the right domain),
+/// the authorize endpoint (a session that was admitted before the rule was
+/// tightened) and the token endpoint (a code and a refresh token issued before
+/// it). Every `security_events` row and every captured log entry, TRACE
+/// included, is then searched for each full address.
+[<Fact>]
+let ``no full email address reaches a log sink or the security log when a sign-in is refused`` () =
+    task {
+        let provider = new CapturingProvider()
+
+        use! app = Fixtures.createAppWith (fakeSettings @ verboseSettings) (captureAt provider)
+        let operator = Browser(app.Client)
+        let! prepared = prepare app operator
+
+        let bob = "bob.leak@gmail.com"
+        let carol = "carol.leak@acme.com"
+        let dan = "dan.leak@gmail.com"
+        let ed = "ed.leak@gmail.com"
+        let addresses = [ bob; carol; dan; ed ]
+
+        // Dan and Ed sign in while nothing limits the connector: Dan keeps an
+        // authorization code he has not redeemed, Ed redeems his for tokens.
+        let danBrowser = Browser(app.Client)
+        let! danSignIn = signInThroughFake danBrowser prepared.ClientId "openid offline_access" "dan" dan
+        let edBrowser = Browser(app.Client)
+        let! edSignIn = signInThroughFake edBrowser prepared.ClientId "openid offline_access" "ed" ed
+        let! edExchanged = exchangeCode app.Client prepared.ClientId prepared.ClientSecret edSignIn.Code
+        Assert.Equal(HttpStatusCode.OK, edExchanged.StatusCode)
+        let! edTokens = json edExchanged
+
+        // The operator limits the connector to one domain, through the same
+        // call the Connectors screen makes.
+        let! _ = ConnectorStore.update app.DbConfig app.Clock "fake" "Fake" "fake" true (Some [ "acme.com" ]) None
+
+        // The callback: a verified address at another domain, and an
+        // unverified address at the listed one.
+        let refuseAtCallback (email: string) (verified: bool) =
+            task {
+                let browser = Browser(app.Client)
+                let! toPicker = browser.Get(authorizeUrl prepared.ClientId "openid")
+                let! toProvider = browser.Get((toPicker.Headers.Location |> string).Replace("/signin", "/connect/fake/start"))
+                let providerUrl = toProvider.Headers.Location |> string
+                let decoded = Uri.UnescapeDataString providerUrl
+                let redirect = Text.RegularExpressions.Regex.Match(decoded, "redirect_uri=([^&]+)").Groups[1].Value
+                let state = Text.RegularExpressions.Regex.Match(decoded, "state=([^&]+)").Groups[1].Value
+
+                let! approved =
+                    browser.PostForm(
+                        providerUrl,
+                        "/dev/fake-provider/authorize",
+                        [ "redirect_uri", redirect
+                          "state", state
+                          "subject", email
+                          "email", email
+                          "displayName", "Test User" ]
+                        @ (if verified then [ "emailVerified", "on" ] else [])
+                    )
+
+                let! back = browser.Get(approved.Headers.Location |> string)
+                Assert.Contains("msg=account-not-allowed", back.Headers.Location |> string)
+            }
+
+        do! refuseAtCallback bob true
+        do! refuseAtCallback carol false
+
+        // The authorize endpoint: Dan's session no longer counts.
+        let! authorized = danBrowser.Get(authorizeUrl prepared.ClientId "openid offline_access")
+        Assert.StartsWith("/signin?returnUrl=", authorized.Headers.Location |> string)
+
+        // The token endpoint: Dan's code, and Ed's refresh token.
+        let! codeRefused = exchangeCode app.Client prepared.ClientId prepared.ClientSecret danSignIn.Code
+        Assert.Equal(HttpStatusCode.BadRequest, codeRefused.StatusCode)
+
+        let! refreshRefused = refresh app.Client prepared.ClientId prepared.ClientSecret (strOf edTokens "refresh_token")
+        Assert.Equal(HttpStatusCode.BadRequest, refreshRefused.StatusCode)
+
+        // --- the security log ------------------------------------------------
+        let! rows = securityEventRows app
+        let! detailRows =
+            task {
+                use! connection = Database.openConnection app.DbConfig
+                use command = connection.CreateCommand()
+                command.CommandText <- "SELECT detail FROM security_events WHERE event_type = 'sign_in_failed' ORDER BY id"
+                use! reader = command.ExecuteReaderAsync()
+                let details = List<string>()
+
+                while! reader.ReadAsync() do
+                    details.Add(if reader.IsDBNull 0 then "" else reader.GetString 0)
+
+                return List.ofSeq details
+            }
+
+        // Not vacuous: one refusal per stage, each naming the domain.
+        Assert.Equal(5, detailRows.Length)
+        Assert.Equal(2, detailRows |> List.filter _.Contains("stage=callback") |> List.length)
+        Assert.Equal(1, detailRows |> List.filter _.Contains("stage=authorize") |> List.length)
+        Assert.Equal(2, detailRows |> List.filter _.Contains("stage=token") |> List.length)
+        Assert.Equal(4, detailRows |> List.filter _.Contains("domain=gmail.com") |> List.length)
+        Assert.Equal(1, detailRows |> List.filter _.Contains("reason=email_not_verified;rule=connector;stage=callback;domain=acme.com") |> List.length)
+
+        let secrets = [ for a in addresses -> { Label = $"the address {a.Split('@')[0]}"; Value = a } ]
+
+        // Every column of every row, not only `detail`.
+        let eventLeaks = rows |> List.collect (leaksIn secrets) |> List.distinct
+        Assert.True(List.isEmpty eventLeaks, "full addresses reached security_events: " + String.Join(", ", eventLeaks))
+
+        // --- the logs ----------------------------------------------------------
+        let entries = provider.Entries
+        Assert.True(entries |> Array.exists (fun e -> e.Category.StartsWith "Microsoft.AspNetCore"), "no ASP.NET Core log output was captured")
+        Assert.True(entries |> Array.exists (fun e -> e.Category.StartsWith "OpenIddict"), "no OpenIddict log output was captured")
+
+        let leaks =
+            [ for entry in entries do
+                  match leaksIn secrets entry.Everything with
+                  | [] -> ()
+                  | labels -> yield String.Join(", ", labels) + $" in [{entry.Level}] {entry.Category}" ]
+            |> List.distinct
+
+        Assert.True(List.isEmpty leaks, "full addresses reached a log sink:" + Environment.NewLine + String.Join(Environment.NewLine, leaks))
+    }

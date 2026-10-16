@@ -9,12 +9,13 @@ module Umbral.Infrastructure.ConnectorStore
 open System
 open System.Threading.Tasks
 open Microsoft.Data.Sqlite
+open Umbral.Domains
 open Umbral.Domains.Connectors
 
 [<Literal>]
 let private Columns =
     "SELECT slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-            is_enabled, is_shared, created_utc, updated_utc, issuer_url FROM connectors"
+            is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains FROM connectors"
 
 let private readOptional (reader: SqliteDataReader) (ordinal: int) =
     if reader.IsDBNull ordinal then None else Some(reader.GetString ordinal)
@@ -37,6 +38,7 @@ let private read (reader: SqliteDataReader) =
       IssuerUrl = readOptional reader 10
       IsEnabled = reader.GetInt32 6 = 1
       IsShared = reader.GetInt32 7 = 1
+      AllowedEmailDomains = EmailDomains.deserialise (reader.GetString 11)
       CreatedUtc = DateTimeOffset.Parse(reader.GetString 8, Globalization.CultureInfo.InvariantCulture)
       UpdatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture) }
 
@@ -114,8 +116,8 @@ let save
         command.CommandText <-
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-                  is_enabled, is_shared, created_utc, updated_utc, issuer_url)
-             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer)
+                  is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains)
+             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains)
              ON CONFLICT (slug) DO UPDATE SET
                  display_name      = @name,
                  client_id         = @clientId,
@@ -123,6 +125,7 @@ let save
                  client_secret_hint= @secretHint,
                  is_enabled        = @enabled,
                  is_shared         = @shared,
+                 allowed_email_domains = @domains,
                  updated_utc       = @now"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -134,6 +137,7 @@ let save
         command.Parameters.AddWithValue("@enabled", (if connector.IsEnabled then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@shared", (if connector.IsShared then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@issuer", issuerParameter connector) |> ignore
+        command.Parameters.AddWithValue("@domains", EmailDomains.serialise connector.AllowedEmailDomains) |> ignore
         command.Parameters.AddWithValue("@now", now) |> ignore
 
         let! _ = command.ExecuteNonQueryAsync()
@@ -178,8 +182,8 @@ let create
         command.CommandText <-
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-                  is_enabled, is_shared, created_utc, updated_utc, issuer_url)
-             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer)
+                  is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains)
+             VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains)
              ON CONFLICT (slug) DO NOTHING"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -191,6 +195,7 @@ let create
         command.Parameters.AddWithValue("@enabled", (if connector.IsEnabled then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@shared", (if connector.IsShared then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@issuer", issuerParameter connector) |> ignore
+        command.Parameters.AddWithValue("@domains", EmailDomains.serialise connector.AllowedEmailDomains) |> ignore
         command.Parameters.AddWithValue("@now", now.ToUniversalTime().ToString "o") |> ignore
 
         try
@@ -203,8 +208,11 @@ let create
     }
 
 /// Change what the card form edits on a stored connector: display name, client
-/// id, the shared setting and, when one is supplied, the secret. Slug, kind and the enabled flag are left alone: the slug and kind
-/// never change (FR-013) and enabling has its own action. Returns false when no
+/// id, the shared setting, the allowed email domains and, when one is supplied,
+/// the secret. Slug, kind and the enabled flag are left alone: the slug and kind
+/// never change (FR-013) and enabling has its own action. `allowedDomains` None
+/// leaves the stored list as it is (a form that does not carry the field must not
+/// clear it); Some replaces it, and Some [] clears it. Returns false when no
 /// connector has that slug.
 let update
     (config: Database.DbConfig)
@@ -213,6 +221,7 @@ let update
     (displayName: string)
     (clientId: string)
     (isShared: bool)
+    (allowedDomains: string list option)
     (newSecretRef: (string * string) option)
     : Task<bool> =
     task {
@@ -225,6 +234,7 @@ let update
                  display_name       = @name,
                  client_id          = @clientId,
                  is_shared          = @shared,
+                 allowed_email_domains = coalesce(@domains, allowed_email_domains),
                  client_secret_ref  = coalesce(@secretRef, client_secret_ref),
                  client_secret_hint = coalesce(@secretHint, client_secret_hint),
                  updated_utc        = @now
@@ -234,6 +244,10 @@ let update
         command.Parameters.AddWithValue("@name", displayName) |> ignore
         command.Parameters.AddWithValue("@clientId", clientId) |> ignore
         command.Parameters.AddWithValue("@shared", (if isShared then 1 else 0)) |> ignore
+
+        match allowedDomains with
+        | Some list -> command.Parameters.AddWithValue("@domains", EmailDomains.serialise list) |> ignore
+        | None -> command.Parameters.AddWithValue("@domains", DBNull.Value) |> ignore
 
         match newSecretRef with
         | Some(ref, hint) ->

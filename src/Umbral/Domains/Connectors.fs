@@ -160,6 +160,10 @@ type Connector =
       /// connectors". One that is not shared is offered only to the apps whose
       /// chosen set names it (FR-014).
       IsShared: bool
+      /// The verified email domains allowed to sign in through this connector,
+      /// normalised ASCII (`EmailDomains`). Empty means the instance list
+      /// applies, if there is one (specs/006).
+      AllowedEmailDomains: string list
       CreatedUtc: DateTimeOffset
       UpdatedUtc: DateTimeOffset }
 

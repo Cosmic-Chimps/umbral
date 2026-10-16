@@ -195,7 +195,28 @@ type private Row =
       RedirectUris: string list
       PostLogoutRedirectUris: string list
       Choice: AppChoice
-      Branding: AppBranding option }
+      Branding: AppBranding option
+      /// The names of the enabled connectors this app offers that have no
+      /// domain rule, when it also offers some that do (FR-020). Empty when
+      /// there is no such mix.
+      Unrestricted: string list }
+
+/// FR-020: an app that offers a connector with a domain rule and one without is
+/// limited only as far as its people choose the limited one, so the open
+/// connectors are named. `instance` is the instance list, read once by the
+/// caller. Only what `offeredTo` offers counts: a connector that is off, or not
+/// offered to this app, lets nobody in here.
+let private unrestrictedFor (instance: string list) (connectors: Connector list) (choice: AppChoice) : string list =
+    let offered = offeredTo choice connectors
+
+    let hasRule (connector: Connector) =
+        match EmailDomains.applying connector.AllowedEmailDomains instance with
+        | EmailDomains.NoRule -> false
+        | EmailDomains.Rule _ -> true
+
+    let open', limited = offered |> List.partition (hasRule >> not)
+
+    if open'.IsEmpty || limited.IsEmpty then [] else open' |> List.map (fun c -> c.DisplayName)
 
 // ---------------------------------------------------------------------------
 // The connector choice (FR-005, FR-009)
@@ -553,6 +574,13 @@ let private appRow
                 p(class' = "um-mono") { uri }
         }
 
+        // FR-020: never blocks, only says what the choice lets in.
+        if not row.Unrestricted.IsEmpty then
+            (div().data("warning", "unrestricted-connectors") {
+                Components.alert Components.Warning (t.AppsUnrestrictedWarning row.Unrestricted)
+            })
+            :> HtmlElement
+
         // FR-009: which connectors this app offers, readable at a glance, with
         // a small form to change it.
         div(class' = "space-y-2") {
@@ -721,6 +749,7 @@ let private view
     (notice: string option)
     (cardNotice: (string * string * string) option)
     (strand: StrandWarning option)
+    (unrestricted: string list)
     =
     // One sheet per distinct accent in use, however many apps share it: each
     // card's preview sits under `data-accent` and takes its colour from these.
@@ -735,6 +764,20 @@ let private view
         Components.pageHeading t.AppsTitle (Some t.AppsLead)
 
         match notice, strand with
+        // The same text as the row's warning, from the names the app has now; a
+        // link that outlived the mix says the fixed text.
+        | Some("app-connectors-unrestricted" as code), _ ->
+            (div().data("notice", code) {
+                Components.alert
+                    Components.Warning
+                    (if unrestricted.IsEmpty then
+                         t.Notice code
+                     else
+                         // Saved either way: the warning says so first.
+                         let saved = t.Notice "app-connectors-saved"
+                         $"{saved} {t.AppsUnrestrictedWarning unrestricted}")
+            })
+            :> HtmlElement
         | Some code, Some warning ->
             (div().data("notice", code) {
                 Components.alert Components.Warning (t.Notice code)
@@ -805,7 +848,8 @@ let private toRow
               DisplayName = displayName |> Option.ofObj |> Option.defaultValue ""
               ClientType = clientType |> Option.ofObj |> Option.defaultValue ClientTypes.Confidential
               RedirectUris = redirectUris |> List.ofSeq
-              PostLogoutRedirectUris = postLogoutUris |> List.ofSeq }
+              PostLogoutRedirectUris = postLogoutUris |> List.ofSeq
+              Unrestricted = [] }
     }
 
 /// Every slug in a chosen set names a stored connector. `setChoice` would hit
@@ -835,6 +879,14 @@ let page: EndpointHandler =
 
             let! connectors = ConnectorStore.listAll config
 
+            // Read once for the page, not once per connector or per app.
+            let! instanceList = EmailDomainRules.instanceList config
+
+            let rows =
+                rows
+                |> Seq.map (fun row -> { row with Unrestricted = unrestrictedFor instanceList connectors row.Choice })
+                |> List.ofSeq
+
             // An app made now starts on "all shared connectors" (FR-005), so
             // the create form is useful only when that offers something.
             let hasEnabledConnector = not (List.isEmpty (offeredTo AllShared connectors))
@@ -854,6 +906,15 @@ let page: EndpointHandler =
 
             // `app-connectors-strand` carries the app and the choice that was
             // attempted; the app's name is looked up here, never in the URL.
+            let unrestricted =
+                match notice, ctx.TryGetQueryValue "app" with
+                | Some "app-connectors-unrestricted", Some clientId ->
+                    rows
+                    |> List.tryFind (fun r -> r.ClientId = clientId)
+                    |> Option.map (fun r -> r.Unrestricted)
+                    |> Option.defaultValue []
+                | _ -> []
+
             let strand =
                 match notice, ctx.TryGetQueryValue "app" with
                 | Some "app-connectors-strand", Some clientId ->
@@ -870,7 +931,7 @@ let page: EndpointHandler =
 
             return!
                 ctx.WriteHtmlView(
-                    view ctx t origin (List.ofSeq rows) connectors hasEnabledConnector revealed notice cardNotice strand
+                    view ctx t origin rows connectors hasEnabledConnector revealed notice cardNotice strand unrestricted
                 )
         })
 
@@ -1010,7 +1071,19 @@ let setConnectors (clientId: string) : EndpointHandler =
                         RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
                         Detail = Some "connector_choice" }
 
-            return! WebForms.redirectWithNotice ctx "/admin/apps" "app-connectors-saved"
+            // FR-020: saved either way; a choice that mixes limited and open
+            // connectors says so, as a warning, instead of the plain notice.
+            let! instanceList = EmailDomainRules.instanceList config
+
+            if List.isEmpty (unrestrictedFor instanceList connectors choice) then
+                return! WebForms.redirectWithNotice ctx "/admin/apps" "app-connectors-saved"
+            else
+                return!
+                    WebForms.redirectWithNoticeAbout
+                        ctx
+                        "/admin/apps"
+                        "app-connectors-unrestricted"
+                        [ "app", clientId ]
         })
 
 let endpoint =
