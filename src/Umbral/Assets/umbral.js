@@ -89,11 +89,23 @@ function pickerFollowsText(parts) {
   }
 }
 
+// Umbral's own accent as `#rrggbb`, read from the stylesheet's channel variable
+// so the colour is written in one place (tailwind.config.js).
+function umbralAccentHex() {
+  var channels = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-rgb').trim().split(/\s+/);
+  if (channels.length !== 3) return null;
+  return '#' + channels.map(function (c) { return ('0' + parseInt(c, 10).toString(16)).slice(-2); }).join('');
+}
+
 function startAccentForms() {
+  var fallback = umbralAccentHex();
   document.querySelectorAll('[data-accent-form]').forEach(function (form) {
     var parts = accentParts(form);
     if (!parts.picker) return;
     parts.picker.hidden = false;
+    // No colour saved: the picker shows the one the page uses, Umbral's, rather
+    // than a colour input's default black. The text field stays empty.
+    if (fallback && parts.text && !ACCENT_HEX.test(parts.text.value.trim())) parts.picker.value = fallback;
     pickerFollowsText(parts);
   });
 }
@@ -230,11 +242,17 @@ function logoWholeCrop(form, state) {
   return { x: 0, y: Math.floor((h - longH) / 2), w: w, h: longH };
 }
 
+// The margin around the picture inside the crop panel. The panel clips, so the
+// shade around the rectangle stays inside it; the margin is what keeps a
+// corner handle whole when the rectangle reaches the picture's edge, as it does
+// at the start (the whole image). Wider than a handle's overhang (9px).
+var LOGO_CROP_MARGIN = 12;
+
 // Place the crop rectangle over the scaled image.
 function renderLogoCrop(state) {
   var s = state.scale;
-  state.box.style.left = (state.crop.x * s) + 'px';
-  state.box.style.top = (state.crop.y * s) + 'px';
+  state.box.style.left = (LOGO_CROP_MARGIN + state.crop.x * s) + 'px';
+  state.box.style.top = (LOGO_CROP_MARGIN + state.crop.y * s) + 'px';
   state.box.style.width = (state.crop.w * s) + 'px';
   state.box.style.height = (state.crop.h * s) + 'px';
 }
@@ -286,12 +304,13 @@ function buildLogoCropper(form, state, source) {
 
   // Fit the picture to the panel, never larger than itself and never taller
   // than a screenful of form.
-  var available = Math.max(parts.crop.clientWidth, 160);
+  var available = Math.max(parts.crop.clientWidth - 2 * LOGO_CROP_MARGIN, 160);
   state.scale = Math.min(1, available / state.width, 360 / state.height);
   image.style.width = (state.width * state.scale) + 'px';
   image.style.height = (state.height * state.scale) + 'px';
-  stage.style.width = (state.width * state.scale) + 'px';
-  stage.style.height = (state.height * state.scale) + 'px';
+  image.style.margin = LOGO_CROP_MARGIN + 'px';
+  stage.style.width = (state.width * state.scale + 2 * LOGO_CROP_MARGIN) + 'px';
+  stage.style.height = (state.height * state.scale + 2 * LOGO_CROP_MARGIN) + 'px';
 
   state.stage = stage;
   state.box = box;
@@ -302,10 +321,14 @@ function buildLogoCropper(form, state, source) {
 
   // A pointer position in source pixels, relative to the picture.
   function sourcePoint(event) {
+    // The rectangle is positioned from the panel's padding edge, inside its
+    // border, and the picture starts a margin further in.
     var rect = stage.getBoundingClientRect();
+    var left = rect.left + stage.clientLeft + LOGO_CROP_MARGIN;
+    var top = rect.top + stage.clientTop + LOGO_CROP_MARGIN;
     return {
-      x: clampNumber((event.clientX - rect.left) / state.scale, 0, state.width),
-      y: clampNumber((event.clientY - rect.top) / state.scale, 0, state.height)
+      x: clampNumber((event.clientX - left) / state.scale, 0, state.width),
+      y: clampNumber((event.clientY - top) / state.scale, 0, state.height)
     };
   }
 

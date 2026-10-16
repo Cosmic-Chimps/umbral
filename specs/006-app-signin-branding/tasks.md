@@ -373,7 +373,7 @@ row and no orphaned bytes.
   - add the notices `app-logo-removed` and `app-accent-cleared` and `AppLogoRemoveConfirm name` to `src/Umbral/Views/Texts.fs`
 - [X] T038 [US3] In `src/Umbral/Handlers/Admin/Apps.fs`, render the remove-logo form, with `Components.confirmSubmit (t.AppLogoRemoveConfirm name)`, only when the app has a logo.
 - [X] T039 [US3] In `src/Umbral/Handlers/Admin/AppDelete.fs`, call `BrandingStore.deleteFor config clientId` next to `AppConnectors.deleteFor`, with a comment on the same reasoning (no foreign key into OpenIddict's tables).
-- [ ] T040 [US3] Manual: run [quickstart.md](./quickstart.md) §6 and record the result in Notes.
+- [X] T040 [US3] Manual: run [quickstart.md](./quickstart.md) §6 and record the result in Notes.
 
 **Checkpoint**: all three stories work and are tested.
 
@@ -477,6 +477,36 @@ Only one writing agent at a time touches `Texts.fs`, `Apps.fs`,
 - **T045**: spec Status set to Implemented, with the two manual checks named
   as pending. Each phase was reviewed and verified by the driving session before
   its commit (60a2f7a, c54226f, a03567a, 4398f1b).
-- Still open for the user: T033 and T040 (manual browser passes in Chromium,
-  Firefox and Safari), and the Linux CI run that enforces the 150 MiB idle
-  ceiling.
+- **Browser pass, 2026-10-16** (T033 Chromium part, T040). Headless Chrome 155
+  on macOS (x64 build under Rosetta), driven over the DevTools protocol with real
+  mouse and key input, against a local instance with the fake connector.
+  - §4: a 3000 × 2000 JPEG gets the crop panel; corner drags and arrow/Shift
+    nudging move and resize the crop, and the stored logo is exactly the crop
+    (900 × 900 source → 512 × 512). The accent `#F26B1D` is stored lowercase;
+    the card's sample turns orange while the page's own buttons stay blue. The
+    branded sign-in page has the logo, orange buttons with black text, an
+    orange focus ring, no header and "Secured by Umbral"; the unbranded app's
+    page is unchanged. No request leaves the origin on either.
+  - §5: SVG, a 9.3 MB PNG, a 5000 × 5000 PNG and a text file named `.png` are
+    refused inline with the contract's texts, and nothing is sent. An EXIF
+    orientation-6 JPEG shows upright in the panel and is stored upright
+    (256 × 512). A WebP crops and saves. Transparency survives (RGBA). The crop
+    stops at 32 source pixels. `#0a0a10` saves with the warning and white
+    text; `orange` is refused; empty clears. With scripts off, a 256 px PNG is
+    saved whole and a JPEG is refused with the "turn on JavaScript" hint.
+  - §6: replacing changes the address (old 404, new 200) and the sign-in page
+    follows; Remove asks with the confirm text, then the address is 404 and the
+    accent stays; clearing the accent makes the page unbranded; deleting the
+    app makes its logo 404. The security log has one `app_updated` per change
+    with its `branding_*` detail, none for refusals or no-op clears, and only
+    `app_deleted` for the deletion.
+  - Three defects found and fixed: (1) the crop panel clipped the corner
+    handles to a 7 px quarter whenever the rectangle touched the picture's edge,
+    which it does at the start, so the far corner could not be grabbed; the
+    picture now sits inside a 12 px margin; (2) `[hidden]` lost to `.um-btn`'s
+    `display`, so "Use whole image" showed before any file was chosen; the
+    base layer now makes `[hidden]` always hide; (3) the colour picker showed
+    black with no accent saved; it now starts on Umbral's colour.
+- Still open for the user: the rest of T033 (the same §4–5 pass in Firefox and
+  Safari; neither can be driven from this machine's tools), and the Linux CI run
+  that enforces the 150 MiB idle ceiling.

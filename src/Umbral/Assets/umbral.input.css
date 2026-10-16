@@ -14,6 +14,11 @@
   :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
   a { text-underline-offset: 3px; }
   input { caret-color: var(--color-primary); }
+  /* The `hidden` attribute always hides. Tailwind's own rule for it is
+     `:where()`-wrapped, so any class that sets `display` (`.um-btn` is
+     inline-flex) used to win and show an element the markup hid: the logo
+     form's "Use whole image" before any file was chosen. */
+  [hidden] { display: none !important; }
 }
 @layer components {
   .um-card { @apply bg-surface-container-low rounded-lg p-6 md:p-8; border: var(--border-micro); }

@@ -433,3 +433,12 @@ let ``no accent use hard-codes the colour, so every one follows a [data-accent] 
     Assert.DoesNotContain("95 179 232", withoutDefinition)
     Assert.DoesNotContain("95,179,232", withoutDefinition)
     Assert.DoesNotContain("#5fb3e8", withoutDefinition)
+
+[<Fact>]
+let ``the hidden attribute always hides, whatever display a class sets`` () =
+    let css = Text.Encoding.UTF8.GetString Assets.css.Bytes
+
+    // Tailwind's own [hidden] rule is :where()-wrapped, so `.um-btn` (inline-flex)
+    // beat it and the logo form's "Use whole image" showed before a file was
+    // chosen (spec 006 browser pass). The base layer's rule must win.
+    Assert.Contains("[hidden]{display:none!important}", css)
