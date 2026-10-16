@@ -271,7 +271,7 @@ let private connectorChoices
         else
             div(class' = "space-y-1").data("connector-options", "") {
                 for connector in connectors do
-                    label(class' = "flex items-center gap-2 text-body-sm text-on-surface") {
+                    label(class' = "flex items-center gap-2 text-body-md text-on-surface") {
                         let box =
                             input(type' = "checkbox", name = "connectors", value = connector.Slug)
 
@@ -333,7 +333,7 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
 
         div(class' = "flex flex-wrap items-center gap-4") {
             div(class' = "flex min-h-11 items-center").data("branding-logo", "") {
-                p(class' = "text-body-sm text-on-surface-variant") { t.NoLogo }
+                p(class' = "text-body-md text-on-surface-variant") { t.NoLogo }
             }
 
             div(class' = "space-y-1.5") {
@@ -405,7 +405,7 @@ let private appRow
                 ignore
         }
 
-        div(class' = "space-y-1 text-body-sm text-on-surface-variant") {
+        div(class' = "space-y-1 text-body-md text-on-surface-variant") {
             for uri in row.RedirectUris do
                 p(class' = "um-mono") { uri }
         }
@@ -414,12 +414,12 @@ let private appRow
         // a small form to change it.
         div(class' = "space-y-2") {
             match row.Choice with
-            | AllShared -> p(class' = "text-body-sm text-on-surface-variant") { t.AppConnectorsAllSharedSummary }
+            | AllShared -> p(class' = "text-body-md text-on-surface-variant") { t.AppConnectorsAllSharedSummary }
             | Only slugs when slugs.IsEmpty ->
-                p(class' = "text-body-sm text-on-surface-variant") { t.AppConnectorsChosenNone }
+                p(class' = "text-body-md text-on-surface-variant") { t.AppConnectorsChosenNone }
             | Only slugs ->
                 div(class' = "flex flex-wrap items-center gap-2") {
-                    span(class' = "text-body-sm text-on-surface-variant") { t.AppConnectorsChosenSummary }
+                    span(class' = "text-body-md text-on-surface-variant") { t.AppConnectorsChosenSummary }
 
                     for slug in slugs do
                         let label =

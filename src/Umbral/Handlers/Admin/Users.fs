@@ -134,7 +134,7 @@ let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
                 h2(class' = "text-headline-sm text-on-surface") { user.DisplayName }
 
                 match user.Email with
-                | Some email -> (p(class' = "text-body-sm text-on-surface-variant") { email }) :> HtmlElement
+                | Some email -> (p(class' = "text-body-md text-on-surface-variant") { email }) :> HtmlElement
                 | None -> Fragment() :> HtmlElement
             }
 
@@ -146,7 +146,7 @@ let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
                 (Components.pill Components.PrimaryTone label).data ("linked-provider", kind)
         }
 
-        div(class' = "grid gap-1 text-body-sm text-on-surface-variant sm:grid-cols-2") {
+        div(class' = "grid gap-1 text-body-md text-on-surface-variant sm:grid-cols-2") {
             span() { $"{t.UserFirstSignInLabel}: {formatSignIn user.FirstSeenUtc}" }
             span() { $"{t.UserLastSignInLabel}: {formatSignIn user.LastSeenUtc}" }
         }

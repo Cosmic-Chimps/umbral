@@ -39,7 +39,7 @@ let handler: EndpointHandler =
 
                 match detail with
                 | Some description ->
-                    (p(class' = "um-mono text-body-sm text-on-surface-variant").data("protocol-error", "") {
+                    (p(class' = "um-mono text-body-md text-on-surface-variant").data("protocol-error", "") {
                         description
                     })
                     :> HtmlElement
