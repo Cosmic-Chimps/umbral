@@ -211,10 +211,10 @@ let ``a version 1 database comes up as the current version with every connector 
             do! seedVersionOne config
             do! initializeSchema config
 
-            // Both steps ran in order, 1 -> 2 (is_shared) and 2 -> 3 (issuer_url).
+            // Every step ran in order: 1 -> 2 (is_shared), 2 -> 3 (issuer_url), 3 -> 4 (app_branding).
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
             Assert.Equal(string SchemaVersion, version)
-            Assert.Equal("3", version)
+            Assert.Equal("4", version)
 
             let! issuers = scalar config "SELECT count(*) FROM connectors WHERE issuer_url IS NULL"
             Assert.Equal("2", issuers)
@@ -245,7 +245,7 @@ let ``a fresh database is stamped with the current version and has every column 
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("3", version)
+            Assert.Equal("4", version)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('connectors')"
             Assert.Contains("is_shared", columns)
@@ -403,7 +403,7 @@ let ``a version 2 database upgrades in place with its rows intact and accepts an
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("3", version)
+            Assert.Equal("4", version)
 
             // Nothing that was there changed.
             let! connector = scalar config "SELECT client_id || '|' || is_shared || '|' || ifnull(issuer_url, 'none') FROM connectors WHERE slug = 'discord'"
@@ -447,20 +447,20 @@ let ``a database written by a newer build refuses to start, naming both versions
     withDb (fun config ->
         task {
             do! initializeSchema config
-            do! exec config "UPDATE settings SET value = '4' WHERE key = 'schema_version'"
+            do! exec config "UPDATE settings SET value = '5' WHERE key = 'schema_version'"
 
             let! error = Record.ExceptionAsync(fun () -> initializeSchema config :> Task)
 
             // Both versions, and what to do about it.
             let message = messageOf error
-            Assert.Contains("version 4", message)
+            Assert.Contains("version 5", message)
             Assert.Contains($"version {SchemaVersion}", message)
             Assert.Contains("newer image", message)
             Assert.Contains("backup", message)
 
             // Refusing is not partly starting: the stamp is still the newer one.
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("4", version)
+            Assert.Equal("5", version)
         })
 
 [<Fact>]
@@ -473,4 +473,120 @@ let ``a schema version that is not a number refuses to start`` () =
             let! error = Record.ExceptionAsync(fun () -> initializeSchema config :> Task)
 
             Assert.Contains("three", messageOf error)
+        })
+
+// ---------------------------------------------------------------------------
+// Schema version 4 (spec 006): app_branding
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a fresh database is at version 4 and has the app_branding table`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("4", version)
+            Assert.Equal(4, SchemaVersion)
+
+            let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('app_branding')"
+
+            for expected in
+                [ "client_id"; "accent_color"; "logo_png"; "logo_sha256"; "logo_width"; "logo_height"; "updated_at" ] do
+                Assert.Contains(expected, columns)
+
+            let! rows = scalar config "SELECT count(*) FROM app_branding"
+            Assert.Equal("0", rows)
+        })
+
+[<Fact>]
+let ``a version 3 database upgrades to 4 with an empty app_branding table and its rows untouched`` () =
+    withDb (fun config ->
+        task {
+            // Version 3 is today's schema without the table, so build that: the
+            // newest shape, the table dropped, the stamp moved back. Rows of the
+            // older tables go in before the upgrade runs.
+            do! initializeSchema config
+            do! exec config "DROP TABLE app_branding"
+            do! exec config "UPDATE settings SET value = '3' WHERE key = 'schema_version'"
+
+            do!
+                exec
+                    config
+                    "INSERT INTO users (id, display_name, first_seen_utc, last_seen_utc)
+                     VALUES ('user-1', 'Jane', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+                     INSERT INTO app_connector_choices (client_id) VALUES ('grafana');"
+
+            let! missing = scalar config "SELECT count(*) FROM sqlite_master WHERE name = 'app_branding'"
+            Assert.Equal("0", missing)
+
+            do! initializeSchema config
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("4", version)
+
+            let! rows = scalar config "SELECT count(*) FROM app_branding"
+            Assert.Equal("0", rows)
+
+            let! user = scalar config "SELECT display_name FROM users WHERE id = 'user-1'"
+            Assert.Equal("Jane", user)
+
+            let! choice = scalar config "SELECT client_id FROM app_connector_choices"
+            Assert.Equal("grafana", choice)
+
+            // Running it again changes nothing: the step is idempotent as well as versioned.
+            do! initializeSchema config
+            let! again = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("4", again)
+        })
+
+/// Each statement is one row that breaks one CHECK of `app_branding`. Both
+/// sides of each rule are covered by the valid row below, which must go in.
+let private brandingViolations =
+    [ "an uppercase accent",
+      "INSERT INTO app_branding (client_id, accent_color, updated_at) VALUES ('a', 'F26B1D', '2026-01-01T00:00:00Z')"
+      "a 5-character accent",
+      "INSERT INTO app_branding (client_id, accent_color, updated_at) VALUES ('a', 'f26b1', '2026-01-01T00:00:00Z')"
+      "a 7-character accent",
+      "INSERT INTO app_branding (client_id, accent_color, updated_at) VALUES ('a', 'f26b1dd', '2026-01-01T00:00:00Z')"
+      "an accent that is not hex",
+      "INSERT INTO app_branding (client_id, accent_color, updated_at) VALUES ('a', 'g26b1d', '2026-01-01T00:00:00Z')"
+      "a logo without its hash",
+      "INSERT INTO app_branding (client_id, logo_png, logo_width, logo_height, updated_at) VALUES ('a', x'89504e47', 32, 32, '2026-01-01T00:00:00Z')"
+      "a hash without its logo",
+      "INSERT INTO app_branding (client_id, logo_sha256, logo_width, logo_height, updated_at) VALUES ('a', 'abc', 32, 32, '2026-01-01T00:00:00Z')"
+      "a logo without its width",
+      "INSERT INTO app_branding (client_id, logo_png, logo_sha256, logo_height, updated_at) VALUES ('a', x'89504e47', 'abc', 32, '2026-01-01T00:00:00Z')"
+      "a logo without its height",
+      "INSERT INTO app_branding (client_id, logo_png, logo_sha256, logo_width, updated_at) VALUES ('a', x'89504e47', 'abc', 32, '2026-01-01T00:00:00Z')"
+      "a width without a logo",
+      "INSERT INTO app_branding (client_id, logo_width, updated_at) VALUES ('a', 32, '2026-01-01T00:00:00Z')" ]
+
+[<Fact>]
+let ``the app_branding constraints reject a malformed accent and a half-stored logo`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+
+            for what, sql in brandingViolations do
+                let! error = Record.ExceptionAsync(fun () -> exec config sql :> Task)
+                Assert.True((not (isNull error)), $"{what} was accepted")
+                Assert.Contains("CHECK constraint failed", messageOf error)
+
+            let! rows = scalar config "SELECT count(*) FROM app_branding"
+            Assert.Equal("0", rows)
+
+            // The shapes the store writes are accepted: an accent alone, a logo
+            // alone with its hash and size, and both.
+            do!
+                exec
+                    config
+                    "INSERT INTO app_branding (client_id, accent_color, updated_at) VALUES ('accent', 'f26b1d', '2026-01-01T00:00:00Z');
+                     INSERT INTO app_branding (client_id, logo_png, logo_sha256, logo_width, logo_height, updated_at)
+                         VALUES ('logo', x'89504e47', 'h1', 32, 32, '2026-01-01T00:00:00Z');
+                     INSERT INTO app_branding (client_id, accent_color, logo_png, logo_sha256, logo_width, logo_height, updated_at)
+                         VALUES ('both', '000000', x'89504e48', 'h2', 64, 48, '2026-01-01T00:00:00Z');"
+
+            let! accepted = scalar config "SELECT count(*) FROM app_branding"
+            Assert.Equal("3", accepted)
         })

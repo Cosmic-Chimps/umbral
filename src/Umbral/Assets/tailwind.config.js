@@ -22,8 +22,8 @@ const colors = {
   'on-surface-variant': '#9aa7b8',
   'outline': '#5b6b7f',
   'outline-variant': '#2d3845',
-  'primary': '#5fb3e8',
-  'on-primary': '#07263b',
+  'primary': '#5fb3e8', // channels in `accentChannels`
+  'on-primary': '#07263b', // channels in `accentChannels`
   'primary-container': '#1f6fa8',
   'secondary': '#7fd8c4',
   'secondary-container': '#1d4a40',
@@ -33,6 +33,17 @@ const colors = {
   'on-error': '#430806',
   'error-container': '#7a211b',
   'on-error-container': '#ffdad4',
+};
+
+// The two colours a branded sign-in page replaces (specs/006-app-signin-branding
+// research R4). They are held as space-separated channels in custom properties
+// (--color-primary-rgb, --color-on-primary-rgb), which an attribute rule from
+// /branding/accent/{hex}.css overrides under `[data-accent]`. The values are the
+// hex of `colors` above (#5fb3e8, #07263b), so an unbranded page computes the same
+// colours as before. `<alpha-value>` keeps opacity utilities (bg-primary/10) working.
+const accentChannels = {
+  'primary': '95 179 232',
+  'on-primary': '7 38 59',
 };
 
 // name: [size, { lineHeight, fontWeight, letterSpacing }]
@@ -76,7 +87,20 @@ const effects = {
 const customProperties = {};
 
 for (const [name, value] of Object.entries(colors)) {
-  customProperties[`--color-${name}`] = value;
+  if (name in accentChannels) {
+    customProperties[`--color-${name}-rgb`] = accentChannels[name];
+    customProperties[`--color-${name}`] = `rgb(var(--color-${name}-rgb))`;
+  } else {
+    customProperties[`--color-${name}`] = value;
+  }
+}
+
+// The Tailwind theme reads the accent colours through their variables, so every
+// utility (bg-primary, text-on-primary, border-primary/25) follows the override.
+const themeColors = { ...colors };
+
+for (const name of Object.keys(accentChannels)) {
+  themeColors[name] = `rgb(var(--color-${name}-rgb) / <alpha-value>)`;
 }
 
 for (const [name, [size, style]] of Object.entries(typeStyles)) {
@@ -101,7 +125,7 @@ module.exports = {
   content: { relative: true, files: ['../Views/**/*.fs', '../Handlers/**/*.fs'] },
   theme: {
     extend: {
-      colors,
+      colors: themeColors,
       fontSize: typeStyles,
       borderRadius: radii,
       fontFamily: {

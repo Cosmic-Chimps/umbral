@@ -61,14 +61,14 @@ not wait for the upload path.
 
 **Purpose**: empty modules in compile order, so later tasks only fill files in.
 
-- [ ] T001 Create these modules, each with a header doc comment naming spec 006 and its research section, and register them in `src/Umbral/Umbral.fsproj`:
+- [X] T001 Create these modules, each with a header doc comment naming spec 006 and its research section, and register them in `src/Umbral/Umbral.fsproj`:
   - `Domains/Branding.fs` and `Domains/PngLogo.fs`, directly after `Domains/RedirectUris.fs`
   - `Infrastructure/BrandingStore.fs`, directly after `Infrastructure/AppConnectors.fs`
   - `Handlers/Branding.fs`, directly after `Handlers/Assets.fs`
   - `Handlers/Admin/AppBranding.fs`, directly after `Handlers/Admin/AppDelete.fs`
 
   Confirm `dotnet build -c Release` passes.
-- [ ] T002 [P] Create empty test modules and register them in `tests/Umbral.Tests/Umbral.Tests.fsproj`:
+- [X] T002 [P] Create empty test modules and register them in `tests/Umbral.Tests/Umbral.Tests.fsproj`:
   - `Infrastructure/PngBuilder.fs`, after `Infrastructure/StubOidcProvider.fs`
   - before `SmokeTests.fs`: `AccentTests.fs`, `PngLogoTests.fs`, `BrandingStoreTests.fs`, `BrandingEndpointTests.fs`, `SignInBrandingTests.fs`, `AppBrandingAdminTests.fs`
 
@@ -82,15 +82,15 @@ suite stays green.
 
 **⚠️ No user story work can begin until this phase is complete.**
 
-- [ ] T003 Turn the accent into CSS variables (research R4):
+- [X] T003 Turn the accent into CSS variables (research R4):
   - In `src/Umbral/Assets/tailwind.config.js`, set `primary` to `'rgb(var(--color-primary-rgb) / <alpha-value>)'` and `on-primary` to `'rgb(var(--color-on-primary-rgb) / <alpha-value>)'`. Keep the hex values in a comment.
   - In `src/Umbral/Assets/umbral.input.css` `:root`, define `--color-primary-rgb: 95 179 232;` and `--color-on-primary-rgb: 7 38 59;`, and set `--color-primary: rgb(var(--color-primary-rgb));`. Check whether the `:root` block is generated from the config (the config header says it is the single source) and change it there if so.
   - Regenerate `src/Umbral/Assets/umbral.css` with `src/Umbral/Assets/build-css.sh`, then confirm `build-css.sh --check` passes.
-- [ ] T004 [P] Extend `tests/Umbral.Tests/PageAssetsTests.fs` with three assertions:
+- [X] T004 [P] Extend `tests/Umbral.Tests/PageAssetsTests.fs` with three assertions:
   - the served `umbral.css` defines `--color-primary-rgb:95 179 232` and `--color-on-primary-rgb:7 38 59`
   - `.um-btn-primary` reads both variables
   - no literal `95 179 232` remains outside the variable definition, so every accent use is recolourable
-- [ ] T005 Implement `src/Umbral/Domains/Branding.fs` per [data-model.md](./data-model.md):
+- [X] T005 Implement `src/Umbral/Domains/Branding.fs` per [data-model.md](./data-model.md):
   - `Accent`, with a private constructor
   - `Accent.parse`: trim; accept `^#[0-9a-fA-F]{6}$` only; lowercase it; otherwise `Error NotHexColour`
   - `hex`, `rgb`
@@ -99,23 +99,23 @@ suite stays green.
   - `lowContrastOnCard`: contrast against `#11161d` below 3.0
   - the types `AppBranding` and `LogoRef`
   - `Logo` and `LogoError`, defined here so `BrandingStore` does not depend on `PngLogo`
-- [ ] T006 [P] Write `tests/Umbral.Tests/AccentTests.fs`:
+- [X] T006 [P] Write `tests/Umbral.Tests/AccentTests.fs`:
   - **Parse table**:
     - `#f26b1d`, `#F26B1D` and ` #f26b1d ` give `f26b1d`
     - `f26b1d`, `#fff`, `#f26b1dff`, `orange`, `rgb(242,107,29)`, `#g26b1d` and the empty string give `Error`
   - **Exhaustive (SC-003)**: for all 16,777,216 colours, the contrast of `onAccent` against the colour is ≥ 4.5. Keep it under a few seconds by looping over ints and computing luminance per channel from a 256-entry table.
   - **Known values**: `#f26b1d` gives `Black`; `#0a0a10` and `#1f6fa8` give `White`.
   - **Warning threshold**: `lowContrastOnCard` is true for `#0a0a10` and false for `#f26b1d` and `#5fb3e8`.
-- [ ] T007 Add `app_branding` to `src/Umbral/Infrastructure/Database.fs` exactly as in [data-model.md](./data-model.md):
+- [X] T007 Add `app_branding` to `src/Umbral/Infrastructure/Database.fs` exactly as in [data-model.md](./data-model.md):
   - add the table to `schema`
   - set `SchemaVersion` to 4
   - add `[<Literal>] UpgradeToVersion4`, the same `CREATE TABLE IF NOT EXISTS` statement, as step 4 in `upgradeSteps`
   - mention spec 006 in the comment
-- [ ] T008 [P] Extend `tests/Umbral.Tests/DatabaseTests.fs`:
+- [X] T008 [P] Extend `tests/Umbral.Tests/DatabaseTests.fs`:
   - a fresh database is at version 4 with `app_branding`
   - a database stamped version 3, without the table, is upgraded to 4 with the table empty and existing rows untouched
   - the CHECK constraints reject an uppercase `accent_color`, a 5-character one, a `logo_png` without `logo_sha256`, and a logo without its width
-- [ ] T009 Implement `src/Umbral/Infrastructure/BrandingStore.fs` per [data-model.md](./data-model.md):
+- [X] T009 Implement `src/Umbral/Infrastructure/BrandingStore.fs` per [data-model.md](./data-model.md):
   - `forApp`, which never selects `logo_png`
   - `allForApps`, returning a map keyed by client id
   - `logoBytes`
@@ -124,7 +124,7 @@ suite stays green.
   - `deleteFor`
 
   Every write takes `now: DateTimeOffset` for `updated_at`, and every multi-statement change runs in one transaction. Follow `Infrastructure/AppConnectors.fs` for connection and reader style.
-- [ ] T010 [P] Write `tests/Umbral.Tests/BrandingStoreTests.fs`, walking the lifecycle in data-model.md:
+- [X] T010 [P] Write `tests/Umbral.Tests/BrandingStoreTests.fs`, walking the lifecycle in data-model.md:
   - set the accent, then set a logo: one row with both
   - remove the logo: the row keeps the accent
   - clear the accent: no row
@@ -153,7 +153,7 @@ accent from the Apps screen (quickstart §4.3–4.6).
 ### Tests for User Story 1
 
 - [ ] T011 [P] [US1] Write the accent part of `tests/Umbral.Tests/BrandingEndpointTests.fs` per [contracts/public-endpoints.md](./contracts/public-endpoints.md):
-  - `GET /branding/accent/f26b1d.css` returns exactly `[data-accent="f26b1d"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0}`
+  - `GET /branding/accent/f26b1d.css` returns exactly `[data-accent="f26b1d"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0;--color-primary:rgb(242 107 29);--color-on-primary:rgb(0 0 0)}`
   - `0a0a10` gets on-accent `255 255 255`
   - the headers are `text/css; charset=utf-8`, `nosniff`, immutable, and ETag `"f26b1d-1"`; `If-None-Match` returns 304
   - `F26B1D`, `f26b1`, `f26b1dd` and `zzzzzz` return 404

@@ -134,7 +134,7 @@ the handler reads the form itself with the same options before validating.
   from the path:
 
   ```css
-  [data-accent="f26b1d"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0}
+  [data-accent="f26b1d"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0;--color-primary:rgb(242 107 29);--color-on-primary:rgb(0 0 0)}
   ```
 
   The path must match `^[0-9a-f]{6}$`, or the endpoint returns 404. Because the

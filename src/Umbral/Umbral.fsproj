@@ -39,6 +39,8 @@
     <Compile Include="Domains/Connectors.fs" />
     <Compile Include="Domains/Linking.fs" />
     <Compile Include="Domains/RedirectUris.fs" />
+    <Compile Include="Domains/Branding.fs" />
+    <Compile Include="Domains/PngLogo.fs" />
     <Compile Include="Infrastructure/PublicOrigin.fs" />
     <Compile Include="Infrastructure/DataDirectory.fs" />
     <Compile Include="Infrastructure/TrustedProxies.fs" />
@@ -65,6 +67,7 @@
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />
     <Compile Include="Infrastructure/AppConnectors.fs" />
+    <Compile Include="Infrastructure/BrandingStore.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
     <Compile Include="Infrastructure/AppClients.fs" />
@@ -80,6 +83,7 @@
     <Compile Include="Views/Layout.fs" />
     <Compile Include="Handlers/Health.fs" />
     <Compile Include="Handlers/Assets.fs" />
+    <Compile Include="Handlers/Branding.fs" />
     <Compile Include="Handlers/Home.fs" />
     <Compile Include="Handlers/Admin/Landing.fs" />
     <Compile Include="Handlers/Admin/Setup.fs" />
@@ -93,6 +97,7 @@
     <Compile Include="Handlers/Admin/Apps.fs" />
     <Compile Include="Handlers/Admin/AppSecret.fs" />
     <Compile Include="Handlers/Admin/AppDelete.fs" />
+    <Compile Include="Handlers/Admin/AppBranding.fs" />
     <Compile Include="Handlers/Admin/Users.fs" />
     <Compile Include="Handlers/Admin/UserToggle.fs" />
     <Compile Include="Handlers/Admin/UserDelete.fs" />

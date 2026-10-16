@@ -35,8 +35,16 @@ Body, exactly one rule. Channels are decimal and separated by spaces. The
 on-accent colour is `0 0 0` or `255 255 255` (R4):
 
 ```css
-[data-accent="f26b1d"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0}
+[data-accent="f26b1d"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0;--color-primary:rgb(242 107 29);--color-on-primary:rgb(0 0 0)}
 ```
+
+The rule redefines `--color-primary` and `--color-on-primary` as well as the
+channels. `:root` defines `--color-primary: rgb(var(--color-primary-rgb))`, but a
+custom property's `var()` is resolved on the element that declares it and then
+inherited as a value. Without the redefinition, every `var(--color-primary)` use
+under `[data-accent]` (focus outline, caret, radio) would stay Umbral's blue.
+(Found in review at Phase 2. The quickstart's manual pass checks a focus ring on
+a branded page.)
 
 Headers: `X-Content-Type-Options: nosniff`,
 `Cache-Control: public, max-age=31536000, immutable`, `ETag: "{rrggbb}-1"`. The

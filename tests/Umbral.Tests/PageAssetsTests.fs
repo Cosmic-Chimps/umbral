@@ -398,3 +398,38 @@ let ``the stylesheet imports nothing and fetches nothing from elsewhere`` () =
     // Guards the checks above: the file is the compiled stylesheet, not an empty stub.
     Assert.Contains(".um-btn-primary", css)
     Assert.Contains("--color-primary", css)
+
+// ---------------------------------------------------------------------------
+// The accent is recolourable (spec 006, research R4)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``the stylesheet defines the accent as channel variables with Umbral's own colours`` () =
+    let css = Text.Encoding.UTF8.GetString Assets.css.Bytes
+
+    // Minified, so no space after the colon. An unbranded page computes the same
+    // colours as before the accent became a variable (SC-001).
+    Assert.Contains("--color-primary-rgb:95 179 232", css)
+    Assert.Contains("--color-on-primary-rgb:7 38 59", css)
+
+[<Fact>]
+let ``the primary button reads both accent variables`` () =
+    let css = Text.Encoding.UTF8.GetString Assets.css.Bytes
+    let rule = Regex.Match(css, "\\.um-btn-primary\\{[^}]*\\}")
+
+    Assert.True(rule.Success, "the stylesheet has no .um-btn-primary rule")
+    Assert.Contains("var(--color-primary-rgb)", rule.Value)
+    Assert.Contains("var(--color-on-primary-rgb)", rule.Value)
+
+[<Fact>]
+let ``no accent use hard-codes the colour, so every one follows a [data-accent] override`` () =
+    let css = Text.Encoding.UTF8.GetString Assets.css.Bytes
+
+    // The one place the value may appear is the variable's own definition. Both
+    // spellings: the space-separated channels and the comma form a minifier
+    // writes for `rgb(95 179 232 / 0.3)`.
+    let withoutDefinition = css.Replace("--color-primary-rgb:95 179 232", "")
+
+    Assert.DoesNotContain("95 179 232", withoutDefinition)
+    Assert.DoesNotContain("95,179,232", withoutDefinition)
+    Assert.DoesNotContain("#5fb3e8", withoutDefinition)

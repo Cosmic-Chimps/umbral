@@ -10,7 +10,7 @@
 @layer base {
   html { background: var(--color-surface); -webkit-font-smoothing: antialiased; }
   body { @apply bg-surface text-on-surface font-sans text-body-lg; }
-  ::selection { background: rgb(95 179 232 / 0.3); color: var(--color-on-surface); }
+  ::selection { background: rgb(var(--color-primary-rgb) / 0.3); color: var(--color-on-surface); }
   :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
   a { text-underline-offset: 3px; }
   input { caret-color: var(--color-primary); }

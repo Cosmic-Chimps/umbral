@@ -13,6 +13,7 @@
     <Compile Include="Infrastructure/Flows.fs" />
     <Compile Include="Infrastructure/Journeys.fs" />
     <Compile Include="Infrastructure/StubOidcProvider.fs" />
+    <Compile Include="Infrastructure/PngBuilder.fs" />
     <Compile Include="IdsTests.fs" />
     <Compile Include="OidcDomainTests.fs" />
     <Compile Include="OidcDiscoveryTests.fs" />
@@ -69,6 +70,12 @@
     <Compile Include="SecretCacheTests.fs" />
     <Compile Include="ExternalSecretConnectorTests.fs" />
     <Compile Include="SecretMoveTests.fs" />
+    <Compile Include="AccentTests.fs" />
+    <Compile Include="PngLogoTests.fs" />
+    <Compile Include="BrandingStoreTests.fs" />
+    <Compile Include="BrandingEndpointTests.fs" />
+    <Compile Include="SignInBrandingTests.fs" />
+    <Compile Include="AppBrandingAdminTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 

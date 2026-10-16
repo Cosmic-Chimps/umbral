@@ -121,6 +121,27 @@ let private schema =
     -- disabled or deleted.
     CREATE INDEX IF NOT EXISTS ix_app_connectors_slug ON app_connectors (connector_slug);
 
+    -- An app's sign-in branding (spec 006): its accent colour and its logo, one
+    -- row while either is set. The logo is the rewritten PNG, never the upload,
+    -- stored here so the image and its row change in one transaction. The accent
+    -- is six lowercase hex digits, no `#`, and `logo_sha256` is the logo's
+    -- address, hence unique. No foreign key, like `app_connector_choices`:
+    -- `client_id` is an OpenIddict application's id and AppDelete removes the
+    -- row itself.
+    CREATE TABLE IF NOT EXISTS app_branding (
+        client_id     TEXT PRIMARY KEY,
+        accent_color  TEXT NULL
+            CHECK (accent_color IS NULL
+                   OR (length(accent_color) = 6 AND accent_color NOT GLOB '*[^0-9a-f]*')),
+        logo_png      BLOB NULL,
+        logo_sha256   TEXT NULL UNIQUE,
+        logo_width    INTEGER NULL,
+        logo_height   INTEGER NULL,
+        updated_at    TEXT NOT NULL,
+        CHECK ((logo_png IS NULL) = (logo_sha256 IS NULL)),
+        CHECK ((logo_png IS NULL) = (logo_width IS NULL) AND (logo_png IS NULL) = (logo_height IS NULL))
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
         key         TEXT NOT NULL PRIMARY KEY,
         value       TEXT NOT NULL,
@@ -158,7 +179,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 3
+let SchemaVersion = 4
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -172,6 +193,25 @@ let private UpgradeToVersion2 =
 /// unique index follows in `issuerIndex`.
 [<Literal>]
 let private UpgradeToVersion3 = "ALTER TABLE connectors ADD COLUMN issuer_url TEXT NULL;"
+
+/// Spec 006. The same statement `schema` runs, so an existing database gets the
+/// table and a fresh one needs no step. Empty to begin with: no app has
+/// branding, so every page looks as it did. No data is rewritten.
+[<Literal>]
+let private UpgradeToVersion4 =
+    "CREATE TABLE IF NOT EXISTS app_branding (
+         client_id     TEXT PRIMARY KEY,
+         accent_color  TEXT NULL
+             CHECK (accent_color IS NULL
+                    OR (length(accent_color) = 6 AND accent_color NOT GLOB '*[^0-9a-f]*')),
+         logo_png      BLOB NULL,
+         logo_sha256   TEXT NULL UNIQUE,
+         logo_width    INTEGER NULL,
+         logo_height   INTEGER NULL,
+         updated_at    TEXT NOT NULL,
+         CHECK ((logo_png IS NULL) = (logo_sha256 IS NULL)),
+         CHECK ((logo_png IS NULL) = (logo_width IS NULL) AND (logo_png IS NULL) = (logo_height IS NULL))
+     );"
 
 /// What takes a database from the version before to the version named. Applied
 /// in order, inside `initializeSchema`'s transaction, to a database stamped
@@ -187,7 +227,8 @@ let private UpgradeToVersion3 = "ALTER TABLE connectors ADD COLUMN issuer_url TE
 /// constant, never a value that arrived by another route.
 let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
     [ 2, (fun command -> command.CommandText <- UpgradeToVersion2)
-      3, (fun command -> command.CommandText <- UpgradeToVersion3) ]
+      3, (fun command -> command.CommandText <- UpgradeToVersion3)
+      4, (fun command -> command.CommandText <- UpgradeToVersion4) ]
 
 let initializeSchema (config: DbConfig) : Task<unit> =
     task {

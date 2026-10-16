@@ -86,6 +86,7 @@ any local client) for each.
    - no header bar
    - the logo at the top of the card
    - orange connector buttons
+   - pressing Tab onto a button shows an orange focus ring, not Umbral's blue
    - "Secured by Umbral" at the bottom
 5. Start a sign-in from Recipes: the page is exactly as before the feature.
 6. In the browser's network panel for step 4: every request goes to Umbral's
