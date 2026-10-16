@@ -381,9 +381,9 @@ row and no orphaned bytes.
 
 ## Phase 6: Polish & cross-cutting
 
-- [ ] T041 [P] Make sure `tests/Umbral.Tests/CsrfTests.fs` covers the three new POST routes, adding them if it lists routes explicitly. Then run `MetaTests.fs`, `SecurityEventCoverageTests.fs` and `LogRedactionTests.fs` and confirm they pass unchanged.
-- [ ] T042 [P] Run `tests/Umbral.Tests/IdleMemoryTests.fs` and confirm idle RSS is unaffected (FR-026, SC-007). Record the figure in Notes.
-- [ ] T043 [P] Add a "Brand an app's sign-in page" section to `README.md`, after the Apps section (FR-027), covering:
+- [X] T041 [P] Make sure `tests/Umbral.Tests/CsrfTests.fs` covers the three new POST routes, adding them if it lists routes explicitly. Then run `MetaTests.fs`, `SecurityEventCoverageTests.fs` and `LogRedactionTests.fs` and confirm they pass unchanged.
+- [X] T042 [P] Run `tests/Umbral.Tests/IdleMemoryTests.fs` and confirm idle RSS is unaffected (FR-026, SC-007). Record the figure in Notes.
+- [X] T043 [P] Add a "Brand an app's sign-in page" section to `README.md`, after the Apps section (FR-027), covering:
   - where branding appears and where it does not (the admin screens, the protocol error page)
   - the "Secured by Umbral" mark and why it cannot be removed
   - accepted formats and every limit (2 MB, 4096 px, stored 32–512 px and 1.25 MB)
@@ -393,8 +393,8 @@ row and no orphaned bytes.
   - that a newer database (schema 4) cannot be opened by an older image
 
   Add a line to the README's table of contents if it has one.
-- [ ] T044 Run [quickstart.md](./quickstart.md) §1–3 and the full `dotnet test -c Release`, and record the test count and commit in Notes.
-- [ ] T045 Set **Status** in `specs/006-app-signin-branding/spec.md` to `Implemented` once T044 passes, and mark this file's tasks done.
+- [X] T044 Run [quickstart.md](./quickstart.md) §1–3 and the full `dotnet test -c Release`, and record the test count and commit in Notes.
+- [X] T045 Set **Status** in `specs/006-app-signin-branding/spec.md` to `Implemented` once T044 passes, and mark this file's tasks done.
 
 ---
 
@@ -449,3 +449,34 @@ Only one writing agent at a time touches `Texts.fs`, `Apps.fs`,
 - Licence: Umbral will be MIT (decided 2026-10-15). This does not change the
   design (research R1). Adding the `LICENSE` file is the separate CodeAlta task
   `2026-10-15-choose-and-add-a-licence-for-umbral-n7c8`.
+- **T041** (Polish): `CsrfTests` finds its routes in the endpoint table, so the
+  three branding POSTs (`…/branding/accent`, `…/branding/logo`,
+  `…/branding/logo/delete`) were already walked by it. It now also names them in
+  its "routes that must be there" guard, so a rename that dropped one from the
+  table fails loudly. `CsrfTests`, `MetaTests`, `SecurityEventCoverageTests` and
+  `LogRedactionTests` pass together (58 tests) with no change to the last three.
+- **T042** (idle memory, FR-026 / SC-007): `IdleMemoryTests` passes. Measured on
+  macOS 26.6.2 (Darwin 25.6), Arm64, over three runs of the two cases. Local
+  store: 127.5, 143.7, 127.2 MiB. aws store: 126.4, 134.1, 150.8 MiB. The strict 150 MiB ceiling is asserted on Linux only;
+  here the ceiling is the 250 MiB sanity one. macOS resident size moves by tens of
+  MiB between starts of the same build (the test's own comment says so), so these
+  figures show no jump, not a precise delta. The Linux CI run is the one that
+  enforces 150 MiB, and it has not been run for this branch yet. Branding adds no
+  package and no background work: a logo is read from SQLite only when its own
+  address is requested.
+- **T044** (quickstart §1–3): `build-css.sh --check` passes, `dotnet build -c
+  Release` has 0 warnings, and the full `dotnet test -c Release` passes **1032 of
+  1032**. Ran on `4398f1b` plus the uncommitted README section (T043) and the
+  `CsrfTests` guard (T041), neither of which changes the count.
+- **T043**: the README section is "Brand an app's sign-in page", a top-level
+  section after "Integrate an app" (the README has no separate Apps section), with
+  a line in the table of contents. The README's backup section lists what
+  `umbral.db` holds; it now includes each app's sign-in logo and colour. The README
+  does not discuss schema versions or downgrades anywhere else, so the schema 4
+  note lives only in the new section.
+- **T045**: spec Status set to Implemented, with the two manual checks named
+  as pending. Each phase was reviewed and verified by the driving session before
+  its commit (60a2f7a, c54226f, a03567a, 4398f1b).
+- Still open for the user: T033 and T040 (manual browser passes in Chromium,
+  Firefox and Safari), and the Linux CI run that enforces the 150 MiB idle
+  ceiling.

@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-15
 
-**Status**: Draft
+**Status**: Implemented (manual browser checks T033 and T040 pending)
 
 **Input**: User description: "Per-app sign-in branding. An operator can give each App its own logo and accent colour, shown on the sign-in pages an end user sees when that App sends them to Umbral (the connector picker, and the error pages reached during that sign-in). Scope: per app only — no global branding screen and no new top-level admin screen (Principle I: Apps, Connectors, Users stay the three screens; branding is fields on the App edit page). When the request names no app, or the app has no branding, the current Umbral look is shown. Logo: uploaded only (no remote URL, so no third party learns the IP of everyone signing in); raster formats only (PNG, JPEG, WebP — no SVG, which can carry script); the operator crops it in the admin UI before saving; Umbral limits the file size and the pixel dimensions (width/height) and stores the image in the data directory (Principle II). The operator can replace or remove the logo. Accent colour: one colour (the primary/accent), entered as a strict #rrggbb value; the text colour on top of it is derived automatically for legible contrast; every other colour stays fixed. Admin pages are never branded. The branded page keeps a small "secured by Umbral" mark so a person can tell which sign-in page they are on. Documentation for the feature is part of done (Principle VI)."
 

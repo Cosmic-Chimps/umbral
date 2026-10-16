@@ -283,6 +283,16 @@ let ``the endpoint table has state-changing admin routes to protect`` () =
         for expected in [ "POST /admin/apps"; "POST /admin/setup"; "POST /admin/signout" ] do
             Assert.Contains(expected, names)
 
+        // The three branding routes (spec 006) are in the table the other tests
+        // walk, so each is held to the same rule: no token, no change. The logo
+        // upload is the one that switches the antiforgery middleware off and
+        // validates in its handler, which is exactly why it is named here.
+        for suffix in [ "/branding/accent"; "/branding/logo"; "/branding/logo/delete" ] do
+            Assert.True(
+                names |> List.exists (fun name -> name.StartsWith "POST /admin/apps/" && name.EndsWith suffix),
+                $"no POST route ending {suffix} in the endpoint table"
+            )
+
         Assert.True(names.Length >= 10, $"only {names.Length} state-changing routes were discovered")
     }
 
