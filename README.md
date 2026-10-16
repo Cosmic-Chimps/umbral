@@ -831,3 +831,7 @@ change a view, `src/Umbral/Assets/tailwind.config.js` (the design tokens) or
 `src/Umbral/Assets/build-css.sh` — it downloads the pinned standalone Tailwind
 CLI, no Node needed — and commit the regenerated `umbral.css`. The image build
 runs it with `--check` and fails on a stale file.
+
+## License
+
+Umbral is released under the [MIT License](LICENSE).

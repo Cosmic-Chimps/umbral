@@ -51,6 +51,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
 
+# The image is published, so the terms travel with it.
+LABEL org.opencontainers.image.licenses="MIT"
+COPY LICENSE /app/LICENSE
+
 # Everything Umbral persists lives in this one directory: umbral.db, the token
 # signing keys, and the Data Protection key ring.
 #
