@@ -36,6 +36,7 @@ module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
 let endpoints: Endpoint list =
     [ Umbral.Handlers.Health.endpoint
       Umbral.Handlers.Assets.endpoint
+      Umbral.Handlers.Branding.endpoint
       Umbral.Handlers.Home.endpoint
       Umbral.Handlers.Admin.Landing.endpoint
       yield! Umbral.Handlers.Admin.Setup.endpoint
@@ -49,6 +50,7 @@ let endpoints: Endpoint list =
       yield! Umbral.Handlers.Admin.Apps.endpoint
       Umbral.Handlers.Admin.AppSecret.endpoint
       Umbral.Handlers.Admin.AppDelete.endpoint
+      yield! Umbral.Handlers.Admin.AppBranding.endpoint
       Umbral.Handlers.Admin.Users.endpoint
       Umbral.Handlers.Admin.UserToggle.endpoint
       Umbral.Handlers.Admin.UserDelete.endpoint

@@ -44,13 +44,48 @@ let private navLinks (ctx: HttpContext) (t: Texts) =
 let contentSecurityPolicy =
     "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'"
 
+/// What a branded sign-in page takes from an app's branding (spec 006). Only
+/// the accent colour reaches the page shell: the logo is content in the card,
+/// placed by the picker, not part of the chrome.
+type SignInBranding = { Accent: Umbral.Domains.Branding.Accent option }
+
+/// Which chrome a page wears. Each is a different answer to "who is looking":
+/// anyone (Umbral's brand and footer), the signed-in operator (the same plus the
+/// navigation), or a person signing in to an app that has branding (the app's
+/// colour, no Umbral wordmark, and the one mention of Umbral the page keeps).
+type private Chrome =
+    | Plain
+    | Operator
+    | SignIn of SignInBranding
+
 /// Base HTML layout on the design system (src/Umbral/Assets/). The stylesheet
 /// (compiled by build-css.sh), htmx and Umbral's own script are served by
 /// Umbral itself, so a page loads nothing from a third party and runs no inline
-/// script (see `contentSecurityPolicy`). `showNav` is true only for the
-/// operator's screens.
-let private shell (showNav: bool) (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
+/// script (see `contentSecurityPolicy`). `stylesheets` are further same-origin
+/// sheets linked after `umbral.css`, so a rule in them wins ties with it: the
+/// accent sheets of spec 006.
+let private shell
+    (chrome: Chrome)
+    (stylesheets: string list)
+    (ctx: HttpContext)
+    (t: Texts)
+    (titleText: string)
+    (content: HtmlElement)
+    =
     ctx.Response.Headers.ContentSecurityPolicy <- contentSecurityPolicy
+
+    let showNav = (chrome = Operator)
+
+    // `data-accent` goes on the body, so the accent sheet's `[data-accent]` rule
+    // reaches everything on the page. Only a branded sign-in page sets it; the
+    // admin pages never do, which is what keeps the operator's own interface in
+    // Umbral's colour whatever the apps look like (FR-005).
+    let body' =
+        body(class' = "min-h-screen bg-surface text-on-surface flex flex-col")
+
+    match chrome with
+    | SignIn { Accent = Some accent } -> body'.data("accent", Umbral.Domains.Branding.Accent.hex accent) |> ignore
+    | _ -> ()
 
     html(lang = "en", class' = "bg-surface") {
         head() {
@@ -61,44 +96,81 @@ let private shell (showNav: bool) (ctx: HttpContext) (t: Texts) (titleText: stri
             title() { $"{titleText} | {t.SiteName}" }
             link(rel = "icon", href = faviconHref).attr("type", "image/svg+xml")
             link(rel = "stylesheet", href = Assets.css.Href)
+
+            for href in stylesheets do
+                link(rel = "stylesheet", href = href)
+
             // htmx 4.x: Oxpecker.Htmx 4.0.* emits attributes for this major version only.
             script(src = Assets.htmx.Href)
             script(src = Assets.script.Href)
         }
 
-        body(class' = "min-h-screen bg-surface text-on-surface flex flex-col") {
+        body' {
             a(href = "#main", class' = "sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] um-btn um-btn-primary") {
                 t.SkipToContent
             }
 
-            header(class' = "sticky top-0 z-50 border-b border-outline-variant/40 bg-surface/90 backdrop-blur-md") {
-                nav(class' = "mx-auto flex h-16 max-w-page items-center justify-between gap-4 px-4 md:px-8") {
-                    Components.brand showNav t.SiteName
+            // A branded sign-in page has no header: the wordmark is Umbral's
+            // mark, and the app's page is the app's (FR-006).
+            match chrome with
+            | SignIn _ -> Fragment() :> HtmlElement
+            | _ ->
+                (header(class' = "sticky top-0 z-50 border-b border-outline-variant/40 bg-surface/90 backdrop-blur-md") {
+                    nav(class' = "mx-auto flex h-16 max-w-page items-center justify-between gap-4 px-4 md:px-8") {
+                        Components.brand showNav t.SiteName
 
-                    if showNav then
-                        navLinks ctx t
-                }
-            }
+                        if showNav then
+                            navLinks ctx t
+                    }
+                })
+                :> HtmlElement
 
             main (id = "main", class' = "mx-auto w-full max-w-page flex-1 px-4 py-8 md:px-8 md:py-12") { content }
 
-            footer (class' = "border-t border-outline-variant/40") {
-                div(class' = "mx-auto flex max-w-page items-center gap-3 px-4 py-6 text-label-md font-normal text-on-surface-variant md:px-8") {
-                    span(class' = "block h-5 w-5 opacity-80") { raw markSvg }
-                    p() { t.Footer }
-                }
-            }
+            // The mark's colours are fixed in `markSvg` and the text is a
+            // fixed token, so no accent rule can recolour them: the mark
+            // stays Umbral's whatever the app chose.
+            match chrome with
+            | SignIn _ ->
+                (footer(class' = "border-t border-outline-variant/40").data("secured-by", "") {
+                    div(class' = "mx-auto flex max-w-page items-center gap-3 px-4 py-6 text-label-md font-normal text-on-surface-variant md:px-8") {
+                        span(class' = "block h-5 w-5 opacity-80") { raw markSvg }
+                        p() { t.SecuredByUmbral }
+                    }
+                })
+                :> HtmlElement
+            | _ ->
+                (footer(class' = "border-t border-outline-variant/40") {
+                    div(class' = "mx-auto flex max-w-page items-center gap-3 px-4 py-6 text-label-md font-normal text-on-surface-variant md:px-8") {
+                        span(class' = "block h-5 w-5 opacity-80") { raw markSvg }
+                        p() { t.Footer }
+                    }
+                })
+                :> HtmlElement
         }
     }
 
 /// A page for anyone: the brand only, no operator navigation.
 let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
-    shell false ctx t titleText content
+    shell Plain [] ctx t titleText content
+
+/// The sign-in page of an app that has branding: its accent colour on the page,
+/// no Umbral header, and "Secured by Umbral" for a footer. Everything else about
+/// the page, including the Content-Security-Policy, is `page`'s.
+let signInPage (ctx: HttpContext) (t: Texts) (titleText: string) (branding: SignInBranding) (content: HtmlElement) =
+    let stylesheets =
+        match branding.Accent with
+        | Some accent -> [ $"/branding/accent/{Umbral.Domains.Branding.Accent.hex accent}.css" ]
+        | None -> []
+
+    shell (SignIn branding) stylesheets ctx t titleText content
 
 /// A page for a signed-in operator: the brand plus the operator navigation.
-/// Call it only from handlers behind `AdminAuth.requireOperator`.
-let operatorPage (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
-    shell true ctx t titleText content
+/// Call it only from handlers behind `AdminAuth.requireOperator`. `stylesheets`
+/// are extra same-origin sheets, which the Apps screen uses to preview each
+/// app's accent inside its card.
+let operatorPage (ctx: HttpContext) (t: Texts) (titleText: string) (stylesheets: string list) (content: HtmlElement) =
+    shell Operator stylesheets ctx t titleText content
 
 /// Where a message page sends the person reading it, which depends on who that is.
 ///

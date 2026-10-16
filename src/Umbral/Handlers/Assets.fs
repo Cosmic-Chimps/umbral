@@ -16,7 +16,8 @@ open Umbral.Views
 
 /// Whether `If-None-Match` names this ETag (or is `*`). The header may list
 /// several, and a weak validator (`W/"..."`, which a proxy may add) counts.
-let private matches (etag: string) (ctx: HttpContext) =
+/// Shared with Handlers/Branding.fs, which answers revalidations the same way.
+let matches (etag: string) (ctx: HttpContext) =
     ctx.Request.Headers.IfNoneMatch
     |> Seq.collect (fun header -> (string header).Split ',')
     |> Seq.map (fun candidate -> candidate.Trim())

@@ -58,6 +58,14 @@ let btn (kind: ButtonKind) =
 
 let btnSm kind = btn kind + " um-btn-sm"
 
+/// An app's logo at the size the sign-in page shows it: at most 96 px tall and
+/// at most the card's width, whichever is smaller, keeping its proportions. The
+/// Apps screen uses the same classes for its preview, so what the operator sees
+/// there is the size people will see. `w-auto` and `h-auto` let the `width` and
+/// `height` attributes (which reserve the space, so nothing shifts as it loads)
+/// give the proportions while the maximums decide the size.
+let signInLogoClass = "mx-auto block h-auto w-auto max-h-24 max-w-full"
+
 let card () = div(class' = "um-card")
 
 /// Page heading with an optional lead paragraph

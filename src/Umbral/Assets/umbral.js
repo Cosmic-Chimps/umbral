@@ -62,3 +62,59 @@ document.addEventListener('click', function (event) {
     event.stopPropagation();
   }
 }, true);
+
+// The accent colour form on an app's card (`[data-accent-form]`): a text field
+// for `#rrggbb` and a native colour picker beside it, kept in step both ways.
+//
+// The text field is the form; the picker is a convenience and has no `name`, so
+// it is never posted. That is why it exists only when this script runs: the
+// server renders it `hidden`, and it is shown here, because a picker that does
+// nothing without the script is worse than none, and because a colour input
+// cannot be empty, so it could never say "no colour". Not htmx: nothing is
+// requested, two inputs are only copied into each other.
+var ACCENT_HEX = /^#[0-9a-fA-F]{6}$/;
+
+function accentParts(form) {
+  return {
+    text: form.querySelector('input[name="accent"]'),
+    picker: form.querySelector('[data-accent-picker]')
+  };
+}
+
+// The picker follows the text field, but only for a value the server would
+// accept; a half-typed colour leaves the picker where it was.
+function pickerFollowsText(parts) {
+  if (parts.text && parts.picker && ACCENT_HEX.test(parts.text.value.trim())) {
+    parts.picker.value = parts.text.value.trim().toLowerCase();
+  }
+}
+
+function startAccentForms() {
+  document.querySelectorAll('[data-accent-form]').forEach(function (form) {
+    var parts = accentParts(form);
+    if (!parts.picker) return;
+    parts.picker.hidden = false;
+    pickerFollowsText(parts);
+  });
+}
+
+// This file loads from <head>, before the forms exist.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startAccentForms);
+} else {
+  startAccentForms();
+}
+
+document.addEventListener('input', function (event) {
+  if (!(event.target instanceof Element)) return;
+  var form = event.target.closest('[data-accent-form]');
+  if (!form) return;
+  var parts = accentParts(form);
+
+  if (event.target === parts.picker && parts.text) {
+    // A colour input's value is always lowercase `#rrggbb`.
+    parts.text.value = parts.picker.value.toLowerCase();
+  } else if (event.target === parts.text) {
+    pickerFollowsText(parts);
+  }
+});

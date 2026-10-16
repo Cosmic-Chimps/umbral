@@ -152,17 +152,17 @@ accent from the Apps screen (quickstart §4.3–4.6).
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Write the accent part of `tests/Umbral.Tests/BrandingEndpointTests.fs` per [contracts/public-endpoints.md](./contracts/public-endpoints.md):
+- [X] T011 [P] [US1] Write the accent part of `tests/Umbral.Tests/BrandingEndpointTests.fs` per [contracts/public-endpoints.md](./contracts/public-endpoints.md):
   - `GET /branding/accent/f26b1d.css` returns exactly `[data-accent="f26b1d"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0;--color-primary:rgb(242 107 29);--color-on-primary:rgb(0 0 0)}`
   - `0a0a10` gets on-accent `255 255 255`
   - the headers are `text/css; charset=utf-8`, `nosniff`, immutable, and ETag `"f26b1d-1"`; `If-None-Match` returns 304
   - `F26B1D`, `f26b1`, `f26b1dd` and `zzzzzz` return 404
-- [ ] T012 [P] [US1] Write the logo-serving part of `tests/Umbral.Tests/BrandingEndpointTests.fs`:
+- [X] T012 [P] [US1] Write the logo-serving part of `tests/Umbral.Tests/BrandingEndpointTests.fs`:
   - seed a `Logo` through `BrandingStore.setLogo`
   - `GET /branding/logo/{sha}.png` returns the bytes with every header in the contract (`image/png`, `nosniff`, `default-src 'none'; sandbox`, `same-origin` CORP, immutable, ETag `"{sha}"`)
   - 304 on `If-None-Match`
   - 404 for an unknown 64-hex hash, an uppercase hash and a 63-character value
-- [ ] T013 [P] [US1] Write `tests/Umbral.Tests/SignInBrandingTests.fs`. Use `Flows.registerApp` and `Flows.seedFakeConnector`, start each sign-in through the real `/connect/authorize` redirect to `/signin`, and seed branding through `BrandingStore`. Cases:
+- [X] T013 [P] [US1] Write `tests/Umbral.Tests/SignInBrandingTests.fs`. Use `Flows.registerApp` and `Flows.seedFakeConnector`, start each sign-in through the real `/connect/authorize` redirect to `/signin`, and seed branding through `BrandingStore`. Cases:
   - **(a) Unbranded app**:
     - no `data-accent`, `data-signin-logo` or `data-secured-by`
     - the `<header>` wordmark and `Texts.Footer` are present
@@ -183,7 +183,7 @@ accent from the Apps screen (quickstart §4.3–4.6).
   - **(h) Invariants on every page above**:
     - the `Content-Security-Policy` header equals `Layout.contentSecurityPolicy`
     - every `src` and `href` starts with `/` and not `//` (SC-005)
-- [ ] T014 [P] [US1] Write the accent part of `tests/Umbral.Tests/AppBrandingAdminTests.fs` per [contracts/admin-branding.md](./contracts/admin-branding.md):
+- [X] T014 [P] [US1] Write the accent part of `tests/Umbral.Tests/AppBrandingAdminTests.fs` per [contracts/admin-branding.md](./contracts/admin-branding.md):
   - **Access**: without an operator session, a redirect to sign-in; without an antiforgery token, 400
   - **Save**: `#F26B1D` gives `app-accent-saved`, the row holds `f26b1d`, and one `AppUpdated` event exists with `detail = 'branding_accent_set'` and the client id
   - **Low contrast**: `#0a0a10` is saved and gives `app-accent-low-contrast`
@@ -194,17 +194,17 @@ accent from the Apps screen (quickstart §4.3–4.6).
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Implement both GET endpoints in `src/Umbral/Handlers/Branding.fs` per the contract (research R4, R7). Reuse the `If-None-Match` matching of `Handlers/Assets.fs`: move `matches` to a shared place, or copy it with a comment pointing at the original. Notes:
+- [X] T015 [US1] Implement both GET endpoints in `src/Umbral/Handlers/Branding.fs` per the contract (research R4, R7). Reuse the `If-None-Match` matching of `Handlers/Assets.fs`: move `matches` to a shared place, or copy it with a comment pointing at the original. Notes:
   - the accent body comes from `Branding.Accent` (parse `#` + path value) and `onAccent`; there is no database read
   - the logo comes from `BrandingStore.logoBytes`
   - validate both path values with the anchored regexes before any lookup
 
   Add `Branding.endpoint` to `Program.endpoints` in `src/Umbral/Program.fs`.
-- [ ] T016 [US1] Add these texts to `src/Umbral/Views/Texts.fs` (record field and English value):
+- [X] T016 [US1] Add these texts to `src/Umbral/Views/Texts.fs` (record field and English value):
   - `SecuredByUmbral` ("Secured by Umbral")
   - `BrandingHeading`, `AccentLabel`, `AccentHint` ("# and six hexadecimal digits, for example #f26b1d. Leave empty to use Umbral's colour."), `AccentSave`, `BrandingSampleLabel`, `NoLogo`
   - notice texts for `app-accent-saved`, `app-accent-low-contrast` and `app-accent-invalid`, with the wording in the admin contract, added to `noticeEn` and `knownNotice`
-- [ ] T017 [US1] Change `src/Umbral/Views/Layout.fs`:
+- [X] T017 [US1] Change `src/Umbral/Views/Layout.fs`:
   - Add `signInPage ctx t title (branding: SignInBranding) content`, a variant of `shell` that:
     - sets the same CSP header
     - links `/branding/accent/{hex}.css` after `Assets.css` when there is an accent
@@ -213,13 +213,13 @@ accent from the Apps screen (quickstart §4.3–4.6).
     - renders a footer with the mark and `t.SecuredByUmbral`, marked `data-secured-by`
   - Keep `page` byte-for-byte as it is. Factor `shell` so the two share the `<head>` without changing `page`'s output.
   - Give `operatorPage` a `stylesheets: string list` parameter, linked after `umbral.css`, and pass `[]` at every existing caller.
-- [ ] T018 [US1] Change `src/Umbral/Handlers/Connect/Picker.fs`:
+- [X] T018 [US1] Change `src/Umbral/Handlers/Connect/Picker.fs`:
   - after the app is resolved, read `BrandingStore.forApp` (no query when there is no app)
   - no branding: render exactly as today through `Layout.page`
   - with branding: render through `Layout.signInPage`, with the logo `<img>` first in the card (`data-signin-logo`, `alt` = app name, `width`/`height`, classes for at most 96 px tall and at most full width)
   - connector buttons are `Components.Primary` when there is an accent and `Secondary` otherwise; `button` takes the kind as a parameter
   - add a comment that branding is resolved from the same `clientIdOf returnUrl` and from nothing else (FR-003)
-- [ ] T019 [US1] Implement `POST /admin/apps/{clientId}/branding/accent` in `src/Umbral/Handlers/Admin/AppBranding.fs` for setting a colour (clearing comes in US3):
+- [X] T019 [US1] Implement `POST /admin/apps/{clientId}/branding/accent` in `src/Umbral/Handlers/Admin/AppBranding.fs` for setting a colour (clearing comes in US3):
   - parse with `Accent.parse`
   - `BrandingStore.setAccent`
   - an `AppUpdated` event with `Detail = Some "branding_accent_set"`
@@ -228,7 +228,7 @@ accent from the Apps screen (quickstart §4.3–4.6).
   - an empty value redirects with `app-accent-invalid` until T037 handles clearing
 
   Add `AppBranding.endpoint` to `Program.endpoints`.
-- [ ] T020 [US1] Add the branding section to each app card in `src/Umbral/Handlers/Admin/Apps.fs`, with the markers in the admin contract:
+- [X] T020 [US1] Add the branding section to each app card in `src/Umbral/Handlers/Admin/Apps.fs`, with the markers in the admin contract:
   - give each card the `id="app-{clientId}"` anchor if it has none
   - `data-branding`
   - `data-branding-logo` showing `NoLogo` for now (US2 adds the image and the upload form)
@@ -236,14 +236,14 @@ accent from the Apps screen (quickstart §4.3–4.6).
   - `data-accent-form` with the `accent` text field (value `#hex` or empty), plus `<input type="color" data-accent-picker hidden>` with no `name`
 
   Load `BrandingStore.allForApps` once per page and pass the distinct accent stylesheet paths to `Layout.operatorPage`.
-- [ ] T021 [US1] In `src/Umbral/Assets/umbral.js`, add the accent picker sync. For each `[data-accent-form]`:
+- [X] T021 [US1] In `src/Umbral/Assets/umbral.js`, add the accent picker sync. For each `[data-accent-form]`:
   - remove `hidden` from the picker
   - set the picker from the text field when the text field is a valid `#rrggbb`
   - picker `input` writes the lowercase value into the text field
   - text `input` updates the picker when valid
 
   Plain JavaScript in the file's existing style, with a comment explaining why it is not htmx.
-- [ ] T022 [US1] Run `src/Umbral/Assets/build-css.sh` for the new classes in `Layout.fs`, `Picker.fs` and `Apps.fs`, and commit `umbral.css`. Run T011–T014 and the whole suite: green.
+- [X] T022 [US1] Run `src/Umbral/Assets/build-css.sh` for the new classes in `Layout.fs`, `Picker.fs` and `Apps.fs`, and commit `umbral.css`. Run T011–T014 and the whole suite: green.
 
 **Checkpoint**: a seeded or accent-only branded app gets its sign-in page. Unbranded pages, admin pages and the error page are unchanged. MVP for operators who only want a colour.
 

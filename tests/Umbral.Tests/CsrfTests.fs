@@ -165,7 +165,10 @@ let private bodyFor (setupToken: string) (credential: string) =
       "name", "Forged app"
       "redirectUri", "https://forged.example.com/callback"
       "postLogoutRedirectUri", ""
-      "appType", "web" ]
+      "appType", "web"
+      // The branding accent form (spec 006): a valid colour, so a handler that
+      // skipped its antiforgery check would save it.
+      "accent", "#f26b1d" ]
 
 let private send (browser: Browser) (method': string) (path: string) (fields: (string * string) list) =
     let message = new HttpRequestMessage(HttpMethod method', path)

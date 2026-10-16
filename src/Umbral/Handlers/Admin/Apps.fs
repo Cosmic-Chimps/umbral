@@ -16,6 +16,7 @@ open OpenIddict.Abstractions
 open type OpenIddict.Abstractions.OpenIddictConstants
 open Oxpecker
 open Oxpecker.ViewEngine
+open Umbral.Domains.Branding
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 open Umbral.Views
@@ -192,7 +193,8 @@ type private Row =
       ClientType: string
       RedirectUris: string list
       PostLogoutRedirectUris: string list
-      Choice: AppChoice }
+      Choice: AppChoice
+      Branding: AppBranding option }
 
 // ---------------------------------------------------------------------------
 // The connector choice (FR-005, FR-009)
@@ -286,6 +288,86 @@ let private connectorChoices
         p(id = $"{idPrefix}-hint", class' = "um-hint") { t.AppConnectorChoiceHint }
     }
 
+// ---------------------------------------------------------------------------
+// Branding (spec 006)
+// ---------------------------------------------------------------------------
+
+/// The accent as the form field holds it: `#hex`, or empty when there is none.
+let private accentText (branding: AppBranding option) =
+    match branding |> Option.bind (fun b -> b.Accent) with
+    | Some accent -> "#" + Accent.hex accent
+    | None -> ""
+
+/// The branding section of an app card: the logo, a preview of the sign-in
+/// button in the saved colour, and the accent form.
+///
+/// The preview sits inside `data-accent` when there is an accent, which is what
+/// lets the accent sheet (linked in the page's head, one per distinct colour)
+/// recolour it without touching the rest of the page (FR-005, FR-019). Without
+/// an accent it is Umbral's own colour, which is what that app's page uses.
+///
+/// `hidden` on the native colour picker is removed by the script when it runs:
+/// a picker that does nothing is worse than none. It has no `name`, because a
+/// colour input cannot be empty and so could never clear the field.
+let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
+    let fieldId = $"accent-{row.ClientId}"
+    let hintId = $"{fieldId}-hint"
+    let accent = row.Branding |> Option.bind (fun b -> b.Accent)
+
+    let sample =
+        button(type' = "button", class' = Components.btn Components.Primary)
+            .attr("disabled", "disabled")
+            .data("branding-sample", "") {
+            Components.icon Theme.Link
+            t.SignInWith t.BrandingSampleProvider
+        }
+
+    let picker =
+        input(type' = "color", class' = "h-11 w-11 cursor-pointer rounded border border-outline-variant bg-surface-container p-1")
+            .attr("hidden", "hidden")
+            .attr("aria-label", t.AccentLabel)
+            .data("accent-picker", "")
+
+    div(class' = "space-y-3 border-t border-outline-variant/40 pt-4").data("branding", row.ClientId) {
+        h3(class' = "um-label") { t.BrandingHeading }
+
+        div(class' = "flex flex-wrap items-center gap-4") {
+            div(class' = "flex min-h-11 items-center").data("branding-logo", "") {
+                p(class' = "text-body-sm text-on-surface-variant") { t.NoLogo }
+            }
+
+            div(class' = "space-y-1.5") {
+                p(class' = "um-hint mt-0") { t.BrandingSampleLabel }
+
+                match accent with
+                | Some accent -> (div().data("accent", Accent.hex accent) { sample }) :> HtmlElement
+                | None -> (div() { sample }) :> HtmlElement
+            }
+        }
+
+        form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/accent", class' = "space-y-2")
+            .data("accent-form", "") {
+            ctx.GetAntiforgeryInput()
+
+            div() {
+                label(for' = fieldId, class' = "um-label") { t.AccentLabel }
+
+                div(class' = "flex items-center gap-2") {
+                    input(type' = "text", id = fieldId, name = "accent", value = accentText row.Branding, class' = "um-input um-mono max-w-xs")
+                        .attr("aria-describedby", hintId)
+                        .attr("autocomplete", "off")
+                        .attr("spellcheck", "false")
+
+                    picker
+                }
+
+                p(id = hintId, class' = "um-hint") { t.AccentHint }
+            }
+
+            button(type' = "submit", class' = Components.btnSm Components.Secondary) { t.AccentSave }
+        }
+    }
+
 let private appRow
     (ctx: HttpContext)
     (t: Texts.Texts)
@@ -295,7 +377,9 @@ let private appRow
     =
     let isPublic = row.ClientType = ClientTypes.Public
 
-    article(class' = "um-card space-y-4")
+    // `id` is where a redirect from the branding forms lands, so the operator
+    // returns to the card they were on.
+    article(class' = "um-card space-y-4", id = $"app-{row.ClientId}")
         .data("app", row.ClientId)
         .data("app-choice", choiceValue row.Choice) {
         div(class' = "flex items-center justify-between gap-3") {
@@ -357,6 +441,8 @@ let private appRow
                 }
             }
         }
+
+        brandingSection ctx t row
 
         div(class' = "flex flex-wrap items-center gap-2") {
             if not isPublic then
@@ -492,6 +578,15 @@ let private view
     (notice: string option)
     (strand: StrandWarning option)
     =
+    // One sheet per distinct accent in use, however many apps share it: each
+    // card's preview sits under `data-accent` and takes its colour from these.
+    let accentSheets =
+        rows
+        |> List.choose (fun row -> row.Branding |> Option.bind (fun b -> b.Accent))
+        |> List.map Accent.hex
+        |> List.distinct
+        |> List.map (fun hex -> $"/branding/accent/{hex}.css")
+
     div(class' = "space-y-6").data("screen", "apps") {
         Components.pageHeading t.AppsTitle (Some t.AppsLead)
 
@@ -525,7 +620,7 @@ let private view
             for row in rows do
                 appRow ctx t origin connectors row
     }
-    |> Layout.operatorPage ctx t t.AppsTitle
+    |> Layout.operatorPage ctx t t.AppsTitle accentSheets
 
 /// F#'s `task { for x in ... }` binds `seq<'T>`, not `IAsyncEnumerable<'T>`, so
 /// OpenIddict's manager enumerables (backed by EF Core queries) are drained by
@@ -544,7 +639,12 @@ let private toListAsync (source: Collections.Generic.IAsyncEnumerable<'a>) =
         return List.ofSeq results
     }
 
-let private toRow (applications: IOpenIddictApplicationManager) (choices: Map<string, AppChoice>) (app: obj) =
+let private toRow
+    (applications: IOpenIddictApplicationManager)
+    (choices: Map<string, AppChoice>)
+    (branding: Map<string, AppBranding>)
+    (app: obj)
+    =
     task {
         let! clientId = applications.GetClientIdAsync app
         let! displayName = applications.GetDisplayNameAsync app
@@ -557,6 +657,7 @@ let private toRow (applications: IOpenIddictApplicationManager) (choices: Map<st
         return
             { ClientId = clientId
               Choice = choices |> Map.tryFind clientId |> Option.defaultValue AllShared
+              Branding = branding |> Map.tryFind clientId
               DisplayName = displayName |> Option.ofObj |> Option.defaultValue ""
               ClientType = clientType |> Option.ofObj |> Option.defaultValue ClientTypes.Confidential
               RedirectUris = redirectUris |> List.ofSeq
@@ -580,10 +681,12 @@ let page: EndpointHandler =
 
             let! apps = toListAsync (applications.ListAsync())
             let! choices = AppConnectors.allChoices config
+            // One read for every card, and never the logo bytes.
+            let! branding = BrandingStore.allForApps config
             let rows = ResizeArray()
 
             for app in apps do
-                let! row = toRow applications choices app
+                let! row = toRow applications choices branding app
                 rows.Add row
 
             let! connectors = ConnectorStore.listAll config

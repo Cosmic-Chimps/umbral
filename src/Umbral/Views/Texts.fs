@@ -53,6 +53,10 @@ type Texts =
       /// Used instead of `PickerNoConnectors` when an app is named and offers
       /// nothing: it says whose sign-in is affected and who can fix it.
       PickerNoConnectorsForApp: string -> string
+      /// The footer of a branded sign-in page (spec 006, FR-006). It replaces
+      /// `Footer` and the header wordmark there, and is the page's one
+      /// mention of Umbral, so it cannot be removed by branding.
+      SecuredByUmbral: string
 
       // Screen 1 — Apps
       AppsTitle: string
@@ -91,6 +95,18 @@ type Texts =
       AppConnectorsChosenSummary: string
       AppConnectorsChosenNone: string
       AppConnectorsSaveButton: string
+      // The branding section of an app card (spec 006)
+      BrandingHeading: string
+      AccentLabel: string
+      AccentHint: string
+      AccentSave: string
+      /// Names the preview button under the logo: it shows what the app's
+      /// sign-in button looks like in the saved colour.
+      BrandingSampleLabel: string
+      /// What the preview button names after "Sign in with": no real connector,
+      /// since the preview is of the colour and not of one provider.
+      BrandingSampleProvider: string
+      NoLogo: string
       /// Heading over the list of apps a change would leave with no way to
       /// sign in; each app follows with `data-stranded-app` (FR-010).
       StrandedAppsTitle: string
@@ -484,6 +500,11 @@ let private noticeEn (code: string) : string option =
     | "app-connector-unknown" ->
         Some "One of the ticked connectors no longer exists. Reload the page, tick from the list shown, and save again."
     | "app-connectors-saved" -> Some "Sign-in methods saved. The app's next sign-in page uses them."
+    | "app-accent-saved" -> Some "Accent colour saved. The app's sign-in page uses it from the next visit."
+    | "app-accent-low-contrast" ->
+        Some "Saved. This colour is hard to see on Umbral's dark background, so outlines and highlights in it will be faint. Buttons stay readable."
+    | "app-accent-invalid" ->
+        Some "Enter the colour as # followed by six hexadecimal digits, for example #f26b1d."
     | "connector-enabled" -> Some "Connector enabled."
     | "connector-disabled" -> Some "Connector disabled."
     | "connector-deleted" -> Some "Connector deleted."
@@ -561,6 +582,7 @@ let en: Texts =
       PickerTitle = "Sign in"
       PickerLead = "Choose how you'd like to sign in."
       SignInWith = fun provider -> $"Sign in with {provider}"
+      SecuredByUmbral = "Secured by Umbral"
       PickerNoConnectors = "No sign-in option is available right now. Contact the operator of this service."
       PickerTitleForApp = fun app -> $"Sign in to {app}"
       PickerNoConnectorsForApp = fun app -> $"{app} has no sign-in method available right now. Contact whoever runs {app}, who can fix this."
@@ -600,6 +622,13 @@ let en: Texts =
       AppConnectorsChosenSummary = "Chosen connectors"
       AppConnectorsChosenNone = "None chosen. This app offers no sign-in method until you choose one."
       AppConnectorsSaveButton = "Save sign-in methods"
+      BrandingHeading = "Sign-in page branding"
+      AccentLabel = "Accent colour"
+      AccentHint = "# and six hexadecimal digits, for example #f26b1d. Leave empty to use Umbral's colour."
+      AccentSave = "Save colour"
+      BrandingSampleLabel = "Preview of the sign-in button"
+      BrandingSampleProvider = "your provider"
+      NoLogo = "No logo"
       StrandedAppsTitle = "These apps would be left with no way to sign in:"
       ConnectorDisableStrandsConfirm = "Disable anyway"
       ConnectorNotSharedStrandsConfirm = "Stop sharing anyway"

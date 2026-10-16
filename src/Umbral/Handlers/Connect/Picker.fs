@@ -9,6 +9,7 @@ open System
 open OpenIddict.Abstractions
 open Oxpecker
 open Oxpecker.ViewEngine
+open Umbral.Domains.Branding
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 open Umbral.Views
@@ -65,11 +66,14 @@ let private clientIdOf (returnUrl: string) =
 /// A registered app: its client id and the name people know it by.
 type private NamedApp = { ClientId: string; Name: string }
 
-let private button (t: Texts.Texts) (returnUrl: string) (connector: Connector) =
+/// A connector's button. Primary when the app chose an accent colour, so the
+/// colour is what the person sees to press; secondary otherwise, as it always
+/// was (a logo alone does not recolour anything).
+let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: string) (connector: Connector) =
     let href =
         $"/connect/{Uri.EscapeDataString connector.Slug}/start?returnUrl={Uri.EscapeDataString returnUrl}"
 
-    a(href = href, class' = Components.btn Components.Secondary + " w-full justify-center")
+    a(href = href, class' = Components.btn kind + " w-full justify-center")
         .data("connector", connector.Slug) {
         Components.icon Theme.Link
         t.SignInWith connector.DisplayName
@@ -80,6 +84,7 @@ let private view
     (t: Texts.Texts)
     (returnUrl: string)
     (app: NamedApp option)
+    (branding: AppBranding option)
     (connectors: Connector list)
     (notice: string option)
     =
@@ -88,8 +93,36 @@ let private view
         | Some app -> t.PickerTitleForApp app.Name
         | None -> t.PickerTitle
 
+    let buttonKind =
+        match branding with
+        | Some { Accent = Some _ } -> Components.Primary
+        | _ -> Components.Secondary
+
+    // No branding: the page as it always was. Branding: the same card in the
+    // branded chrome (accent, no Umbral header, "Secured by Umbral").
+    let inLayout (card: HtmlElement) =
+        match branding with
+        | None -> card |> Layout.page ctx t title
+        | Some branding -> card |> Layout.signInPage ctx t title { Accent = branding.Accent }
+
     div(class' = "flex min-h-[60vh] items-center justify-center") {
         div(class' = "um-card w-full max-w-sm space-y-5").data("screen", "signin") {
+            // The logo is first in the card, above the heading. Alt text is the
+            // app's name, which the heading says too, so a screen reader hears
+            // the name once in each place it is shown.
+            match app, branding |> Option.bind (fun b -> b.Logo) with
+            | Some app, Some logo ->
+                (img(
+                    src = $"/branding/logo/{logo.Sha256}.png",
+                    alt = app.Name,
+                    width = logo.Width,
+                    height = logo.Height,
+                    class' = Components.signInLogoClass
+                )
+                    .data("signin-logo", app.ClientId))
+                :> HtmlElement
+            | _ -> Fragment() :> HtmlElement
+
             // The marker sits on the element that names the app, so a test reads
             // WHICH app the page serves without asserting on the wording.
             match app with
@@ -118,12 +151,12 @@ let private view
             | connectors ->
                 (div(class' = "flex flex-col gap-3") {
                     for connector in connectors do
-                        button t returnUrl connector
+                        button t buttonKind returnUrl connector
                 })
                 :> HtmlElement
         }
     }
-    |> Layout.page ctx t title
+    |> inLayout
 
 let handler: EndpointHandler =
     fun ctx ->
@@ -156,6 +189,18 @@ let handler: EndpointHandler =
                                       Name = (if String.IsNullOrEmpty name then clientId else string name) }
                 }
 
+            // The app's branding comes from the same `clientIdOf returnUrl` as
+            // its name and its connectors, and from nothing else (FR-003): a
+            // `client_id` on this page's own query never reaches it, so a
+            // crafted link cannot dress one app's sign-in as another's. No app,
+            // no read.
+            let! branding =
+                task {
+                    match app with
+                    | Some app -> return! BrandingStore.forApp config app.ClientId
+                    | None -> return None
+                }
+
             // `offeredTo` keeps enabled connectors only, so an option that
             // cannot work is not offered. No app means every shared one.
             let! all = ConnectorStore.listAll config
@@ -167,7 +212,7 @@ let handler: EndpointHandler =
                     | None -> return AllShared
                 }
 
-            return! ctx.WriteHtmlView(view ctx t returnUrl app (offeredTo choice all) notice)
+            return! ctx.WriteHtmlView(view ctx t returnUrl app branding (offeredTo choice all) notice)
         }
 
 let endpoint = GET [ route "/signin" handler ]
