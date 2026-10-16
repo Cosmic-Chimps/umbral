@@ -2,7 +2,7 @@
   "workflow": "speckit",
   "specName": "Per-App Sign-In Branding",
   "branch": "006-app-signin-branding",
-  "currentStep": "tasks",
+  "currentStep": "implement",
   "status": "ready-to-implement",
   "history": [
     {
@@ -25,6 +25,13 @@
       "kind": "start",
       "by": "extension",
       "at": "2026-10-16T01:21:37.065Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-16T04:30:18.002Z"
     }
   ]
 }
