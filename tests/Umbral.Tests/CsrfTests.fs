@@ -234,6 +234,28 @@ let private populated (app: Fixtures.TestApp) =
         let person = Browser(app.Client)
         let! _ = signInThroughFake person prepared.ClientId "openid email" "fake-user-1" "sam@example.com"
 
+        // The app has branding (spec 006), so that a branding route which let a
+        // forged request through would change a row and be seen to: removing a
+        // logo that is not there changes nothing, and would pass either way.
+        let logoBytes = [| 0x89uy; 0x50uy; 0x4Euy; 0x47uy; 1uy |]
+
+        do!
+            BrandingStore.setLogo
+                app.DbConfig
+                (app.Clock.GetUtcNow())
+                prepared.ClientId
+                { Png = logoBytes
+                  Sha256 = Convert.ToHexString(SHA256.HashData logoBytes).ToLowerInvariant()
+                  Width = 64
+                  Height = 64 }
+
+        do!
+            BrandingStore.setAccent
+                app.DbConfig
+                (app.Clock.GetUtcNow())
+                prepared.ClientId
+                (Umbral.Domains.Branding.Accent.parse "#1f6fa8" |> Result.toOption)
+
         use! connection = Database.openConnection app.DbConfig
         use command = connection.CreateCommand()
         command.CommandText <- "SELECT id FROM users LIMIT 1"

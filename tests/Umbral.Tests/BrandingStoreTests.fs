@@ -109,7 +109,8 @@ let ``the row lifecycle: accent, then logo, remove the logo, clear the accent`` 
             Assert.Equal(t1, n)
 
             // Removing the logo keeps the accent, and the row.
-            do! BrandingStore.removeLogo config t1 "grafana"
+            let! removed = BrandingStore.removeLogo config t1 "grafana"
+            Assert.True(removed, "there was a logo to remove")
             let! accentOnly = BrandingStore.forApp config "grafana"
             Assert.Equal(Some "f26b1d", hexOf accentOnly)
             Assert.True((logoOf accentOnly).IsNone)
@@ -143,7 +144,8 @@ let ``removing the last part by the other route also deletes the row`` () =
             let! n = rowCount config
             Assert.Equal(1, n)
 
-            do! BrandingStore.removeLogo config t0 "grafana"
+            let! removed = BrandingStore.removeLogo config t0 "grafana"
+            Assert.True(removed)
             let! n = rowCount config
             Assert.Equal(0, n)
         })
@@ -152,16 +154,49 @@ let ``removing the last part by the other route also deletes the row`` () =
 let ``removing or clearing what is not there changes nothing and creates no row`` () =
     withDb (fun config ->
         task {
-            do! BrandingStore.removeLogo config t0 "grafana"
-            do! BrandingStore.setAccent config t0 "grafana" None
+            // And each says there was nothing to do, so the handlers log no event.
+            let! removed = BrandingStore.removeLogo config t0 "grafana"
+            Assert.False(removed)
+            let! cleared = BrandingStore.clearAccent config t0 "grafana"
+            Assert.False(cleared)
             let! n = rowCount config
             Assert.Equal(0, n)
 
-            // Nor does it disturb another app's row.
+            // Nor does it disturb another app's row, nor change its updated_at.
             do! BrandingStore.setAccent config t0 "photos" (Some(accent "#5fb3e8"))
-            do! BrandingStore.removeLogo config t1 "photos"
+            let! removedFromPhotos = BrandingStore.removeLogo config t1 "photos"
+            Assert.False(removedFromPhotos)
             let! photos = BrandingStore.forApp config "photos"
             Assert.Equal(Some "5fb3e8", hexOf photos)
+            let! stamp = updatedAt config "photos"
+            Assert.Equal(t0, stamp)
+        })
+
+[<Fact>]
+let ``clearAccent says whether there was an accent, and keeps the logo`` () =
+    withDb (fun config ->
+        task {
+            let a = logo 1uy 64 64
+            do! BrandingStore.setAccent config t0 "grafana" (Some(accent "#f26b1d"))
+            do! BrandingStore.setLogo config t0 "grafana" a
+
+            let! first = BrandingStore.clearAccent config t1 "grafana"
+            Assert.True(first)
+            let! branding = BrandingStore.forApp config "grafana"
+            Assert.True((hexOf branding).IsNone)
+            Assert.Equal(Some a.Sha256, logoOf branding |> Option.map _.Sha256)
+
+            // A second clear finds nothing, and the logo is still there.
+            let! second = BrandingStore.clearAccent config t1 "grafana"
+            Assert.False(second)
+            let! n = rowCount config
+            Assert.Equal(1, n)
+
+            // Clearing the last part by this route deletes the row.
+            let! removed = BrandingStore.removeLogo config t1 "grafana"
+            Assert.True(removed)
+            let! none = rowCount config
+            Assert.Equal(0, none)
         })
 
 [<Fact>]

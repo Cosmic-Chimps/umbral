@@ -146,43 +146,69 @@ let setLogo (config: Database.DbConfig) (now: DateTimeOffset) (clientId: string)
         ()
     }
 
-/// Clear the app's logo. Keeps the row while an accent is set and deletes it
-/// otherwise. Removing a logo that is not there is not an error and writes
-/// nothing.
-let removeLogo (config: Database.DbConfig) (now: DateTimeOffset) (clientId: string) : Task<unit> =
+/// Clear one part of an app's branding, and drop the row if that was the last of
+/// it. Returns whether anything was cleared: the UPDATE's affected-row count,
+/// read in the same transaction as the delete, so the answer is about this call
+/// and not about a row another request changed a moment later. The handlers log
+/// a security event only when it is true.
+///
+/// `describe` sets the statement on the command, so each statement is a
+/// literal assigned to `CommandText` where it is written (MetaTests rule 3), not
+/// a value passed through.
+let private clearPart
+    (config: Database.DbConfig)
+    (now: DateTimeOffset)
+    (clientId: string)
+    (describe: SqliteCommand -> unit)
+    : Task<bool> =
     task {
         use! connection = Database.openConnection config
         use transaction = connection.BeginTransaction()
 
         use clear = connection.CreateCommand()
         clear.Transaction <- transaction
-
-        clear.CommandText <-
-            "UPDATE app_branding
-             SET logo_png = NULL, logo_sha256 = NULL, logo_width = NULL, logo_height = NULL, updated_at = @now
-             WHERE client_id = @clientId AND logo_png IS NOT NULL"
-
+        describe clear
         clear.Parameters.AddWithValue("@clientId", clientId) |> ignore
         clear.Parameters.AddWithValue("@now", now.ToUniversalTime().ToString "o") |> ignore
-        let! _ = clear.ExecuteNonQueryAsync()
+        let! changed = clear.ExecuteNonQueryAsync()
 
         do! deleteIfEmpty connection transaction clientId
         do! transaction.CommitAsync()
+        return changed > 0
     }
 
-/// Set the accent, or clear it with `None`. Setting keeps the app's logo;
-/// clearing deletes the row when no logo is left. Clearing an accent that is
-/// not there is not an error and writes nothing.
+/// Clear the app's logo. Keeps the row while an accent is set and deletes it
+/// otherwise. Removing a logo that is not there is not an error and writes
+/// nothing, and says so: the result is whether there was a logo to remove.
+let removeLogo (config: Database.DbConfig) (now: DateTimeOffset) (clientId: string) : Task<bool> =
+    clearPart config now clientId (fun command ->
+        command.CommandText <-
+            "UPDATE app_branding
+             SET logo_png = NULL, logo_sha256 = NULL, logo_width = NULL, logo_height = NULL, updated_at = @now
+             WHERE client_id = @clientId AND logo_png IS NOT NULL")
+
+/// Clear the app's accent. Deletes the row when no logo is left. Clearing an
+/// accent that is not there is not an error and writes nothing, and says so: the
+/// result is whether there was an accent to clear.
+let clearAccent (config: Database.DbConfig) (now: DateTimeOffset) (clientId: string) : Task<bool> =
+    clearPart config now clientId (fun command ->
+        command.CommandText <-
+            "UPDATE app_branding SET accent_color = NULL, updated_at = @now
+             WHERE client_id = @clientId AND accent_color IS NOT NULL")
+
+/// Set the accent. Keeps the app's logo. With `None` it clears, as `clearAccent`
+/// does, and drops the answer: a caller that must know whether an accent was
+/// there (to log it) calls `clearAccent`.
 let setAccent (config: Database.DbConfig) (now: DateTimeOffset) (clientId: string) (accent: Accent option) : Task<unit> =
     task {
-        use! connection = Database.openConnection config
-        use transaction = connection.BeginTransaction()
-
-        use write = connection.CreateCommand()
-        write.Transaction <- transaction
-
         match accent with
+        | None ->
+            let! _ = clearAccent config now clientId
+            ()
         | Some accent ->
+            use! connection = Database.openConnection config
+            use write = connection.CreateCommand()
+
             write.CommandText <-
                 "INSERT INTO app_branding (client_id, accent_color, updated_at) VALUES (@clientId, @accent, @now)
                  ON CONFLICT (client_id) DO UPDATE SET
@@ -190,19 +216,10 @@ let setAccent (config: Database.DbConfig) (now: DateTimeOffset) (clientId: strin
                      updated_at = excluded.updated_at"
 
             write.Parameters.AddWithValue("@accent", Accent.hex accent) |> ignore
-        | None ->
-            write.CommandText <-
-                "UPDATE app_branding SET accent_color = NULL, updated_at = @now
-                 WHERE client_id = @clientId AND accent_color IS NOT NULL"
-
-        write.Parameters.AddWithValue("@clientId", clientId) |> ignore
-        write.Parameters.AddWithValue("@now", now.ToUniversalTime().ToString "o") |> ignore
-        let! _ = write.ExecuteNonQueryAsync()
-
-        if accent.IsNone then
-            do! deleteIfEmpty connection transaction clientId
-
-        do! transaction.CommitAsync()
+            write.Parameters.AddWithValue("@clientId", clientId) |> ignore
+            write.Parameters.AddWithValue("@now", now.ToUniversalTime().ToString "o") |> ignore
+            let! _ = write.ExecuteNonQueryAsync()
+            ()
     }
 
 /// Remove an app's branding when the app is deleted. No foreign key points into

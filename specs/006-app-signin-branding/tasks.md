@@ -355,24 +355,24 @@ row and no orphaned bytes.
 
 ### Tests for User Story 3
 
-- [ ] T034 [P] [US3] Extend `tests/Umbral.Tests/AppBrandingAdminTests.fs`:
+- [X] T034 [P] [US3] Extend `tests/Umbral.Tests/AppBrandingAdminTests.fs`:
   - **Replace**: upload logo A, then a different logo B. B's address serves B, A's address returns 404, the picker's `img src` changed, and there are two `branding_logo_set` events.
   - **Remove logo**: `POST …/branding/logo/delete` gives `app-logo-removed`, one `branding_logo_removed` event, and the old address returns 404. The row survives when an accent is set and is deleted otherwise. A second remove gives `app-logo-removed` with no new event.
   - **Clear accent**: an empty accent gives `app-accent-cleared` and one `branding_accent_cleared` event; the row is deleted when there is no logo. Clearing when no accent is set gives no event.
   - **Access**: CSRF and operator checks on the delete route.
-- [ ] T035 [P] [US3] Extend `tests/Umbral.Tests/SignInBrandingTests.fs`:
+- [X] T035 [P] [US3] Extend `tests/Umbral.Tests/SignInBrandingTests.fs`:
   - after removing the logo and clearing the accent, the app's sign-in page meets case (a), unbranded
   - after removing only the logo, the accent still applies and `data-signin-logo` is gone
-- [ ] T036 [P] [US3] Extend the app-delete tests (the file that covers `AppDelete`, else `AppBrandingAdminTests.fs`): deleting a branded app removes its `app_branding` row, its logo address returns 404, and only the existing `AppDeleted` event is written.
+- [X] T036 [P] [US3] Extend the app-delete tests (the file that covers `AppDelete`, else `AppBrandingAdminTests.fs`): deleting a branded app removes its `app_branding` row, its logo address returns 404, and only the existing `AppDeleted` event is written.
 
 ### Implementation for User Story 3
 
-- [ ] T037 [US3] In `src/Umbral/Handlers/Admin/AppBranding.fs`:
+- [X] T037 [US3] In `src/Umbral/Handlers/Admin/AppBranding.fs`:
   - add `POST /admin/apps/{clientId}/branding/logo/delete`: `BrandingStore.removeLogo`, an event only if a logo existed, then `app-logo-removed`
   - make the accent handler treat an empty value as clear: `setAccent None`, an event only if one was set, then `app-accent-cleared`
   - add the notices `app-logo-removed` and `app-accent-cleared` and `AppLogoRemoveConfirm name` to `src/Umbral/Views/Texts.fs`
-- [ ] T038 [US3] In `src/Umbral/Handlers/Admin/Apps.fs`, render the remove-logo form, with `Components.confirmSubmit (t.AppLogoRemoveConfirm name)`, only when the app has a logo.
-- [ ] T039 [US3] In `src/Umbral/Handlers/Admin/AppDelete.fs`, call `BrandingStore.deleteFor config clientId` next to `AppConnectors.deleteFor`, with a comment on the same reasoning (no foreign key into OpenIddict's tables).
+- [X] T038 [US3] In `src/Umbral/Handlers/Admin/Apps.fs`, render the remove-logo form, with `Components.confirmSubmit (t.AppLogoRemoveConfirm name)`, only when the app has a logo.
+- [X] T039 [US3] In `src/Umbral/Handlers/Admin/AppDelete.fs`, call `BrandingStore.deleteFor config clientId` next to `AppConnectors.deleteFor`, with a comment on the same reasoning (no foreign key into OpenIddict's tables).
 - [ ] T040 [US3] Manual: run [quickstart.md](./quickstart.md) §6 and record the result in Notes.
 
 **Checkpoint**: all three stories work and are tested.

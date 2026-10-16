@@ -397,3 +397,70 @@ let ``the operator's pages carry no accent on their body, however many apps are 
             Assert.DoesNotContain("data-accent", bodyTag html)
             Assert.Contains("<header", html)
     }
+
+// ---------------------------------------------------------------------------
+// Change or remove (User Story 3)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``after the logo is removed and the accent cleared the app's page is unbranded again`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! idA, _ = twoApps app
+        do! setAccent app idA "#f26b1d"
+        do! setLogo app idA (logoOf 6uy)
+
+        let visitor = Browser app.Client
+        let! branded = get visitor (pickerFor idA)
+        Assert.Contains("data-signin-logo", branded)
+
+        let now = app.Clock.GetUtcNow()
+        let! _ = BrandingStore.removeLogo app.DbConfig now idA
+        let! _ = BrandingStore.clearAccent app.DbConfig now idA
+
+        // Case (a) again, in full: Umbral's header and footer, secondary buttons, no markers.
+        let! html = get visitor (pickerFor idA)
+        assertUnbranded html
+        Assert.Contains($"data-signin-app=\"{idA}\"", html)
+    }
+
+[<Fact>]
+let ``after only the logo is removed the accent still applies and the logo is gone`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! idA, _ = twoApps app
+        do! setAccent app idA "#f26b1d"
+        do! setLogo app idA (logoOf 7uy)
+
+        let! removed = BrandingStore.removeLogo app.DbConfig (app.Clock.GetUtcNow()) idA
+        Assert.True(removed)
+
+        let! html = get (Browser app.Client) (pickerFor idA)
+        Assert.DoesNotContain("data-signin-logo", html)
+        Assert.DoesNotContain("/branding/logo/", html)
+        Assert.Contains("data-accent=\"f26b1d\"", bodyTag html)
+
+        for button in connectorButtons html do
+            Assert.Contains("um-btn-primary", button)
+    }
+
+[<Fact>]
+let ``after only the accent is cleared the logo still shows and the buttons go back to secondary`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! idA, _ = twoApps app
+        let logo = logoOf 8uy
+        do! setAccent app idA "#f26b1d"
+        do! setLogo app idA logo
+
+        let! cleared = BrandingStore.clearAccent app.DbConfig (app.Clock.GetUtcNow()) idA
+        Assert.True(cleared)
+
+        let! html = get (Browser app.Client) (pickerFor idA)
+        Assert.Contains($"/branding/logo/{logo.Sha256}.png", html)
+        Assert.DoesNotContain("data-accent", html)
+        Assert.DoesNotContain("/branding/accent/", html)
+
+        for button in connectorButtons html do
+            Assert.Contains("um-btn-secondary", button)
+    }

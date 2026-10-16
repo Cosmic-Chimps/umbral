@@ -127,6 +127,10 @@ type Texts =
       AppLogoTooSmall: int -> int -> string
       AppLogoTooBig: int -> int -> string
       AppLogoTooLarge: int64 -> string
+      /// The confirmation before a logo is removed; the argument is the app's name.
+      AppLogoRemoveConfirm: string -> string
+      /// The button that removes the logo.
+      AppLogoRemoveButton: string
       /// Heading over the list of apps a change would leave with no way to
       /// sign in; each app follows with `data-stranded-app` (FR-010).
       StrandedAppsTitle: string
@@ -543,6 +547,8 @@ let private noticeEn (code: string) : string option =
         Some $"The image is too big. Turn on JavaScript to scale it down, or export it at {PngLogo.maxSide} pixels or less on each side."
     | "app-logo-too-large" ->
         Some $"The file is too large. A logo is stored at {logoLimitMegabytes} MB or less. Turn on JavaScript to shrink it, or export a smaller PNG."
+    | "app-logo-removed" -> Some "Logo removed. The app's sign-in page shows no logo from the next visit."
+    | "app-accent-cleared" -> Some "Accent colour cleared. The app's sign-in page uses Umbral's colour from the next visit."
     | "connector-enabled" -> Some "Connector enabled."
     | "connector-disabled" -> Some "Connector disabled."
     | "connector-deleted" -> Some "Connector deleted."
@@ -685,6 +691,9 @@ let en: Texts =
       AppLogoTooBig =
         fun width height ->
             $"The image is {width} × {height} pixels, over the {PngLogo.maxSide} × {PngLogo.maxSide} limit. Turn on JavaScript to scale it down, or export it at {PngLogo.maxSide} pixels or less on each side."
+      AppLogoRemoveConfirm =
+        fun name -> $"Remove the logo of {name}? Its sign-in page shows no logo from the next visit. You can upload one again at any time."
+      AppLogoRemoveButton = "Remove logo"
       AppLogoTooLarge =
         fun bytes ->
             $"The file is {megabytes bytes} MB. A logo is stored at {logoLimitMegabytes} MB or less. Turn on JavaScript to shrink it, or export a smaller PNG."

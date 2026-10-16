@@ -174,8 +174,6 @@ let ``a colour that is hard to see on the card is saved and the notice says so``
 [<InlineData("orange")>]
 [<InlineData("rgb(1,2,3)")>]
 [<InlineData("#f26b1dff")>]
-// Empty is "clear" in a later story; until then it is refused.
-[<InlineData("")>]
 let ``a value that is not #rrggbb is refused, changing nothing and logging nothing`` (value: string) =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
@@ -788,4 +786,291 @@ let ``without an antiforgery token the logo route is a 400 and stores nothing`` 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
         let! rows = scalar app "SELECT count(*) FROM app_branding" []
         Assert.Equal("0", rows)
+    }
+
+// ===========================================================================
+// Replace, remove and clear (User Story 3)
+// ===========================================================================
+
+let private postRemoveLogo (operator: Browser) (clientId: string) =
+    operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/branding/logo/delete", [])
+
+let private rowCount (app: Fixtures.TestApp) =
+    task {
+        let! n = scalar app "SELECT count(*) FROM app_branding" []
+        return int n
+    }
+
+let private getStatus (app: Fixtures.TestApp) (url: string) =
+    task {
+        let! response = app.Client.GetAsync url
+        return response.StatusCode
+    }
+
+let private pickerOf (app: Fixtures.TestApp) (clientId: string) =
+    (Browser app.Client).GetHtml("/signin?returnUrl=" + Uri.EscapeDataString(Journeys.authorizeUrl clientId "openid"))
+
+[<Fact>]
+let ``replacing a logo serves the new one, retires the old address, and changes the sign-in image`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let first = pngOf 100 100
+        let second = pngOf 120 90
+
+        let! _ = postLogo operator idA (Some("logo.png", first))
+        let! pickerBefore = pickerOf app idA
+        Assert.Contains(logoAddress first, pickerBefore)
+
+        let! replaced = postLogo operator idA (Some("logo.png", second))
+        Assert.Equal(cardRedirect "app-logo-saved" idA, location replaced)
+
+        // The new address serves the new logo.
+        let expected = (match PngLogo.validate second with Ok l -> l | Error e -> failwith $"{e}")
+        let! served = app.Client.GetAsync(logoAddress second)
+        let! servedBytes = served.Content.ReadAsByteArrayAsync()
+        Assert.Equal(HttpStatusCode.OK, served.StatusCode)
+        Assert.Equal<byte array>(expected.Png, servedBytes)
+
+        // The old one is gone, and nothing keeps its bytes: one row, one logo.
+        let! oldStatus = getStatus app (logoAddress first)
+        Assert.Equal(HttpStatusCode.NotFound, oldStatus)
+        let! rows = rowCount app
+        Assert.Equal(1, rows)
+
+        // The sign-in page and the card point at the new one.
+        let! pickerAfter = pickerOf app idA
+        Assert.Contains(logoAddress second, pickerAfter)
+        Assert.DoesNotContain(logoAddress first, pickerAfter)
+        let! card = operator.GetHtml "/admin/apps"
+        Assert.Contains(logoAddress second, card)
+        Assert.DoesNotContain(logoAddress first, card)
+
+        // Each save is a change, so each is logged.
+        let! events = eventCount app idA "branding_logo_set"
+        Assert.Equal(2, events)
+    }
+
+[<Fact>]
+let ``removing a logo retires its address and keeps the accent and the row`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let upload = pngOf 100 100
+        let! _ = postAccent operator idA "#f26b1d"
+        let! _ = postLogo operator idA (Some("logo.png", upload))
+
+        let! response = postRemoveLogo operator idA
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.Equal(cardRedirect "app-logo-removed" idA, location response)
+
+        let! events = eventCount app idA "branding_logo_removed"
+        Assert.Equal(1, events)
+        let! status = getStatus app (logoAddress upload)
+        Assert.Equal(HttpStatusCode.NotFound, status)
+
+        // The accent is still there, so the row is.
+        let! accent = storedAccent app idA
+        Assert.Equal("f26b1d", accent)
+        let! stored = storedLogo app idA
+        Assert.True(stored.IsNone)
+        let! rows = rowCount app
+        Assert.Equal(1, rows)
+
+        // And the card says what happened.
+        let! card = operator.GetHtml(location response)
+        Assert.Contains("data-notice=\"app-logo-removed\"", card)
+    }
+
+[<Fact>]
+let ``removing the only thing an app has deletes its row`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let! _ = postLogo operator idA (Some("logo.png", pngOf 100 100))
+
+        let! response = postRemoveLogo operator idA
+
+        Assert.Equal(cardRedirect "app-logo-removed" idA, location response)
+        let! rows = rowCount app
+        Assert.Equal(0, rows)
+    }
+
+[<Fact>]
+let ``removing a logo that is not there gives the notice and no event`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let! _ = postLogo operator idA (Some("logo.png", pngOf 100 100))
+        let! _ = postRemoveLogo operator idA
+        let! before = allEvents app
+
+        // The second remove: nothing to remove, the same notice, no new event.
+        let! second = postRemoveLogo operator idA
+        Assert.Equal(cardRedirect "app-logo-removed" idA, location second)
+        let! after = allEvents app
+        Assert.Equal(before, after)
+
+        // An app that never had branding.
+        let! third = postRemoveLogo operator idA
+        Assert.Equal(cardRedirect "app-logo-removed" idA, location third)
+        let! events = eventCount app idA "branding_logo_removed"
+        Assert.Equal(1, events)
+    }
+
+[<Fact>]
+let ``an unknown client is app-not-found for a removal`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! response = postRemoveLogo operator "no-such-app"
+        Assert.Equal("/admin/apps?msg=app-not-found", location response)
+    }
+
+[<Fact>]
+let ``the remove form is on the card only when the app has a logo, and asks first`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, idB = prepare app
+        let! _ = postLogo operator idA (Some("logo.png", pngOf 100 100))
+
+        let! html = operator.GetHtml "/admin/apps"
+
+        Assert.Contains($"action=\"/admin/apps/{idA}/branding/logo/delete\"", html)
+        Assert.DoesNotContain($"/admin/apps/{idB}/branding/logo/delete", html)
+        // The confirmation travels as data-confirm, like every destructive form here.
+        let form = Regex.Match(html, "<form[^>]*logo/delete[^>]*>").Value
+        Assert.Contains("data-confirm=", form)
+        Assert.Contains(Texts.en.AppLogoRemoveConfirm "App A", decode form)
+    }
+
+[<Fact>]
+let ``without an operator session the remove route redirects to sign-in and keeps the logo`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let! _ = postLogo operator idA (Some("logo.png", pngOf 100 100))
+        let visitor = Browser app.Client
+
+        let! response = visitor.PostWithoutToken($"/admin/apps/{idA}/branding/logo/delete", [])
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.StartsWith("/admin/signin", location response)
+        let! stored = storedLogo app idA
+        Assert.True(stored.IsSome)
+    }
+
+[<Fact>]
+let ``without an antiforgery token the remove route is a 400 and keeps the logo`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let! _ = postLogo operator idA (Some("logo.png", pngOf 100 100))
+        let! before = allEvents app
+
+        let! response = operator.PostWithoutToken($"/admin/apps/{idA}/branding/logo/delete", [])
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        let! stored = storedLogo app idA
+        Assert.True(stored.IsSome)
+        let! after = allEvents app
+        Assert.Equal(before, after)
+    }
+
+[<Fact>]
+let ``an empty accent clears it, logs once, and deletes the row when no logo is left`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let! _ = postAccent operator idA "#f26b1d"
+
+        let! response = postAccent operator idA ""
+
+        Assert.Equal(cardRedirect "app-accent-cleared" idA, location response)
+        let! accent = storedAccent app idA
+        Assert.Equal("", accent)
+        let! rows = rowCount app
+        Assert.Equal(0, rows)
+        let! events = eventCount app idA "branding_accent_cleared"
+        Assert.Equal(1, events)
+
+        // The card shows no colour, and the notice.
+        let! card = operator.GetHtml(location response)
+        Assert.Contains("data-notice=\"app-accent-cleared\"", card)
+        Assert.DoesNotContain("/branding/accent/", card)
+        Assert.DoesNotContain("value=\"#f26b1d\"", card)
+    }
+
+[<Fact>]
+let ``clearing the accent keeps the logo and its row`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let upload = pngOf 100 100
+        let! _ = postAccent operator idA "#f26b1d"
+        let! _ = postLogo operator idA (Some("logo.png", upload))
+
+        // Whitespace is empty too: the field is trimmed.
+        let! response = postAccent operator idA "   "
+
+        Assert.Equal(cardRedirect "app-accent-cleared" idA, location response)
+        let! rows = rowCount app
+        Assert.Equal(1, rows)
+        let! stored = storedLogo app idA
+        Assert.True(stored.IsSome)
+        let! status = getStatus app (logoAddress upload)
+        Assert.Equal(HttpStatusCode.OK, status)
+    }
+
+[<Fact>]
+let ``clearing an accent that is not set gives the notice and no event`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let! before = allEvents app
+
+        let! response = postAccent operator idA ""
+
+        Assert.Equal(cardRedirect "app-accent-cleared" idA, location response)
+        let! after = allEvents app
+        Assert.Equal(before, after)
+        let! rows = rowCount app
+        Assert.Equal(0, rows)
+
+        // Nor a second clear after one that did something.
+        let! _ = postAccent operator idA "#1f6fa8"
+        let! _ = postAccent operator idA ""
+        let! _ = postAccent operator idA ""
+        let! events = eventCount app idA "branding_accent_cleared"
+        Assert.Equal(1, events)
+    }
+
+[<Fact>]
+let ``deleting an app removes its branding and its logo address, and logs only the deletion`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, idB = prepare app
+        let upload = pngOf 100 100
+        let! _ = postAccent operator idA "#f26b1d"
+        let! _ = postLogo operator idA (Some("logo.png", upload))
+        let! _ = postAccent operator idB "#1f6fa8"
+        let! before = allEvents app
+
+        let! response = operator.PostForm("/admin/apps", $"/admin/apps/{idA}/delete", [])
+        Assert.Equal("/admin/apps?msg=app-deleted", location response)
+
+        // Its row and its logo's address are gone; the other app's is not.
+        let! stored = scalar app "SELECT count(*) FROM app_branding WHERE client_id = @c" [ "@c", idA ]
+        Assert.Equal("0", stored)
+        let! status = getStatus app (logoAddress upload)
+        Assert.Equal(HttpStatusCode.NotFound, status)
+        let! other = storedAccent app idB
+        Assert.Equal("1f6fa8", other)
+
+        // One event, the existing one: the branding is not logged separately.
+        let! after = allEvents app
+        Assert.Equal(before + 1, after)
+        let! deleted = scalar app "SELECT count(*) FROM security_events WHERE event_type = 'app_deleted' AND client_id = @c" [ "@c", idA ]
+        Assert.Equal("1", deleted)
     }

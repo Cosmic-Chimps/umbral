@@ -41,12 +41,15 @@ let private recordChange (ctx: HttpContext) (clientId: string) (detail: string) 
             RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
             Detail = Some detail }
 
-/// Set an app's accent colour. The form field is `#rrggbb`, either case; it is
-/// stored lowercase without the `#`. A colour that is hard to see on the card is
-/// saved all the same and the notice says so (FR-017): it is the operator's
-/// choice, and Umbral keeps the button text readable whatever they pick.
+/// Set or clear an app's accent colour. The form field is `#rrggbb`, either
+/// case; it is stored lowercase without the `#`. A colour that is hard to see on
+/// the card is saved all the same and the notice says so (FR-017): it is the
+/// operator's choice, and Umbral keeps the button text readable whatever they
+/// pick.
 ///
-/// An empty field is refused for now. Clearing the colour is a later story.
+/// An empty field clears the colour, which puts the app back on Umbral's own. The
+/// event is logged only if there was a colour to clear: clearing nothing is not
+/// a change, though the notice is the same.
 let setAccent (clientId: string) : EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
         task {
@@ -61,7 +64,18 @@ let setAccent (clientId: string) : EndpointHandler =
             | null -> return! WebForms.redirectWithNotice ctx "/admin/apps" "app-not-found"
             | _ ->
 
-            match Accent.parse (WebForms.value form "accent") with
+            // `value` trims, so a field of spaces is empty too.
+            match WebForms.value form "accent" with
+            | "" ->
+                let! cleared = BrandingStore.clearAccent config (clock.GetUtcNow()) clientId
+
+                if cleared then
+                    do! recordChange ctx clientId "branding_accent_cleared"
+
+                return! redirectToCard ctx "app-accent-cleared" clientId
+            | text ->
+
+            match Accent.parse text with
             | Error NotHexColour -> return! redirectToCard ctx "app-accent-invalid" clientId
             | Ok accent ->
 
@@ -192,8 +206,39 @@ let setLogo (clientId: string) : EndpointHandler =
             return! redirectToCard ctx "app-logo-saved" clientId
         })
 
+/// Remove an app's logo. The row stays while an accent is set and goes
+/// otherwise; the logo's address stops resolving at once, because the bytes are
+/// in the row. The event is logged only if there was a logo to remove, and the
+/// notice is the same either way, so pressing the button twice, or from a stale
+/// page, ends in the state the operator asked for and not in an error.
+///
+/// No upload here, so the antiforgery middleware validates as it does for every
+/// other form, and the handler's `readValidated` is the second look.
+let removeLogo (clientId: string) : EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let! _ = WebForms.readValidated ctx
+
+            let applications = ctx.GetService<IOpenIddictApplicationManager>()
+            let! application = applications.FindByClientIdAsync clientId
+
+            match application with
+            | null -> return! WebForms.redirectWithNotice ctx "/admin/apps" "app-not-found"
+            | _ ->
+
+            let! removed = BrandingStore.removeLogo config (clock.GetUtcNow()) clientId
+
+            if removed then
+                do! recordChange ctx clientId "branding_logo_removed"
+
+            return! redirectToCard ctx "app-logo-removed" clientId
+        })
+
 let endpoint =
     [ POST [ routef "/admin/apps/{%s}/branding/accent" setAccent ]
+      POST [ routef "/admin/apps/{%s}/branding/logo/delete" removeLogo ]
       POST [
           routef "/admin/apps/{%s}/branding/logo" setLogo
           |> configureEndpoint (fun builder ->

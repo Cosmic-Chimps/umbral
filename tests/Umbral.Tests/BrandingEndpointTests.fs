@@ -239,7 +239,8 @@ let ``a revalidation does not turn a logo that is gone into a 304`` () =
     task {
         use! app = Fixtures.createApp ()
         let! sha = seedLogo app "grafana" pngLike
-        do! BrandingStore.removeLogo app.DbConfig (app.Clock.GetUtcNow()) "grafana"
+        let! _ = BrandingStore.removeLogo app.DbConfig (app.Clock.GetUtcNow()) "grafana"
+        ()
 
         // A browser that cached the logo asks again with its ETag. The answer
         // is that it no longer exists, not "unchanged" (FR-020).

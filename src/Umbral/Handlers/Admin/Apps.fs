@@ -312,7 +312,9 @@ let private brandingAlertKind (code: string) =
     match code with
     | "app-accent-low-contrast" -> Components.Warning
     | "app-logo-saved"
-    | "app-accent-saved" -> Components.Success
+    | "app-logo-removed"
+    | "app-accent-saved"
+    | "app-accent-cleared" -> Components.Success
     | _ -> Components.Failure
 
 /// What a branding notice says. A refusal that measured something says it, from
@@ -461,6 +463,23 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string
         }
 
         logoForm ctx t row
+
+        // Only an app with a logo has one to remove. It is a form of its own
+        // (a form cannot sit inside the upload form), and asks first like
+        // every destructive form on this screen.
+        match logo with
+        | Some _ ->
+            (form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/logo/delete", class' = "inline") {
+                ctx.GetAntiforgeryInput()
+
+                button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                    Components.icon Theme.DeleteForever
+                    t.AppLogoRemoveButton
+                }
+            })
+            |> Components.confirmSubmit (t.AppLogoRemoveConfirm row.DisplayName)
+            :> HtmlElement
+        | None -> Fragment() :> HtmlElement
 
         form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/accent", class' = "space-y-2")
             .data("accent-form", "") {

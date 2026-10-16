@@ -31,6 +31,11 @@ let handler (clientId: string) : EndpointHandler =
             // inherits it: client ids are generated and never reused.
             do! AppConnectors.deleteFor config clientId
 
+            // The same for its branding: the row, and the logo bytes in it, go
+            // with the app, so the logo's address returns 404 from this moment.
+            // Not logged apart from the deletion itself.
+            do! BrandingStore.deleteFor config clientId
+
             let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
 
             do!
