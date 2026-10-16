@@ -141,6 +141,7 @@ let handler (slug: string) : EndpointHandler =
                         ctx
                         "/admin/connectors"
                         "connector-secret-left-behind"
+                        "slug"
                         slug
                         $"{store}|{name}"
         })

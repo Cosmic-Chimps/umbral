@@ -667,7 +667,7 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                     let said =
                         match stored with
                         | Some { Slug = slug; IssuerUrl = Some issuer } ->
-                            WebForms.NoticeReason.consume ctx code slug
+                            WebForms.NoticeReason.consume ctx code "slug" slug
                             |> Option.map (fun reason ->
                                 match code with
                                 | "connector-added-oidc-unreachable" -> t.ConnectorAddOidcUnreachable issuer reason
@@ -681,7 +681,7 @@ let private render (ctx: HttpContext) (add: AddFormState) : System.Threading.Tas
                 | Some("connector-secret-store-failed" | "connector-secret-left-behind" | "connector-secret-replaced-left-behind" as code) ->
                     let said =
                         ctx.TryGetQueryValue "slug"
-                        |> Option.bind (fun slug -> WebForms.NoticeReason.consume ctx code slug)
+                        |> Option.bind (fun slug -> WebForms.NoticeReason.consume ctx code "slug" slug)
                         |> Option.bind (fun reason ->
                             match reason.Split '|' with
                             // The detail is a failure code, read back through
@@ -791,6 +791,7 @@ let private refuseStoreFailed (ctx: HttpContext) (slug: string) (failure: Secret
         ctx
         "/admin/connectors"
         "connector-secret-store-failed"
+        "slug"
         slug
         $"{(ctx.GetService<SecretStores>()).Active.Id}|{failure.Code}"
 
@@ -958,6 +959,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                         ctx
                         "/admin/connectors"
                         "connector-added-oidc-unreachable"
+                        "slug"
                         state.Slug
                         reason
         // Lost a race between the checks above and the insert: nothing refers
@@ -1259,6 +1261,7 @@ let save (slug: string) : EndpointHandler =
                                         ctx
                                         "/admin/connectors"
                                         "connector-secret-replaced-left-behind"
+                                        "slug"
                                         slug
                                         $"{store}|{name}"
                     }

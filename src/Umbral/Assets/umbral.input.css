@@ -65,3 +65,19 @@
 .um-btn-secondary:hover { @apply bg-surface-container-highest; }
 .um-btn-ghost:hover { @apply text-on-surface bg-surface-container; }
 .um-btn-danger:hover { @apply brightness-110; }
+
+/*
+ * The logo crop panel. Plain rules, outside any @layer, because the elements are
+ * made by umbral.js and no view names these classes: Tailwind keeps a component
+ * class only when it finds it in Views/ or Handlers/. Positions and sizes are
+ * set from the script (inline style written by script is allowed under the
+ * Content-Security-Policy; a style="" in markup is not).
+ */
+.um-crop-stage { position: relative; display: block; max-width: 100%; overflow: hidden; line-height: 0; touch-action: none; user-select: none; -webkit-user-select: none; border: var(--border-ghost); border-radius: var(--radius-sm); background: var(--color-surface-container-lowest); }
+.um-crop-image { display: block; max-width: none; pointer-events: none; }
+.um-crop-box { position: absolute; box-sizing: border-box; border: 2px solid var(--color-primary); box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.6); cursor: move; }
+.um-crop-handle { position: absolute; box-sizing: border-box; width: 16px; height: 16px; border: 2px solid var(--color-surface); border-radius: 9999px; background: var(--color-primary); }
+.um-crop-handle-nw { top: -9px; left: -9px; cursor: nwse-resize; }
+.um-crop-handle-ne { top: -9px; right: -9px; cursor: nesw-resize; }
+.um-crop-handle-sw { bottom: -9px; left: -9px; cursor: nesw-resize; }
+.um-crop-handle-se { bottom: -9px; right: -9px; cursor: nwse-resize; }

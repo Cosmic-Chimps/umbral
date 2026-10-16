@@ -260,11 +260,11 @@ logo part of `*Branding*`) and §4.1–4.2 and §5 in a browser.
 
 ### Tests for User Story 2
 
-- [ ] T023 [P] [US2] Write `tests/Umbral.Tests/Infrastructure/PngBuilder.fs`, a test-only PNG encoder:
+- [X] T023 [P] [US2] Write `tests/Umbral.Tests/Infrastructure/PngBuilder.fs`, a test-only PNG encoder:
   - parameters: width, height, colour type (0, 2, 3, 4, 6), bit depth, interlace flag, extra chunks (name and bytes, inserted before or after `IDAT`), split `IDAT` into N chunks, corrupt the CRC of the named chunk, replace the inflated payload (for bombs and short data)
   - image rows with filter byte 0, compressed with `ZLibStream`
   - its own CRC-32, written separately from the product's, so a shared bug cannot hide
-- [ ] T024 [P] [US2] Write `tests/Umbral.Tests/PngLogoTests.fs` per research R2.
+- [X] T024 [P] [US2] Write `tests/Umbral.Tests/PngLogoTests.fs` per research R2.
   - **Accepted**:
     - each colour type at 32×32 and 512×512, plus 512×32 and 32×512
     - type 3 with `PLTE` and `tRNS`
@@ -293,7 +293,7 @@ logo part of `*Branding*`) and §4.1–4.2 and §5 in a browser.
     - `TooSmall` at 31 px on either side
     - `TooBig` at 513 px on either side
     - `TooLarge` above `maxBytes`
-- [ ] T025 [P] [US2] Write the logo part of `tests/Umbral.Tests/AppBrandingAdminTests.fs` (`multipart/form-data` with the antiforgery token):
+- [X] T025 [P] [US2] Write the logo part of `tests/Umbral.Tests/AppBrandingAdminTests.fs` (`multipart/form-data` with the antiforgery token):
   - **Valid upload**: a valid 200×100 RGBA PNG gives `app-logo-saved`; the stored `logo_png` equals `PngLogo.validate` of the upload (not the upload bytes when they carried a `tEXt` chunk); one `AppUpdated` event with `branding_logo_set`; the Apps page shows `img` at `/branding/logo/{sha}.png` and the picker shows `data-signin-logo`
   - **Refused uploads**: each of `app-logo-missing` (no file, empty file), `app-logo-not-png` (JPEG bytes), `app-logo-corrupt`, `app-logo-interlaced`, `app-logo-too-small` and `app-logo-too-big` leaves an existing logo byte-identical and writes no event
   - **Notice values**: the too-small and too-big notices show the measured size on the following `GET /admin/apps`, carried by the `NoticeReason` cookie; that `GET` with a hand-written query `…&width=9999` shows no 9999
@@ -302,7 +302,7 @@ logo part of `*Branding*`) and §4.1–4.2 and §5 in a browser.
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Implement `src/Umbral/Domains/PngLogo.fs` per research R2 and the data model:
+- [X] T026 [US2] Implement `src/Umbral/Domains/PngLogo.fs` per research R2 and the data model:
   - `maxSide = 512`, `minSide = 32`, `maxBytes = 1_310_720`
   - a table-driven CRC-32
   - a big-endian chunk walk with every length checked against the remaining bytes before slicing
@@ -316,30 +316,30 @@ logo part of `*Branding*`) and §4.1–4.2 and §5 in a browser.
   - rewrite as signature, IHDR, PLTE?, tRNS?, one IDAT (the original compressed bytes), IEND, with fresh CRCs
   - SHA-256 as lowercase hex
   - pure, with no I/O; no exception escapes, so a malformed input is an `Error`
-- [ ] T027 [US2] Generalise `WebForms.NoticeReason` in `src/Umbral/Infrastructure/WebForms.fs` so `redirect` and `consume` take the "about" key (`slug` or `app`). Update the existing connector callers, whose behaviour is unchanged. The payload holds the reason as `key=value;key=value`, and the reading screen parses it.
-- [ ] T028 [US2] Add these texts to `src/Umbral/Views/Texts.fs`:
+- [X] T027 [US2] Generalise `WebForms.NoticeReason` in `src/Umbral/Infrastructure/WebForms.fs` so `redirect` and `consume` take the "about" key (`slug` or `app`). Update the existing connector callers, whose behaviour is unchanged. The payload holds the reason as `key=value;key=value`, and the reading screen parses it.
+- [X] T028 [US2] Add these texts to `src/Umbral/Views/Texts.fs`:
   - `LogoLabel`, `LogoHint` ("PNG, JPEG or WebP. Umbral stores a PNG of at most 512 × 512 pixels. Without JavaScript, upload a PNG of 32–512 pixels a side, up to 1.25 MB.")
   - `LogoSave`, `LogoUseWhole`, and inline script errors (`LogoErrorFormat`, `LogoErrorFileSize limit actual`, `LogoErrorDimensions limit actual`, `LogoErrorNotImage`), rendered as `data-*` attributes so the script never holds text of its own
   - notices `app-logo-saved`, `app-logo-missing`, `app-logo-not-png`, `app-logo-corrupt`, `app-logo-interlaced`, `app-logo-too-small`, `app-logo-too-big` and `app-logo-too-large`, with the wording in the admin contract; the size-bearing ones take the values from `NoticeReason`
-- [ ] T029 [US2] Implement `POST /admin/apps/{clientId}/branding/logo` in `src/Umbral/Handlers/Admin/AppBranding.fs`:
+- [X] T029 [US2] Implement `POST /admin/apps/{clientId}/branding/logo` in `src/Umbral/Handlers/Admin/AppBranding.fs`:
   - Endpoint metadata: a 3 MB request size limit, and form options with `MultipartBodyLengthLimit` and `MemoryBufferThreshold` of 3 MB, so the body is never spilled to a temp file (research R3).
   - Verify with a test that the antiforgery middleware's form read honours these limits. If it does not, read the form explicitly with those `FormOptions` before `readValidated` validates, and record which path was needed in research.md R3.
   - Catch `BadHttpRequestException` (413) and `InvalidDataException` from the form read and redirect with `app-logo-too-large`.
   - Read at most `maxBytes + 1` bytes of the `logo` file, then `PngLogo.validate`.
   - On `Ok`: `BrandingStore.setLogo`, an `AppUpdated` event with `branding_logo_set`, and `app-logo-saved`.
   - On `Error`: map it to its notice. Size-bearing refusals go through `NoticeReason.redirect` with `app` and the measured values.
-- [ ] T030 [US2] Extend the branding section in `src/Umbral/Handlers/Admin/Apps.fs`:
+- [X] T030 [US2] Extend the branding section in `src/Umbral/Handlers/Admin/Apps.fs`:
   - `data-branding-logo` shows `<img src="/branding/logo/{sha}.png" alt={name} width height>` at the same size class as the picker, or `NoLogo`
   - `data-logo-form`: `method=post`, `enctype=multipart/form-data`, the antiforgery input, `<input type="file" name="logo" accept="image/png,image/jpeg,image/webp" data-logo-input>`, the hint, an empty `data-logo-crop` container, the error texts as `data-error-*` attributes, and `LogoSave`
   - render the logo notices for the card named by `app=`, reading values through `NoticeReason.consume`
-- [ ] T031 [US2] Add the crop and convert behaviour to `src/Umbral/Assets/umbral.js` per the "Crop script" section of [contracts/admin-branding.md](./contracts/admin-branding.md):
+- [X] T031 [US2] Add the crop and convert behaviour to `src/Umbral/Assets/umbral.js` per the "Crop script" section of [contracts/admin-branding.md](./contracts/admin-branding.md):
   - the size check, the magic-byte check (PNG, JPEG, WebP), a `FileReader` `data:` URL into an `<img>`, and the 4096 px check
   - a crop rectangle over the scaled preview, with pointer drag to move, four corner handles to resize, arrow keys to nudge (1 px; Shift resizes), and `LogoUseWhole` to reset; the minimum is 32 source pixels
   - on submit, draw onto a canvas no larger than 512 on either side, then `toBlob('image/png')`, put the result in the input through `DataTransfer` as `logo.png`, and submit; if either API is missing, submit the original
   - errors render inline from the `data-error-*` texts and clear the input
 
   The crop UI must work under the existing CSP: positioning uses classes and the CSSOM (`element.style.left = …` from script is allowed by CSP; `style=""` in markup is not).
-- [ ] T032 [US2] Run `src/Umbral/Assets/build-css.sh` for the crop panel classes and commit `umbral.css`. Run T023–T025 and the whole suite: green.
+- [X] T032 [US2] Run `src/Umbral/Assets/build-css.sh` for the crop panel classes and commit `umbral.css`. Run T023–T025 and the whole suite: green.
 - [ ] T033 [US2] Manual: run [quickstart.md](./quickstart.md) §4.1–4.2 and §5 in current Chromium, Firefox and Safari. Record the browser versions and any deviations in this file's Notes. Fix what fails and add a test where one is possible (constitution: a bug fix adds the test).
 
 **Checkpoint**: Stories 1 and 2 together are the feature as the user asked for it.

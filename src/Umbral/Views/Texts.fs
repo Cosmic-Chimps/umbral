@@ -8,6 +8,7 @@ module Umbral.Views.Texts
 module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
 
 open Umbral.Infrastructure.Secrets
+open Umbral.Domains
 
 type Texts =
     { SiteName: string
@@ -107,6 +108,25 @@ type Texts =
       /// since the preview is of the colour and not of one provider.
       BrandingSampleProvider: string
       NoLogo: string
+      // The logo form (spec 006). The `Logo*` texts after the hint go to the
+      // crop script as data attributes, so the script holds none of its own;
+      // `{limit}`, `{actual}`, `{width}` and `{height}` are filled in there.
+      LogoLabel: string
+      LogoHint: string
+      LogoSave: string
+      LogoUseWhole: string
+      LogoCropLabel: string
+      LogoCropHandleLabel: string
+      LogoErrorFormat: string
+      LogoErrorFileSize: string
+      LogoErrorDimensions: string
+      LogoErrorNotImage: string
+      /// The refusals that carry a measured value, said with it: the image's
+      /// size in pixels, or the file's size in bytes. The fixed text of the same
+      /// code (`Notice`) is what is shown when the value is not there.
+      AppLogoTooSmall: int -> int -> string
+      AppLogoTooBig: int -> int -> string
+      AppLogoTooLarge: int64 -> string
       /// Heading over the list of apps a change would leave with no way to
       /// sign in; each app follows with `data-stranded-app` (FR-010).
       StrandedAppsTitle: string
@@ -431,6 +451,12 @@ let private moveSummaryEn (dryRun: bool) (total: int) (moved: int) (already: int
     let changedPart = if changed > 0 then $", {changed} changed meanwhile (run it again)" else ""
     $"{total} {noun}: {moved} {movedWords}, {already} already in place{changedPart}, {failed} failed."
 
+/// The stored-logo limit as people read it: 1.25 MB, from the byte count.
+let private logoLimitMegabytes = float PngLogo.maxBytes / 1048576.0
+
+/// A file size in megabytes with one decimal, for a notice.
+let private megabytes (bytes: int64) = (float bytes / 1048576.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)
+
 /// The notice texts, by code; `None` for a code no screen sends.
 let private noticeEn (code: string) : string option =
     match code with
@@ -505,6 +531,18 @@ let private noticeEn (code: string) : string option =
         Some "Saved. This colour is hard to see on Umbral's dark background, so outlines and highlights in it will be faint. Buttons stay readable."
     | "app-accent-invalid" ->
         Some "Enter the colour as # followed by six hexadecimal digits, for example #f26b1d."
+    | "app-logo-saved" -> Some "Logo saved. The app's sign-in page shows it from the next visit."
+    | "app-logo-missing" -> Some "Choose an image file first, then save the logo."
+    | "app-logo-not-png" ->
+        Some "Umbral stores logos as PNG. Turn on JavaScript on this page to crop, scale and convert a PNG, JPEG or WebP image, or upload a PNG of at most 512 × 512 pixels."
+    | "app-logo-corrupt" -> Some "This PNG is damaged. Export it again from your image editor."
+    | "app-logo-interlaced" -> Some "Save the PNG without interlacing, or turn on JavaScript to convert it."
+    | "app-logo-too-small" ->
+        Some $"The image is too small. Use one of at least {PngLogo.minSide} × {PngLogo.minSide} pixels."
+    | "app-logo-too-big" ->
+        Some $"The image is too big. Turn on JavaScript to scale it down, or export it at {PngLogo.maxSide} pixels or less on each side."
+    | "app-logo-too-large" ->
+        Some $"The file is too large. A logo is stored at {logoLimitMegabytes} MB or less. Turn on JavaScript to shrink it, or export a smaller PNG."
     | "connector-enabled" -> Some "Connector enabled."
     | "connector-disabled" -> Some "Connector disabled."
     | "connector-deleted" -> Some "Connector deleted."
@@ -629,6 +667,27 @@ let en: Texts =
       BrandingSampleLabel = "Preview of the sign-in button"
       BrandingSampleProvider = "your provider"
       NoLogo = "No logo"
+      LogoLabel = "Logo"
+      LogoHint =
+        $"PNG, JPEG or WebP. Umbral stores a PNG of at most {PngLogo.maxSide} × {PngLogo.maxSide} pixels. Without JavaScript, upload a PNG of {PngLogo.minSide}–{PngLogo.maxSide} pixels a side, up to {logoLimitMegabytes} MB."
+      LogoSave = "Save logo"
+      LogoUseWhole = "Use whole image"
+      LogoCropLabel =
+        "Crop area. Drag it to move, drag a corner to resize, or use the arrow keys; hold Shift with an arrow key to resize."
+      LogoCropHandleLabel = "Resize the crop area"
+      LogoErrorFormat = "Umbral accepts PNG, JPEG and WebP images. Choose a file in one of those formats."
+      LogoErrorFileSize = "That file is {actual} MB. Choose an image of at most {limit} MB."
+      LogoErrorDimensions = "That image is {width} × {height} pixels. Choose one of at most {limit} pixels on each side."
+      LogoErrorNotImage = "That file could not be read as an image. Choose a PNG, JPEG or WebP file."
+      AppLogoTooSmall =
+        fun width height ->
+            $"The image is {width} × {height} pixels. Use one of at least {PngLogo.minSide} × {PngLogo.minSide} pixels."
+      AppLogoTooBig =
+        fun width height ->
+            $"The image is {width} × {height} pixels, over the {PngLogo.maxSide} × {PngLogo.maxSide} limit. Turn on JavaScript to scale it down, or export it at {PngLogo.maxSide} pixels or less on each side."
+      AppLogoTooLarge =
+        fun bytes ->
+            $"The file is {megabytes bytes} MB. A logo is stored at {logoLimitMegabytes} MB or less. Turn on JavaScript to shrink it, or export a smaller PNG."
       StrandedAppsTitle = "These apps would be left with no way to sign in:"
       ConnectorDisableStrandsConfirm = "Disable anyway"
       ConnectorNotSharedStrandsConfirm = "Stop sharing anyway"

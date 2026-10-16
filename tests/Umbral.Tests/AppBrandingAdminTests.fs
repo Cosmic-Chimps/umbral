@@ -7,13 +7,24 @@
 module Umbral.Tests.AppBrandingAdminTests
 
 open System
+open System.Collections.Concurrent
+open System.IO
 open System.Net
+open System.Net.Http
+open System.Net.Http.Headers
+open System.Text
 open System.Text.RegularExpressions
 open System.Threading.Tasks
+open Microsoft.AspNetCore.Builder
+open Microsoft.AspNetCore.Hosting
+open Microsoft.AspNetCore.Http
+open Microsoft.Extensions.DependencyInjection
 open Xunit
+open Umbral.Domains
 open Umbral.Infrastructure
 open Umbral.Tests.Infrastructure
 open Umbral.Tests.Infrastructure.Flows
+open Umbral.Tests.Infrastructure.PngBuilder
 open Umbral.Views
 
 let private decode (html: string) : string =
@@ -289,4 +300,492 @@ let ``the saved notice is shown on the Apps page after the redirect`` () =
 
         Assert.Contains("data-notice=\"app-accent-saved\"", html)
         Assert.Contains(Texts.en.Notice "app-accent-saved", decode html)
+    }
+
+// ===========================================================================
+// The logo (User Story 2)
+// ===========================================================================
+
+/// A multipart post to the logo route: the antiforgery token (taken from
+/// `formPage`) as a field, and `file`, if there is one, as the `logo` part.
+let private postMultipart
+    (operator: Browser)
+    (formPage: string)
+    (action: string)
+    (file: (string * byte[]) option)
+    =
+    task {
+        let! token = operator.TokenFrom formPage
+        let content = new MultipartFormDataContent()
+        content.Add(new StringContent(token), "__RequestVerificationToken")
+
+        match file with
+        | Some(fileName, bytes) ->
+            let part = new ByteArrayContent(bytes)
+            part.Headers.ContentType <- MediaTypeHeaderValue "application/octet-stream"
+            content.Add(part, "logo", fileName)
+        | None -> ()
+
+        use message = new HttpRequestMessage(HttpMethod.Post, action)
+        message.Content <- content
+        return! operator.Send message
+    }
+
+let private postLogo (operator: Browser) (clientId: string) (file: (string * byte[]) option) =
+    postMultipart operator "/admin/apps" $"/admin/apps/{clientId}/branding/logo" file
+
+/// A PNG of this size as the browser's canvas would send it, or as an editor
+/// would, with a text chunk to be stripped.
+let private pngOf (width: int) (height: int) =
+    build
+        { png width height 6 8 with
+            Extra = [ "tEXt", Encoding.ASCII.GetBytes "Comment\000the operator's private note", BeforeIdat ] }
+
+let private storedLogo (app: Fixtures.TestApp) (clientId: string) =
+    task {
+        use! connection = Database.openConnection app.DbConfig
+        use command = connection.CreateCommand()
+        command.CommandText <- "SELECT logo_png FROM app_branding WHERE client_id = @c"
+        command.Parameters.AddWithValue("@c", clientId) |> ignore
+        let! value = command.ExecuteScalarAsync()
+
+        return
+            match value with
+            | :? (byte[]) as bytes -> Some bytes
+            | _ -> None
+    }
+
+let private logoAddress (bytes: byte[]) =
+    let logo = match PngLogo.validate bytes with Ok l -> l | Error e -> failwith $"{e}"
+    $"/branding/logo/{logo.Sha256}.png"
+
+[<Fact>]
+let ``a valid PNG is saved as the file Umbral wrote, announced, logged once and shown`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let upload = pngOf 200 100
+
+        let! response = postLogo operator idA (Some("logo.png", upload))
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.Equal(cardRedirect "app-logo-saved" idA, location response)
+
+        // Stored: the rewritten file, not the upload (which carried a text chunk).
+        let expected = (match PngLogo.validate upload with Ok l -> l | Error e -> failwith $"{e}")
+        let! stored = storedLogo app idA
+        Assert.Equal<byte array>(expected.Png, stored.Value)
+        Assert.NotEqual<byte array>(upload, stored.Value)
+        Assert.DoesNotContain("private note", Encoding.ASCII.GetString stored.Value)
+
+        let! events = eventCount app idA "branding_logo_set"
+        Assert.Equal(1, events)
+
+        // Served at its address, which is the hash of what was stored.
+        let! served = app.Client.GetAsync(logoAddress upload)
+        let! servedBytes = served.Content.ReadAsByteArrayAsync()
+        Assert.Equal(HttpStatusCode.OK, served.StatusCode)
+        Assert.Equal<byte array>(expected.Png, servedBytes)
+
+        // On the card, and on the sign-in page.
+        let! html = operator.GetHtml "/admin/apps"
+        Assert.Contains($"<img", html)
+        Assert.Contains(logoAddress upload, html)
+
+        let visitor = Browser app.Client
+        let! picker = visitor.GetHtml("/signin?returnUrl=" + Uri.EscapeDataString(Journeys.authorizeUrl idA "openid"))
+        Assert.Contains($"data-signin-logo=\"{idA}\"", picker)
+        Assert.Contains(logoAddress upload, picker)
+    }
+
+[<Fact>]
+let ``a logo saved next to an accent keeps the accent`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+        let! _ = postAccent operator idA "#f26b1d"
+        let! _ = postLogo operator idA (Some("logo.png", pngOf 64 64))
+
+        let! accent = storedAccent app idA
+        Assert.Equal("f26b1d", accent)
+    }
+
+// Each case is one way an upload can be wrong, and the notice it gets.
+let private refusals () : (string * string * (string * byte[]) option) list =
+    let jpeg = Array.append [| 0xFFuy; 0xD8uy; 0xFFuy; 0xE0uy |] (Array.zeroCreate 200)
+
+    [ "no file", "app-logo-missing", None
+      "an empty file", "app-logo-missing", Some("logo.png", [||])
+      "a JPEG", "app-logo-not-png", Some("logo.jpg", jpeg)
+      "a damaged PNG", "app-logo-corrupt", Some("logo.png", build { png 64 64 6 8 with BadCrc = Some "IDAT" })
+      "an interlaced PNG", "app-logo-interlaced", Some("logo.png", build { png 64 64 6 8 with Interlace = 1 })
+      "a PNG too small", "app-logo-too-small", Some("logo.png", pngOf 16 16)
+      "a PNG too big", "app-logo-too-big", Some("logo.png", build { png 600 100 6 8 with Inflated = Some(Array.zeroCreate 8) }) ]
+
+[<Fact>]
+let ``every refused upload leaves the existing logo byte-identical and logs nothing`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+
+        // A logo already there, and an accent beside it.
+        let! _ = postAccent operator idA "#f26b1d"
+        let! first = postLogo operator idA (Some("logo.png", pngOf 100 100))
+        Assert.Equal(cardRedirect "app-logo-saved" idA, location first)
+        let! before = storedLogo app idA
+        let! eventsBefore = allEvents app
+
+        for what, notice, file in refusals () do
+            let! response = postLogo operator idA file
+
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+            Assert.Equal(cardRedirect notice idA, location response)
+
+            let! after = storedLogo app idA
+            Assert.Equal<byte array>(before.Value, after.Value)
+            let! eventsAfter = allEvents app
+            Assert.True((eventsBefore = eventsAfter), $"{what} wrote a security event")
+
+        let! accent = storedAccent app idA
+        Assert.Equal("f26b1d", accent)
+    }
+
+[<Fact>]
+let ``a refused first upload creates no row`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+
+        for _, _, file in refusals () do
+            let! _ = postLogo operator idA file
+            ()
+
+        let! rows = scalar app "SELECT count(*) FROM app_branding" []
+        Assert.Equal("0", rows)
+    }
+
+[<Fact>]
+let ``an unknown client is app-not-found for an upload`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! response = postLogo operator "no-such-app" (Some("logo.png", pngOf 64 64))
+
+        Assert.Equal("/admin/apps?msg=app-not-found", location response)
+        let! rows = scalar app "SELECT count(*) FROM app_branding" []
+        Assert.Equal("0", rows)
+    }
+
+[<Fact>]
+let ``the size a refusal names is the measured one, shown once, from the cookie`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+
+        // Too small: 16 x 20 pixels.
+        let! small = postLogo operator idA (Some("logo.png", pngOf 16 20))
+        Assert.Equal(cardRedirect "app-logo-too-small" idA, location small)
+        // The size is not in the redirect.
+        Assert.DoesNotContain("16", location small)
+        let! html = operator.GetHtml(location small)
+        Assert.Contains(Texts.en.AppLogoTooSmall 16 20, decode html)
+
+        // Shown once: the cookie went with the read, and the fixed text is what a refresh says.
+        let! again = operator.GetHtml(location small)
+        Assert.DoesNotContain(Texts.en.AppLogoTooSmall 16 20, decode again)
+        Assert.Contains(Texts.en.Notice "app-logo-too-small", decode again)
+
+        // Too big: 600 x 100 pixels.
+        let! big = postLogo operator idA (Some("logo.png", build { png 600 100 6 8 with Inflated = Some(Array.zeroCreate 8) }))
+        let! bigHtml = operator.GetHtml(location big)
+        Assert.Contains(Texts.en.AppLogoTooBig 600 100, decode bigHtml)
+    }
+
+[<Fact>]
+let ``a size written into the address is never shown`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+
+        // A link a person could be sent. No cookie came with it, so there is no measured value.
+        for code in [ "app-logo-too-small"; "app-logo-too-big"; "app-logo-too-large" ] do
+            let! html = operator.GetHtml($"/admin/apps?msg={code}&app={idA}&width=9999&height=8888&bytes=777777777#app-{idA}")
+            let text = decode html
+            Assert.DoesNotContain("9999", text)
+            Assert.DoesNotContain("8888", text)
+            Assert.DoesNotContain("777777777", text)
+            Assert.Contains(Texts.en.Notice code, text)
+    }
+
+[<Fact>]
+let ``a measured value for one app is not shown on another's card`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, idB = prepare app
+
+        let! small = postLogo operator idA (Some("logo.png", pngOf 16 20))
+        // The cookie is for A; a page that says B was refused must not use it.
+        let! html = operator.GetHtml($"/admin/apps?msg=app-logo-too-small&app={idB}")
+        Assert.DoesNotContain(Texts.en.AppLogoTooSmall 16 20, decode html)
+        ignore small
+    }
+
+// ---------------------------------------------------------------------------
+// Size limits, and what the form read does with a large body (research R3)
+// ---------------------------------------------------------------------------
+
+/// A PNG of about this many bytes: random image data does not compress, so the
+/// file is the size of the pixels.
+let private incompressiblePng (width: int) (height: int) =
+    let spec = png width height 6 8
+    let data = imageData spec
+    let random = Random 7
+
+    for i in 0 .. data.Length - 1 do
+        if i % (1 + width * 4) <> 0 then
+            data[i] <- byte (random.Next 256)
+
+    build { spec with Inflated = Some data }
+
+/// Where ASP.NET Core spills a body that does not fit in memory.
+let private tempDirectory () =
+    match Environment.GetEnvironmentVariable "ASPNETCORE_TEMP" with
+    | null
+    | "" -> Path.GetTempPath()
+    | dir -> dir
+
+let private spillFiles () =
+    Directory.GetFiles(tempDirectory (), "ASPNETCORE_*.tmp") |> Set.ofArray
+
+/// A middleware outside the whole pipeline, which notes, for each request, the
+/// temp files that exist when the response has been written and the request is
+/// still alive (a spilled body's file is deleted when the request is disposed,
+/// just after). Registered as a startup filter so it wraps the antiforgery
+/// middleware and the endpoint alike.
+type private SpillLog() =
+    member val Spills = ConcurrentDictionary<string, int>()
+
+type private SpillProbe(log: SpillLog) =
+    interface IStartupFilter with
+        member _.Configure(next) =
+            Action<IApplicationBuilder>(fun app ->
+                app.Use(fun (ctx: HttpContext) (following: RequestDelegate) ->
+                    task {
+                        let before = spillFiles ()
+                        do! following.Invoke ctx
+                        let created = Set.difference (spillFiles ()) before |> Set.count
+
+                        if created > 0 then
+                            log.Spills[string ctx.Request.Path] <- created
+                    }
+                    :> Task)
+                |> ignore
+
+                next.Invoke app)
+
+let private withSpillProbe () =
+    let log = SpillLog()
+
+    let app =
+        Fixtures.createAppWith fakeSettings (fun builder ->
+            builder.Services.AddSingleton<SpillLog>(log) |> ignore
+            builder.Services.AddSingleton<IStartupFilter, SpillProbe>() |> ignore)
+
+    log, app
+
+[<Fact>]
+let ``the probe sees a body over 64 KB spilled to disk on an endpoint with the default form options`` () =
+    task {
+        // The control: `POST /admin/apps` has no form options of its own, so a
+        // 300 KB file in its form spills. If this did not, the probe would be
+        // blind and the next test would prove nothing.
+        let log, appTask = withSpillProbe ()
+        use! app = appTask
+        let! operator, _, _ = prepare app
+
+        let! _ = postMultipart operator "/admin/apps" "/admin/apps" (Some("big.bin", Array.zeroCreate 300_000))
+
+        Assert.True(log.Spills.ContainsKey "/admin/apps", "the default read did not spill a 300 KB body; the probe cannot see spills")
+    }
+
+[<Fact>]
+let ``a 1 MB logo is read into memory, with no temp file, and saved`` () =
+    task {
+        let log, appTask = withSpillProbe ()
+        use! app = appTask
+        let! operator, idA, _ = prepare app
+        let upload = incompressiblePng 512 256
+        Assert.InRange(upload.Length, 500_000, PngLogo.maxBytes)
+
+        let! response = postLogo operator idA (Some("logo.png", upload))
+
+        Assert.Equal(cardRedirect "app-logo-saved" idA, location response)
+        Assert.False(log.Spills.ContainsKey $"/admin/apps/{idA}/branding/logo", "the logo upload spilled to a temp file")
+        let! stored = storedLogo app idA
+        Assert.True(stored.IsSome)
+    }
+
+[<Fact>]
+let ``a 2.5 MB body is read and judged by the validator, and a 3.5 MB body is refused as too large`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+
+        // 2.5 MB of PNG-shaped data: inside the 3 MB request limit, so the form
+        // is read in full and `PngLogo` sees it. It is over the 1.25 MB logo
+        // limit, so the notice is `too-large` and carries the measured size.
+        let under = Array.append signature (Array.zeroCreate (2_621_440 - signature.Length))
+        let! accepted = postLogo operator idA (Some("logo.png", under))
+        Assert.Equal(HttpStatusCode.Redirect, accepted.StatusCode)
+        Assert.Equal(cardRedirect "app-logo-too-large" idA, location accepted)
+        let! sized = operator.GetHtml(location accepted)
+        Assert.Contains(Texts.en.AppLogoTooLarge 2_621_440L, decode sized)
+
+        // 3.5 MB: past the request limit. The form cannot be read, which is a
+        // redirect to the same notice, without a size because none was measured.
+        // Never a 413, and never a 500.
+        let over = Array.append signature (Array.zeroCreate (3_670_016 - signature.Length))
+        let! refused = postLogo operator idA (Some("logo.png", over))
+        Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode)
+        Assert.Equal(cardRedirect "app-logo-too-large" idA, location refused)
+        let! plain = operator.GetHtml(location refused)
+        Assert.Contains(Texts.en.Notice "app-logo-too-large", decode plain)
+
+        let! rows = scalar app "SELECT count(*) FROM app_branding" []
+        Assert.Equal("0", rows)
+    }
+
+/// What Kestrel does with `MaxRequestBodySize` and TestServer does not: a body
+/// stream that throws `BadHttpRequestException` (413) once more than the limit
+/// has been read, and a feature that endpoint metadata can set the limit on.
+/// Installed as a startup filter, so it is in place before routing. The default
+/// is Kestrel's own, 30 MB.
+type private SimulatedKestrel() =
+    member val Limit = 30_000_000L with get, set
+    member val LimitSeenAtEndpoint = 0L with get, set
+
+type private LimitedBody(inner: Stream, limit: unit -> int64) =
+    inherit Stream()
+    let mutable total = 0L
+
+    override _.CanRead = true
+    override _.CanSeek = false
+    override _.CanWrite = false
+    override _.Length = raise (NotSupportedException())
+    override _.Position with get () = raise (NotSupportedException()) and set _ = raise (NotSupportedException())
+    override _.Flush() = ()
+    override _.Seek(_, _) = raise (NotSupportedException())
+    override _.SetLength _ = raise (NotSupportedException())
+    override _.Write(_, _, _) = raise (NotSupportedException())
+
+    override _.Read(buffer: byte[], offset: int, count: int) =
+        let read = inner.Read(buffer, offset, count)
+        total <- total + int64 read
+        if total > limit () then raise (BadHttpRequestException("Request body too large.", 413))
+        read
+
+    override _.ReadAsync(buffer: Memory<byte>, ct: Threading.CancellationToken) =
+        task {
+            let! read = inner.ReadAsync(buffer, ct)
+            total <- total + int64 read
+            if total > limit () then raise (BadHttpRequestException("Request body too large.", 413))
+            return read
+        }
+        |> ValueTask<int>
+
+type private MaxBodyFeature(state: SimulatedKestrel) =
+    interface Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature with
+        member _.IsReadOnly = false
+
+        member _.MaxRequestBodySize
+            with get () = Nullable state.Limit
+            and set (value: Nullable<int64>) =
+                state.Limit <- value.GetValueOrDefault()
+                state.LimitSeenAtEndpoint <- value.GetValueOrDefault()
+
+type private KestrelFilter(state: SimulatedKestrel) =
+    interface IStartupFilter with
+        member _.Configure(next) =
+            Action<IApplicationBuilder>(fun app ->
+                app.Use(fun (ctx: HttpContext) (following: RequestDelegate) ->
+                    ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>(MaxBodyFeature state)
+                    ctx.Request.Body <- new LimitedBody(ctx.Request.Body, fun () -> state.Limit)
+                    following.Invoke ctx)
+                |> ignore
+
+                next.Invoke app)
+
+[<Fact>]
+let ``a body past Kestrel's request limit is the too-large notice, not a bare 413`` () =
+    task {
+        // In production the 413 comes from Kestrel when the endpoint's limit
+        // (3 MB, set by the endpoint's metadata before the handler runs) is
+        // passed. TestServer has no such limit, so it is simulated: a body
+        // stream that throws what Kestrel throws, and a feature the metadata
+        // is applied to.
+        let state = SimulatedKestrel()
+
+        use! app =
+            Fixtures.createAppWith fakeSettings (fun builder ->
+                builder.Services.AddSingleton<IStartupFilter>(KestrelFilter state) |> ignore)
+
+        let! operator, idA, _ = prepare app
+
+        let over = Array.append signature (Array.zeroCreate (3_200_000 - signature.Length))
+        let! response = postLogo operator idA (Some("logo.png", over))
+
+        // The metadata reached the feature: the limit in force at the endpoint is 3 MB.
+        Assert.Equal(3_145_728L, state.LimitSeenAtEndpoint)
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.Equal(cardRedirect "app-logo-too-large" idA, location response)
+        let! rows = scalar app "SELECT count(*) FROM app_branding" []
+        Assert.Equal("0", rows)
+
+        // And a body under it still goes through to the validator.
+        let under = Array.append signature (Array.zeroCreate (2_000_000 - signature.Length))
+        let! second = postLogo operator idA (Some("logo.png", under))
+        Assert.Equal(cardRedirect "app-logo-too-large" idA, location second)
+        let! sized = operator.GetHtml(location second)
+        Assert.Contains(Texts.en.AppLogoTooLarge 2_000_000L, decode sized)
+    }
+
+// ---------------------------------------------------------------------------
+// Access
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``without an operator session the logo route redirects to sign-in and stores nothing`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, idA, _ = prepare app
+        let visitor = Browser app.Client
+
+        use content = new MultipartFormDataContent()
+        content.Add(new ByteArrayContent(pngOf 64 64), "logo", "logo.png")
+        use message = new HttpRequestMessage(HttpMethod.Post, $"/admin/apps/{idA}/branding/logo")
+        message.Content <- content
+        let! response = visitor.Send message
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.StartsWith("/admin/signin", location response)
+        let! rows = scalar app "SELECT count(*) FROM app_branding" []
+        Assert.Equal("0", rows)
+    }
+
+[<Fact>]
+let ``without an antiforgery token the logo route is a 400 and stores nothing`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+
+        use content = new MultipartFormDataContent()
+        content.Add(new ByteArrayContent(pngOf 64 64), "logo", "logo.png")
+        use message = new HttpRequestMessage(HttpMethod.Post, $"/admin/apps/{idA}/branding/logo")
+        message.Content <- content
+        let! response = operator.Send message
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        let! rows = scalar app "SELECT count(*) FROM app_branding" []
+        Assert.Equal("0", rows)
     }

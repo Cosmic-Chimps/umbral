@@ -119,6 +119,38 @@ spilled to a temp file outside the data directory. Implementation verifies that
 the antiforgery middleware's form read honours that metadata. If it does not,
 the handler reads the form itself with the same options before validating.
 
+**Implementation note (T029)**: what the antiforgery middleware does with a
+multipart body was checked with a test, and the answer changed the design.
+
+- **The middleware honours the endpoint's form options.** Metadata only
+  (`RequestFormLimitsAttribute` with `MemoryBufferThreshold` and
+  `MultipartBodyLengthLimit` at 3 MB, plus `RequestSizeLimitAttribute`) keeps a
+  1 MB upload in memory. Dropping `MemoryBufferThreshold` makes the same upload
+  spill to `ASPNETCORE_*.tmp` in the temp directory. A control upload of 300 KB
+  to `POST /admin/apps`, which has no options of its own, does spill, so the
+  probe in `AppBrandingAdminTests.fs` (a startup filter that lists the temp
+  files left while the request is still alive) can see it. No explicit
+  `FormOptions` read was needed.
+- **But the middleware reads before the handler can catch anything.** It wraps
+  whatever the read throws, `InvalidDataException` (the multipart limit) or
+  Kestrel's `BadHttpRequestException` (413), in an
+  `AntiforgeryValidationException` ("Unable to read the antiforgery request
+  token from the posted form"), which `readValidated` turns into the expired-form
+  400. So a 3.5 MB body would have been a 400 page that says the form expired,
+  and a request over Kestrel's limit the same, never the `app-logo-too-large`
+  notice.
+- **So the logo route sets `DisableAntiforgery()` and validates in the
+  handler.** `WebForms.readValidated` already validates directly when the
+  middleware did not run, so the same check happens, one step later, inside a
+  `try` that maps those two inner exceptions to `app-logo-too-large`. A wrong or
+  missing token is still the 400 (`CsrfTests` holds the route to it like every
+  other POST). The endpoint metadata is applied to the request before the
+  handler runs, so Kestrel's 3 MB limit is in force when the handler reads. The
+  test simulates Kestrel's limit, which TestServer does not enforce, and checks
+  that the limit seen at the endpoint is 3,145,728.
+- The handler reads at most `PngLogo.maxBytes + 1` bytes of the file, so a file
+  of any size under the request limit costs about 1.25 MB of memory to refuse.
+
 ## R4 — Delivering the accent colour under the CSP
 
 **Decision**:

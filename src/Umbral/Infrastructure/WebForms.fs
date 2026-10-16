@@ -81,16 +81,20 @@ let redirectWithNoticeAbout (ctx: HttpContext) (path: string) (notice: string) (
     Task.CompletedTask
 
 /// Free text that goes with a notice — what an OpenID Connect provider's
-/// address did — carried in a Data-Protected, single-use cookie rather than the
-/// query string. A screen that drew a `reason=` from its URL would say whatever
-/// a link sent to the operator told it to, under Umbral's name; the cookie can
-/// only have been written by this server, for this notice about this slug.
+/// address did, the size of an image that was refused — carried in a
+/// Data-Protected, single-use cookie rather than the query string. A screen that
+/// drew a `reason=` from its URL would say whatever a link sent to the operator
+/// told it to, under Umbral's name; the cookie can only have been written by
+/// this server, for this notice about this slug or app.
+///
+/// What a notice is about is named by `about` (`slug` for a connector, `app` for
+/// an app), and the cookie only answers a read that names the same thing.
 module NoticeReason =
     [<Literal>]
     let private CookieName = "umbral_notice_reason"
 
     [<Literal>]
-    let private Purpose = "Umbral.NoticeReason.v1"
+    let private Purpose = "Umbral.NoticeReason.v2"
 
     /// Long enough to survive the redirect.
     let private Lifetime = TimeSpan.FromMinutes 5.0
@@ -107,22 +111,35 @@ module NoticeReason =
         options.Secure <- ctx.Request.IsHttps
         options
 
-    /// Redirect with the notice and the slug in the query, the reason in the
-    /// cookie.
-    let redirect (ctx: HttpContext) (path: string) (notice: string) (slug: string) (reason: string) : Task =
-        let payload = (protector ctx).Protect $"{notice}\u001f{slug}\u001f{reason}"
+    /// Write the reason for `notice` about `value` into the cookie. For a
+    /// caller that builds its own redirect (one with a `#anchor`, say); the
+    /// others use `redirect`.
+    let stash (ctx: HttpContext) (notice: string) (about: string) (value: string) (reason: string) : unit =
+        let payload = (protector ctx).Protect $"{notice}\u001f{about}\u001f{value}\u001f{reason}"
         let options = cookieOptions ctx
         options.MaxAge <- Lifetime
         ctx.Response.Cookies.Append(CookieName, payload, options)
-        redirectWithNoticeAbout ctx path notice [ "slug", slug ]
 
-    /// The reason stored for this notice about this slug, if there is one. The
-    /// cookie is deleted on this read whatever it holds, so a refresh shows the
-    /// notice's fixed text.
-    let consume (ctx: HttpContext) (notice: string) (slug: string) : string option =
+    /// Redirect with the notice and what it is about in the query
+    /// (`about=value`), the reason in the cookie.
+    let redirect
+        (ctx: HttpContext)
+        (path: string)
+        (notice: string)
+        (about: string)
+        (value: string)
+        (reason: string)
+        : Task =
+        stash ctx notice about value reason
+        redirectWithNoticeAbout ctx path notice [ about, value ]
+
+    /// The reason stored for this notice about this slug or app, if there is
+    /// one. The cookie is deleted on this read whatever it holds, so a refresh
+    /// shows the notice's fixed text.
+    let consume (ctx: HttpContext) (notice: string) (about: string) (value: string) : string option =
         let payload =
             match ctx.Request.Cookies.TryGetValue CookieName with
-            | true, value -> Option.ofObj value |> Option.filter (fun v -> v.Length > 0)
+            | true, cookie -> Option.ofObj cookie |> Option.filter (fun v -> v.Length > 0)
             | _ -> None
 
         match payload with
@@ -130,12 +147,27 @@ module NoticeReason =
             ctx.Response.Cookies.Delete(CookieName, cookieOptions ctx)
 
             try
-                match ((protector ctx).Unprotect payload).Split '\u001f' with
-                | [| n; s; reason |] when n = notice && s = slug -> Some reason
+                match ((protector ctx).Unprotect payload).Split('\u001f', 4) with
+                | [| n; a; v; reason |] when n = notice && a = about && v = value -> Some reason
                 | _ -> None
             with _ ->
                 None
         | _ -> None
+
+    /// A reason made of named values, `width=40;height=20`. The names are ours
+    /// and the values numbers or ids, so neither contains `=` or `;`.
+    let encodePairs (pairs: (string * string) list) : string =
+        pairs |> List.map (fun (name, value) -> $"{name}={value}") |> String.concat ";"
+
+    /// The values of a reason written by `encodePairs`. Anything that is not a
+    /// `name=value` pair is dropped.
+    let parsePairs (reason: string) : Map<string, string> =
+        reason.Split(';', StringSplitOptions.RemoveEmptyEntries)
+        |> Array.choose (fun pair ->
+            match pair.Split('=', 2) with
+            | [| name; value |] -> Some(name, value)
+            | _ -> None)
+        |> Map.ofArray
 
 /// Cut `text` to at most `limit` characters, for a value that travels in a
 /// redirect, a cookie or a log detail and must not grow without bound.

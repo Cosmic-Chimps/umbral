@@ -74,6 +74,7 @@ let handler (slug: string) : EndpointHandler =
                         ctx
                         "/admin/connectors"
                         "connector-enable-oidc-unreachable"
+                        "slug"
                         slug
                         (WebForms.truncate 300 reason)
             | Some(OidcDiscovery.Wrong reason) ->
@@ -82,6 +83,7 @@ let handler (slug: string) : EndpointHandler =
                         ctx
                         "/admin/connectors"
                         "connector-enable-oidc-wrong"
+                        "slug"
                         slug
                         (WebForms.truncate 300 reason)
             | Some(OidcDiscovery.Discovered _)

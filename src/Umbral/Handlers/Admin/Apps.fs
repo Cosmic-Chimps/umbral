@@ -16,6 +16,7 @@ open OpenIddict.Abstractions
 open type OpenIddict.Abstractions.OpenIddictConstants
 open Oxpecker
 open Oxpecker.ViewEngine
+open Umbral.Domains
 open Umbral.Domains.Branding
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
@@ -298,8 +299,105 @@ let private accentText (branding: AppBranding option) =
     | Some accent -> "#" + Accent.hex accent
     | None -> ""
 
-/// The branding section of an app card: the logo, a preview of the sign-in
-/// button in the saved colour, and the accent form.
+/// The notices of the branding forms are shown inside the card they are about,
+/// not at the top of the page: the redirect lands on `#app-{clientId}`, and a
+/// message above the fold would be somewhere the operator is no longer looking.
+let private isBrandingNotice (code: string) =
+    code.StartsWith "app-logo-" || code.StartsWith "app-accent-"
+
+/// How a branding notice is drawn: a change that was refused is an error, a
+/// change that went through but deserves a word is a warning, and the rest is
+/// good news.
+let private brandingAlertKind (code: string) =
+    match code with
+    | "app-accent-low-contrast" -> Components.Warning
+    | "app-logo-saved"
+    | "app-accent-saved" -> Components.Success
+    | _ -> Components.Failure
+
+/// What a branding notice says. A refusal that measured something says it, from
+/// the single-use cookie the refusal wrote for this app; a link cannot make the
+/// screen name a size, and with no cookie the notice's fixed text is shown.
+let private brandingNoticeText (ctx: HttpContext) (t: Texts.Texts) (clientId: string) (code: string) =
+    let values () =
+        WebForms.NoticeReason.consume ctx code "app" clientId
+        |> Option.map WebForms.NoticeReason.parsePairs
+        |> Option.defaultValue Map.empty
+
+    let number (values: Map<string, string>) (name: string) =
+        values |> Map.tryFind name |> Option.bind (fun v -> match Int64.TryParse v with | true, n -> Some n | _ -> None)
+
+    let sized =
+        match code with
+        | "app-logo-too-small"
+        | "app-logo-too-big" ->
+            let v = values ()
+
+            match number v "width", number v "height" with
+            | Some width, Some height ->
+                Some((if code = "app-logo-too-small" then t.AppLogoTooSmall else t.AppLogoTooBig) (int width) (int height))
+            | _ -> None
+        | "app-logo-too-large" -> number (values ()) "bytes" |> Option.map t.AppLogoTooLarge
+        | _ -> None
+
+    sized |> Option.defaultValue (t.Notice code)
+
+/// The form that uploads a logo. The file input is `accept`-filtered to the
+/// three formats the script can convert, and its form is multipart. Everything
+/// the script needs to know arrives as `data-*`: its limits (which are the
+/// server's numbers) and its words, so it holds no text of its own.
+///
+/// Without the script, the file goes as it is and the server accepts a PNG that
+/// already meets its limits (research R1). The hint says so. The crop container
+/// is empty and so is the error line; the script fills the one and shows the
+/// other.
+let private logoForm (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
+    let fieldId = $"logo-{row.ClientId}"
+    let hintId = $"{fieldId}-hint"
+
+    form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/logo", class' = "space-y-3")
+        .attr("enctype", "multipart/form-data")
+        .data("logo-form", "")
+        .data("max-file-bytes", string PngLogo.maxSourceBytes)
+        .data("max-source-side", string PngLogo.maxSourceSide)
+        .data("store-side", string PngLogo.maxSide)
+        .data("min-side", string PngLogo.minSide)
+        .data("error-format", t.LogoErrorFormat)
+        .data("error-file-size", t.LogoErrorFileSize)
+        .data("error-dimensions", t.LogoErrorDimensions)
+        .data("error-not-image", t.LogoErrorNotImage)
+        .data("label-crop", t.LogoCropLabel)
+        .data("label-handle", t.LogoCropHandleLabel) {
+        ctx.GetAntiforgeryInput()
+
+        div() {
+            label(for' = fieldId, class' = "um-label") { t.LogoLabel }
+
+            input(type' = "file", id = fieldId, name = "logo", class' = "block w-full text-body-md text-on-surface-variant")
+                .attr("accept", "image/png,image/jpeg,image/webp")
+                .attr("aria-describedby", hintId)
+                .data("logo-input", "")
+
+            p(id = hintId, class' = "um-hint") { t.LogoHint }
+        }
+
+        div(class' = "space-y-2").data("logo-crop", "") {}
+
+        p(class' = "um-field-error").attr("role", "alert").attr("hidden", "hidden").data("logo-error", "") {}
+
+        div(class' = "flex flex-wrap items-center gap-2") {
+            button(type' = "submit", class' = Components.btnSm Components.Secondary) { t.LogoSave }
+
+            button(type' = "button", class' = Components.btnSm Components.Ghost)
+                .attr("hidden", "hidden")
+                .data("logo-whole", "") {
+                t.LogoUseWhole
+            }
+        }
+    }
+
+/// The branding section of an app card: the logo and its upload form, a preview
+/// of the sign-in button in the saved colour, and the accent form.
 ///
 /// The preview sits inside `data-accent` when there is an accent, which is what
 /// lets the accent sheet (linked in the page's head, one per distinct colour)
@@ -309,10 +407,11 @@ let private accentText (branding: AppBranding option) =
 /// `hidden` on the native colour picker is removed by the script when it runs:
 /// a picker that does nothing is worse than none. It has no `name`, because a
 /// colour input cannot be empty and so could never clear the field.
-let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
+let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string * string) option) (row: Row) =
     let fieldId = $"accent-{row.ClientId}"
     let hintId = $"{fieldId}-hint"
     let accent = row.Branding |> Option.bind (fun b -> b.Accent)
+    let logo = row.Branding |> Option.bind (fun b -> b.Logo)
 
     let sample =
         button(type' = "button", class' = Components.btn Components.Primary)
@@ -331,9 +430,25 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
     div(class' = "space-y-3 border-t border-outline-variant/40 pt-4").data("branding", row.ClientId) {
         h3(class' = "um-label") { t.BrandingHeading }
 
+        match notice with
+        | Some(code, text) ->
+            (div().data("notice", code) { Components.alert (brandingAlertKind code) text }) :> HtmlElement
+        | None -> Fragment() :> HtmlElement
+
         div(class' = "flex flex-wrap items-center gap-4") {
+            // The logo at the size people see it on the sign-in page.
             div(class' = "flex min-h-11 items-center").data("branding-logo", "") {
-                p(class' = "text-body-sm text-on-surface-variant") { t.NoLogo }
+                match logo with
+                | Some logo ->
+                    (img(
+                        src = $"/branding/logo/{logo.Sha256}.png",
+                        alt = row.DisplayName,
+                        width = logo.Width,
+                        height = logo.Height,
+                        class' = Components.signInLogoClass
+                    ))
+                    :> HtmlElement
+                | None -> (p(class' = "text-body-sm text-on-surface-variant") { t.NoLogo }) :> HtmlElement
             }
 
             div(class' = "space-y-1.5") {
@@ -344,6 +459,8 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
                 | None -> (div() { sample }) :> HtmlElement
             }
         }
+
+        logoForm ctx t row
 
         form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/accent", class' = "space-y-2")
             .data("accent-form", "") {
@@ -373,9 +490,16 @@ let private appRow
     (t: Texts.Texts)
     (origin: PublicOrigin.PublicOrigin)
     (connectors: Connector list)
+    (cardNotice: (string * string * string) option)
     (row: Row)
     =
     let isPublic = row.ClientType = ClientTypes.Public
+
+    // The notice, if it is about this card.
+    let noticeHere =
+        match cardNotice with
+        | Some(clientId, code, text) when clientId = row.ClientId -> Some(code, text)
+        | _ -> None
 
     // `id` is where a redirect from the branding forms lands, so the operator
     // returns to the card they were on.
@@ -442,7 +566,7 @@ let private appRow
             }
         }
 
-        brandingSection ctx t row
+        brandingSection ctx t noticeHere row
 
         div(class' = "flex flex-wrap items-center gap-2") {
             if not isPublic then
@@ -576,6 +700,7 @@ let private view
     (hasEnabledConnector: bool)
     (revealed: RevealedSecret option)
     (notice: string option)
+    (cardNotice: (string * string * string) option)
     (strand: StrandWarning option)
     =
     // One sheet per distinct accent in use, however many apps share it: each
@@ -618,7 +743,7 @@ let private view
             Components.emptyState Theme.ExploreOff t.AppsEmptyTitle t.AppsEmptyBody None
         else
             for row in rows do
-                appRow ctx t origin connectors row
+                appRow ctx t origin connectors cardNotice row
     }
     |> Layout.operatorPage ctx t t.AppsTitle accentSheets
 
@@ -698,6 +823,16 @@ let page: EndpointHandler =
             let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
             let revealed = SecretReveal.consume ctx
 
+            // A branding notice about an app that is here is drawn in its card;
+            // one about nothing here (the app was deleted meanwhile) stays at the top.
+            let cardNotice =
+                match notice, ctx.TryGetQueryValue "app" with
+                | Some code, Some clientId when isBrandingNotice code && rows |> Seq.exists (fun r -> r.ClientId = clientId) ->
+                    Some(clientId, code, brandingNoticeText ctx t clientId code)
+                | _ -> None
+
+            let notice = if cardNotice.IsSome then None else notice
+
             // `app-connectors-strand` carries the app and the choice that was
             // attempted; the app's name is looked up here, never in the URL.
             let strand =
@@ -716,7 +851,7 @@ let page: EndpointHandler =
 
             return!
                 ctx.WriteHtmlView(
-                    view ctx t origin (List.ofSeq rows) connectors hasEnabledConnector revealed notice strand
+                    view ctx t origin (List.ofSeq rows) connectors hasEnabledConnector revealed notice cardNotice strand
                 )
         })
 
