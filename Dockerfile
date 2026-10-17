@@ -54,6 +54,8 @@ COPY --from=build /app .
 # The image is published, so the terms travel with it.
 LABEL org.opencontainers.image.licenses="MIT"
 COPY LICENSE /app/LICENSE
+# The fonts are SIL OFL 1.1: their licences travel with the image too.
+COPY src/Umbral/Assets/fonts/OFL-*.txt /app/licenses/fonts/
 
 # Everything Umbral persists lives in this one directory: umbral.db, the token
 # signing keys, and the Data Protection key ring.

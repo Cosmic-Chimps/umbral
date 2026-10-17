@@ -1,5 +1,5 @@
-/// The three files every page loads — stylesheet, htmx, Umbral's own script —
-/// served by Umbral itself (Handlers/Assets.fs) instead of a CDN. An identity
+/// The files every page loads — stylesheet, htmx, Umbral's own script, and the
+/// three Umbra fonts the stylesheet names — served by Umbral itself (Handlers/Assets.fs) instead of a CDN. An identity
 /// provider's pages carry credentials, so they run no code from anyone else, and
 /// an instance with no internet still renders.
 ///
@@ -50,4 +50,13 @@ let css = load "umbral.css" "/assets/umbral.css" "text/css; charset=utf-8"
 let script = load "umbral.js" "/assets/umbral.js" "text/javascript; charset=utf-8"
 let htmx = load "htmx.min.js" "/assets/htmx.min.js" "text/javascript; charset=utf-8"
 
-let all = [ css; script; htmx ]
+/// The Umbra fonts (spec 007, research R4). The version in each file name is the
+/// cache key: the stylesheet is compiled ahead of time and cannot carry a content
+/// hash in its `url()`s, so a changed font file must get a new name.
+let fonts =
+    [ "bricolage-grotesque-latin-800-v1001.woff2"
+      "schibsted-grotesk-latin-400-600-v1100.woff2"
+      "spline-sans-mono-latin-400-500-v1004.woff2" ]
+    |> List.map (fun file -> load file $"/assets/fonts/{file}" "font/woff2")
+
+let all = [ css; script; htmx ] @ fonts

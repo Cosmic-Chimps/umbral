@@ -79,6 +79,7 @@
     <Compile Include="EmailDomainsTests.fs" />
     <Compile Include="AllowedDomainsSignInTests.fs" />
     <Compile Include="AllowedDomainsAdminTests.fs" />
+    <Compile Include="ThemeTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 

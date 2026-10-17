@@ -86,6 +86,7 @@
     <Compile Include="Handlers/Health.fs" />
     <Compile Include="Handlers/Assets.fs" />
     <Compile Include="Handlers/Branding.fs" />
+    <Compile Include="Handlers/ThemeChoice.fs" />
     <Compile Include="Handlers/Home.fs" />
     <Compile Include="Handlers/Admin/Landing.fs" />
     <Compile Include="Handlers/Admin/Setup.fs" />
@@ -124,6 +125,10 @@
     <EmbeddedResource Include="Assets/umbral.css" LogicalName="umbral.css" />
     <EmbeddedResource Include="Assets/umbral.js" LogicalName="umbral.js" />
     <EmbeddedResource Include="Assets/htmx-4.0.0.min.js" LogicalName="htmx.min.js" />
+    <!-- The Umbra fonts (spec 007 research R4): same-origin, served as /assets/fonts/<file>. -->
+    <EmbeddedResource Include="Assets/fonts/bricolage-grotesque-latin-800-v1001.woff2" LogicalName="bricolage-grotesque-latin-800-v1001.woff2" />
+    <EmbeddedResource Include="Assets/fonts/schibsted-grotesk-latin-400-600-v1100.woff2" LogicalName="schibsted-grotesk-latin-400-600-v1100.woff2" />
+    <EmbeddedResource Include="Assets/fonts/spline-sans-mono-latin-400-500-v1004.woff2" LogicalName="spline-sans-mono-latin-400-500-v1004.woff2" />
   </ItemGroup>
 
   <ItemGroup>
