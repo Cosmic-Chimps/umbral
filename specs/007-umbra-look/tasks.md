@@ -120,8 +120,8 @@ old header first would be thrown away.
 
 ## Phase 8: Polish and verification
 
-- [ ] T030 `build-css.sh --check` passes; `dotnet build -c Release`; `dotnet test -c Release` all green (record the count).
-- [ ] T031 Idle memory: `IdleMemoryTests` still passes (SC-006); note the font bytes (84 KB) in the commit.
+- [X] T030 `build-css.sh --check` passes; `dotnet build -c Release`; `dotnet test -c Release` all green (record the count).
+- [X] T031 Idle memory: `IdleMemoryTests` still passes (SC-006); note the font bytes (84 KB) in the commit.
 - [ ] T032 Manual browser pass per quickstart.md (dark, light, JavaScript off, 320 px, keyboard focus on the theme control and the dialog). Record the result here; leave unchecked if it could not be done.
 - [ ] T033 Update `spec.md` status and record deviations from this plan in `plan.md`.
 
