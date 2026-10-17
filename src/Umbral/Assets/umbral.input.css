@@ -1,8 +1,41 @@
 /*
  * Input of the Tailwind build (build-css.sh -> umbral.css). The tokens these
- * classes use live in tailwind.config.js. `.um-*` is Umbral's component layer
+ * classes use live in tailwind.config.js (the Umbra look, a dark and a light
+ * theme: specs/007-umbra-look). `.um-*` is Umbral's component layer
  * (Views/Components.fs), the analogue of a design system's component classes.
  */
+
+/*
+ * The Umbra fonts, self-hosted (Views/Assets.fs serves /assets/fonts/*). The
+ * version in a file name is its cache key: a changed font gets a new name, since
+ * a compiled stylesheet cannot carry a content hash in its url()s. `unicode-range`
+ * is Google's `latin` subset, which is what the files contain.
+ */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/assets/fonts/bricolage-grotesque-latin-800-v1001.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Schibsted Grotesk';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/assets/fonts/schibsted-grotesk-latin-400-600-v1100.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Spline Sans Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('/assets/fonts/spline-sans-mono-latin-400-500-v1004.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,21 +55,23 @@
 }
 @layer components {
   .um-card { @apply bg-surface-container-low rounded-lg p-6 md:p-8; border: var(--border-micro); }
-  .um-btn { @apply inline-flex h-11 items-center justify-center gap-2 rounded px-5 text-body-md font-semibold whitespace-nowrap; }
+  .um-btn { @apply inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-body-md font-semibold whitespace-nowrap; }
   .um-btn:disabled, .um-btn[aria-disabled="true"] { @apply opacity-50 cursor-not-allowed; }
-  .um-btn-primary { @apply bg-primary text-on-primary; }
-  .um-btn-secondary { @apply bg-surface-container-high text-on-surface border border-outline-variant; }
+  /* The fill pair, not `primary`: in the light theme the button is ink with gold text
+     while links stay a darker gold. An app's accent sheet sets both pairs. */
+  .um-btn-primary { @apply bg-primary-fill text-on-primary-fill; }
+  .um-btn-secondary { @apply bg-surface-container-high text-on-surface border border-outline; }
   .um-btn-ghost { @apply text-on-surface-variant; }
   .um-btn-danger { @apply bg-error text-on-error; }
   .um-btn-sm { @apply h-9 px-3.5 text-label-md; }
   .um-label { @apply block text-label-sm uppercase text-on-surface-variant mb-1.5; }
-  .um-input { @apply w-full h-11 rounded bg-surface-container border border-outline-variant px-3.5 text-body-md text-on-surface placeholder:text-outline; }
+  .um-input { @apply w-full h-11 rounded-md bg-surface-container border border-outline px-3.5 text-body-md text-on-surface placeholder:text-outline; }
   .um-input:focus { @apply border-primary outline-none; }
   .um-input[aria-invalid="true"] { @apply border-error; }
   .um-input[readonly] { @apply text-on-surface-variant; }
   .um-mono { @apply font-mono; }
   .um-choice-group { @apply m-0 min-w-0 border-0 p-0; }
-  .um-choice { @apply relative flex cursor-pointer items-start gap-3 rounded border border-outline-variant bg-surface-container p-4; }
+  .um-choice { @apply relative flex cursor-pointer items-start gap-3 rounded-md border border-outline-variant bg-surface-container p-4; }
   .um-choice:hover { @apply border-outline bg-surface-container-high; }
   .um-choice:has(:checked) { @apply border-primary bg-primary/10; box-shadow: 0 0 0 1px var(--color-primary); }
   .um-choice:has(:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
@@ -49,13 +84,13 @@
   .um-hint { @apply mt-1.5 text-label-md font-normal text-on-surface-variant; }
   .um-field-error { @apply mt-1.5 flex items-center gap-1.5 text-label-md text-error; }
   .um-alert { @apply flex items-start gap-3 rounded p-4 text-body-md border; }
-  .um-alert-success { @apply bg-success/10 border-success/30 text-on-surface; }
-  .um-alert-error { @apply bg-error/10 border-error/40 text-error; }
-  .um-alert-warning { @apply bg-warning/10 border-warning/30 text-on-surface; }
+  .um-alert-success { @apply bg-success-container border-success/30 text-on-surface; }
+  .um-alert-error { @apply bg-error-container border-error/40 text-on-error-container; }
+  .um-alert-warning { @apply bg-warning-container border-warning-outline text-on-surface; }
   .um-alert-info { @apply bg-secondary/10 border-secondary/30 text-on-surface; }
   .um-pill { @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-label-md; }
   .um-pill-primary { @apply bg-primary/10 text-primary border-primary/25; }
-  .um-pill-success { @apply bg-success/10 text-success border-success/25; }
+  .um-pill-success { @apply bg-success-container text-success border-success/25; }
   .um-pill-muted { @apply bg-surface-container-high text-on-surface-variant border-outline-variant; }
   .um-link { @apply text-primary underline decoration-primary/40 hover:decoration-primary; }
   .um-icon { display: inline-block; flex: none; width: 1.25em; height: 1.25em; vertical-align: -0.25em; }
@@ -70,6 +105,29 @@
 .um-btn-secondary:hover { @apply bg-surface-container-highest; }
 .um-btn-ghost:hover { @apply text-on-surface bg-surface-container; }
 .um-btn-danger:hover { @apply brightness-110; }
+
+/*
+ * Display type: the page headings and the wordmark use Bricolage Grotesque
+ * ExtraBold, the only weight of it that is shipped. A plain rule after the
+ * utilities, so it wins the tie with the font-family `text-*` set by the type
+ * scale. The wordmark is written lowercase by CSS: the text stays "Umbral" for
+ * titles and screen readers.
+ */
+.text-display, .text-headline-lg, .um-wordmark { font-family: var(--font-display); font-weight: 800; }
+.um-wordmark { text-transform: lowercase; letter-spacing: -0.035em; }
+
+/*
+ * The Gnomon (Views/Theme.fs `Mark`). Plain rules, outside any @layer, because no
+ * view writes these as utilities: Tailwind keeps a component class only when it
+ * finds it in Views/ or Handlers/ as a utility use, and these sit inside the SVG
+ * strings. SVG presentation attributes do not take var(), hence classes. The
+ * colours come from --mark-* (tailwind.config.js, per theme); no accent sheet
+ * sets them, so an app's colour never recolours Umbral's mark.
+ */
+.um-mark-sun { fill: var(--mark-sun); }
+.um-mark-base { stroke: var(--mark-base); }
+.um-mark-shadow { fill: var(--mark-shadow); opacity: var(--mark-shadow-opacity); }
+.um-mark-upright { stroke: var(--mark-upright); }
 
 /*
  * The logo crop panel. Plain rules, outside any @layer, because the elements are

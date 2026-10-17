@@ -352,8 +352,12 @@ let ``each asset is served from its versioned URL, immutable, and revalidates wi
     task {
         use! app = Fixtures.createApp ()
 
-        // The three paths are the ones a page links to, and the browser has no session.
-        Assert.Equal<string list>([ "/assets/umbral.css"; "/assets/umbral.js"; "/assets/htmx.min.js" ], Assets.all |> List.map _.Path)
+        // The paths are the ones a page or the stylesheet links to, and the browser has no session.
+        Assert.Equal<string list>(
+            [ "/assets/umbral.css"; "/assets/umbral.js"; "/assets/htmx.min.js" ]
+            @ (Assets.fonts |> List.map _.Path),
+            Assets.all |> List.map _.Path
+        )
 
         for asset in Assets.all do
             let! response = app.Client.GetAsync asset.Href
@@ -408,32 +412,36 @@ let ``the stylesheet imports nothing and fetches nothing from elsewhere`` () =
 let ``the stylesheet defines the accent as channel variables with Umbral's own colours`` () =
     let css = Text.Encoding.UTF8.GetString Assets.css.Bytes
 
-    // Minified, so no space after the colon. An unbranded page computes the same
-    // colours as before the accent became a variable (SC-001).
-    Assert.Contains("--color-primary-rgb:95 179 232", css)
-    Assert.Contains("--color-on-primary-rgb:7 38 59", css)
+    // Minified, so no space after the colon. Dark is the :root default, so an
+    // unbranded page's accent is the dark theme's gold.
+    Assert.Contains("--color-primary-rgb:245 194 107", css)
+    Assert.Contains("--color-on-primary-rgb:42 29 5", css)
 
 [<Fact>]
-let ``the primary button reads both accent variables`` () =
+let ``the primary button reads the fill variables`` () =
     let css = Text.Encoding.UTF8.GetString Assets.css.Bytes
     let rule = Regex.Match(css, "\\.um-btn-primary\\{[^}]*\\}")
 
     Assert.True(rule.Success, "the stylesheet has no .um-btn-primary rule")
-    Assert.Contains("var(--color-primary-rgb)", rule.Value)
-    Assert.Contains("var(--color-on-primary-rgb)", rule.Value)
+    Assert.Contains("var(--color-primary-fill-rgb)", rule.Value)
+    Assert.Contains("var(--color-on-primary-fill-rgb)", rule.Value)
 
 [<Fact>]
-let ``no accent use hard-codes the colour, so every one follows a [data-accent] override`` () =
+let ``no accent use hard-codes the gold, so every one follows a [data-accent] override`` () =
     let css = Text.Encoding.UTF8.GetString Assets.css.Bytes
 
-    // The one place the value may appear is the variable's own definition. Both
-    // spellings: the space-separated channels and the comma form a minifier
-    // writes for `rgb(95 179 232 / 0.3)`.
-    let withoutDefinition = css.Replace("--color-primary-rgb:95 179 232", "")
+    // The one place a gold may appear is a token's own definition: a custom
+    // property declaration (`--color-primary-rgb:245 194 107`, `--mark-sun:#f5c26b`).
+    // Both spellings are checked: the space-separated channels and the comma form a
+    // minifier writes for `rgb(245 194 107 / 0.3)`.
+    let definition = Regex("--[a-z-]+:(245 194 107|#f5c26b|138 90 0|#8a5a00)")
+    let withoutDefinitions = definition.Replace(css, "")
 
-    Assert.DoesNotContain("95 179 232", withoutDefinition)
-    Assert.DoesNotContain("95,179,232", withoutDefinition)
-    Assert.DoesNotContain("#5fb3e8", withoutDefinition)
+    // Guards the replacement above: the definitions are there to be removed.
+    Assert.True(definition.IsMatch css, "no token definition holds the gold")
+
+    for gold in [ "245 194 107"; "245,194,107"; "#f5c26b"; "138 90 0"; "138,90,0"; "#8a5a00" ] do
+        Assert.DoesNotContain(gold, withoutDefinitions)
 
 [<Fact>]
 let ``the hidden attribute always hides, whatever display a class sets`` () =

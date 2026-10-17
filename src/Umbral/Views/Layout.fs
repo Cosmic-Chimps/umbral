@@ -76,6 +76,27 @@ let private shell
 
     let showNav = (chrome = Operator)
 
+    // The person's theme choice (cookie `umbral_theme`), written on <html> so the
+    // stylesheet themes the page before the first paint: no script, no flash
+    // (spec 007, contracts/theme.md). Under System both themes are offered to the
+    // browser (`color-scheme`, one `theme-color` per scheme); a chosen theme
+    // names only its own.
+    let theme = ThemeChoice.ofRequest ctx
+
+    let colorScheme =
+        match theme with
+        | System -> "dark light"
+        | Light -> "light"
+        | Dark -> "dark"
+
+    let themeColors: HtmlElement list =
+        match theme with
+        | System ->
+            [ meta(name = "theme-color", content = "#0b0b14").attr("media", "(prefers-color-scheme: dark)")
+              meta(name = "theme-color", content = "#f4f1ea").attr("media", "(prefers-color-scheme: light)") ]
+        | Light -> [ meta(name = "theme-color", content = "#f4f1ea") ]
+        | Dark -> [ meta(name = "theme-color", content = "#0b0b14") ]
+
     // `data-accent` goes on the body, so the accent sheet's `[data-accent]` rule
     // reaches everything on the page. Only a branded sign-in page sets it; the
     // admin pages never do, which is what keeps the operator's own interface in
@@ -87,12 +108,18 @@ let private shell
     | SignIn { Accent = Some accent } -> body'.data("accent", Umbral.Domains.Branding.Accent.hex accent) |> ignore
     | _ -> ()
 
-    html(lang = "en", class' = "bg-surface") {
+    let html' = html(lang = "en", class' = "bg-surface")
+    html'.data("theme", ThemeChoice.attr theme) |> ignore
+
+    html' {
         head() {
             meta(charset = "UTF-8")
             meta(name = "viewport", content = "width=device-width, initial-scale=1.0")
-            meta(name = "color-scheme", content = "dark")
-            meta(name = "theme-color", content = "#0d1117")
+            meta(name = "color-scheme", content = colorScheme)
+
+            for themeColor in themeColors do
+                themeColor
+
             title() { $"{titleText} | {t.SiteName}" }
             link(rel = "icon", href = faviconHref).attr("type", "image/svg+xml")
             link(rel = "stylesheet", href = Assets.css.Href)
@@ -127,14 +154,14 @@ let private shell
 
             main (id = "main", class' = "mx-auto w-full max-w-page flex-1 px-4 py-8 md:px-8 md:py-12") { content }
 
-            // The mark's colours are fixed in `markSvg` and the text is a
-            // fixed token, so no accent rule can recolour them: the mark
-            // stays Umbral's whatever the app chose.
+            // The mark's colours are the theme's `--mark-*` and the text is a
+            // fixed token; no accent rule sets either, so the mark stays
+            // Umbral's whatever the app chose.
             match chrome with
             | SignIn _ ->
                 (footer(class' = "border-t border-outline-variant/40").data("secured-by", "") {
                     div(class' = "mx-auto flex max-w-page items-center gap-3 px-4 py-6 text-label-md font-normal text-on-surface-variant md:px-8") {
-                        span(class' = "block h-5 w-5 opacity-80") { raw markSvg }
+                        span(class' = "block h-5 w-5") { raw Mark.small }
                         p() { t.SecuredByUmbral }
                     }
                 })
@@ -142,7 +169,7 @@ let private shell
             | _ ->
                 (footer(class' = "border-t border-outline-variant/40") {
                     div(class' = "mx-auto flex max-w-page items-center gap-3 px-4 py-6 text-label-md font-normal text-on-surface-variant md:px-8") {
-                        span(class' = "block h-5 w-5 opacity-80") { raw markSvg }
+                        span(class' = "block h-5 w-5") { raw Mark.small }
                         p() { t.Footer }
                     }
                 })

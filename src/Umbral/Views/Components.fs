@@ -24,22 +24,24 @@ open Umbral.Views.Theme
 let icon (i: Icon) =
     raw $"""<svg class="um-icon" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true" focusable="false"><path d="{i.Path}"/></svg>"""
 
-/// The mark (an inline SVG) next to the wordmark, linking to the Apps screen
+/// The Gnomon (an inline SVG) next to the wordmark. The wordmark is set in
+/// lowercase and the display face by `um-wordmark` (CSS); the text stays
+/// "Umbral" for titles and screen readers.
 let private brandClass =
-    "inline-flex items-center gap-2.5 rounded text-headline-md font-extrabold tracking-tight text-on-surface"
+    "inline-flex items-center gap-2.5 rounded text-headline-md text-on-surface"
 
 /// The wordmark. It links home only for the operator (`/admin/apps`); everyone
 /// else gets it as plain text, since they have no business on `/admin`.
 let brand (linked: bool) (siteName: string) : HtmlElement =
     if linked then
         a(href = "/admin/apps", class' = brandClass) {
-            span(class' = "block h-7 w-7") { raw markSvg }
-            siteName
+            span(class' = "block h-7 w-7") { raw Mark.small }
+            span(class' = "um-wordmark") { siteName }
         }
     else
         span(class' = brandClass) {
-            span(class' = "block h-7 w-7") { raw markSvg }
-            siteName
+            span(class' = "block h-7 w-7") { raw Mark.small }
+            span(class' = "um-wordmark") { siteName }
         }
 
 type ButtonKind =

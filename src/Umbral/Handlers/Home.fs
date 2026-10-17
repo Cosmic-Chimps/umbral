@@ -23,7 +23,7 @@ open Umbral.Views.Theme
 let private view (t: Texts.Texts) (origin: PublicOrigin.PublicOrigin) =
     div(class' = "space-y-10") {
         section(class' = "flex flex-col items-center gap-4 py-6 text-center") {
-            span(class' = "block h-16 w-16") { raw markSvg }
+            span(class' = "block h-16 w-16") { raw Mark.full }
             h1(class' = "text-headline-lg text-on-surface") { t.HomeHeadline }
             p(class' = "max-w-prose text-body-md text-on-surface-variant") { t.HomeLead }
         }
