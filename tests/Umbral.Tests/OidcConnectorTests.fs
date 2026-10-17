@@ -1042,7 +1042,10 @@ let ``the connectors screen draws no notice text taken from its URL`` () =
               $"/admin/apps?msg={planted}"
               $"/admin/users?msg={planted}"
               $"/admin/credential?msg={planted}" ] do
-            let! screen = operator.GetHtml url
+            let! page = operator.GetHtml url
+            // The theme control's hidden return address is this very URL; it is
+            // an attribute, not text the screen draws.
+            let screen = Umbral.Tests.Infrastructure.Flows.withoutThemeControl page
             Assert.DoesNotContain(planted, screen)
             Assert.DoesNotContain("data-notice", screen)
 
@@ -1052,7 +1055,8 @@ let ``the connectors screen draws no notice text taken from its URL`` () =
             [ "connector-enable-oidc-wrong", "home", "describes itself in a way Umbral cannot use"
               "connector-enable-oidc-unreachable", "home", "Umbral could not reach the provider"
               "connector-added-oidc-unreachable", "nope", "saved but is disabled" ] do
-            let! screen = operator.GetHtml $"/admin/connectors?msg={code}&slug={slug}&reason={planted}"
+            let! page = operator.GetHtml $"/admin/connectors?msg={code}&slug={slug}&reason={planted}"
+            let screen = Umbral.Tests.Infrastructure.Flows.withoutThemeControl page
             Assert.DoesNotContain(planted, screen)
             Assert.Contains($"data-notice=\"{code}\"", screen)
             Assert.Contains(fixedText, screen)

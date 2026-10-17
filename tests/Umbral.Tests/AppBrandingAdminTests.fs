@@ -508,7 +508,8 @@ let ``a size written into the address is never shown`` () =
         // A link a person could be sent. No cookie came with it, so there is no measured value.
         for code in [ "app-logo-too-small"; "app-logo-too-big"; "app-logo-too-large" ] do
             let! html = operator.GetHtml($"/admin/apps?msg={code}&app={idA}&width=9999&height=8888&bytes=777777777#app-{idA}")
-            let text = decode html
+            // Without the theme control, whose hidden return address is this very URL.
+            let text = decode (Umbral.Tests.Infrastructure.Flows.withoutThemeControl html)
             Assert.DoesNotContain("9999", text)
             Assert.DoesNotContain("8888", text)
             Assert.DoesNotContain("777777777", text)

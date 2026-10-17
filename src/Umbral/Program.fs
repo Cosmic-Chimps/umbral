@@ -37,6 +37,7 @@ let endpoints: Endpoint list =
     [ Umbral.Handlers.Health.endpoint
       Umbral.Handlers.Assets.endpoint
       Umbral.Handlers.Branding.endpoint
+      Umbral.Handlers.ThemeChoice.endpoint
       Umbral.Handlers.Home.endpoint
       Umbral.Handlers.Admin.Landing.endpoint
       yield! Umbral.Handlers.Admin.Setup.endpoint

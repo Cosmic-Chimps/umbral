@@ -65,7 +65,7 @@
   .um-btn-danger { @apply bg-error text-on-error; }
   .um-btn-sm { @apply h-9 px-3.5 text-label-md; }
   .um-label { @apply block text-label-sm uppercase text-on-surface-variant mb-1.5; }
-  .um-input { @apply w-full h-11 rounded-md bg-surface-container border border-outline px-3.5 text-body-md text-on-surface placeholder:text-outline; }
+  .um-input { @apply w-full h-11 rounded-md bg-surface-container border border-outline px-3.5 text-body-md text-on-surface placeholder:text-on-surface-variant; }
   .um-input:focus { @apply border-primary outline-none; }
   .um-input[aria-invalid="true"] { @apply border-error; }
   .um-input[readonly] { @apply text-on-surface-variant; }
@@ -93,10 +93,18 @@
   .um-pill-success { @apply bg-success-container text-success border-success/25; }
   .um-pill-muted { @apply bg-surface-container-high text-on-surface-variant border-outline-variant; }
   .um-link { @apply text-primary underline decoration-primary/40 hover:decoration-primary; }
+  /* The Create app dialog (`<dialog>`, opened by umbral.js with showModal()). The
+     browser centres a modal dialog and traps focus in it; this only dresses it. */
+  .um-dialog { @apply w-[calc(100%-2rem)] max-w-2xl rounded-xl bg-surface-container-low p-6 text-on-surface md:p-8; border: var(--border-micro); max-height: calc(100dvh - 2rem); overflow-y: auto; }
+  .um-dialog::backdrop { background: rgb(5 5 10 / 0.74); }
   .um-icon { display: inline-block; flex: none; width: 1.25em; height: 1.25em; vertical-align: -0.25em; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .um-btn, .um-input, .um-link, .um-choice { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .um-dialog[open] { animation: um-dialog-in 160ms ease-out; }
+  @keyframes um-dialog-in { from { opacity: 0; transform: translateY(8px); } }
 }
 @supports selector(:has(*)) {
   .um-choice-radio:focus-visible { outline: none; }

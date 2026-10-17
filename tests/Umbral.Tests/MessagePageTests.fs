@@ -4,6 +4,7 @@ module Umbral.Tests.MessagePageTests
 
 open System.Net
 open System.Net.Http
+open System.Text.RegularExpressions
 open Xunit
 open Umbral.Tests.Infrastructure
 open Umbral.Tests.Infrastructure.Flows
@@ -76,7 +77,12 @@ let ``the end-user picker shows no operator navigation`` () =
 
         Assert.Contains("data-screen=\"signin\"", html)
         Assert.DoesNotContain("/admin/", html)
-        Assert.DoesNotContain("<form", html)
+        // No sign-out; the one form a page of this kind has is the theme control
+        // (spec 007), which posts to `/theme`.
+        Assert.DoesNotContain("signout", html)
+        Assert.DoesNotContain("<aside", html)
+        Assert.Equal(1, Regex.Matches(html, "<form").Count)
+        Assert.Contains("action=\"/theme\"", html)
     }
 
 [<Fact>]

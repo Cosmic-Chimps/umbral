@@ -100,6 +100,13 @@ type Browser(client: HttpClient) =
 
 let location (response: HttpResponseMessage) = response.Headers.Location |> string
 
+/// A page without its theme control (spec 007). The control's hidden `returnUrl`
+/// is the address the page was fetched at, query included, as an attribute and
+/// not as text; a test that checks "nothing from the address is drawn" looks at
+/// the page without it.
+let withoutThemeControl (html: string) =
+    Regex.Replace(html, "<form[^>]*data-theme-switch[^>]*>.*?</form>", "", RegexOptions.Singleline)
+
 /// Claim a fresh instance as its operator. Leaves `browser` signed in.
 let claimOperator (app: Fixtures.TestApp) (browser: Browser) =
     task {

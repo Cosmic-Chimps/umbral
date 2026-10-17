@@ -15,7 +15,10 @@
 /// the Connectors screen, added the same way by that screen.
 module Umbral.Views.Components
 
+open Microsoft.AspNetCore.Http
+open Oxpecker
 open Oxpecker.ViewEngine
+open Umbral.Views.Texts
 open Umbral.Views.Theme
 
 /// An inline SVG, sized and aligned by `.um-icon` and coloured by the text
@@ -43,6 +46,62 @@ let brand (linked: bool) (siteName: string) : HtmlElement =
             span(class' = "block h-7 w-7") { raw Mark.small }
             span(class' = "um-wordmark") { siteName }
         }
+
+/// Where `POST /theme` sends the person back to: the page they are on, query
+/// included (a sign-in page's `returnUrl` is what they came for), when it was a
+/// GET; otherwise the nearest screen that is safe to GET: `/admin` under
+/// `/admin`, else `/`. The server checks it again, as it checks everything posted.
+let private themeReturnUrl (ctx: HttpContext) =
+    if HttpMethods.IsGet ctx.Request.Method then
+        $"{ctx.Request.Path.Value}{ctx.Request.QueryString.Value}"
+    elif ctx.Request.Path.StartsWithSegments(PathString "/admin") then
+        "/admin"
+    else
+        "/"
+
+/// The theme control (spec 007, contracts/theme.md): a form that posts the
+/// choice, so it works without script. The three options are real submit buttons
+/// of one `role="group"` that is labelled; the one in force says
+/// `aria-pressed="true"`. It is not a `<nav>`, so the branded sign-in page,
+/// which has none, can carry it. There is one per page: the ids are fixed.
+let themeSwitch (ctx: HttpContext) (t: Texts) (choice: ThemeChoice) : HtmlElement =
+    let option' (value: ThemeChoice) (label': string) (glyph: Icon) =
+        let on = (value = choice)
+
+        let classes =
+            if on then
+                "inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary-fill text-on-primary-fill"
+            else
+                "inline-flex h-11 w-11 items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface"
+
+        button(type' = "submit", name = "theme", value = ThemeChoice.attr value, class' = classes)
+            .attr("aria-label", label')
+            .attr("aria-pressed", (if on then "true" else "false")) {
+            icon glyph
+        }
+
+    let note =
+        match choice with
+        | System -> t.ThemeNoteSystem
+        | Light -> t.ThemeNoteLight
+        | Dark -> t.ThemeNoteDark
+
+    form(method = "post", action = "/theme", class' = "flex flex-col gap-2").data("theme-switch", "") {
+        ctx.GetAntiforgeryInput()
+        input(type' = "hidden", name = "returnUrl", value = themeReturnUrl ctx)
+
+        span(id = "theme-label", class' = "text-label-md font-semibold text-on-surface-variant") { t.ThemeLabel }
+
+        div(class' = "flex self-start rounded-full border border-outline bg-surface-container-low p-0.5")
+            .attr("role", "group")
+            .attr("aria-labelledby", "theme-label") {
+            option' System t.ThemeSystem Computer
+            option' Light t.ThemeLight LightMode
+            option' Dark t.ThemeDark DarkMode
+        }
+
+        p(class' = "text-label-md font-normal text-on-surface-variant").data("theme-note", "") { note }
+    }
 
 type ButtonKind =
     | Primary

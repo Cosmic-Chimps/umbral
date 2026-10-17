@@ -28,6 +28,33 @@ document.addEventListener('click', function (event) {
   });
 });
 
+// Dialogs. An `a[data-dialog="<id>"]` is a link first (the Create app link goes to
+// its own page) and opens the `<dialog id="<id>">` on the same page when the
+// browser can (`showModal`), instead of following the link. A click with a
+// modifier key, or not the primary button, is left alone: that is someone opening
+// the link in a new tab. `[data-dialog-close]` closes the dialog it sits in; the
+// Escape key already does, natively. Without this script the link is followed.
+document.addEventListener('click', function (event) {
+  if (!(event.target instanceof Element)) return;
+
+  var opener = event.target.closest('a[data-dialog]');
+  if (opener) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    var dialog = document.getElementById(opener.getAttribute('data-dialog'));
+    if (dialog && typeof dialog.showModal === 'function') {
+      event.preventDefault();
+      if (!dialog.open) dialog.showModal();
+    }
+    return;
+  }
+
+  var closer = event.target.closest('[data-dialog-close]');
+  if (closer) {
+    var open = closer.closest('dialog');
+    if (open && typeof open.close === 'function') open.close();
+  }
+});
+
 // A native confirm() on every form carrying `data-confirm`, so a destructive
 // action names what breaks before it goes through. Both listeners use the
 // capture phase on the document, which runs before any listener htmx attaches

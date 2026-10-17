@@ -689,8 +689,12 @@ let private appTypeChoices (t: Texts.Texts) (selected: AppType) =
         p(id = "appType-hint", class' = "um-hint") { t.AppTypeHint }
     }
 
-let private createForm (ctx: HttpContext) (t: Texts.Texts) (connectors: Connector list) =
-    form(method = "post", action = "/admin/apps", class' = "um-card space-y-4") {
+/// The create form. It is the same on the Apps screen, where it sits in a dialog,
+/// and on its own page (`/admin/apps/new`), which is what the "Create app" link
+/// opens when script is off: only the frame (`formClass`) and what Cancel is
+/// differ, so the two cannot drift apart.
+let private createForm (ctx: HttpContext) (t: Texts.Texts) (connectors: Connector list) (formClass: string) (cancel: HtmlElement) =
+    form(method = "post", action = "/admin/apps", class' = formClass) {
         ctx.GetAntiforgeryInput()
 
         Components.field t.AppNameLabel "name" "" None None
@@ -700,9 +704,13 @@ let private createForm (ctx: HttpContext) (t: Texts.Texts) (connectors: Connecto
         appTypeChoices t Web
         connectorChoices t "connectors-new" connectors AllShared
 
-        button(type' = "submit", class' = Components.btn Components.Primary) {
-            Components.icon Theme.Add
-            t.AppCreateButton
+        div(class' = "flex flex-wrap items-center gap-3") {
+            button(type' = "submit", class' = Components.btn Components.Primary) {
+                Components.icon Theme.Add
+                t.AppCreateButton
+            }
+
+            cancel
         }
     }
 
@@ -761,7 +769,17 @@ let private view
         |> List.map (fun hex -> $"/branding/accent/{hex}.css")
 
     div(class' = "space-y-6").data("screen", "apps") {
-        Components.pageHeading t.AppsTitle (Some t.AppsLead)
+        div(class' = "flex flex-wrap items-end justify-between gap-4") {
+            Components.pageHeading t.AppsTitle (Some t.AppsLead)
+
+            // A link first: without script it is the page, with script it opens
+            // the dialog below (umbral.js, `data-dialog`).
+            if hasEnabledConnector then
+                a(href = "/admin/apps/new", class' = Components.btn Components.Primary).data("dialog", "create-app") {
+                    Components.icon Theme.Add
+                    t.AppCreateButton
+                }
+        }
 
         match notice, strand with
         // The same text as the row's warning, from the names the app has now; a
@@ -799,7 +817,18 @@ let private view
                 t.AppsNeedConnectorBody
                 (Some(a (href = "/admin/connectors", class' = Components.btn Components.Primary) { t.NavConnectors }))
         else
-            createForm ctx t connectors
+            dialog(id = "create-app", class' = "um-dialog").attr("aria-labelledby", "create-app-title") {
+                h2(id = "create-app-title", class' = "mb-6 text-headline-lg text-on-surface") { t.AppCreateTitle }
+
+                createForm
+                    ctx
+                    t
+                    connectors
+                    "space-y-4"
+                    (button(type' = "button", class' = Components.btn Components.Secondary).data("dialog-close", "") {
+                        t.AppCreateCancel
+                    })
+            }
 
         if rows.IsEmpty then
             Components.emptyState Theme.ExploreOff t.AppsEmptyTitle t.AppsEmptyBody None
@@ -932,6 +961,39 @@ let page: EndpointHandler =
             return!
                 ctx.WriteHtmlView(
                     view ctx t origin rows connectors hasEnabledConnector revealed notice cardNotice strand unrestricted
+                )
+        })
+
+/// The create form on a page of its own, for a browser without script and for a
+/// link someone opens in a new tab. The same form as the dialog's, or the same
+/// "add a connector first" answer the Apps screen gives.
+let newPage: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let t = Texts.current ()
+            let config = ctx.GetService<Database.DbConfig>()
+            let! connectors = ConnectorStore.listAll config
+
+            return!
+                ctx.WriteHtmlView(
+                    div(class' = "space-y-6").data("screen", "app-new") {
+                        Components.pageHeading t.AppCreateTitle None
+
+                        if List.isEmpty (offeredTo AllShared connectors) then
+                            Components.emptyState
+                                Theme.Warning
+                                t.AppsNeedConnectorTitle
+                                t.AppsNeedConnectorBody
+                                (Some(a (href = "/admin/connectors", class' = Components.btn Components.Primary) { t.NavConnectors }))
+                        else
+                            createForm
+                                ctx
+                                t
+                                connectors
+                                "um-card space-y-4"
+                                (a(href = "/admin/apps", class' = Components.btn Components.Secondary) { t.AppCreateCancel })
+                    }
+                    |> Layout.operatorPage ctx t t.AppCreateTitle []
                 )
         })
 
@@ -1088,5 +1150,6 @@ let setConnectors (clientId: string) : EndpointHandler =
 
 let endpoint =
     [ GET [ route "/admin/apps" page ]
+      GET [ route "/admin/apps/new" newPage ]
       POST [ route "/admin/apps" create ]
       POST [ routef "/admin/apps/{%s}/connectors" setConnectors ] ]

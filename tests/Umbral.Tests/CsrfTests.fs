@@ -303,7 +303,11 @@ let ``every state-changing route is either protected or consciously out of scope
 
         let stray =
             mutatingRoutes app
-            |> List.filter (fun r -> not (r.Pattern.StartsWith "/admin") && not (isOutOfScope r))
+            // `POST /theme` is public on purpose (it keeps a display choice in a
+            // cookie, no operator needed) but it is protected by the token: it is
+            // in `routes` of every walk below, so it is held to "no token, no
+            // change", and ThemeTests covers it by name.
+            |> List.filter (fun r -> not (r.Pattern.StartsWith "/admin") && r.Pattern <> "/theme" && not (isOutOfScope r))
             |> List.map _.Name
 
         assertNone
@@ -363,12 +367,13 @@ let ``a visitor who is not signed in cannot change anything either`` () =
         assertNone "an anonymous request with no token changed something or was not refused:" bare
 
         // A real, valid token — a stranger can fetch one from the sign-in page —
-        // must still not unlock an operator-only route.
+        // must still not unlock an operator-only route. (`/theme` is not one: a
+        // stranger may choose their own theme.)
         let! token = stranger.TokenFrom "/admin/signin"
         let withToken = ("__RequestVerificationToken", token) :: fields
 
         let operatorOnly =
-            routes |> List.filter (fun r -> r.Pattern <> "/admin/signin" && r.Pattern <> "/admin/signout" && r.Pattern <> "/admin/setup")
+            routes |> List.filter (fun r -> r.Pattern <> "/admin/signin" && r.Pattern <> "/admin/signout" && r.Pattern <> "/admin/setup" && r.Pattern <> "/theme")
 
         let! tokenOnly = rejectionFailures app stranger false targets withToken operatorOnly
         assertNone "a valid token without an operator session unlocked an operator route:" tokenOnly

@@ -395,7 +395,8 @@ let ``the operator's pages carry no accent on their body, however many apps are 
         for page in [ "/admin/apps"; "/admin/connectors"; "/admin/users"; "/admin/credential" ] do
             let! html = get operator page
             Assert.DoesNotContain("data-accent", bodyTag html)
-            Assert.Contains("<header", html)
+            // The operator's chrome is the side rail now (spec 007), not a top bar.
+            Assert.Contains("<aside", html)
     }
 
 // ---------------------------------------------------------------------------

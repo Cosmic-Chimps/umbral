@@ -12,22 +12,49 @@ open Oxpecker.ViewEngine
 open Umbral.Views.Texts
 open Umbral.Views.Theme
 
-/// Top navigation: the operator's screens (Principle I) and sign-out. Only
+/// The operator's side rail (spec 007, research R7): the brand, the four screens
+/// and sign-out in one labelled `<nav>`, and the theme control below it. Only
 /// `operatorPage` renders it, and only handlers already behind `requireOperator`
 /// call that. Setup, sign-in, the end-user picker and every message page use
 /// `page`, which shows the brand alone: an end user mid-login must not see
 /// links into `/admin` or a sign-out button.
-let private navLinks (ctx: HttpContext) (t: Texts) =
-    nav(class' = "flex items-center gap-1 sm:gap-2") {
-        a(href = "/admin/apps", class' = Components.btnSm Components.Ghost) { t.NavApps }
-        a(href = "/admin/connectors", class' = Components.btnSm Components.Ghost) { t.NavConnectors }
-        a(href = "/admin/users", class' = Components.btnSm Components.Ghost) { t.NavUsers }
-        a(href = "/admin/credential", class' = Components.btnSm Components.Ghost) { t.NavCredential }
+///
+/// Wide screens have it as a column beside the page; narrow ones stack it above
+/// the page and let its entries wrap, so there is no menu to open. The entry for
+/// the page being shown says `aria-current="page"`: the Create app page counts as
+/// Apps, which is what `StartsWithSegments` gives.
+let private rail (ctx: HttpContext) (t: Texts) (theme: ThemeChoice) =
+    let entryClass = "flex min-h-11 items-center rounded-xl px-3.5 py-2.5 text-body-md font-medium"
+    let idle = $"{entryClass} text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+    let current = $"{entryClass} bg-surface-container-high font-semibold text-primary"
 
-        form(method = "post", action = "/admin/signout") {
-            ctx.GetAntiforgeryInput()
-            button(type' = "submit", class' = Components.btnSm Components.Ghost) { t.NavSignOut }
+    let entry (href: string) (label': string) =
+        let isCurrent = ctx.Request.Path.StartsWithSegments(PathString href)
+        let link = a(href = href, class' = (if isCurrent then current else idle))
+
+        if isCurrent then
+            link.attr("aria-current", "page") |> ignore
+
+        link { label' }
+
+    aside(class' = "flex flex-col gap-4 border-b border-outline-variant/40 bg-surface px-4 py-4 md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0 md:justify-between md:gap-8 md:overflow-y-auto md:border-b-0 md:border-r md:px-5 md:py-7") {
+        div(class' = "flex flex-col gap-4 md:gap-8") {
+            Components.brand true t.SiteName
+
+            nav(class' = "flex flex-wrap gap-1 md:flex-col").attr("aria-label", t.NavLabel) {
+                entry "/admin/apps" t.NavApps
+                entry "/admin/connectors" t.NavConnectors
+                entry "/admin/users" t.NavUsers
+                entry "/admin/credential" t.NavCredential
+
+                form(method = "post", action = "/admin/signout", class' = "flex") {
+                    ctx.GetAntiforgeryInput()
+                    button(type' = "submit", class' = $"{idle} w-full text-left") { t.NavSignOut }
+                }
+            }
         }
+
+        Components.themeSwitch ctx t theme
     }
 
 /// The Content-Security-Policy of every page Umbral renders: scripts, styles,
@@ -74,8 +101,6 @@ let private shell
     =
     ctx.Response.Headers.ContentSecurityPolicy <- contentSecurityPolicy
 
-    let showNav = (chrome = Operator)
-
     // The person's theme choice (cookie `umbral_theme`), written on <html> so the
     // stylesheet themes the page before the first paint: no script, no flash
     // (spec 007, contracts/theme.md). Under System both themes are offered to the
@@ -101,8 +126,11 @@ let private shell
     // reaches everything on the page. Only a branded sign-in page sets it; the
     // admin pages never do, which is what keeps the operator's own interface in
     // Umbral's colour whatever the apps look like (FR-005).
+    let isOperator = (chrome = Operator)
+
+    // The rail sits beside the page on wide screens, above it on narrow ones.
     let body' =
-        body(class' = "min-h-screen bg-surface text-on-surface flex flex-col")
+        body(class' = "min-h-screen bg-surface text-on-surface flex flex-col" + (if isOperator then " md:flex-row" else ""))
 
     match chrome with
     | SignIn { Accent = Some accent } -> body'.data("accent", Umbral.Domains.Branding.Accent.hex accent) |> ignore
@@ -137,43 +165,65 @@ let private shell
                 t.SkipToContent
             }
 
-            // A branded sign-in page has no header: the wordmark is Umbral's
-            // mark, and the app's page is the app's (FR-006).
+            // The operator has the rail and no top bar; a branded sign-in page has
+            // no header at all, the wordmark being Umbral's mark and the app's
+            // page the app's (FR-006); everyone else has the brand alone.
             match chrome with
+            | Operator -> rail ctx t theme
             | SignIn _ -> Fragment() :> HtmlElement
-            | _ ->
+            | Plain ->
                 (header(class' = "sticky top-0 z-50 border-b border-outline-variant/40 bg-surface/90 backdrop-blur-md") {
                     nav(class' = "mx-auto flex h-16 max-w-page items-center justify-between gap-4 px-4 md:px-8") {
-                        Components.brand showNav t.SiteName
-
-                        if showNav then
-                            navLinks ctx t
+                        Components.brand false t.SiteName
                     }
                 })
                 :> HtmlElement
 
-            main (id = "main", class' = "mx-auto w-full max-w-page flex-1 px-4 py-8 md:px-8 md:py-12") { content }
+            // With the rail, the page and its footer are one column beside it.
+            div(class' = (if isOperator then "flex min-w-0 flex-1 flex-col" else "flex flex-1 flex-col")) {
+                main (id = "main", class' = "mx-auto w-full max-w-page flex-1 px-4 py-8 md:px-8 md:py-12") { content }
 
-            // The mark's colours are the theme's `--mark-*` and the text is a
-            // fixed token; no accent rule sets either, so the mark stays
-            // Umbral's whatever the app chose.
-            match chrome with
-            | SignIn _ ->
-                (footer(class' = "border-t border-outline-variant/40").data("secured-by", "") {
-                    div(class' = "mx-auto flex max-w-page items-center gap-3 px-4 py-6 text-label-md font-normal text-on-surface-variant md:px-8") {
-                        span(class' = "block h-5 w-5") { raw Mark.small }
-                        p() { t.SecuredByUmbral }
-                    }
-                })
-                :> HtmlElement
-            | _ ->
-                (footer(class' = "border-t border-outline-variant/40") {
-                    div(class' = "mx-auto flex max-w-page items-center gap-3 px-4 py-6 text-label-md font-normal text-on-surface-variant md:px-8") {
-                        span(class' = "block h-5 w-5") { raw Mark.small }
-                        p() { t.Footer }
-                    }
-                })
-                :> HtmlElement
+                // The mark's colours are the theme's `--mark-*` and the text is a
+                // fixed token; no accent rule sets either, so the mark stays
+                // Umbral's whatever the app chose.
+                let footerInner = "mx-auto flex max-w-page flex-wrap items-center justify-between gap-x-6 gap-y-4 px-4 py-6 text-label-md font-normal text-on-surface-variant md:px-8"
+
+                match chrome with
+                | SignIn _ ->
+                    (footer(class' = "border-t border-outline-variant/40").data("secured-by", "") {
+                        div(class' = footerInner) {
+                            div(class' = "flex items-center gap-3") {
+                                span(class' = "block h-5 w-5") { raw Mark.small }
+                                p() { t.SecuredByUmbral }
+                            }
+
+                            Components.themeSwitch ctx t theme
+                        }
+                    })
+                    :> HtmlElement
+                | Plain ->
+                    (footer(class' = "border-t border-outline-variant/40") {
+                        div(class' = footerInner) {
+                            div(class' = "flex items-center gap-3") {
+                                span(class' = "block h-5 w-5") { raw Mark.small }
+                                p() { t.Footer }
+                            }
+
+                            Components.themeSwitch ctx t theme
+                        }
+                    })
+                    :> HtmlElement
+                | Operator ->
+                    (footer(class' = "border-t border-outline-variant/40") {
+                        div(class' = footerInner) {
+                            div(class' = "flex items-center gap-3") {
+                                span(class' = "block h-5 w-5") { raw Mark.small }
+                                p() { t.Footer }
+                            }
+                        }
+                    })
+                    :> HtmlElement
+            }
         }
     }
 

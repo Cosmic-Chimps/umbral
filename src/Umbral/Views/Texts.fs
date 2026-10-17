@@ -20,6 +20,17 @@ type Texts =
       NavUsers: string
       NavCredential: string
       NavSignOut: string
+      /// The name of the operator's navigation landmark (the side rail).
+      NavLabel: string
+
+      // The theme control (spec 007): the rail and the footer of every other page.
+      ThemeLabel: string
+      ThemeSystem: string
+      ThemeLight: string
+      ThemeDark: string
+      ThemeNoteSystem: string
+      ThemeNoteLight: string
+      ThemeNoteDark: string
 
       // First run (FR-016, FR-017): a single operator credential, no username.
       SetupTitle: string
@@ -75,6 +86,9 @@ type Texts =
       AppTypeWebDescription: string
       AppTypeSpaDescription: string
       AppCreateButton: string
+      /// The heading of the Create app dialog and of its page (`/admin/apps/new`).
+      AppCreateTitle: string
+      AppCreateCancel: string
       AppClientIdLabel: string
       AppIssuerUrlLabel: string
       AppSecretLabel: string
@@ -643,6 +657,15 @@ let en: Texts =
       NavUsers = "Users"
       NavCredential = "Credential"
       NavSignOut = "Sign out"
+      NavLabel = "Admin"
+
+      ThemeLabel = "Theme"
+      ThemeSystem = "Follow system"
+      ThemeLight = "Light"
+      ThemeDark = "Dark"
+      ThemeNoteSystem = "Following your system."
+      ThemeNoteLight = "Light, on this browser."
+      ThemeNoteDark = "Dark, on this browser."
 
       SetupTitle = "Set up Umbral"
       SetupLead = "Choose the operator credential. It's the only way to reach this admin area, so keep it somewhere safe. There's no recovery screen: if you lose it, run `docker exec -it umbral /app/Umbral reset-credential` on the host."
@@ -688,6 +711,8 @@ let en: Texts =
       AppTypeWebDescription = "Your app has a back end that can keep a secret: ASP.NET, Node/Express, Django, Rails, PHP. Sign-in happens on the server. You get a client ID and a client secret, and sign-in is also protected with PKCE."
       AppTypeSpaDescription = "Your app runs entirely on the person's device, where anything shipped can be read: a React, Vue or Angular app with no back end, a mobile or desktop app, a command-line tool. You get a client ID only, no secret; the app proves itself with PKCE."
       AppCreateButton = "Create app"
+      AppCreateTitle = "Create app"
+      AppCreateCancel = "Cancel"
       AppClientIdLabel = "Client ID"
       AppIssuerUrlLabel = "Issuer URL"
       AppSecretLabel = "Client secret"
