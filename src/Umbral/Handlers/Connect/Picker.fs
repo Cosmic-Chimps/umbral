@@ -14,12 +14,32 @@ open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 open Umbral.Views
 
+/// Browsers drop tabs and line breaks anywhere in a URL and trim spaces and
+/// control characters, so `/\t/host` is `//host`; a raw line break would also
+/// split the `Location` header.
+let private hasInvisible (text: string) =
+    text |> Seq.exists (fun c -> Char.IsControl c || Char.IsWhiteSpace c)
+
+/// A path a browser resolves on this instance and nowhere else. Browsers read a
+/// `\` in the path of an http(s) URL as a `/`, so `/\host` is `//host`.
+let private isLocalPath (path: string) =
+    path.StartsWith '/' && not (path.StartsWith "//") && not (path.Contains '\\') && not (hasInvisible path)
+
 /// Where to go once a provider has vouched for them. Only ever a path on this
 /// instance: an absolute URL here would make the picker an open redirect, and
-/// the value is attacker-supplied by construction.
+/// the value is attacker-supplied by construction. The path part must also stay
+/// local once percent-decoded (`/%5Chost`, `/%2F/host`): a browser keeps those
+/// on this instance, but one layer that decodes them once more would not. A `\`
+/// in the query is just a character, so only the path is held to that rule.
 let sanitizeReturnUrl (candidate: string | null) =
     match Option.ofObj candidate with
-    | Some url when url.StartsWith "/" && not (url.StartsWith "//") -> url
+    | Some url when not (hasInvisible url) ->
+        let path =
+            match url.IndexOfAny [| '?'; '#' |] with
+            | -1 -> url
+            | at -> url.Substring(0, at)
+
+        if isLocalPath path && isLocalPath (Uri.UnescapeDataString path) then url else "/"
     | _ -> "/"
 
 /// Everything an end user sees when a sign-in fails is one of these codes,
