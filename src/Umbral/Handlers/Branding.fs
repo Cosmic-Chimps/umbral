@@ -50,7 +50,7 @@ let private AccentFormatVersion = 2
 /// channel variables: `:root` defines them as `rgb(var(--color-primary-rgb))`,
 /// but a custom property's `var()` is resolved on the element that declares it
 /// and the result inherited, so without the redefinition every direct use of
-/// `var(--color-primary)` (focus outline, caret, radio) would stay Umbral blue
+/// `var(--color-primary)` (focus outline, caret, radio) would stay Umbral's gold
 /// under `[data-accent]`.
 ///
 /// Spec 007 added the four `primary-fill` properties, which the primary button

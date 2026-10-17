@@ -4,6 +4,13 @@
 /// returns the fragment alone when `HX-Request` is present and the same
 /// element piped through `page` otherwise (research.md D11) — that branch
 /// lives in the handler, not here.
+///
+/// Three kinds of page chrome (`Chrome`): the operator's, with the side rail;
+/// the plain one (setup, sign-in, message pages), with the brand and a footer;
+/// and the end-user sign-in page, which a branded app replaces with its own
+/// colour and a "Secured by Umbral" footer. All of them wear the Umbra look in
+/// the theme the person chose (specs/007-umbra-look): the choice is read from a
+/// cookie and written on `<html>`, and every chrome carries the theme control.
 module Umbral.Views.Layout
 
 open Microsoft.AspNetCore.Http

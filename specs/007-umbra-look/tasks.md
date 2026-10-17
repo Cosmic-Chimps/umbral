@@ -113,8 +113,8 @@ old header first would be thrown away.
 
 ## Phase 7: User Story 5 — documentation (P3)
 
-- [ ] T028 [US5] `README.md`: a section "How it looks" (or within the quick start) describing the Umbra look, the Gnomon, the two themes, the theme control (rail and sign-in footer), that it follows the system by default, and that the choice is one cookie in the browser (`umbral_theme`, a year), nothing on the server; mention the self-hosted fonts and their licences (`src/Umbral/Assets/fonts/`, `/app/licenses/fonts/` in the image). Update the "Brand an app's sign-in page" section: the accent applies in both themes, the warning covers both backgrounds, "Secured by Umbral" shows the Gnomon. Update the Contents list.
-- [ ] T029 [P] [US5] Update the module header comments that describe the old look (`Theme.fs`, `Layout.fs`, `Components.fs`, `tailwind.config.js`, `umbral.input.css`, `build-css.sh` if it names the palette).
+- [X] T028 [US5] `README.md`: a section "How it looks" (or within the quick start) describing the Umbra look, the Gnomon, the two themes, the theme control (rail and sign-in footer), that it follows the system by default, and that the choice is one cookie in the browser (`umbral_theme`, a year), nothing on the server; mention the self-hosted fonts and their licences (`src/Umbral/Assets/fonts/`, `/app/licenses/fonts/` in the image). Update the "Brand an app's sign-in page" section: the accent applies in both themes, the warning covers both backgrounds, "Secured by Umbral" shows the Gnomon. Update the Contents list.
+- [X] T029 [P] [US5] Update the module header comments that describe the old look (`Theme.fs`, `Layout.fs`, `Components.fs`, `tailwind.config.js`, `umbral.input.css`, `build-css.sh` if it names the palette).
 
 ---
 

@@ -30,6 +30,7 @@ which are good at it.
 - [Requirements](#requirements)
 - [Quick start: a first login on your own machine](#quick-start-a-first-login-on-your-own-machine)
 - [Integrate an app](#integrate-an-app)
+- [How it looks](#how-it-looks)
 - [Brand an app's sign-in page](#brand-an-apps-sign-in-page)
 - [Who can sign in](#who-can-sign-in)
 - [Run it for real, behind HTTPS](#run-it-for-real-behind-https)
@@ -385,6 +386,33 @@ there, so two providers never merge people, and adding a provider back with the
 same issuer returns everyone to the same user. You can disable or delete users on
 the **Users** screen.
 
+## How it looks
+
+Umbral has one look, called Umbra: a warm gold accent on near-black, or on
+paper in the light theme, with the **Gnomon** as its mark (a sundial's upright
+and its shadow). The operator screens have a side rail with the four screens
+and **Sign out**; on a narrow screen it stacks above the page.
+
+**Two themes, and it follows your system.** By default Umbral is dark or light
+as your operating system or browser says, and changes when it does. To pick one
+yourself use the **Theme** control: *Follow system*, *Light* or *Dark*. It is at
+the bottom of the side rail on the operator screens and in the footer of every
+other page, the sign-in page people see included (also on an app's branded
+page). It is a plain form, so it works with JavaScript off.
+
+**The choice is one cookie, in that browser.** `umbral_theme` holds `light` or
+`dark` for a year; *Follow system* removes it. Nothing about it is stored on the
+server, and it is not tied to a person or an account, so each browser chooses for
+itself.
+
+**The fonts are served by Umbral itself.** Bricolage Grotesque (headings),
+Schibsted Grotesk (text) and Spline Sans Mono (identifiers and secrets) are
+shipped inside the image, as a Latin subset of about 84 KB in all, and loaded
+from Umbral's own address. No page asks Google or anyone else for a font, so no
+third party learns that someone opened your sign-in page. All three are under the
+SIL Open Font License; the licence files are in `src/Umbral/Assets/fonts/` and,
+in the image, in `/app/licenses/fonts/`.
+
 ## Brand an app's sign-in page
 
 An app can show its own logo and colour on the sign-in page people see when it
@@ -401,8 +429,9 @@ register, say). That request failed its checks, and if it could carry an app's
 logo, anyone could put a trusted app's logo on an error page they built.
 
 **"Secured by Umbral" cannot be removed.** A branded page drops Umbral's name
-bar and footer and shows a small **Secured by Umbral** mark at the bottom
-instead. It is always there, and no setting hides it or recolours it. It is how
+bar and footer and shows a small **Secured by Umbral** line with the Gnomon at
+the bottom instead (next to the theme control, which stays, so people can still
+pick light or dark). It is always there, and no setting hides it or recolours it. It is how
 a person tells Umbral's real sign-in page from a lookalike: if branding could
 remove it, it would prove nothing.
 
@@ -446,19 +475,24 @@ example `#f26b1d`. Upper or lower case is fine. `#fff`, a colour name or
 digits, for example #f26b1d.* With JavaScript on, a colour picker next to the
 field fills it in for you. Leave the field empty and save to clear the colour.
 
-The colour replaces Umbral's blue on that app's sign-in page: the buttons and
-the focus outlines. Nothing else changes, and the **Secured by Umbral** mark
+The colour replaces Umbral's gold on that app's sign-in page: the buttons and
+the focus outlines. It is the same colour in the dark and the light theme, whichever
+one the person has. Nothing else changes, and the Gnomon in **Secured by Umbral**
 keeps its own colours.
 
 **You do not choose the text colour.** Umbral picks black or white for text on
 your colour, whichever reads better, so button text is always readable
 (at least 4.5 to 1) whatever colour you pick.
 
-**A low-contrast warning, not a refusal.** If the colour is hard to see on
-Umbral's dark card (under 3 to 1), it is saved anyway and you are told: *Saved.
-This colour is hard to see on Umbral's dark background, so outlines and
-highlights in it will be faint. Buttons stay readable.* The card's sample button
-shows what people will see.
+**A low-contrast warning, not a refusal.** Because the colour shows on both
+themes, Umbral checks it against both backgrounds. If it is hard to see on either
+(under 3 to 1 against the dark card or the light one), it is saved anyway and you
+are told: *Saved. This colour is hard to see on Umbral's dark or light
+background, so outlines and highlights in it will be faint. Buttons stay
+readable.* A very light colour warns on the light theme, a very dark one on the
+dark theme, and some mid-tones such as `#f26b1d` just miss on the light one;
+`#d9480f` and `#c2410c` are safe on both. The card's sample button shows what
+people will see.
 
 ### Where it is kept, and upgrading
 
