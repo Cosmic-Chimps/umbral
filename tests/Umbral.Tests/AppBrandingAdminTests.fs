@@ -128,13 +128,15 @@ let ``a colour is saved lowercase, announced, and logged once`` () =
         use! app = Fixtures.createAppWith fakeSettings ignore
         let! operator, idA, idB = prepare app
 
-        let! response = postAccent operator idA "#F26B1D"
+        // #D9480F, not spec 006's #F26B1D: that one is 2.995:1 on the light card
+        // and now draws the low-contrast notice (007). #D9480F is safe on both.
+        let! response = postAccent operator idA "#D9480F"
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
         Assert.Equal(cardRedirect "app-accent-saved" idA, location response)
 
         let! stored = storedAccent app idA
-        Assert.Equal("f26b1d", stored)
+        Assert.Equal("d9480f", stored)
 
         // Only that app.
         let! other = storedAccent app idB
@@ -253,6 +255,16 @@ let ``the Apps page links each accent once, shows the sample in it, and never co
         // Each card's sample sits inside the accent it previews.
         let samples = Regex.Matches(html, "data-accent=\"f26b1d\"[^>]*>\\s*<button[^>]*data-branding-sample")
         Assert.Equal(2, samples.Count)
+
+        // The sample is the primary button, which reads the `primary-fill`
+        // properties the accent sheet sets (007), so it shows the accent in
+        // either theme. Nothing outside the samples sits under an accent: the
+        // rail, with the theme control in it, keeps Umbral's own colours.
+        Assert.Equal(2, Regex.Matches(html, "<button[^>]*um-btn-primary[^>]*data-branding-sample").Count)
+        Assert.Equal(2, Regex.Matches(html, "data-accent=").Count)
+        let rail = Regex.Match(html, "<aside.*?</aside>", RegexOptions.Singleline)
+        Assert.True(rail.Success, "no rail")
+        Assert.DoesNotContain("data-accent", rail.Value)
     }
 
 [<Fact>]
@@ -289,11 +301,26 @@ let ``an app card has the branding section with its accent form, and an app with
     }
 
 [<Fact>]
+let ``a colour that is hard to see on the light card only is saved and the notice says so`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, _ = prepare app
+
+        // Spec 006's own example: 6.00:1 on the dark card, 2.995:1 on the light one (007, FR-023).
+        let! response = postAccent operator idA "#f26b1d"
+
+        Assert.Equal(cardRedirect "app-accent-low-contrast" idA, location response)
+        let! stored = storedAccent app idA
+        Assert.Equal("f26b1d", stored)
+    }
+
+[<Fact>]
 let ``the saved notice is shown on the Apps page after the redirect`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
         let! operator, idA, _ = prepare app
-        let! response = postAccent operator idA "#f26b1d"
+        // #d9480f is safe on both cards; #f26b1d would draw the low-contrast notice (007).
+        let! response = postAccent operator idA "#d9480f"
         let! html = operator.GetHtml(location response)
 
         Assert.Contains("data-notice=\"app-accent-saved\"", html)

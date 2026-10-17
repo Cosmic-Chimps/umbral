@@ -137,10 +137,38 @@ let ``the product's luminance agrees with the table on a spread of colours, and 
         Assert.True(Accent.contrastWith accent text >= 4.5, $"#{colour:x6}")
 
 [<Fact>]
-let ``an accent that would vanish into the card is flagged, the others are not`` () =
-    // Against the card, #11161d: the warning is below 3:1 (FR-017).
+let ``an accent that would vanish into either card is flagged, the others are not`` () =
+    // FR-017, amended by 007 (FR-023): below 3:1 against the dark card, #14141f,
+    // or the light card, #fffdf8, in whichever theme the visitor has.
+    // Ratios by the WCAG formula, dark card then light card:
+    //   #0a0a10  1.08:1 and 18.6:1  warns, on the dark card
+    //   #14141f  1.00:1 and 17.7:1  warns, on the dark card
+    //   #ffffff  17.7:1 and 1.02:1  warns, on the light card (was fine on spec 006's dark card)
+    //   #5fb3e8  7.2:1  and 2.27:1  warns, on the light card
+    //   #f26b1d  6.00:1 and 2.995:1 warns, on the light card, by a hair: spec 006's own example
+    //   #d9480f  4.25:1 and 4.23:1  fine on both
+    //   #c2410c  3.53:1 and 5.09:1  fine on both
     Assert.True(Accent.lowContrastOnCard (accentOf "#0a0a10"))
-    Assert.True(Accent.lowContrastOnCard (accentOf "#11161d"))
-    Assert.False(Accent.lowContrastOnCard (accentOf "#f26b1d"))
-    Assert.False(Accent.lowContrastOnCard (accentOf "#5fb3e8"))
-    Assert.False(Accent.lowContrastOnCard (accentOf "#ffffff"))
+    Assert.True(Accent.lowContrastOnCard (accentOf "#14141f"))
+    Assert.True(Accent.lowContrastOnCard (accentOf "#ffffff"))
+    Assert.True(Accent.lowContrastOnCard (accentOf "#fffdf8"))
+    Assert.True(Accent.lowContrastOnCard (accentOf "#5fb3e8"))
+    Assert.True(Accent.lowContrastOnCard (accentOf "#f26b1d"))
+    Assert.False(Accent.lowContrastOnCard (accentOf "#d9480f"))
+    Assert.False(Accent.lowContrastOnCard (accentOf "#c2410c"))
+
+[<Fact>]
+let ``the contrast figures quoted for the two cards are the ones the product computes`` () =
+    let dark = (0x14, 0x14, 0x1f)
+    let light = (0xff, 0xfd, 0xf8)
+    let ratio hex card = Accent.contrastWith (accentOf hex) card
+
+    Assert.InRange(ratio "#f26b1d" dark, 5.95, 6.05)
+    Assert.InRange(ratio "#f26b1d" light, 2.99, 3.0)
+    Assert.InRange(ratio "#d9480f" dark, 4.2, 4.3)
+    Assert.InRange(ratio "#d9480f" light, 4.2, 4.3)
+    Assert.InRange(ratio "#c2410c" dark, 3.5, 3.6)
+    Assert.InRange(ratio "#c2410c" light, 5.0, 5.2)
+    Assert.InRange(ratio "#5fb3e8" light, 2.2, 2.35)
+    Assert.InRange(ratio "#ffffff" light, 1.0, 1.05)
+    Assert.InRange(ratio "#0a0a10" dark, 1.0, 1.1)

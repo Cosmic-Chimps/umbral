@@ -40,9 +40,10 @@ let private notFound: EndpointHandler =
         Task.CompletedTask
 
 /// The rule's format version, in the ETag after the colour: bump it if the
-/// body's shape changes, so a browser holding the old body revalidates.
+/// body's shape changes, so a browser holding the old body revalidates. 2 is
+/// spec 007's: the rule also sets the `primary-fill` properties.
 [<Literal>]
-let private AccentFormatVersion = 1
+let private AccentFormatVersion = 2
 
 /// The one rule an accent sheet holds (contracts/public-endpoints.md). It
 /// redefines `--color-primary` and `--color-on-primary` as well as the two
@@ -51,6 +52,13 @@ let private AccentFormatVersion = 1
 /// and the result inherited, so without the redefinition every direct use of
 /// `var(--color-primary)` (focus outline, caret, radio) would stay Umbral blue
 /// under `[data-accent]`.
+///
+/// Spec 007 added the four `primary-fill` properties, which the primary button
+/// and the pressed option of the theme control read. In Umbral's own themes they
+/// differ from `primary` (gold fill in dark, near-black in light); under an
+/// accent they are the accent too, in both themes, with the same text colour
+/// that is legible on it (FR-016 holds per accent, not per background). The
+/// rule never sets a `--mark-*` property: the Gnomon stays Umbral's (FR-005).
 ///
 /// Scoped to an attribute, not `:root`, so the Apps screen can link the same
 /// sheet to preview a button without recolouring its own interface (FR-005).
@@ -62,7 +70,7 @@ let private accentRule (accent: Accent) =
         | Black -> "0 0 0"
         | White -> "255 255 255"
 
-    $"[data-accent=\"{Accent.hex accent}\"]{{--color-primary-rgb:{r} {g} {b};--color-on-primary-rgb:{onAccent};--color-primary:rgb({r} {g} {b});--color-on-primary:rgb({onAccent})}}"
+    $"[data-accent=\"{Accent.hex accent}\"]{{--color-primary-rgb:{r} {g} {b};--color-on-primary-rgb:{onAccent};--color-primary:rgb({r} {g} {b});--color-on-primary:rgb({onAccent});--color-primary-fill-rgb:{r} {g} {b};--color-on-primary-fill-rgb:{onAccent};--color-primary-fill:rgb({r} {g} {b});--color-on-primary-fill:rgb({onAccent})}}"
 
 /// Headers every answer from here carries, a 304 included, as Assets.fs does.
 let private immutable (ctx: HttpContext) (etag: string) =

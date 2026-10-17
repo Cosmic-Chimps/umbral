@@ -35,8 +35,12 @@ Body, exactly one rule. Channels are decimal and separated by spaces. The
 on-accent colour is `0 0 0` or `255 255 255` (R4):
 
 ```css
-[data-accent="f26b1d"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0;--color-primary:rgb(242 107 29);--color-on-primary:rgb(0 0 0)}
+[data-accent="f26b1d"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0;--color-primary:rgb(242 107 29);--color-on-primary:rgb(0 0 0);--color-primary-fill-rgb:242 107 29;--color-on-primary-fill-rgb:0 0 0;--color-primary-fill:rgb(242 107 29);--color-on-primary-fill:rgb(0 0 0)}
 ```
+
+*(Amended by 007: the rule also sets the four `primary-fill` properties, which the
+primary button reads; they are the accent in both themes. It never sets a
+`--mark-*` property.)*
 
 The rule redefines `--color-primary` and `--color-on-primary` as well as the
 channels. `:root` defines `--color-primary: rgb(var(--color-primary-rgb))`, but a
@@ -47,8 +51,9 @@ under `[data-accent]` (focus outline, caret, radio) would stay Umbral's blue.
 a branded page.)
 
 Headers: `X-Content-Type-Options: nosniff`,
-`Cache-Control: public, max-age=31536000, immutable`, `ETag: "{rrggbb}-1"`. The
-`-1` is the rule's format version: bump it if the body's shape changes.
+`Cache-Control: public, max-age=31536000, immutable`, `ETag: "{rrggbb}-2"`. The
+`-2` is the rule's format version: bump it if the body's shape changes. *(Amended
+by 007: it was `-1` before the `primary-fill` properties.)*
 
 ## `GET /signin` (changed)
 
@@ -88,7 +93,8 @@ Invariants:
 - Every `src` and `href` in the page is a path on this origin (SC-005).
 - The mark inside `data-secured-by` uses fixed colours (`text-on-surface-variant`).
   No rule in the accent stylesheet can reach it, because the accent stylesheet
-  only sets the two `--color-*-rgb` variables.
+  only sets `--color-*` properties and never a `--mark-*` one. *(Amended by 007:
+  the mark is the Gnomon, `um-mark-*`.)*
 
 ## Pages that are never branded
 

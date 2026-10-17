@@ -59,7 +59,7 @@ module Accent =
     val rgb   : Accent -> int * int * int
     val onAccent : Accent -> OnAccent                   // Black | White, by WCAG contrast (R4)
     val contrastWith : Accent -> (int * int * int) -> float
-    val lowContrastOnCard : Accent -> bool              // < 3.0 against #11161d (FR-017)
+    val lowContrastOnCard : Accent -> bool              // < 3.0 against #14141f or #fffdf8 (FR-017, amended by 007; was #11161d)
 
 type AccentError = | NotHexColour   // "#rrggbb" expected, e.g. "#f26b1d"
 

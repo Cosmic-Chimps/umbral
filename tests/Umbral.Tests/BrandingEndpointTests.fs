@@ -43,12 +43,15 @@ let ``the accent stylesheet for an orange is one rule with black text on it`` ()
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode)
 
-        // Exactly this, with decimal channels separated by spaces. The two
-        // `--color-*` properties are redefined as well as the channels: a
-        // custom property's var() is resolved on the element that declares it,
-        // so `:root`'s own would otherwise be inherited as Umbral blue.
+        // Exactly this, with decimal channels separated by spaces. The
+        // resolved `--color-*` properties are redefined as well as the
+        // channels: a custom property's var() is resolved on the element that
+        // declares it, so `:root`'s own would otherwise be inherited as
+        // Umbral's gold. Spec 007 added the four `primary-fill` properties,
+        // which the primary button and the theme control's pressed option read:
+        // the accent fills them in both themes, with its own text colour.
         Assert.Equal(
-            "[data-accent=\"f26b1d\"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0;--color-primary:rgb(242 107 29);--color-on-primary:rgb(0 0 0)}",
+            "[data-accent=\"f26b1d\"]{--color-primary-rgb:242 107 29;--color-on-primary-rgb:0 0 0;--color-primary:rgb(242 107 29);--color-on-primary:rgb(0 0 0);--color-primary-fill-rgb:242 107 29;--color-on-primary-fill-rgb:0 0 0;--color-primary-fill:rgb(242 107 29);--color-on-primary-fill:rgb(0 0 0)}",
             body
         )
     }
@@ -64,6 +67,10 @@ let ``a dark accent gets white text`` () =
         Assert.Contains("--color-primary-rgb:10 10 16;", body)
         Assert.Contains("--color-on-primary-rgb:255 255 255;", body)
         Assert.Contains("--color-on-primary:rgb(255 255 255)", body)
+        Assert.Contains("--color-primary-fill-rgb:10 10 16;", body)
+        Assert.Contains("--color-on-primary-fill-rgb:255 255 255;", body)
+        Assert.Contains("--color-primary-fill:rgb(10 10 16);", body)
+        Assert.Contains("--color-on-primary-fill:rgb(255 255 255)", body)
     }
 
 [<Fact>]
@@ -80,7 +87,7 @@ let ``the accent stylesheet is text/css, nosniff, immutable and carries its form
         Assert.Contains("max-age=31536000", cacheControl)
         Assert.Contains("immutable", cacheControl)
 
-        Assert.Equal("\"f26b1d-1\"", string response.Headers.ETag)
+        Assert.Equal("\"f26b1d-2\"", string response.Headers.ETag)
     }
 
 [<Fact>]
@@ -88,22 +95,27 @@ let ``the accent stylesheet answers a revalidation with a 304 and the same heade
     task {
         use! app = Fixtures.createApp ()
 
-        let! notModified = revalidate app "/branding/accent/f26b1d.css" "\"f26b1d-1\""
+        let! notModified = revalidate app "/branding/accent/f26b1d.css" "\"f26b1d-2\""
         Assert.Equal(HttpStatusCode.NotModified, notModified.StatusCode)
         Assert.Equal<string list>([ "nosniff" ], header notModified "X-Content-Type-Options")
-        Assert.Equal("\"f26b1d-1\"", string notModified.Headers.ETag)
+        Assert.Equal("\"f26b1d-2\"", string notModified.Headers.ETag)
         let! body = notModified.Content.ReadAsStringAsync()
         Assert.Equal("", body)
 
         // The weak form a proxy may add, and `*`, count too.
-        let! weak = revalidate app "/branding/accent/f26b1d.css" "W/\"f26b1d-1\""
+        let! weak = revalidate app "/branding/accent/f26b1d.css" "W/\"f26b1d-2\""
         Assert.Equal(HttpStatusCode.NotModified, weak.StatusCode)
         let! star = revalidate app "/branding/accent/f26b1d.css" "*"
         Assert.Equal(HttpStatusCode.NotModified, star.StatusCode)
 
         // Another colour's ETag is not this one's.
-        let! other = revalidate app "/branding/accent/f26b1d.css" "\"0a0a10-1\""
+        let! other = revalidate app "/branding/accent/f26b1d.css" "\"0a0a10-2\""
         Assert.Equal(HttpStatusCode.OK, other.StatusCode)
+
+        // A browser that holds the body from before 007 added the fill
+        // properties (format version 1) is told it is stale.
+        let! stale = revalidate app "/branding/accent/f26b1d.css" "\"f26b1d-1\""
+        Assert.Equal(HttpStatusCode.OK, stale.StatusCode)
     }
 
 [<Theory>]

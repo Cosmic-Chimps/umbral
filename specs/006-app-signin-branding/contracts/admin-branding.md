@@ -55,7 +55,7 @@ Field `accent`.
 
 | Input (trimmed) | Result | Notice |
 | --- | --- | --- |
-| `#rrggbb`, either case | Saved lowercase. Event `branding_accent_set` | `app-accent-saved`, or `app-accent-low-contrast` when below 3:1 on the card (FR-017): "Saved. This colour is hard to see on Umbral's dark background, so outlines and highlights in it will be faint. Buttons stay readable." |
+| `#rrggbb`, either case | Saved lowercase. Event `branding_accent_set` | `app-accent-saved`, or `app-accent-low-contrast` when below 3:1 on the card (FR-017): "Saved. This colour is hard to see on Umbral's dark or light background, so outlines and highlights in it will be faint. Buttons stay readable." *(Amended by 007: the card is both themes' card, `#14141f` and `#fffdf8`, and the wording names both backgrounds. `#f26b1d` is now 2.995:1 on the light card and warns; the Apps screen example colour is unchanged.)* |
 | empty | Cleared. Row deleted if no logo. Event `branding_accent_cleared` (only if one was set) | `app-accent-cleared` |
 | anything else (`f26b1d`, `#fff`, `orange`, `rgb(…)`) | refused | `app-accent-invalid`: "Enter the colour as # followed by six hexadecimal digits, for example #f26b1d." |
 

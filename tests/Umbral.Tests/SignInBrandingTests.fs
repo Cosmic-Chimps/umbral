@@ -197,6 +197,36 @@ let ``(b) an accent alone brands the page with a stylesheet, primary buttons and
         Assert.Contains($"data-signin-app=\"{idA}\"", html)
     }
 
+[<Fact>]
+let ``(b) the branded footer holds the Gnomon and the theme control, and no accent rule recolours the mark`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! idA, _ = twoApps app
+        do! setAccent app idA "#d9480f"
+        let visitor = Browser app.Client
+        let! html = get visitor (pickerFor idA)
+
+        // The footer is the one marked `data-secured-by`; the Gnomon (spec 007)
+        // is in it, and so is the control (the page has no `<nav>` to put it in).
+        let footer = Regex.Match(html, "<footer[^>]*data-secured-by[^>]*>.*?</footer>", RegexOptions.Singleline)
+        Assert.True(footer.Success, "no branded footer")
+        Assert.Contains("um-mark-upright", footer.Value)
+        Assert.Contains("data-theme-switch", footer.Value)
+        Assert.DoesNotContain("<header", html)
+        Assert.DoesNotContain("<nav", html)
+
+        // The mark's colours are theme tokens (`--mark-*`); the accent sheet
+        // sets the accent's own properties and never those.
+        let! sheet = visitor.Get "/branding/accent/d9480f.css"
+        let! css = sheet.Content.ReadAsStringAsync()
+        Assert.Contains("[data-accent=", css)
+        Assert.DoesNotContain("--mark-", css)
+
+        let! stylesheet = visitor.Get "/assets/umbral.css"
+        let! umbralCss = stylesheet.Content.ReadAsStringAsync()
+        Assert.DoesNotContain("data-accent", umbralCss)
+    }
+
 // ---------------------------------------------------------------------------
 // (c) Logo only
 // ---------------------------------------------------------------------------

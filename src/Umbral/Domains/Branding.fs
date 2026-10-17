@@ -30,14 +30,21 @@ type OnAccent =
 /// The accent's rgb channels in `0..255`.
 type Rgb = int * int * int
 
-/// The card an accent sits on in the sign-in page and the admin sample:
-/// `surface-container-low` in `tailwind.config.js`.
+/// The card an accent sits on in the sign-in page and the admin sample in the
+/// dark theme: `surface-container-low` of the dark token table in
+/// `tailwind.config.js`.
 [<Literal>]
-let private CardBackground = "#11161d"
+let private DarkCardBackground = "#14141f"
 
-/// FR-017: an accent below this contrast against the card is saved but the
-/// operator is warned, because buttons and focus rings in it would vanish. 3:1
-/// is WCAG's threshold for non-text elements.
+/// The same card in the light theme (spec 007). An accent is the same in both
+/// themes, so it has to show on both.
+[<Literal>]
+let private LightCardBackground = "#fffdf8"
+
+/// FR-017, amended by 007 (FR-023): an accent below this contrast against
+/// either card is saved but the operator is warned, because buttons and focus
+/// rings in it would vanish in that theme. 3:1 is WCAG's threshold for non-text
+/// elements.
 [<Literal>]
 let private LowContrast = 3.0
 
@@ -104,14 +111,15 @@ module Accent =
     /// Black or white text, whichever reads better on the accent (FR-016).
     let onAccent (accent: Accent) : OnAccent = onAccentFor (relativeLuminance (rgb accent))
 
-    /// FR-017: whether the accent would be hard to see on the card.
-    let lowContrastOnCard (accent: Accent) : bool =
-        let card =
-            Convert.ToInt32(CardBackground.Substring(1, 2), 16),
-            Convert.ToInt32(CardBackground.Substring(3, 2), 16),
-            Convert.ToInt32(CardBackground.Substring(5, 2), 16)
+    /// A `#rrggbb` constant as channels.
+    let private channels (hex: string) : Rgb =
+        Convert.ToInt32(hex.Substring(1, 2), 16), Convert.ToInt32(hex.Substring(3, 2), 16), Convert.ToInt32(hex.Substring(5, 2), 16)
 
-        contrastWith accent card < LowContrast
+    /// FR-017 and FR-023: whether the accent would be hard to see on either
+    /// card, the dark one or the light one.
+    let lowContrastOnCard (accent: Accent) : bool =
+        [ DarkCardBackground; LightCardBackground ]
+        |> List.exists (fun card -> contrastWith accent (channels card) < LowContrast)
 
 /// A validated, rewritten logo (`PngLogo.validate`): the bytes to store, their
 /// SHA-256 as lowercase hex (the logo's address), and the pixel size read from

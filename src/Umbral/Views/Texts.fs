@@ -580,7 +580,7 @@ let private noticeEn (code: string) : string option =
     | "app-connectors-saved" -> Some "Sign-in methods saved. The app's next sign-in page uses them."
     | "app-accent-saved" -> Some "Accent colour saved. The app's sign-in page uses it from the next visit."
     | "app-accent-low-contrast" ->
-        Some "Saved. This colour is hard to see on Umbral's dark background, so outlines and highlights in it will be faint. Buttons stay readable."
+        Some "Saved. This colour is hard to see on Umbral's dark or light background, so outlines and highlights in it will be faint. Buttons stay readable."
     | "app-accent-invalid" ->
         Some "Enter the colour as # followed by six hexadecimal digits, for example #f26b1d."
     | "app-logo-saved" -> Some "Logo saved. The app's sign-in page shows it from the next visit."
