@@ -168,14 +168,22 @@ let ``the content security policy allows nothing inline and nothing evaluated`` 
 // Real pages
 // ---------------------------------------------------------------------------
 
-/// The page is a page of ours: no violations, the policy header, and exactly
-/// the three assets Views/Assets.fs names.
+/// Where the mockups load their fonts from. Umbral serves its own (FR-009), and
+/// no page or stylesheet may so much as name one of these.
+let private externalFontHosts = [ "fonts.googleapis.com"; "fonts.gstatic.com" ]
+
+/// The page is a page of ours: no violations, no external font host, the policy
+/// header, and exactly the three assets Views/Assets.fs names (the fonts are
+/// loaded by the stylesheet, not by the page).
 let private assertSelfContained (name: string) (response: HttpResponseMessage) =
     task {
         let! html = response.Content.ReadAsStringAsync()
 
         Assert.True(html.Contains "<html", $"{name}: not an HTML page ({int response.StatusCode}): {html}")
         Assert.Empty(externalOrInlineViolations html)
+
+        for host in externalFontHosts do
+            Assert.DoesNotContain(host, html)
 
         match response.Headers.TryGetValues "Content-Security-Policy" with
         | true, values -> Assert.Equal<string list>([ Layout.contentSecurityPolicy ], values |> Option.ofObj |> Option.defaultValue Seq.empty |> List.ofSeq)
@@ -393,6 +401,71 @@ let ``an asset's URL changes when its content does`` () =
         Assert.Equal(asset.Path.Length + 3 + 12, asset.Href.Length)
 
     Assert.Equal(Assets.all.Length, (Assets.all |> List.map _.Href |> List.distinct).Length)
+
+[<Fact>]
+let ``the Umbra fonts are served as woff2, immutable, and revalidate with a 304`` () =
+    task {
+        use! app = Fixtures.createApp ()
+
+        Assert.Equal<string list>(
+            [ "/assets/fonts/bricolage-grotesque-latin-800-v1001.woff2"
+              "/assets/fonts/schibsted-grotesk-latin-400-600-v1100.woff2"
+              "/assets/fonts/spline-sans-mono-latin-400-500-v1004.woff2" ],
+            Assets.fonts |> List.map _.Path
+        )
+
+        for font in Assets.fonts do
+            // A font is real data: the woff2 signature, not an empty stub.
+            Assert.Equal<byte array>("wOF2"B, font.Bytes[0..3])
+            Assert.Equal("font/woff2", font.ContentType)
+
+            let! response = app.Client.GetAsync font.Path
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+            Assert.Equal("font/woff2", string response.Content.Headers.ContentType)
+            Assert.Contains("immutable", string response.Headers.CacheControl)
+            Assert.Equal(font.ETag, string response.Headers.ETag)
+
+            use revalidation = new HttpRequestMessage(HttpMethod.Get, font.Path)
+            revalidation.Headers.TryAddWithoutValidation("If-None-Match", font.ETag) |> ignore
+            let! notModified = app.Client.SendAsync revalidation
+            Assert.Equal(HttpStatusCode.NotModified, notModified.StatusCode)
+    }
+
+[<Fact>]
+let ``every url in the stylesheet is an asset Umbral serves`` () =
+    let css = Text.Encoding.UTF8.GetString Assets.css.Bytes
+    let served = Assets.all |> List.map _.Path |> set
+    let urls = [ for m in Regex.Matches(css, "url\\(\\s*[\"']?([^)\"']*)") -> m.Groups[1].Value.Trim() ]
+
+    // Guards the check: the stylesheet does name the three fonts.
+    Assert.Equal(Assets.fonts.Length, urls.Length)
+
+    for url in urls do
+        Assert.True(served.Contains url, $"umbral.css names {url}, which no asset serves")
+
+[<Fact>]
+let ``the stylesheet names no external font host`` () =
+    let css = Text.Encoding.UTF8.GetString Assets.css.Bytes
+
+    for host in externalFontHosts do
+        Assert.DoesNotContain(host, css)
+
+[<Fact>]
+let ``the favicon is the Gnomon on a dark tile, not the old shield`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! html = app.Client.GetStringAsync "/"
+        let m = Regex.Match(html, "<link[^>]*rel=\"icon\"[^>]*href=\"data:image/svg\\+xml;base64,([^\"]+)\"")
+        Assert.True(m.Success, "the page has no data:image/svg+xml favicon")
+
+        let svg = Text.Encoding.UTF8.GetString(Convert.FromBase64String m.Groups[1].Value)
+
+        Assert.Contains("#0b0b14", svg) // the tile
+        Assert.Contains("#f5c26b", svg) // the sun
+        Assert.Contains("#ece8df", svg) // the upright
+        Assert.DoesNotContain("M24 4 L41 11", svg) // the old shield
+        Assert.DoesNotContain("um-mark", svg) // fixed colours: no class to resolve in a standalone file
+    }
 
 [<Fact>]
 let ``the stylesheet imports nothing and fetches nothing from elsewhere`` () =

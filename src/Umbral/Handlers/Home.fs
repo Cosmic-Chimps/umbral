@@ -47,7 +47,7 @@ let private view (t: Texts.Texts) (origin: PublicOrigin.PublicOrigin) =
                 p(class' = "text-body-md text-on-surface-variant") { t.HomeBuildingBody }
                 Components.copyField t.Copy t.Copied t.AppIssuerUrlLabel "home-issuer" origin.Text ignore
 
-                a(href = "/.well-known/openid-configuration", class' = Components.btn Components.Secondary) {
+                a(href = "/.well-known/openid-configuration", class' = Components.btn Components.Secondary + " h-auto min-h-11 whitespace-normal py-2 text-center") {
                     Components.icon Link
                     t.HomeDiscoveryLink
                 }

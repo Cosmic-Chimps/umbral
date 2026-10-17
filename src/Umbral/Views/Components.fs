@@ -28,7 +28,7 @@ let icon (i: Icon) =
 /// lowercase and the display face by `um-wordmark` (CSS); the text stays
 /// "Umbral" for titles and screen readers.
 let private brandClass =
-    "inline-flex items-center gap-2.5 rounded text-headline-md text-on-surface"
+    "inline-flex items-center gap-2.5 rounded text-headline-lg text-on-surface"
 
 /// The wordmark. It links home only for the operator (`/admin/apps`); everyone
 /// else gets it as plain text, since they have no business on `/admin`.
@@ -73,7 +73,7 @@ let card () = div(class' = "um-card")
 /// Page heading with an optional lead paragraph
 let pageHeading (title: string) (lead: string option) =
     div(class' = "space-y-2") {
-        h1(class' = "text-headline-lg text-on-surface") { title }
+        h1(class' = "text-display text-on-surface") { title }
 
         match lead with
         | Some l -> (p(class' = "max-w-prose text-body-md text-on-surface-variant") { l }) :> HtmlElement
