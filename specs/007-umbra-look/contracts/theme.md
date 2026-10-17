@@ -72,8 +72,12 @@ Rendered in the operator rail and in the footer of every non-operator page:
 </form>
 ```
 
-`returnUrl` = the request's path and query on a GET; on any other method,
-`/admin` under `/admin`, else `/`. Strings come from `Texts.fs`. The `id` must be
+`returnUrl` = on a GET, the request's path, percent-encoded as it came, then:
+the query as it came on public pages; under `/admin` only `search` (the rest
+of an admin query is a notice, `msg` and what it is about, which would show
+again stale). On any other method, `/admin` under `/admin`, else `/`.
+`isLocalPath` accepts printable ASCII only, so a decoded non-ASCII path goes
+home rather than into a `Location` header the server refuses to write. Strings come from `Texts.fs`. The `id` must be
 unique per page (only one control per page).
 
 ## `GET /admin/apps/new`

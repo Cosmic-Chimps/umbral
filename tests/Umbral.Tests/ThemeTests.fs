@@ -264,6 +264,7 @@ let ``the local-path rule`` () =
           "/a\tb"
           "/a\u0000b"
           "/a\u00a0b"
+          "/caf\u00e9"
           " /a" ] do
         Assert.False(Umbral.Handlers.ThemeChoice.isLocalPath bad, bad)
 
@@ -334,8 +335,9 @@ let ``the control is on the operator sign-in page and the operator's rail`` () =
         let browser = Flows.Browser app.Client
         do! Flows.claimOperator app browser
 
-        let! signedIn = browser.GetHtml "/admin/apps?msg=app-created"
-        assertControl "rail" signedIn "system" "/admin/apps?msg=app-created"
+        // The notice is not carried back: it would show again, stale.
+        let! signedIn = browser.GetHtml "/admin/apps?msg=app-created&app=x"
+        assertControl "rail" signedIn "system" "/admin/apps"
         // In the rail, before the page's own content.
         Assert.True(signedIn.IndexOf "data-theme-switch" < signedIn.IndexOf "<main", "rail control is not before <main>")
         Assert.Contains("<aside", signedIn)
@@ -344,8 +346,33 @@ let ``the control is on the operator sign-in page and the operator's rail`` () =
         // The theme control is not a <nav>: the navigation stays one landmark.
         Assert.Equal(1, Regex.Matches(signedIn, "<nav[\\s>]").Count)
 
-        let! signedOut = getWithTheme app.Client None "/admin/signin"
+        let! signedOut = getWithTheme app.Client None "/admin/signin?msg=signin-failed"
         assertControl "/admin/signin" signedOut "system" "/admin/signin"
+
+        // A search is what the operator was looking at, so it is kept, alone.
+        let! users = browser.GetHtml "/admin/users?msg=user-disabled&search=ann%20b"
+        assertControl "/admin/users" users "system" "/admin/users?search=ann%20b"
+    }
+
+[<Fact>]
+let ``the return address is written encoded, so a non-ASCII path comes back and is followed`` () =
+    task {
+        use! app = Fixtures.createApp ()
+
+        // A 404 for any address carries the control; the path must reach the
+        // Location header as it was typed, percent-encoded.
+        let! html = getWithTheme app.Client None "/caf%C3%A9?q=%C3%A9"
+        assertControl "non-ASCII 404" html "system" "/caf%C3%A9?q=%C3%A9"
+
+        let browser = Flows.Browser app.Client
+        let! response = postTheme browser "/" "dark" (Some "/caf%C3%A9?q=%C3%A9")
+        Assert.Equal(System.Net.HttpStatusCode.SeeOther, response.StatusCode)
+        Assert.Equal("/caf%C3%A9?q=%C3%A9", Flows.location response)
+
+        // Decoded, it is not a path the server could write: home instead of a 500.
+        let! decoded = postTheme browser "/" "dark" (Some "/café")
+        Assert.Equal(System.Net.HttpStatusCode.SeeOther, decoded.StatusCode)
+        Assert.Equal("/", Flows.location decoded)
     }
 
 [<Fact>]

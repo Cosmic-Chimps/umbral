@@ -15,6 +15,7 @@
 /// the Connectors screen, added the same way by that screen.
 module Umbral.Views.Components
 
+open System
 open Microsoft.AspNetCore.Http
 open Oxpecker
 open Oxpecker.ViewEngine
@@ -47,13 +48,27 @@ let brand (linked: bool) (siteName: string) : HtmlElement =
             span(class' = "um-wordmark") { siteName }
         }
 
-/// Where `POST /theme` sends the person back to: the page they are on, query
-/// included (a sign-in page's `returnUrl` is what they came for), when it was a
-/// GET; otherwise the nearest screen that is safe to GET: `/admin` under
+/// Where `POST /theme` sends the person back to: the page they are on, when it
+/// was a GET; otherwise the nearest screen that is safe to GET: `/admin` under
 /// `/admin`, else `/`. The server checks it again, as it checks everything posted.
+///
+/// The path is written encoded (`ToUriComponent`), as it came: `Path.Value` is
+/// decoded, and a non-ASCII character in a `Location` header is refused by the
+/// server. The query is kept on public pages (a sign-in page's `returnUrl` is what
+/// they came for); under `/admin` only `search` is, because the rest of an admin
+/// query is a notice (`msg` and what it is about) that would show again, stale.
 let private themeReturnUrl (ctx: HttpContext) =
-    if HttpMethods.IsGet ctx.Request.Method then
-        $"{ctx.Request.Path.Value}{ctx.Request.QueryString.Value}"
+    let request = ctx.Request
+
+    if HttpMethods.IsGet request.Method then
+        let path = request.Path.ToUriComponent()
+
+        if request.Path.StartsWithSegments(PathString "/admin") then
+            match request.Query.TryGetValue "search" with
+            | true, term when not (String.IsNullOrEmpty(string term)) -> $"{path}?search={Uri.EscapeDataString(string term)}"
+            | _ -> path
+        else
+            path + request.QueryString.Value
     elif ctx.Request.Path.StartsWithSegments(PathString "/admin") then
         "/admin"
     else
