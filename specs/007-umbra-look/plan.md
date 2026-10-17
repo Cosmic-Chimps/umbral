@@ -200,6 +200,25 @@ module and one new test module; everything else is edits.
 **Accent**: `accentRule` adds the four fill properties; `AccentFormatVersion` +1;
 `lowContrastOnCard` checks `#14141f` and `#fffdf8`; notice text updated.
 
+## Deviations Recorded During Implementation
+
+- **Return address of the theme control** (`contracts/theme.md` updated): the
+  path is written percent-encoded as it came, because a decoded non-ASCII path
+  became a `Location` header Kestrel refuses. `isLocalPath` accepts printable
+  ASCII only. Under `/admin` the query is dropped except `search`, so a switch
+  does not show the last notice again.
+- **Public pages set an antiforgery cookie** and no-cache headers, because the
+  theme form is on every page. No test objected.
+- **The shown-once secret is lost on a theme switch**, as on a reload. No guard
+  was added.
+- **Example accent colour**: the hint and the invalid-colour notice say
+  `#d9480f`, safe on both cards, instead of `#f26b1d`, which now warns on the
+  light card.
+- **Accent preview** on the Apps screen is not dimmed although it is a disabled
+  button: it is a picture of the sign-in button.
+- **US2 and US3 landed in one commit** (`586872f`): the theme control sits in the
+  rail, and both change the same files.
+
 ## Complexity Tracking
 
 No constitution violations to justify.

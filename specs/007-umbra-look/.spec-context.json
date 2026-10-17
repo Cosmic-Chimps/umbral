@@ -2,8 +2,8 @@
   "workflow": "speckit",
   "specName": "The Umbra Look, the Gnomon Mark, and a Theme Switch",
   "branch": "alta/subtle-alioth-qrcn",
-  "currentStep": "tasks",
-  "status": "ready-to-implement",
+  "currentStep": "implement",
+  "status": "completed",
   "history": [
     {
       "step": "specify",
@@ -25,6 +25,30 @@
       "kind": "start",
       "by": "extension",
       "at": "2026-10-17T20:31:23.541Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-17T23:30:08.331Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-10-17T23:35:32.735Z"
+    }
+  ],
+  "verified": [
+    {
+      "what": "full suite",
+      "command": "dotnet test -c Release",
+      "source": "derived",
+      "exitCode": 0,
+      "durationSeconds": 300.4,
+      "result": "  succeeded: 1196 ·   skipped: 0 ·   duration: 4m 59s 105ms"
     }
   ]
 }

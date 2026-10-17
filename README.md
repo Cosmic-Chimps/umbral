@@ -470,9 +470,9 @@ A refused upload changes nothing: the logo that was there stays.
 ### The accent colour
 
 Type it in the **Accent colour** field as `#` and six hexadecimal digits, for
-example `#f26b1d`. Upper or lower case is fine. `#fff`, a colour name or
+example `#d9480f`. Upper or lower case is fine. `#fff`, a colour name or
 `rgb(...)` is refused with: *Enter the colour as # followed by six hexadecimal
-digits, for example #f26b1d.* With JavaScript on, a colour picker next to the
+digits, for example #d9480f.* With JavaScript on, a colour picker next to the
 field fills it in for you. Leave the field empty and save to clear the colour.
 
 The colour replaces Umbral's gold on that app's sign-in page: the buttons and

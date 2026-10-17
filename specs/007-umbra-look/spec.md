@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-17
 
-**Status**: Draft
+**Status**: Implemented (browser pass in Chrome only; Firefox and Safari not checked)
 
 **Input**: User description: "Redesign: the Umbra look, the Gnomon mark, dark and light themes and a theme switch" (task `2026-10-17-redesign-umbra-gnomon-mark-dark-and-light-themes-and-a-theme-k3gn`). The maintainer reviewed three directions on 2026-10-17 and chose **B · Umbra** with the **Gnomon** mark. Reference artboards: `design/umbra/*.dc.html` in the main checkout (brand sheet, sign-in dark and light, Apps with a working theme switch, Create app as a modal, App detail with the secret shown once, Connectors in light, Users, first-run setup). The Stitch export in `design/stitch_umbral_mvp_social_login_provider.zip` is not the reference.
 

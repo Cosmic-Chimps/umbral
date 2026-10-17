@@ -582,7 +582,7 @@ let private noticeEn (code: string) : string option =
     | "app-accent-low-contrast" ->
         Some "Saved. This colour is hard to see on Umbral's dark or light background, so outlines and highlights in it will be faint. Buttons stay readable."
     | "app-accent-invalid" ->
-        Some "Enter the colour as # followed by six hexadecimal digits, for example #f26b1d."
+        Some "Enter the colour as # followed by six hexadecimal digits, for example #d9480f."
     | "app-logo-saved" -> Some "Logo saved. The app's sign-in page shows it from the next visit."
     | "app-logo-missing" -> Some "Choose an image file first, then save the logo."
     | "app-logo-not-png" ->
@@ -735,7 +735,7 @@ let en: Texts =
       AppConnectorsSaveButton = "Save sign-in methods"
       BrandingHeading = "Sign-in page branding"
       AccentLabel = "Accent colour"
-      AccentHint = "# and six hexadecimal digits, for example #f26b1d. Leave empty to use Umbral's colour."
+      AccentHint = "# and six hexadecimal digits, for example #d9480f. Leave empty to use Umbral's colour."
       AccentSave = "Save colour"
       BrandingSampleLabel = "Preview of the sign-in button"
       BrandingSampleProvider = "your provider"

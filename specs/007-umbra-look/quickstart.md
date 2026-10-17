@@ -17,7 +17,7 @@ Manual pass (each in dark and light system mode, and with JavaScript off once):
    the rail sits on top, nothing scrolls sideways.
 4. Apps → Create app: a dialog with the form; Escape closes it. With
    JavaScript off, Create app opens `/admin/apps/new`; create an app there.
-5. Give an app an accent (`#f26b1d`) and a logo; start a sign-in from it: logo,
+5. Give an app an accent (`#d9480f`; `#f26b1d` now gets the low-contrast warning) and a logo; start a sign-in from it: logo,
    orange buttons with legible text, Gnomon + "Secured by Umbral", theme control;
    switch theme, the same sign-in page comes back.
 6. DevTools Network: no request to any other host; three font files from

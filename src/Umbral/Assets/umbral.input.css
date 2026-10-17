@@ -57,6 +57,9 @@
   .um-card { @apply bg-surface-container-low rounded-lg p-6 md:p-8; border: var(--border-micro); }
   .um-btn { @apply inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-body-md font-semibold whitespace-nowrap; }
   .um-btn:disabled, .um-btn[aria-disabled="true"] { @apply opacity-50 cursor-not-allowed; }
+  /* The Apps screen's accent preview is disabled because it is a picture of a button,
+     not because it is unavailable: dimmed, it would not show the colours people see. */
+  .um-btn[data-branding-sample]:disabled { @apply opacity-100 cursor-default; }
   /* The fill pair, not `primary`: in the light theme the button is ink with gold text
      while links stay a darker gold. An app's accent sheet sets both pairs. */
   .um-btn-primary { @apply bg-primary-fill text-on-primary-fill; }

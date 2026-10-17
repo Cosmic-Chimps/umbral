@@ -122,8 +122,16 @@ old header first would be thrown away.
 
 - [X] T030 `build-css.sh --check` passes; `dotnet build -c Release`; `dotnet test -c Release` all green (record the count).
 - [X] T031 Idle memory: `IdleMemoryTests` still passes (SC-006); note the font bytes (84 KB) in the commit.
-- [ ] T032 Manual browser pass per quickstart.md (dark, light, JavaScript off, 320 px, keyboard focus on the theme control and the dialog). Record the result here; leave unchecked if it could not be done.
-- [ ] T033 Update `spec.md` status and record deviations from this plan in `plan.md`.
+- [X] T032 Manual browser pass per quickstart.md (dark, light, JavaScript off, 320 px, keyboard focus on the theme control and the dialog). Record the result here; leave unchecked if it could not be done.
+  - Done 2026-10-17 in headless Chrome 155 over the DevTools protocol, on a fresh data directory (no Firefox or Safari pass).
+  - `/`, `/admin/setup`, the Apps, Connectors and new-app screens and a branded sign-in page, each in dark and light: Umbra fonts load from `/assets/fonts/`, the favicon is the Gnomon, and no request goes to another host.
+  - Light, Dark and Follow system each return to the same page in that theme, on the Apps screen and on the sign-in page (query kept); the note under the control changes.
+  - Rail: the current screen is marked, it sticks to the top at full height, it stacks on top at 320 px, and nothing scrolls sideways (`scrollWidth` 320) there or on the sign-in page.
+  - Create app opens the dialog with focus inside it, and Escape closes it. With JavaScript off it opens `/admin/apps/new`, and an app is created there.
+  - Keyboard: every rail link, Sign out and the theme buttons show a 2 px gold focus ring.
+  - Accent `#d9480f`: orange buttons with legible dark text on the sign-in page in both themes, plus the Gnomon and "Secured by Umbral".
+  - Found and fixed: the Apps screen's accent preview, a disabled button, was dimmed to 50% and did not show the real colours. It is now at full opacity (`umbral.input.css`).
+- [X] T033 Update `spec.md` status and record deviations from this plan in `plan.md`.
 
 ## Dependencies
 
