@@ -27,6 +27,10 @@ open Umbral.Tests.Infrastructure
 [<InlineData("/connect/authorize?client_id=x", "/connect/authorize?client_id=x")>]
 [<InlineData("/", "/")>]
 [<InlineData("/admin/apps", "/admin/apps")>]
+// A `\` in the query, or an encoded one there, is a character of a value, not a
+// way off this instance.
+[<InlineData("/connect/authorize?state=a\\b", "/connect/authorize?state=a\\b")>]
+[<InlineData("/connect/authorize?redirect_uri=https%3A%2F%2Fapp", "/connect/authorize?redirect_uri=https%3A%2F%2Fapp")>]
 let ``a local path is kept`` (input: string) (expected: string) =
     Assert.Equal(expected, Picker.sanitizeReturnUrl input)
 
@@ -35,13 +39,22 @@ let ``a local path is kept`` (input: string) (expected: string) =
 [<InlineData("http://evil.example.com")>]
 // Protocol-relative: the browser reads this as a host, not a path.
 [<InlineData("//evil.example.com/steal")>]
+// Browsers read `\` as `/` in an http(s) path: these are `//evil.example.com`.
+[<InlineData("/\\evil.example.com")>]
+[<InlineData("/\\/evil.example.com")>]
+[<InlineData("/a\\..\\\\evil.example.com")>]
+// A browser keeps these on this instance, but one more decode makes them hosts.
+[<InlineData("/%5Cevil.example.com")>]
+[<InlineData("/%5cevil.example.com")>]
+[<InlineData("/%2F/evil.example.com")>]
+// Browsers drop tabs and line breaks: `//evil.example.com` again. A raw line
+// break would also split the Location header.
+[<InlineData("/\t/evil.example.com")>]
+[<InlineData("/\r\n/evil.example.com")>]
+[<InlineData("/admin\r\nSet-Cookie: x=1")>]
+[<InlineData("/connect/authorize?client_id=x\r\nSet-Cookie: x=1")>]
+[<InlineData(" //evil.example.com")>]
 [<InlineData("javascript:alert(1)")>]
-// A backslash is a slash to a browser: `/\evil.example` is `//evil.example`.
-[<InlineData("/\\evil.example")>]
-[<InlineData("/\\/evil.example")>]
-// Browsers strip tab, CR and LF from a URL, so these become `//evil.example`.
-[<InlineData("/\t/evil.example")>]
-[<InlineData("/\r\n/evil.example")>]
 // White space and non-ASCII: never in an address Umbral built (it is
 // percent-encoded), and a non-ASCII one is a `Location` Kestrel refuses.
 [<InlineData("/a b")>]
