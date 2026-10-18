@@ -174,6 +174,24 @@ module NoticeReason =
 let truncate (limit: int) (text: string) =
     if text.Length <= limit then text else text.Substring(0, limit - 1) + "…"
 
+/// A path on this server, safe to redirect to when the value came from the
+/// browser (a sign-in's `returnUrl`, the theme switch's return address): it
+/// starts with `/`, the next character is not `/` or `\` (browsers read both as
+/// the start of a host, `//evil.example` and `/\evil.example`), and every
+/// character is printable ASCII. So no control character, which browsers strip
+/// (`/\t/evil.example` would become `//evil.example`) and which splits a header,
+/// no white space, and nothing the server would refuse to write into
+/// `Location`. Umbral's own return addresses are percent-encoded, so a real one
+/// never needs more.
+let isLocalPath (candidate: string | null) : bool =
+    match candidate with
+    | null -> false
+    | path ->
+        path.Length > 0
+        && path[0] = '/'
+        && (path.Length = 1 || (path[1] <> '/' && path[1] <> '\\'))
+        && path |> Seq.forall (fun c -> c > ' ' && c < '\u007f')
+
 let redirect (ctx: HttpContext) (path: string) : Task =
     ctx.Response.Redirect path
     Task.CompletedTask

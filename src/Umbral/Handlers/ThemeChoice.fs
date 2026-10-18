@@ -9,8 +9,8 @@
 /// repost it.
 ///
 /// Where it redirects to is posted by the browser, so it is checked here: only a
-/// path on this server is followed (`isLocalPath`), anything else goes home. It
-/// is deliberately not `Picker.sanitizeReturnUrl`, which has its own contract.
+/// path on this server is followed (`WebForms.isLocalPath`, the rule the sign-in
+/// page's `returnUrl` follows too), anything else goes home.
 module Umbral.Handlers.ThemeChoice
 
 open System
@@ -22,18 +22,6 @@ open Umbral.Views
 /// A year: long enough that the choice is not asked again, short enough that a
 /// forgotten browser does not hold a preference forever.
 let private Lifetime = TimeSpan.FromDays 365.0
-
-/// A path on this server: it starts with `/`, the next character is not `/` or
-/// `\` (browsers read both as the start of a host, `//evil.example` and
-/// `/\evil.example`), and every character is printable ASCII: no control
-/// character or white space, which is how a header is split, and nothing the
-/// server would refuse to write into `Location` (the control sends the path
-/// encoded, so a real page never needs more).
-let isLocalPath (candidate: string) : bool =
-    not (String.IsNullOrEmpty candidate)
-    && candidate[0] = '/'
-    && (candidate.Length = 1 || (candidate[1] <> '/' && candidate[1] <> '\\'))
-    && candidate |> Seq.forall (fun c -> c > ' ' && c < '\u007f')
 
 /// The cookie's options. Path `/` so every page sees it, `Lax` so it is sent
 /// when someone follows a link here, `HttpOnly` because no script of ours reads
@@ -69,7 +57,7 @@ let handler: EndpointHandler =
             | None -> ()
 
             let returnUrl = posted "returnUrl"
-            let target = if isLocalPath returnUrl then returnUrl else "/"
+            let target = if WebForms.isLocalPath returnUrl then returnUrl else "/"
 
             ctx.Response.StatusCode <- StatusCodes.Status303SeeOther
             ctx.Response.Headers.Location <- target

@@ -36,6 +36,16 @@ let ``a local path is kept`` (input: string) (expected: string) =
 // Protocol-relative: the browser reads this as a host, not a path.
 [<InlineData("//evil.example.com/steal")>]
 [<InlineData("javascript:alert(1)")>]
+// A backslash is a slash to a browser: `/\evil.example` is `//evil.example`.
+[<InlineData("/\\evil.example")>]
+[<InlineData("/\\/evil.example")>]
+// Browsers strip tab, CR and LF from a URL, so these become `//evil.example`.
+[<InlineData("/\t/evil.example")>]
+[<InlineData("/\r\n/evil.example")>]
+// White space and non-ASCII: never in an address Umbral built (it is
+// percent-encoded), and a non-ASCII one is a `Location` Kestrel refuses.
+[<InlineData("/a b")>]
+[<InlineData("/caf\u00e9")>]
 [<InlineData("evil.example.com")>]
 [<InlineData("")>]
 let ``anything that could leave this instance becomes the root`` (input: string) =
@@ -316,6 +326,33 @@ let ``a failed callback goes back to sign-in with the original returnUrl`` () =
             Regex.Match(location, "returnUrl=([^&]+)").Groups[1].Value |> Uri.UnescapeDataString
 
         Assert.Equal(authorize, returnUrl)
+    }
+
+[<Fact>]
+let ``a returnUrl that is a host to the browser is not carried through the round trip`` () =
+    task {
+        use! app = Fixtures.createAppWith Journeys.fakeSettings ignore
+        let browser = Journeys.Browser app.Client
+        let! _ = Journeys.prepare app browser
+
+        // `/\evil.example` is `//evil.example` to a browser. The start of the
+        // round trip stores where to go afterwards; it must store the root.
+        let planted = Uri.EscapeDataString "/\\evil.example"
+        let! toProvider = browser.Get $"/connect/fake/start?returnUrl={planted}"
+
+        let state =
+            Regex.Match(Uri.UnescapeDataString(toProvider.Headers.Location |> string), "state=([^&]+)").Groups[1].Value
+
+        let! failed = browser.Get $"/connect/fake/callback?state={Uri.EscapeDataString state}"
+
+        let location = failed.Headers.Location |> string
+        Assert.StartsWith("/signin", location)
+        Assert.DoesNotContain("evil", location)
+
+        let returnUrl =
+            Regex.Match(location, "returnUrl=([^&]+)").Groups[1].Value |> Uri.UnescapeDataString
+
+        Assert.Equal("/", returnUrl)
     }
 
 [<Fact>]

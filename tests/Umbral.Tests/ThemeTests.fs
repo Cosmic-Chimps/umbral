@@ -250,7 +250,7 @@ let ``only a local path is returned to, anything else goes home`` () =
 [<Fact>]
 let ``the local-path rule`` () =
     for good in [ "/"; "/admin/apps"; "/signin?returnUrl=%2Fconnect%2Fauthorize%3Fa%3Db&c=d"; "/a#b" ] do
-        Assert.True(Umbral.Handlers.ThemeChoice.isLocalPath good, good)
+        Assert.True(Umbral.Infrastructure.WebForms.isLocalPath good, good)
 
     for bad in
         [ ""
@@ -266,7 +266,7 @@ let ``the local-path rule`` () =
           "/a\u00a0b"
           "/caf\u00e9"
           " /a" ] do
-        Assert.False(Umbral.Handlers.ThemeChoice.isLocalPath bad, bad)
+        Assert.False(Umbral.Infrastructure.WebForms.isLocalPath bad, bad)
 
 // ---------------------------------------------------------------------------
 // The control, on every kind of page

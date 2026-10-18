@@ -16,10 +16,14 @@ open Umbral.Views
 
 /// Where to go once a provider has vouched for them. Only ever a path on this
 /// instance: an absolute URL here would make the picker an open redirect, and
-/// the value is attacker-supplied by construction.
+/// the value is attacker-supplied by construction. `WebForms.isLocalPath` is the
+/// rule: a leading `//` or `/\` is a host to a browser, and so is `/` then a tab
+/// then `/`, once the browser has stripped the tab. The authorize handler sends
+/// its address percent-encoded, so a real one always passes.
 let sanitizeReturnUrl (candidate: string | null) =
-    match Option.ofObj candidate with
-    | Some url when url.StartsWith "/" && not (url.StartsWith "//") -> url
+    match candidate with
+    | null -> "/"
+    | url when WebForms.isLocalPath url -> url
     | _ -> "/"
 
 /// Everything an end user sees when a sign-in fails is one of these codes,
