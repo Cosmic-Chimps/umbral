@@ -4,7 +4,8 @@
 #   2. builds linux/amd64 and linux/arm64 and pushes ghcr.io/<owner>/umbral:1.2.3
 #      (and :latest, unless the tag is a prerelease such as v1.2.0-rc.1),
 #   3. tells the Caravana host to roll it out and waits for the rollout to be
-#      healthy (skipped for prereleases, and when CARAVANA_URL is not set),
+#      healthy; the first time, it defines the app from deploy/caravana-app.json
+#      (skipped for prereleases, and when CARAVANA_URL is not set),
 #   4. keeps the last 10 image versions and deletes older ones.
 #
 # Setup (variables, secrets, the production environment): README, "Deploying on
@@ -34,6 +35,7 @@ jobs:
       contents: read
       packages: write
     outputs:
+      image: ${{ steps.name.outputs.image }}
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
@@ -105,139 +107,26 @@ jobs:
     runs-on: ubuntu-latest
     # Add required reviewers to this environment to approve each rollout.
     environment: production
-    permissions: {}
-    env:
-      CARAVANA_URL: ${{ vars.CARAVANA_URL }}
-      APP_ID: ${{ vars.CARAVANA_APP_ID || 'umbral' }}
-      WEBHOOK_TOKEN: ${{ secrets.CARAVANA_WEBHOOK_TOKEN }}
-      API_TOKEN: ${{ secrets.CARAVANA_API_TOKEN }}
-      DIGEST: ${{ needs.image.outputs.digest }}
+    permissions:
+      contents: read
     steps:
+      - uses: actions/checkout@v4
+
+      # The script is .github/scripts/caravana-deploy.sh. It calls the webhook;
+      # the first time, when the app has no services yet, it defines the app
+      # from deploy/caravana-app.json. Secrets reach it as environment values,
+      # never as part of the script text.
       - name: Roll out on Caravana
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          base="${CARAVANA_URL%/}"
-          headers="$(mktemp)"
-          body="$(mktemp)"
-
-          # The token goes to curl on stdin as a config line, not as an
-          # argument, so it never shows up in a process list.
-          caravana() {
-            local token="$1"; shift
-            printf 'header = "Authorization: Bearer %s"\n' "$token" |
-              curl --silent --show-error --max-time 60 --config - "$@"
-          }
-
-          # Prints "code: message" from a Caravana error body, or the start of
-          # the body when it is not one.
-          describe_error() {
-            jq -er 'select(.error) | .error | "\(.code): \(.message)"' "$1" 2>/dev/null || head -c 500 "$1"
-          }
-
-          summary() { echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
-
-          echo "Calling the webhook of app '$APP_ID' at $base"
-          code="$(caravana "$WEBHOOK_TOKEN" -X POST -o "$body" -D "$headers" \
-            -w '%{http_code}' "$base/v1/webhooks/$APP_ID")" || {
-            echo "::error::Could not reach $base"
-            exit 1
-          }
-
-          case "$code" in
-            200)
-              if [ "$(jq -r '.changed' "$body" 2>/dev/null)" = "false" ]; then
-                echo "::notice::Caravana says the image digest has not changed; nothing was deployed."
-                summary "### Caravana"
-                summary "Nothing to deploy: the image digest is unchanged (\`$DIGEST\`)."
-                exit 0
-              fi
-              echo "::error::Unexpected answer 200 from the webhook: $(head -c 500 "$body")"
-              exit 1
-              ;;
-            202) ;;
-            401)
-              echo "::error::Caravana answered 401: check CARAVANA_WEBHOOK_TOKEN and CARAVANA_APP_ID."
-              exit 1
-              ;;
-            *)
-              echo "::error::The webhook answered $code: $(describe_error "$body")"
-              exit 1
-              ;;
-          esac
-
-          location="$(tr -d '\r' < "$headers" | awk 'tolower($1) == "location:" { print $2 }')"
-          if [ -z "$location" ]; then
-            echo "::error::The webhook answered 202 without a Location header."
-            exit 1
-          fi
-          # Location is a path (/v1/apps/<app>/deployments/<id>); allow a full URL too.
-          case "$location" in http://*|https://*) url="$location" ;; *) url="$base$location" ;; esac
-          deployment="${location##*/}"
-          echo "Rollout started: deployment $deployment"
-
-          deadline=$((SECONDS + 600))
-          last=""
-          status=""
-          while :; do
-            if caravana "$API_TOKEN" -o "$body" -w '%{http_code}' "$url" > "$headers"; then
-              got="$(cat "$headers")"
-            else
-              got="000"
-            fi
-            case "$got" in
-              200)
-                status="$(jq -r '.status' "$body")"
-                if [ "$status" != "$last" ]; then echo "Status: $status"; last="$status"; fi
-                case "$status" in
-                  healthy|failed|reverted|superseded) break ;;
-                esac
-                ;;
-              401)
-                echo "::error::Caravana answered 401 reading the deployment: check CARAVANA_API_TOKEN."
-                exit 1
-                ;;
-              000)
-                echo "::warning::Could not read the deployment; trying again."
-                ;;
-              *)
-                echo "::error::Reading the deployment answered $got: $(describe_error "$body")"
-                exit 1
-                ;;
-            esac
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "::error::The rollout was still '$status' after 10 minutes; giving up waiting."
-              summary "### Caravana"
-              summary "Deployment \`$deployment\` was still \`${status:-unknown}\` after 10 minutes."
-              exit 1
-            fi
-            sleep 5
-          done
-
-          # Warnings count on success too (a dropped secret, a changed meaning).
-          jq -r '.warnings[]? | "::warning::" + ((.field // "") | if . == "" then "" else . + ": " end) + (.message | gsub("\n"; " "))' "$body"
-
-          jobversion="$(jq -r '.jobVersion // "unknown"' "$body")"
-          {
-            echo "### Caravana"
-            echo
-            echo "| | |"
-            echo "| --- | --- |"
-            echo "| Status | \`$status\` |"
-            echo "| Deployment | \`$deployment\` |"
-            echo "| Nomad job version | \`$jobversion\` |"
-            echo "| Image digest | \`$DIGEST\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "$status" != "healthy" ]; then
-            message="$(jq -r '.error // "no reason given"' "$body" | tr '\n' ' ')"
-            echo "::error::The rollout ended '$status': $message"
-            summary ""
-            summary "The rollout ended \`$status\`: $message"
-            exit 1
-          fi
-          echo "Healthy: job version $jobversion"
+        env:
+          CARAVANA_URL: ${{ vars.CARAVANA_URL }}
+          APP_ID: ${{ vars.CARAVANA_APP_ID || 'umbral' }}
+          WEBHOOK_TOKEN: ${{ secrets.CARAVANA_WEBHOOK_TOKEN }}
+          API_TOKEN: ${{ secrets.CARAVANA_API_TOKEN }}
+          IMAGE: ${{ needs.image.outputs.image }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+          CARAVANA_DOMAIN: ${{ vars.CARAVANA_DOMAIN }}
+          CARAVANA_BACKUP_SCHEDULE: ${{ vars.CARAVANA_BACKUP_SCHEDULE }}
+        run: .github/scripts/caravana-deploy.sh
 
   # Keep the last 10 versions. This waits for the rollout so that a failed one,
   # which Nomad reverts to the previous image, is never racing a deletion. It

@@ -685,27 +685,42 @@ masqueraded as that gateway.
 
 Caravana is a self-hosted PaaS on Nomad. Its Traefik already terminates TLS
 and routes by domain, so on a Caravana host you use neither Caddy nor the
-compose file above. You create one image app
-and the release workflow does the rest: pushing a tag builds the image and tells
-Caravana to roll it out.
+compose file above. You create the app in Caravana by name and the release
+workflow does the rest: pushing a tag builds the image, defines the app the
+first time, and tells Caravana to roll it out.
 
 ### Create the app in Caravana
 
-New app, **from an image**:
+In the console choose **New app**, enter the name `umbral`, and pick **Create
+without deploying**. A name is enough: the app has no services yet, and the first
+release gives it its definition. Then copy the app's **webhook token**
+(Configure, Webhook token). It starts with `cvwh_` and is shown once.
 
 | Setting | Value |
 | --- | --- |
-| App ID | `umbral` |
-| Image | `ghcr.io/<owner>/umbral:latest` (`<owner>` is the GitHub user or organization that owns the repository, in lowercase) |
-| Container port | `8080` |
-| Domain | your domain, for example `auth.example.com` |
-| Health check | HTTP, path `/healthz` |
-| Volume | one volume named `umbral-data`, mounted at `/data` (a named volume is what Caravana's coming volume backups will copy) |
-| Environment | `UMBRAL__PUBLIC_ORIGIN=https://auth.example.com` and `UMBRAL__TRUSTED_PROXIES=10.99.0.1` |
+| Name | `umbral` (or any name, with the repository variable `CARAVANA_APP_ID` set to it) |
+
+The first release defines the app from
+[`deploy/caravana-app.json`](deploy/caravana-app.json), so you do not type the
+settings. It sets:
+
+- the image: `ghcr.io/<owner>/umbral` (`<owner>` is the GitHub user or
+  organization that owns the repository, in lowercase), tag `latest`;
+- container port `8080`, with an HTTP health check on `/healthz`;
+- one volume, `umbral-data`, mounted at `/data`;
+- your domain (the repository variable `CARAVANA_DOMAIN`, for example
+  `auth.example.com`), routed to that port;
+- `UMBRAL__PUBLIC_ORIGIN=https://<your domain>`;
+- `UMBRAL__TRUSTED_PROXIES=10.99.0.1`.
+
+To change what the first definition contains (more memory, another variable),
+edit that file before the first release. It is only read when the app has no
+services yet: once the app is defined, change it in the Caravana console, and
+later releases keep your changes. The default memory (256 MB) is enough: Umbral
+idles under 150 MB.
 
 `UMBRAL__PUBLIC_ORIGIN` must match the domain exactly, scheme included; the
-[section above](#the-public-origin-must-match-exactly) explains why. The default
-memory (256 MB) is enough: Umbral idles under 150 MB.
+[section above](#the-public-origin-must-match-exactly) explains why.
 
 `UMBRAL__TRUSTED_PROXIES=10.99.0.1` tells Umbral to believe `X-Forwarded-*`
 only from Traefik. On a host set up by Caravana's installer, Traefik reaches
@@ -716,20 +731,26 @@ and get past the sign-in limits. Their direct requests arrive from their own
 container address or from the bridge gateway (`172.26.64.1`), never from
 `10.99.0.1`, so do not trust the gateway.
 
-The image is stored with the moving tag `latest`. That is fine: Caravana pins
-the tag to a digest on every deploy, so each rollout is a specific image and
-Caravana can roll it back.
+The app is stored with the moving tag `latest`. That is fine: Caravana pins the
+tag to a digest on every deploy, so each rollout is a specific image and
+Caravana can roll it back. (The workflow does not store the digest itself: the
+webhook only redeploys when the stored tag now resolves to a new digest.)
 
-**Make the GHCR package public after the first release.** Caravana pulls from
-GHCR anonymously and cannot use registry credentials yet. On GitHub, open the
-package (your profile or organization, Packages, `umbral`), then Package
-settings, Change visibility. The image holds no secrets: every secret lives in
-`/data`.
+**The GHCR package.** A new GHCR package is usually private. You have
+two choices:
 
-The app needs an image to start from, so the first time, go in this order: push
-a tag with `CARAVANA_URL` not set yet (the release then only builds the image),
-make the package public, create the app, then add the variables and secrets
-below. Every later release deploys on its own.
+- **Make it public** (the simpler choice). On GitHub, open the package (your
+  profile or organization, Packages, `umbral`), then Package settings, Change
+  visibility. Caravana then pulls anonymously. The image holds no secrets: every
+  secret lives in `/data`.
+- **Keep it private** and give Caravana a registry login: Settings, Registries,
+  with a GitHub token that has `read:packages`. The trade-off is that Caravana
+  puts the registry token in the app's container environment, so Umbral's
+  container can read it.
+
+If the first rollout cannot pull the image, the workflow fails with the error
+Caravana reports; fix the package visibility or the registry login and run the
+release again.
 
 ### Connect the repository
 
@@ -738,13 +759,23 @@ In the GitHub repository, under Settings, Secrets and variables, Actions:
 | Kind | Name | Value |
 | --- | --- | --- |
 | Variable | `CARAVANA_URL` | The console domain, for example `https://caravana.example.com`, with no trailing slash. Without it the release builds the image and skips the deploy. |
-| Variable | `CARAVANA_APP_ID` | Optional. The app ID, if it is not `umbral`. |
+| Variable | `CARAVANA_DOMAIN` | The domain Umbral is served on, for example `auth.example.com`, without `https://`. Needed for the first release, which defines the app with it; ignored afterwards. |
+| Variable | `CARAVANA_APP_ID` | Optional. The app's name, if it is not `umbral`. |
+| Variable | `CARAVANA_BACKUP_SCHEDULE` | Optional. A five-field cron line in UTC, for example `0 3 * * *`. The first release then defines the app with a volume backup (see [Back up `/data` with Caravana](#back-up-data-with-caravana)). Ignored once the app is defined. |
 | Secret | `CARAVANA_WEBHOOK_TOKEN` | The app's webhook token: Configure, Webhook token. It starts with `cvwh_` and is shown once. It can only trigger a redeploy. |
-| Secret | `CARAVANA_API_TOKEN` | An API token that lets the workflow read the rollout and wait for it: Settings, API tokens, or `sudo caravana admin create-token --name umbral-ci` on the host. It starts with `cvat_`. |
+| Secret | `CARAVANA_API_TOKEN` | An API token that lets the workflow define the app the first time and read the rollout: Settings, API tokens, or `sudo caravana admin create-token --name umbral-ci` on the host. It starts with `cvat_`. |
 
 Also create an **environment** named `production` (Settings, Environments). The
 deploy job runs in it, so you can add required reviewers there and approve each
 rollout by hand.
+
+The first time, go in this order: create the app in Caravana (above), copy its
+webhook token, set the variables `CARAVANA_URL` and `CARAVANA_DOMAIN` and the
+secrets `CARAVANA_WEBHOOK_TOKEN` and `CARAVANA_API_TOKEN` (and, if you want
+backups from the start, set a backup destination in Caravana and
+`CARAVANA_BACKUP_SCHEDULE`), then push a tag. The first release defines the app
+from `deploy/caravana-app.json`. Every later release redeploys through the
+webhook and keeps the changes you made in the console.
 
 ### Release
 
@@ -759,8 +790,11 @@ The workflow ([`release.yml`](.github/workflows/release.yml)) then:
 2. builds `linux/amd64` and `linux/arm64` and pushes `ghcr.io/<owner>/umbral:1.2.3`
    and `:latest`;
 3. calls the app's webhook and waits, up to 10 minutes, until Caravana reports the
-   rollout healthy. It fails if the rollout fails or is reverted, and prints the
-   deployment's warnings;
+   rollout healthy. If the app has no services yet (the first release), it
+   defines the app from `deploy/caravana-app.json` with the API token instead,
+   using the image it just built. It fails if the rollout fails or is reverted,
+   and prints the deployment's warnings
+   ([`caravana-deploy.sh`](.github/scripts/caravana-deploy.sh));
 4. deletes image versions older than the last 10.
 
 Re-running a release is safe: when the image has not changed, Caravana deploys
@@ -775,16 +809,46 @@ Things to know:
 - **Prereleases do not deploy.** A tag with a hyphen, such as `v1.2.0-rc.1`,
   publishes its image but does not move `latest` and does not call Caravana. Pull
   it by tag to try it.
-- **Only the last 10 versions are kept**, so rolling back in Caravana reaches 10
-  releases back; for an older one, Caravana answers `image_not_found`. The pruning
+- **Only the last 10 versions are kept**, so Caravana's "Redeploy this version"
+  reaches 10 releases back; for an older one, whose image was deleted, Caravana
+  refuses it. The pruning
   is careful with multi-arch images: it deletes an old version together with its
   own per-architecture parts and nothing else
   ([`prune-images.sh`](.github/scripts/prune-images.sh); run it with `DRY_RUN=1`
   to see what it would delete). It does not run when the deploy failed, so the
   image a failed rollout reverts to is never deleted under it.
-- **Caravana does not back up `/data` off the machine yet** (volume backups are a
-  coming Caravana feature). Until they exist, copy it yourself as described in
-  [Your data: back it up](#your-data-back-it-up), with Umbral stopped.
+
+### Back up `/data` with Caravana
+
+Caravana can back up the `umbral-data` volume to the installation's S3-compatible
+backup destination. The backup is part of the app's definition: the console cannot
+turn it on, and a backup policy is refused while no destination is set.
+
+1. Set the backup destination first: Caravana, Settings, Backup destination.
+   Without it Caravana refuses the definition and names the field.
+2. Then either set the repository variable `CARAVANA_BACKUP_SCHEDULE` (for
+   example `0 3 * * *`) **before the first release**, which defines the app with
+   `"backup": {"engine": "volume", "schedule": "<your schedule>", "keep": 7}`; or,
+   for an app that is already deployed, send its definition once more with a
+   `backup` object through the API, with an API token. The stored app is the
+   `app` field of what `GET /v1/apps/umbral` answers; add the `backup` to the
+   service and post it back (values of secrets stay as they are):
+
+   ```bash
+   BASE=https://caravana.example.com     # your CARAVANA_URL
+   curl -s -H "Authorization: Bearer $TOKEN" "$BASE/v1/apps/umbral" |
+     jq '.app | .services[0].backup = {engine: "volume", schedule: "0 3 * * *", keep: 7}' |
+     curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+       --data @- "$BASE/v1/apps/umbral/deployments"
+   ```
+
+   The schedule is a five-field cron line in UTC; leave it out for `0 3 * * *`.
+   `keep` is how many backups stay (7 if left out).
+
+The backup **stops Umbral for a few seconds** while `/data` is archived, so the
+SQLite file and the keys are copied consistently. Schedule it for a quiet hour.
+Restoring is a Caravana operation too; to copy `/data` by hand instead, see
+[Your data: back it up](#your-data-back-it-up), with Umbral stopped.
 
 ## Your data: back it up
 
