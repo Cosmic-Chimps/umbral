@@ -10,7 +10,9 @@
 # webhook, so edits made in Caravana's console are never overwritten by the
 # file.
 #
-# Inputs, all environment variables:
+# Inputs, all environment variables (the release workflow takes them from Bella
+# Baxter secrets: API_TOKEN is CARAVANA_TOKEN, WEBHOOK_TOKEN is
+# CARAVANA_WEBHOOK_TOKEN, APP_ID is CARAVANA_APP_ID):
 #   CARAVANA_URL     console address, for example https://caravana.example.com
 #   APP_ID           the app's name in Caravana
 #   WEBHOOK_TOKEN    the app's webhook token (cvwh_...)
@@ -80,7 +82,7 @@ waited() {
 # Leaves the answer in $headers and $body, like the webhook call does.
 define_app() {
   if [ -z "$CARAVANA_DOMAIN" ]; then
-    echo "::error::App '$APP_ID' is not defined on Caravana yet (it has no services), and the first deploy needs the repository variable CARAVANA_DOMAIN, for example auth.example.com. Set it and run the release again, or define the app in the Caravana console."
+    echo "::error::App '$APP_ID' is not defined on Caravana yet (it has no services), and the first deploy needs the Bella Baxter secret CARAVANA_DOMAIN, for example auth.example.com. Set it and run the release again, or define the app in the Caravana console."
     exit 1
   fi
   if [ ! -f "$DEFINITION" ]; then
@@ -126,7 +128,7 @@ define_app() {
       echo "::notice::App '$APP_ID' was defined from $DEFINITION. Later releases redeploy through the webhook, so changes made in the Caravana console are kept."
       ;;
     401)
-      echo "::error::Caravana answered 401 defining the app: check CARAVANA_API_TOKEN."
+      echo "::error::Caravana answered 401 defining the app: check the Bella Baxter secret CARAVANA_TOKEN."
       exit 1
       ;;
     *)
@@ -156,7 +158,7 @@ case "$code" in
     ;;
   202) ;;
   401)
-    echo "::error::Caravana answered 401: check CARAVANA_WEBHOOK_TOKEN and CARAVANA_APP_ID."
+    echo "::error::Caravana answered 401: check the Bella Baxter secrets CARAVANA_WEBHOOK_TOKEN and CARAVANA_APP_ID."
     exit 1
     ;;
   409)
@@ -203,7 +205,7 @@ while :; do
       esac
       ;;
     401)
-      echo "::error::Caravana answered 401 reading the deployment: check CARAVANA_API_TOKEN."
+      echo "::error::Caravana answered 401 reading the deployment: check the Bella Baxter secret CARAVANA_TOKEN."
       exit 1
       ;;
     000)

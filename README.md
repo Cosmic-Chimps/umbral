@@ -698,7 +698,7 @@ release gives it its definition. Then copy the app's **webhook token**
 
 | Setting | Value |
 | --- | --- |
-| Name | `umbral` (or any name, with the repository variable `CARAVANA_APP_ID` set to it) |
+| Name | `umbral` (or any name, with the Bella Baxter secret `CARAVANA_APP_ID` set to it) |
 
 The first release defines the app from
 [`deploy/caravana-app.json`](deploy/caravana-app.json), so you do not type the
@@ -708,7 +708,7 @@ settings. It sets:
   organization that owns the repository, in lowercase), tag `latest`;
 - container port `8080`, with an HTTP health check on `/healthz`;
 - one volume, `umbral-data`, mounted at `/data`;
-- your domain (the repository variable `CARAVANA_DOMAIN`, for example
+- your domain (the Bella Baxter secret `CARAVANA_DOMAIN`, for example
   `auth.example.com`), routed to that port;
 - `UMBRAL__PUBLIC_ORIGIN=https://<your domain>`;
 - `UMBRAL__TRUSTED_PROXIES=10.99.0.1`.
@@ -754,26 +754,65 @@ release again.
 
 ### Connect the repository
 
-In the GitHub repository, under Settings, Secrets and variables, Actions:
+The release workflow reads the Caravana settings and tokens from
+Bella Baxter and signs in to it with the job's GitHub
+OIDC token (workload identity). No secret is stored in GitHub, so there is
+nothing in the repository to leak or rotate.
 
-| Kind | Name | Value |
-| --- | --- | --- |
-| Variable | `CARAVANA_URL` | The console domain, for example `https://caravana.example.com`, with no trailing slash. Without it the release builds the image and skips the deploy. |
-| Variable | `CARAVANA_DOMAIN` | The domain Umbral is served on, for example `auth.example.com`, without `https://`. Needed for the first release, which defines the app with it; ignored afterwards. |
-| Variable | `CARAVANA_APP_ID` | Optional. The app's name, if it is not `umbral`. |
-| Variable | `CARAVANA_BACKUP_SCHEDULE` | Optional. A five-field cron line in UTC, for example `0 3 * * *`. The first release then defines the app with a volume backup (see [Back up `/data` with Caravana](#back-up-data-with-caravana)). Ignored once the app is defined. |
-| Secret | `CARAVANA_WEBHOOK_TOKEN` | The app's webhook token: Configure, Webhook token. It starts with `cvwh_` and is shown once. It can only trigger a redeploy. |
-| Secret | `CARAVANA_API_TOKEN` | An API token that lets the workflow define the app the first time and read the rollout: Settings, API tokens, or `sudo caravana admin create-token --name umbral-ci` on the host. It starts with `cvat_`. |
+**In Bella Baxter**, create a project and an environment (the examples use the
+project `umbral-workflow` and the environment `production`) holding these
+secrets:
+
+| Secret | Value |
+| --- | --- |
+| `CARAVANA_URL` | The console domain, for example `https://caravana.example.com`, with no trailing slash. |
+| `CARAVANA_DOMAIN` | The domain Umbral is served on, for example `auth.example.com`, without `https://`. Needed for the first release, which defines the app with it; ignored afterwards. |
+| `CARAVANA_TOKEN` | An API token that lets the workflow define the app the first time and read the rollout: Settings, API tokens, or `sudo caravana admin create-token --name umbral-ci` on the host. It starts with `cvat_`. |
+| `CARAVANA_WEBHOOK_TOKEN` | The app's webhook token: Configure, Webhook token. It starts with `cvwh_` and is shown once. It can only trigger a redeploy. |
+| `CARAVANA_APP_ID` | Optional. The app's name, if it is not `umbral`. |
+| `CARAVANA_BACKUP_SCHEDULE` | Optional. A five-field cron line in UTC, for example `0 3 * * *`. The first release then defines the app with a volume backup (see [Back up `/data` with Caravana](#back-up-data-with-caravana)). Ignored once the app is defined. |
+
+Then let GitHub Actions read that environment. On the environment, open
+Identity, Add trust domain, and pick the GitHub template:
+
+- Issuer: `https://token.actions.githubusercontent.com`.
+- Claim rules (all must match): `repository` equals `<owner>/umbral`, and
+  `environment` equals `production`. Once the repository exists, prefer
+  `repository_id` equals its numeric id: it survives a rename or a transfer.
+- Role: Consumer (read only). The default token lifetime of 15 minutes is enough.
+- Accepted audience: the console suggests `bella-baxter/<environmentId>`. If you
+  keep it, set the repository variable `BELLA_OIDC_AUDIENCE` (below) to exactly
+  that. If you leave it empty, the audience is `bella-baxter`, and the variable
+  stays unset.
+
+**In GitHub**, under Settings, Secrets and variables, Actions, Variables:
+
+| Variable | Value |
+| --- | --- |
+| `BELLA_BAXTER_TENANT` | Your Bella Baxter tenant code, for example `code4fun-17d1c3`. |
+| `BELLA_BAXTER_PROJECT` | The project, for example `umbral-workflow`. Without it the release builds the image and skips the deploy. |
+| `BELLA_BAXTER_ENV` | The environment. Optional: `production` if unset. |
+| `BELLA_OIDC_AUDIENCE` | Optional. The accepted audience, only if the trust domain uses one other than `bella-baxter`. |
+
+No GitHub secrets are needed.
 
 Also create an **environment** named `production` (Settings, Environments). The
-deploy job runs in it, so you can add required reviewers there and approve each
-rollout by hand.
+deploy job runs in it, and two things depend on it:
+
+- Bella Baxter's trust domain requires `environment` to equal `production`, so
+  only jobs running in that environment can read the secrets.
+- Under Deployment branches and tags, choose Selected branches and tags and add
+  the tag pattern `v*`. Bella Baxter cannot limit a token to certain tags, so
+  this rule is what keeps a branch or an unrelated tag from deploying.
+
+You can also add required reviewers there to approve each rollout by hand.
 
 The first time, go in this order: create the app in Caravana (above), copy its
-webhook token, set the variables `CARAVANA_URL` and `CARAVANA_DOMAIN` and the
-secrets `CARAVANA_WEBHOOK_TOKEN` and `CARAVANA_API_TOKEN` (and, if you want
+webhook token, put the secrets in Bella Baxter (`CARAVANA_URL`,
+`CARAVANA_DOMAIN`, `CARAVANA_TOKEN`, `CARAVANA_WEBHOOK_TOKEN`; and, if you want
 backups from the start, set a backup destination in Caravana and
-`CARAVANA_BACKUP_SCHEDULE`), then push a tag. The first release defines the app
+`CARAVANA_BACKUP_SCHEDULE`), add the trust domain, set the GitHub variables and
+the `production` environment, then push a tag. The first release defines the app
 from `deploy/caravana-app.json`. Every later release redeploys through the
 webhook and keeps the changes you made in the console.
 
@@ -826,7 +865,7 @@ turn it on, and a backup policy is refused while no destination is set.
 
 1. Set the backup destination first: Caravana, Settings, Backup destination.
    Without it Caravana refuses the definition and names the field.
-2. Then either set the repository variable `CARAVANA_BACKUP_SCHEDULE` (for
+2. Then either set the Bella Baxter secret `CARAVANA_BACKUP_SCHEDULE` (for
    example `0 3 * * *`) **before the first release**, which defines the app with
    `"backup": {"engine": "volume", "schedule": "<your schedule>", "keep": 7}`; or,
    for an app that is already deployed, send its definition once more with a
