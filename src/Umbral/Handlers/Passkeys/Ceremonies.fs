@@ -287,6 +287,7 @@ let private startRegistration
     (invitationId: string option)
     (newPersonName: string option)
     (nickname: string option)
+    (returnUrl: string option)
     : Task =
     task {
         let clock = ctx.GetService<TimeProvider>()
@@ -304,7 +305,7 @@ let private startRegistration
                   InvitationId = invitationId
                   DisplayName = newPersonName
                   Nickname = nickname
-                  ReturnUrl = None
+                  ReturnUrl = returnUrl
                   CreatedUtc = clock.GetUtcNow()
                   ExpiresUtc = clock.GetUtcNow() }
 
@@ -356,6 +357,7 @@ let private invitationOptions (ctx: HttpContext) (body: JsonElement) (connector:
                             (Some invitation.Id)
                             None
                             nickname
+                            None
             | _ -> do! refuse (Some userId) InvitationUserGone NoticeInvitation
         | None ->
             match Rules.validateDisplayName (tryString body "displayName" |> Option.toObj) with
@@ -372,6 +374,7 @@ let private invitationOptions (ctx: HttpContext) (body: JsonElement) (connector:
                         (Some invitation.Id)
                         (Some name)
                         nickname
+                        None
     }
 
 /// `mode: add`: a signed-in person adding a passkey to their own account.
@@ -411,6 +414,40 @@ let private addOptions (ctx: HttpContext) (body: JsonElement) : Task =
                     None
                     None
                     nickname
+                    None
+    }
+
+/// `mode: signup`: anyone, when the connector is open; they name themselves.
+let private signupOptions (ctx: HttpContext) (body: JsonElement) (connector: Connector) : Task =
+    task {
+        let refuse = refuse ctx Registration
+
+        match connector.PasskeyEnrolment with
+        | InvitationsOnly -> do! refuse None EnrolmentClosed NoticeRegistration
+        | OpenSignUp ->
+
+        match Rules.validateDisplayName (tryString body "displayName" |> Option.toObj) with
+        | Error _ -> do! refuse None DisplayNameInvalid NoticeRegistration
+        | Ok name ->
+
+        match Rules.validateNickname (tryString body "nickname" |> Option.toObj) with
+        | Error _ -> do! refuse None NicknameInvalid NoticeRegistration
+        | Ok nickname ->
+
+        let returnUrl = Picker.sanitizeReturnUrl (tryString body "returnUrl" |> Option.toObj)
+
+        do!
+            startRegistration
+                ctx
+                Store.Signup
+                (Ids.newSubject ())
+                name
+                name
+                []
+                None
+                (Some name)
+                nickname
+                (Some returnUrl)
     }
 
 let registrationOptions: EndpointHandler =
@@ -423,9 +460,7 @@ let registrationOptions: EndpointHandler =
 
                 match tryString body "mode" with
                 | Some "invitation" -> do! invitationOptions ctx body connector
-                // Open sign-up and adding to one's own account come with their
-                // own stories; until then they are refused like a closed door.
-                | Some "signup" -> do! refuse ctx Registration None EnrolmentClosed NoticeRegistration
+                | Some "signup" -> do! signupOptions ctx body connector
                 | Some "add" -> do! addOptions ctx body
                 | _ -> do! badRequest ctx
             })
@@ -527,6 +562,8 @@ let registration: EndpointHandler =
 
                 match! enabledConnector config with
                 | None -> do! refuse userId Reason.ConnectorDisabled NoticeRegistration
+                | Some connector when ceremony.Purpose = Store.Signup && connector.PasskeyEnrolment <> OpenSignUp ->
+                    do! refuse userId EnrolmentClosed NoticeRegistration
                 | Some _ when ceremony.Purpose = Store.Add && (sessionSubject.IsNone || sessionSubject <> userId) ->
                     do! refuse userId UserNotFound NoticeRegistration
                 | Some _ ->

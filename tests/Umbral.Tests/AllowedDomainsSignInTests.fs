@@ -1017,3 +1017,48 @@ let ``limiting one connector does not touch a session established through anothe
             let! events = failures app
             Assert.Empty events
         })
+
+[<Fact>]
+let ``a passkey session and token are never refused by email-domain rules`` () =
+    task {
+        use! app = Fixtures.createAppWith Journeys.fakeSettings ignore
+        let operator = Flows.Browser app.Client
+        do! Flows.claimOperator app operator
+        do! PasskeyFlows.enablePasskeyConnector operator "invitations"
+        let! clientId, secret = Flows.registerApp operator "Grafana"
+        let authenticator = SoftwareAuthenticator.SoftwareAuthenticator("umbral.test", Fixtures.TestOrigin)
+        let! link = PasskeyFlows.inviteNewPerson operator "Ana"
+        let ana = Flows.Browser app.Client
+
+        let! registered, _ =
+            PasskeyFlows.registerThroughInvitation ana authenticator (PasskeyFlows.secretOf link) (Some "Ana") "Phone"
+
+        Assert.Equal(HttpStatusCode.OK, registered.StatusCode)
+
+        // Registration started her session: authorize goes straight to the app.
+        let! authorized = ana.Get(Journeys.authorizeUrl clientId "openid offline_access")
+        let code = Uri.UnescapeDataString(Regex.Match(authorized.Headers.Location |> string, "code=([^&]+)").Groups[1].Value)
+        let! exchanged = Flows.exchangeCode app clientId secret code
+        Assert.Equal(HttpStatusCode.OK, exchanged.StatusCode)
+        let! tokens = Journeys.json exchanged
+
+        do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "acme.com" ]
+
+        // (a) the existing session still authorizes
+        let! again = ana.Get(Journeys.authorizeUrl clientId "openid")
+        Assert.Contains("code=", again.Headers.Location |> string)
+
+        // (b) the refresh token still works
+        let! refreshed = Journeys.refresh app.Client clientId secret (Journeys.strOf tokens "refresh_token")
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode)
+
+        // (c) a fresh passkey sign-in succeeds
+        let fresh = Flows.Browser app.Client
+        let! returnUrl2, _, token2 = PasskeyFlows.startPasskeySignIn fresh clientId "openid"
+        let credentialId = (List.head authenticator.Credentials).Id
+        let! response, _ = PasskeyFlows.signInWithPasskey fresh authenticator credentialId returnUrl2 token2
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+
+        let! refused = Flows.scalar app "SELECT count(*) FROM security_events WHERE event_type = 'sign_in_failed' AND detail LIKE 'email_domain_refused%'" []
+        Assert.Equal("0", refused)
+    }

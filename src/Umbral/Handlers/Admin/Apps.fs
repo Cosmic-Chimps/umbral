@@ -204,12 +204,17 @@ type private Row =
 /// FR-020: an app that offers a connector with a domain rule and one without is
 /// limited only as far as its people choose the limited one, so the open
 /// connectors are named. `instance` is the instance list, read once by the
-/// caller. Only what `offeredTo` offers counts: a connector that is off, or not
+/// caller. An open passkey connector lets anyone in like a connector with no
+/// domain rule; an invitations-only one admits only invited people, like a rule
+/// (spec 008 FR-010). Only what `offeredTo` offers counts: a connector that is off, or not
 /// offered to this app, lets nobody in here.
 let private unrestrictedFor (instance: string list) (connectors: Connector list) (choice: AppChoice) : string list =
     let offered = offeredTo choice connectors
 
     let hasRule (connector: Connector) =
+        if connector.Kind = Passkey then
+            connector.PasskeyEnrolment = InvitationsOnly
+        else
         match EmailDomains.applying connector.AllowedEmailDomains instance with
         | EmailDomains.NoRule -> false
         | EmailDomains.Rule _ -> true

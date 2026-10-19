@@ -697,3 +697,33 @@ let ``a session from an open connector at an app offering only the restricted on
         let! honoured = person.Get(authorize everyone)
         Assert.Contains("code=", location honoured)
     }
+
+[<Fact>]
+let ``an open passkey connector is named by the warning, an invitations-only one is not`` () =
+    task {
+        let! app, operator, clientId = mixedApp ()
+        use _ = app
+        do! PasskeyFlows.enablePasskeyConnector operator "open"
+        let! saved = chooseOnly operator clientId [ "discord"; "passkey" ]
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode)
+        let! screen = operator.GetHtml "/admin/apps"
+        let row = rowOf screen clientId
+        Assert.Contains(warningMarker, row)
+        Assert.Contains("Passkey", textAfter row warningMarker)
+
+        do! PasskeyFlows.enablePasskeyConnector operator "invitations"
+        let! screen = operator.GetHtml "/admin/apps"
+        Assert.DoesNotContain(warningMarker, rowOf screen clientId)
+    }
+
+[<Fact>]
+let ``an app offering only an open passkey connector shows no warning`` () =
+    task {
+        let! app, operator, clientId = mixedApp ()
+        use _ = app
+        do! PasskeyFlows.enablePasskeyConnector operator "open"
+        let! saved = chooseOnly operator clientId [ "passkey" ]
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode)
+        let! screen = operator.GetHtml "/admin/apps"
+        Assert.DoesNotContain(warningMarker, rowOf screen clientId)
+    }

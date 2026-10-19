@@ -620,3 +620,96 @@ let ``a passkey POST without the antiforgery header is refused and changes nothi
         let! after = countsOf app
         Assert.Equal(before, after)
     }
+
+// ---------------------------------------------------------------------------
+// Open sign-up (spec 008, User Story 4)
+// ---------------------------------------------------------------------------
+
+let private openUp (operator: Browser) =
+    task {
+        let! response = operator.PostForm("/admin/connectors", "/admin/connectors/passkey", [ "shared", "true"; "enrolment", "open" ])
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        return response
+    }
+
+let private signupOptions (visitor: Browser) (token: string) (displayName: string) (nickname: string) (returnUrl: string) =
+    postJson visitor "/passkey/registration/options" token {| mode = "signup"; displayName = displayName; nickname = nickname; returnUrl = returnUrl |}
+
+[<Fact>]
+let ``saving the card open shows the sign-up form and records the change`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, clientId, _ = prepare app
+        let! saved = openUp operator
+        Assert.Contains("passkey-connector-saved", location saved)
+        let! updated = events app "connector_updated"
+        Assert.Contains(Some "enrolment=open", updated |> List.map (fun (_, _, d) -> d))
+        let! _, page, _ = startPasskeySignIn (Browser(app.Client)) clientId "openid"
+        Assert.Contains("data-passkey-signup", page)
+        Assert.DoesNotContain("data-invitations-only", page)
+    }
+
+[<Fact>]
+let ``anyone can sign up with a passkey when the connector is open`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, clientId, secret = prepare app
+        let! _ = openUp operator
+        let visitor = Browser(app.Client)
+        let! returnUrl, _, token = startPasskeySignIn visitor clientId "openid profile"
+        let! _, started = signupOptions visitor token "Noor" "" returnUrl
+        let credential = (authenticator ()).Register(started.GetProperty "options")
+        let! response, body = postJson visitor "/passkey/registration" token {| ceremony = strOf started "ceremony"; credential = credential |}
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+        Assert.Equal(returnUrl, strOf body "redirect")
+
+        let! userId = scalar app "SELECT id FROM users WHERE display_name = 'Noor' AND email IS NULL" []
+        Assert.NotEqual<string>("", userId)
+        let! count = scalar app "SELECT count(*) FROM passkeys WHERE user_id = @u AND nickname LIKE 'Passkey added%'" [ "@u", userId ]
+        Assert.Equal("1", count)
+        Assert.True(visitor.Cookies.ContainsKey "umbral_session")
+
+        let! createdUser = events app "user_created"
+        Assert.Contains(Some userId, createdUser |> List.map (fun (u, _, _) -> u))
+        let! registered = events app "passkey_registered"
+        Assert.Equal<(string option * string option * string option) list>([ Some userId, Some "passkey", Some "via=signup" ], registered)
+
+        let! code = codeFromRedirect visitor returnUrl
+        let! exchanged = exchangeCode app clientId secret code
+        let! tokens = json exchanged
+        let idToken = segmentOf 1 (strOf tokens "id_token")
+        Assert.Equal("Noor", strOf idToken "name")
+        Assert.Equal("passkey", strOf idToken "idp")
+        Assert.False(idToken.TryGetProperty("email", ref Unchecked.defaultof<JsonElement>))
+    }
+
+[<Fact>]
+let ``a sign-up whose connector was closed meanwhile is refused at completion`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, clientId, _ = prepare app
+        let! _ = openUp operator
+        let visitor = Browser(app.Client)
+        let! returnUrl, _, token = startPasskeySignIn visitor clientId "openid"
+        let! _, started = signupOptions visitor token "Noor" "" returnUrl
+        do! enablePasskeyConnector operator "invitations"
+        let credential = (authenticator ()).Register(started.GetProperty "options")
+        let! before = countsOf app
+        let! result = postJson visitor "/passkey/registration" token {| ceremony = strOf started "ceremony"; credential = credential |}
+        do! assertRefused app before visitor result "passkey-registration-failed" "enrolment_closed" "registration"
+    }
+
+[<Fact>]
+let ``an invalid name or nickname is refused when signing up`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! _ = openUp operator
+        let! visitor, token = visit app
+        let long = String('x', 65)
+
+        for name, nickname, reason in [ "", "", "display_name_invalid"; long, "", "display_name_invalid"; "Noor", long, "nickname_invalid" ] do
+            let! before = countsOf app
+            let! result = signupOptions visitor token name nickname "/"
+            do! assertRefused app before visitor result "passkey-registration-failed" reason "registration"
+    }
