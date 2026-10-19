@@ -10,7 +10,11 @@ there.
   like any other offered connector: `<a href="/connect/passkey/start?returnUrl=…"
   data-connector="passkey">` reading **Sign in with a passkey**, with the
   app's accent when the app has one (spec 006).
-- `/connect/passkey/callback` is 404 (no adapter), like any unknown route.
+- `/connect/passkey/callback` is the generic callback route, which answers
+  every slug the same way before looking the connector up: without a
+  correlation cookie it is a failed sign-in (302 to `/signin?…msg=sign-in-failed`),
+  and with one it finds no adapter for the kind. It can never establish a
+  session for a passkey.
 
 ## The passkey sign-in page
 

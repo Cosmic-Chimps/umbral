@@ -44,6 +44,7 @@ let endpoints: Endpoint list =
       yield! Umbral.Handlers.Admin.SignIn.endpoint
       Umbral.Handlers.Admin.SignOut.endpoint
       yield! Umbral.Handlers.Admin.Credential.endpoint
+      yield! Umbral.Handlers.Admin.PasskeyConnector.endpoint
       yield! Umbral.Handlers.Admin.Connectors.endpoint
       Umbral.Handlers.Admin.ConnectorToggle.endpoint
       Umbral.Handlers.Admin.ConnectorDelete.endpoint
@@ -62,7 +63,10 @@ let endpoints: Endpoint list =
       Umbral.Handlers.Connect.Token.endpoint
       yield! Umbral.Handlers.Connect.UserInfo.endpoint
       yield! Umbral.Handlers.Connect.EndSession.endpoint
-      Umbral.Handlers.Connect.Error.endpoint ]
+      Umbral.Handlers.Connect.Error.endpoint
+      yield! Umbral.Handlers.Passkeys.SignIn.endpoint
+      yield! Umbral.Handlers.Passkeys.Invitation.endpoint
+      yield! Umbral.Handlers.Passkeys.Ceremonies.endpoint ]
 
 // ---------------------------------------------------------------------------
 // Startup settings
@@ -306,7 +310,17 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
                 |> ValueTask)
     |> ignore
 
-    services.AddAntiforgery() |> ignore
+    // A passkey page's script posts JSON, so the token comes in a header; forms
+    // keep using the hidden field.
+    services.AddAntiforgery(fun options -> options.HeaderName <- "RequestVerificationToken") |> ignore
+
+    // One relying-party verifier for the process; the library behind it is built
+    // on first use (WebAuthn.fs), so an instance with no passkey connector never
+    // loads it.
+    services.AddSingleton<WebAuthn.Verifier>(fun sp ->
+        WebAuthn.Verifier(sp.GetRequiredService<PublicOrigin.PublicOrigin>(), sp.GetRequiredService<Database.DbConfig>()))
+    |> ignore
+
     services.AddRouting().AddOxpecker() |> ignore
 
     // SC-008: no secret reaches a log, at ANY level an operator might switch on

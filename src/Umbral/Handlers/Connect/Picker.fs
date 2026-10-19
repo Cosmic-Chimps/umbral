@@ -73,7 +73,7 @@ let redirectWithFailure (ctx: Microsoft.AspNetCore.Http.HttpContext) (returnUrl:
 /// sent back to and from nowhere else (FR-001, FR-002). A `client_id` on
 /// `/signin` itself is deliberately never read: it could disagree with
 /// `returnUrl` and let a crafted link say "Sign in to A" while signing in to B.
-let private clientIdOf (returnUrl: string) =
+let clientIdOf (returnUrl: string) =
     match returnUrl.IndexOf '?' with
     | -1 -> None
     | at ->
@@ -89,7 +89,29 @@ let private clientIdOf (returnUrl: string) =
             None
 
 /// A registered app: its client id and the name people know it by.
-type private NamedApp = { ClientId: string; Name: string }
+type NamedApp = { ClientId: string; Name: string }
+
+/// The app a `returnUrl` names, if it is registered. An unknown `client_id` is
+/// "no app", never an error (FR-002). Shared with the passkey sign-in page, which
+/// wears the same app's name and branding.
+let findApp (ctx: Microsoft.AspNetCore.Http.HttpContext) (returnUrl: string) : System.Threading.Tasks.Task<NamedApp option> =
+    task {
+        match clientIdOf returnUrl with
+        | None -> return None
+        | Some clientId ->
+            let applications = ctx.GetService<IOpenIddictApplicationManager>()
+            let! found = applications.FindByClientIdAsync clientId
+
+            match found with
+            | null -> return None
+            | application ->
+                let! name = applications.GetDisplayNameAsync application
+
+                return
+                    Some
+                        { ClientId = clientId
+                          Name = (if String.IsNullOrEmpty name then clientId else string name) }
+    }
 
 /// A connector's button. Primary when the app chose an accent colour, so the
 /// colour is what the person sees to press; secondary otherwise, as it always
@@ -101,7 +123,9 @@ let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: st
     a(href = href, class' = Components.btn kind + " w-full justify-center")
         .data("connector", connector.Slug) {
         Components.icon Theme.Link
-        t.SignInWith connector.DisplayName
+        match connector.Kind with
+        | Passkey -> t.SignInWithPasskey
+        | _ -> t.SignInWith connector.DisplayName
     }
 
 let private view
@@ -195,24 +219,7 @@ let handler: EndpointHandler =
             // An unknown `client_id` is "no app", never an error: the page is
             // reachable by anyone with a link and must not confirm which apps
             // exist (FR-002).
-            let! app =
-                task {
-                    match clientIdOf returnUrl with
-                    | None -> return None
-                    | Some clientId ->
-                        let applications = ctx.GetService<IOpenIddictApplicationManager>()
-                        let! found = applications.FindByClientIdAsync clientId
-
-                        match found with
-                        | null -> return None
-                        | application ->
-                            let! name = applications.GetDisplayNameAsync application
-
-                            return
-                                Some
-                                    { ClientId = clientId
-                                      Name = (if String.IsNullOrEmpty name then clientId else string name) }
-                }
+            let! app = findApp ctx returnUrl
 
             // The app's branding comes from the same `clientIdOf returnUrl` as
             // its name and its connectors, and from nothing else (FR-003): a

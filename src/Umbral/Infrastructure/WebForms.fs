@@ -8,17 +8,16 @@ open Microsoft.AspNetCore.DataProtection
 open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.DependencyInjection
 
-/// Read a form after confirming its antiforgery token.
+/// The antiforgery half of `readValidated`: confirms the token (the form field,
+/// or the `RequestVerificationToken` header a script sends) and raises
+/// `AntiforgeryValidationException` when it is missing or wrong, which the
+/// error handler answers with a 400.
 ///
-/// The two-step is not belt-and-braces, it is required. `UseAntiforgery()` has
-/// usually validated already and recorded the verdict on the request; ASP.NET
-/// then REFUSES to read a form whose token failed, throwing something that
-/// reads like a parsing bug rather than a rejected token. So the verdict is
-/// checked first, and the handler gets a clean exception it can turn into a 400.
-///
-/// Every POST calls this, including ones with no fields to read — the CSRF
-/// check is the point, and the form contents are incidental.
-let readValidated (ctx: HttpContext) : Task<IFormCollection> =
+/// `UseAntiforgery()` has usually validated already and recorded the verdict on
+/// the request; ASP.NET then REFUSES to read a form whose token failed, throwing
+/// something that reads like a parsing bug rather than a rejected token. So the
+/// verdict is checked first, and the handler gets a clean exception.
+let validateAntiforgery (ctx: HttpContext) : Task<unit> =
     task {
         match ctx.Features.Get<IAntiforgeryValidationFeature>() with
         | null ->
@@ -35,8 +34,51 @@ let readValidated (ctx: HttpContext) : Task<IFormCollection> =
             raise (AntiforgeryValidationException reason)
 
         | _ -> ()
+    }
 
+/// Read a form after confirming its antiforgery token.
+///
+/// The two-step is not belt-and-braces, it is required (see
+/// `validateAntiforgery`).
+///
+/// Every POST calls this, including ones with no fields to read — the CSRF
+/// check is the point, and the form contents are incidental.
+let readValidated (ctx: HttpContext) : Task<IFormCollection> =
+    task {
+        do! validateAntiforgery ctx
         return! ctx.Request.ReadFormAsync ctx.RequestAborted
+    }
+
+/// The JSON body of a request, read with a cap. None when the body is empty,
+/// longer than `limitBytes`, or not JSON: the caller answers all three the same
+/// way. Call `validateAntiforgery` first; nothing is read before that.
+let readJsonDocument (ctx: HttpContext) (limitBytes: int) : Task<System.Text.Json.JsonDocument option> =
+    task {
+        let buffer = new IO.MemoryStream()
+        let chunk: byte array = Array.zeroCreate 8192
+        let mutable total = 0
+        let mutable go = true
+
+        while go do
+            let! read = ctx.Request.Body.ReadAsync(chunk.AsMemory(), ctx.RequestAborted)
+
+            if read = 0 then
+                go <- false
+            else
+                total <- total + read
+
+                if total > limitBytes then
+                    go <- false
+                else
+                    buffer.Write(chunk, 0, read)
+
+        if total = 0 || total > limitBytes then
+            return None
+        else
+            try
+                return Some(System.Text.Json.JsonDocument.Parse(buffer.ToArray()))
+            with :? System.Text.Json.JsonException ->
+                return None
     }
 
 /// A field, trimmed, with absent and blank treated alike — a form always posts

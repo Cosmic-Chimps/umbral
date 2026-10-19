@@ -40,6 +40,10 @@ let fakeSettings =
 type Browser(client: HttpClient) =
     let cookies = Collections.Generic.Dictionary<string, string>()
 
+    /// The cookies this browser holds, by name: what a test asks when the
+    /// question is whether a session was (or was not) established.
+    member _.Cookies = cookies
+
     member _.Send(message: HttpRequestMessage) =
         task {
             if cookies.Count > 0 then

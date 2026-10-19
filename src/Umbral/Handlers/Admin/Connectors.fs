@@ -146,8 +146,14 @@ let private card
     (enabledCount: int)
     (chosenSlugs: Set<string>)
     (domains: Domains)
+    (invitations: PasskeyInvitations.Invitation list)
+    (revealedLink: string option)
     (row: Row)
     =
+    match row.Kind with
+    | Passkey ->
+        PasskeyConnector.card ctx t origin enabledCount chosenSlugs row.Existing invitations revealedLink
+    | _ ->
     let slug = row.Slug
     let callbackUrl = (PublicOrigin.callbackUri origin slug).ToString()
     let isConfigured = row.Existing.IsSome
@@ -675,6 +681,8 @@ let private view
     (notice: string option)
     (strand: StrandWarning option)
     (explained: string option)
+    (invitations: PasskeyInvitations.Invitation list)
+    (revealedLink: string option)
     =
     div(class' = "space-y-6").data("screen", "connectors") {
         Components.pageHeading t.ConnectorsTitle (Some t.ConnectorsLead)
@@ -707,7 +715,7 @@ let private view
         instanceCard ctx t domains
 
         for row in rows do
-            card ctx t origin enabledCount chosenSlugs domains row
+            card ctx t origin enabledCount chosenSlugs domains invitations revealedLink row
 
         addForm ctx t domains.Instance addableKinds add
     }
@@ -741,7 +749,14 @@ let private rowsFor (existing: Connector list) =
         |> List.filter (fun kind -> not (existing |> List.exists (fun c -> c.Kind = kind)))
         |> List.map (fun kind -> { Kind = kind; Existing = None })
 
-    stored @ empty |> List.sortBy (fun row -> kindOrder row.Kind, row.Slug)
+    // The passkey card comes after the provider rows and is never in the add
+    // form: it is the stored connector of that kind, or the empty card.
+    let passkey =
+        { Kind = Passkey
+          Existing = existing |> List.tryFind (fun c -> c.Kind = Passkey) }
+
+    (stored @ empty |> List.filter (fun row -> row.Kind <> Passkey) |> List.sortBy (fun row -> kindOrder row.Kind, row.Slug))
+    @ [ passkey ]
 
 /// A refused list at either level, to draw again with what was typed.
 type private Drafts =
@@ -762,6 +777,9 @@ let private render (ctx: HttpContext) (add: AddFormState) (drafts: Drafts) : Sys
 
             // Counted over every stored connector, not over the cards, exactly
             // as the handlers count it.
+            let clock = ctx.GetService<TimeProvider>()
+            let! invitations = PasskeyInvitations.listOpen config clock "passkey"
+            let revealedLink = PasskeyConnector.InviteReveal.consume ctx "connector"
             let enabledCount = existing |> List.filter (fun c -> c.IsEnabled) |> List.length
 
             // Every slug some app's chosen set names, for `data-offered-nowhere`.
@@ -782,7 +800,7 @@ let private render (ctx: HttpContext) (add: AddFormState) (drafts: Drafts) : Sys
             let removal =
                 match notice with
                 | Some "allowed-domains-removal" when not instanceList.IsEmpty ->
-                    match existing |> List.filter (fun c -> c.AllowedEmailDomains.IsEmpty) with
+                    match existing |> List.filter (fun c -> c.Kind <> Passkey && c.AllowedEmailDomains.IsEmpty) with
                     | [] -> None
                     | open' -> Some(open' |> List.map (fun c -> c.Slug, c.DisplayName))
                 | _ -> None
@@ -884,6 +902,8 @@ let private render (ctx: HttpContext) (add: AddFormState) (drafts: Drafts) : Sys
                         notice
                         strand
                         explained
+                        invitations
+                        revealedLink
                 )
         }
 

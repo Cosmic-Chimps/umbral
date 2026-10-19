@@ -57,3 +57,44 @@ let ``deleting a passkey connector, which has no secret, deletes the row and not
         let! deleted = scalar app "SELECT count(*) FROM security_events WHERE event_type = 'connector_deleted' AND connector_slug = 'passkey'" []
         Assert.Equal("1", deleted)
     }
+
+[<Fact>]
+let ``the passkey card enables the connector, invites someone once and revokes the invitation`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+
+        let! html = operator.GetHtml "/admin/connectors"
+        Assert.Contains("data-connector-kind=\"passkey\"", html)
+        Assert.DoesNotContain("data-invitation-link", html)
+
+        let! saved = operator.PostForm("/admin/connectors", "/admin/connectors/passkey", [ "shared", "true"; "enrolment", "invitations" ])
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode)
+        Assert.Contains("passkey-connector-saved", location saved)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "passkey"
+        Assert.True(stored.IsSome && stored.Value.IsEnabled && stored.Value.IsShared)
+
+        let! created = scalar app "SELECT count(*) FROM security_events WHERE event_type = 'connector_created' AND detail = 'enrolment=invitations'" []
+        Assert.Equal("1", created)
+
+        let! invited = operator.PostForm("/admin/connectors", "/admin/connectors/passkey/invitations", [ "note", "Ana" ])
+        Assert.Equal(HttpStatusCode.Redirect, invited.StatusCode)
+        Assert.Contains("passkey-invitation-created", location invited)
+
+        let! shown = operator.GetHtml "/admin/connectors"
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(shown, "data-invitation-link").Count)
+        let m = System.Text.RegularExpressions.Regex.Match(shown, "data-invitation=\"([^\"]+)\"")
+        Assert.True m.Success
+
+        let! again = operator.GetHtml "/admin/connectors"
+        Assert.DoesNotContain("data-invitation-link", again)
+
+        let! revoked = operator.PostForm("/admin/connectors", $"/admin/connectors/passkey/invitations/{m.Groups[1].Value}/revoke", [])
+        Assert.Equal(HttpStatusCode.Redirect, revoked.StatusCode)
+        Assert.Contains("passkey-invitation-revoked", location revoked)
+
+        let! after = operator.GetHtml "/admin/connectors"
+        Assert.DoesNotContain("data-invitation=\"", after)
+    }

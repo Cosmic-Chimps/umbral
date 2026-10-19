@@ -191,6 +191,34 @@ let insertIn
         return ()
     }
 
+/// Inserts the user a new person becomes when their first passkey is saved: a
+/// display name and nothing else (no email, no avatar), enabled. Inside the same
+/// transaction as the passkey, so a person is never left with an account and no
+/// way in. Mirrors the insert of `UserStore.resolve`; it lives here so the SQL
+/// stays a literal beside the passkey's own.
+let insertPasskeyUserIn
+    (connection: SqliteConnection)
+    (transaction: SqliteTransaction)
+    (clock: TimeProvider)
+    (userId: string)
+    (displayName: string)
+    : Task<unit> =
+    task {
+        use command = connection.CreateCommand()
+        command.Transaction <- transaction
+
+        command.CommandText <-
+            "INSERT INTO users (id, display_name, email, email_verified, avatar_url, is_enabled,
+                                first_seen_utc, last_seen_utc)
+             VALUES (@id, @name, NULL, 0, NULL, 1, @now, @now)"
+
+        command.Parameters.AddWithValue("@id", userId) |> ignore
+        command.Parameters.AddWithValue("@name", displayName) |> ignore
+        command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
+    }
+
 /// After a successful sign-in: the authenticator's new signature counter and the
 /// time of use. An authenticator that never counts reports 0 every time, and the
 /// verifier accepts that (`WebAuthn.fs`); the stored value then stays 0.
