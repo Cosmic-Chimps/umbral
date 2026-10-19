@@ -1,10 +1,12 @@
 # Umbral
 
-A self-hosted OpenID Connect provider whose only job is **social login**.
-Your apps talk to Umbral using any standard OIDC library. Umbral talks to
-Discord, GitHub and Google, and to any OpenID Connect provider you already run,
-such as Authentik, Keycloak, Pocket ID or Authelia. You wire each provider up
-once, in one place, instead of in every app.
+A self-hosted OpenID Connect provider whose only job is **signing people in
+without passwords**: with a social provider they already use, or with a
+passkey. Your apps talk to Umbral using any standard OIDC library. Umbral talks
+to Discord, GitHub and Google, and to any OpenID Connect provider you already
+run, such as Authentik, Keycloak, Pocket ID or Authelia, and it can sign people
+in with a passkey on its own. You wire each provider up once, in one place,
+instead of in every app.
 
 It ships as **one container with an embedded SQLite database**: no Postgres, no
 Redis, no sidecar. It is meant for a homelab or a small project: a Raspberry Pi
@@ -15,12 +17,14 @@ It has three concepts, and that is the whole product:
 | Concept | What it is |
 | --- | --- |
 | **App** | A program that signs people in through Umbral. It gets a client ID and a client secret. |
-| **Connector** | Umbral's identity at an upstream provider (Discord, GitHub, Google, or an OpenID Connect provider of your own): the OAuth application you create there, with its credentials. There can be several per provider. |
+| **Connector** | Umbral's identity at an upstream provider (Discord, GitHub, Google, or an OpenID Connect provider of your own): the OAuth application you create there, with its credentials. There can be several per provider. Umbral's own **passkey** connector is the one exception: Umbral is the provider, there is nothing to create anywhere, and there is one per instance. |
 | **User** | A person who has signed in at least once. |
 
 **What Umbral is not.** It has no realms, tenants, groups, roles or permissions,
 no SAML or LDAP, no MFA, no local password accounts and no login-flow builder,
-and it will not get them. It answers "who is this person?"; what they may do is
+and it will not get them. A passkey is neither MFA nor a password account: it
+is the whole sign-in, never a second step after another one, and there is no
+password to begin with. It answers "who is this person?"; what they may do is
 the app's job. If you need any of those, use
 [Keycloak](https://www.keycloak.org/) or [Authentik](https://goauthentik.io/),
 which are good at it.
@@ -33,6 +37,7 @@ which are good at it.
 - [How it looks](#how-it-looks)
 - [Brand an app's sign-in page](#brand-an-apps-sign-in-page)
 - [Who can sign in](#who-can-sign-in)
+- [Passkeys](#passkeys)
 - [Run it for real, behind HTTPS](#run-it-for-real-behind-https)
 - [Deploying on Caravana](#deploying-on-caravana)
 - [Your data: back it up](#your-data-back-it-up)
@@ -43,7 +48,8 @@ which are good at it.
 
 Provider walkthroughs: [Discord](docs/connectors/discord.md) ·
 [GitHub](docs/connectors/github.md) · [Google](docs/connectors/google.md) ·
-[Your own OpenID Connect provider](docs/connectors/oidc.md)
+[Your own OpenID Connect provider](docs/connectors/oidc.md) ·
+[Passkeys](docs/connectors/passkey.md)
 
 Where connector secrets can live (optional):
 [AWS Secrets Manager](docs/secret-stores/aws.md) ·
@@ -67,7 +73,9 @@ An external store loads the manager's client library, so an instance that uses o
   quick start below needs neither.
 - **An account with at least one provider** (GitHub is the least friction) to
   create an OAuth app in, or an OpenID Connect provider of your own. Umbral
-  cannot do that for you.
+  cannot do that for you. Or the **passkey connector**, which needs no account
+  anywhere: it needs HTTPS (or `localhost`) and a device that holds passkeys,
+  such as a phone, a laptop or a security key. See [Passkeys](#passkeys).
 
 The quick start builds the image from this repository, so it works from any
 checkout. Tagged releases are also published to GHCR; see
@@ -204,6 +212,9 @@ same command replaces the credential (see
 (Menu names are as of writing; GitHub moves things around occasionally. More
 detail and the gotchas are in the [GitHub walkthrough](docs/connectors/github.md).)
 
+GitHub is one way to get a first login. The other is the **Passkey** card on the
+same screen, which needs no account anywhere: see [Passkeys](#passkeys).
+
 ### 5. Register an app
 
 Open **Apps** and fill in:
@@ -258,7 +269,8 @@ curl -s -u CLIENT_ID:CLIENT_SECRET \
 ```
 
 The JSON has an `access_token` and an `id_token`. The `id_token` payload (a
-standard JWT) carries `sub`, `email`, `email_verified`, `name` and `idp`.
+standard JWT) carries `sub`, `email`, `email_verified`, `name` and `idp` (with a passkey
+sign-in, `idp` is `passkey` and there is no `email`: see [Passkeys](#passkeys)).
 
 ## Integrate an app
 
@@ -319,11 +331,12 @@ What an app can count on:
   provider's ID. If you delete a user and they sign in again, they get a
   *different* `sub`.
 - **`email` and `email_verified` may be missing.** A GitHub user can keep their
-  email private, and a Discord account can be unverified. Handle both.
+  email private, a Discord account can be unverified, and a passkey-only user has
+  none. Handle all three.
 - **`name`, `preferred_username`, `picture`** come with the `profile` scope when
   the provider supplied them. **`idp`** is Umbral's one extra claim: the
-  provider the person used (`github`, `discord`, `google`, or `oidc` for any
-  OpenID Connect provider you added). It is the provider's
+  provider the person used (`github`, `discord`, `google`, `oidc` for any
+  OpenID Connect provider you added, or `passkey`). It is the provider's
   kind, never a connector's identifier: with several Discord connectors it is
   still `discord`. Ignore it freely.
 - **Access tokens are opaque.** They are not JWTs: do not try to decode them.
@@ -389,6 +402,11 @@ person is identified by that provider's issuer address together with their id
 there, so two providers never merge people, and adding a provider back with the
 same issuer returns everyone to the same user. You can disable or delete users on
 the **Users** screen.
+
+A person who enrols with a passkey has no email, so nothing can link them to a
+provider account later: they are their own user, and signing in with a provider
+afterwards creates a different one. A person who signs in with a provider and
+then adds a passkey to that account is one user, with the same `sub`.
 
 ## How it looks
 
@@ -511,6 +529,13 @@ refuses to start on a version 4 database, and says so in `docker logs umbral`
 data directory taken before the upgrade.*). Take a backup before you upgrade, and
 you can always go back.
 
+Passkeys, invitations and the challenges of passkey sign-ins add three tables,
+which makes the database **schema version 6**. Umbral upgrades an older database
+by itself when it starts, and nothing changes until you enable the passkey
+connector. It does not work the other way: an older image refuses to start on a
+version 6 database, and says so in `docker logs umbral`. Take a backup before
+you upgrade, and you can always go back.
+
 ## Who can sign in
 
 By default, anyone with an account at an enabled provider can sign in and
@@ -588,6 +613,81 @@ an **Allowed email domains** section:
 [GitHub](docs/connectors/github.md#allowed-email-domains) ·
 [Google](docs/connectors/google.md#allowed-email-domains) ·
 [Your own OpenID Connect provider](docs/connectors/oidc.md#allowed-email-domains).
+
+These rules do not govern the passkey connector: passkeys carry no email, so
+there is nothing to judge. Who can create an account through it is its
+**enrolment mode** (invitations only, or anyone can sign up), chosen on its
+card. The Apps screen warns about an app that offers a passkey connector open to
+anyone, the way it warns about a connector without a rule.
+
+## Passkeys
+
+A passkey is a key that a person's phone, laptop or security key holds, unlocked
+by their fingerprint, face or PIN. Nothing is typed and there is nothing to
+phish, and no third party learns who signed in. Umbral keeps only the public
+half, which is not a secret. In Umbral a passkey is a connector (Umbral itself
+is the provider), and a person's passkeys belong to their user. Details and
+gotchas are in the [Passkeys walkthrough](docs/connectors/passkey.md).
+
+**Enable the connector.** Open **Connectors**, find the **Passkey** card and
+click **Enable passkeys**. Choose who can create an account:
+
+- **Invitations only** (the default): only people you send an invitation link to.
+- **Anyone can sign up**: anyone who reaches a sign-in page that offers the
+  connector.
+
+Apps offer it like any other connector (shared, or chosen on the Apps screen).
+
+**Invite someone.** On the card, type an optional note (for you; people never
+see it) and click **Invite someone**. Umbral shows a link once. Send it to the
+person over a channel you trust: it works once, for 7 days, and it is not shown
+again. Anyone who holds the link can use it, so treat it like a password. Umbral
+sends no email. The person opens the link, types the name apps will see, and
+their device asks for a fingerprint, face or PIN. Then they are signed in and see
+**Your passkeys**. Open invitations are listed on the card, where you can
+**Revoke** one.
+
+**Signing in.** On the sign-in page the person presses **Sign in with a
+passkey**, then **Continue with your passkey**. Their device shows its own list
+of accounts for this Umbral and asks them to confirm. No name is typed.
+
+**Adding a passkey to an account that signs in with a provider.** The page is
+`/account/passkeys`, linked from Umbral's home page as **Your passkeys**. The
+person signs in through any connector, clicks **Add a passkey**, and confirms on
+the device. An account can hold several passkeys, up to 10.
+
+**Recovery.** When someone loses a device, open **Users**, find their row and
+click **Invite to add a passkey**. They register a new passkey on the same
+account, so their `sub` does not change, and remove the old one on their page.
+
+**Removing a passkey.** The person removes their own on `/account/passkeys`,
+except the last one when they have no provider to sign in with ("You can't
+remove your only way to sign in. Add another passkey first, or ask whoever runs
+this Umbral to delete your account."). You remove one from the person's row on
+**Users**, for example when a device is stolen.
+
+**What an app receives.** An ordinary OpenID Connect sign-in: `sub`, `name` and
+`idp` with the value `passkey`. A passkey-only user has no `email` and no
+`email_verified`. An app that must have an email should not offer the passkey
+connector.
+
+**Bound to the address.** A passkey belongs to the address in
+`UMBRAL__PUBLIC_ORIGIN`. If you change it, every passkey stops working, and
+Umbral cannot move them. Recovery is a new invitation for each person.
+
+**JavaScript.** The sign-in, invitation and passkeys pages need JavaScript, which
+the browser's passkey support needs. With it off, the page says so. Removing a
+passkey and every operator action work without it.
+
+**The security log.** The events are `passkey_registered`, `passkey_removed`,
+`passkey_invitation_created` and `passkey_invitation_revoked`, and a refused
+passkey sign-in or invitation is a `sign_in_failed` event whose detail starts
+`passkey_refused;reason=`. No challenge, credential id, key or invitation link is
+ever logged.
+
+**Memory.** An instance with the passkey connector in use idles under 160 MB (a
+ceiling, as with an external secret store; the figure is confirmed by the
+idle-memory test). Without the connector it stays under 150 MB.
 
 ## Run it for real, behind HTTPS
 
@@ -1080,6 +1180,16 @@ Commands below use the quick-start container name. With compose, write
 or is `http://` with a host other than `localhost`; `UMBRAL__TRUSTED_PROXIES`
 holds an entry that is not an IP address or network; or `/data` is not writable. For a bind mount, run
 `chown -R 1654:1654 ./data`.
+
+**The passkey button does nothing, or the page asks me to turn on JavaScript.**
+Passkeys need JavaScript on the sign-in, invitation and passkeys pages. Turn it
+on for this page and reload, or choose another way to sign in. A browser without
+passkey support behaves the same way. Passkeys also need HTTPS (or `localhost`).
+
+**An invitation link says it can't be used.**
+The link was already used, ran out (7 days), was revoked, or its account was
+disabled or deleted. Ask for a new one. The cause is in `security_events` as
+`passkey_refused;reason=invitation_…`.
 
 **I added a connector and nobody sees it.**
 A connector that is **not shared** and that **no app has chosen** is offered

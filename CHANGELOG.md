@@ -10,6 +10,33 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+### Added
+- The passkey connector: people can sign in with a passkey (a phone, laptop or security key,
+  unlocked by fingerprint, face or PIN) and need no social provider. Enable it on the **Passkey**
+  card of the Connectors screen; Umbral is the provider. Choose **Invitations only** (the default)
+  or **Anyone can sign up**. Invite someone with a link shown once, good for 7 days and one use.
+- A person who signs in with a provider can add passkeys to the same account, and remove them, on
+  `/account/passkeys`, linked from the home page. An account holds up to 10.
+- Recovery from a lost device: **Invite to add a passkey** on the person's row in Users. Same
+  account, same `sub`.
+- Apps receive an ordinary sign-in with `idp` set to `passkey`. A passkey-only user has no `email`.
+- A walkthrough, `docs/connectors/passkey.md`, and a Passkeys section in the README.
+
+### Security
+- User verification is required, challenges are single-use, and the origin and relying-party
+  identifier are checked against `UMBRAL__PUBLIC_ORIGIN`.
+- Invitations are stored hashed, single-use and expiring. Passkey requests are rate-limited like
+  the other sign-in endpoints.
+- New security events: `passkey_registered`, `passkey_removed`, `passkey_invitation_created`,
+  `passkey_invitation_revoked`, and `sign_in_failed` with `passkey_refused;reason=…`.
+- The framework's log categories are now capped, so an invitation link never reaches a log.
+
+### Upgrade
+- The database becomes schema version 6. An older image refuses to start on it: take a backup
+  before you upgrade.
+- An instance with the passkey connector in use idles under 160 MB (a ceiling, to be confirmed by
+  the idle-memory test); without it, under 150 MB as before.
+
 ## 0.1.1 - 2026-10-19
 
 ### Changed

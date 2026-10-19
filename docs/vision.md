@@ -2,11 +2,13 @@
 
 Yes, I understand it well. And yes, I think it solves a real problem for a real audience.
 
+> **2026-10-19:** constitution 3.0.0 widened the scope from social login to passwordless sign-in: with a social provider, or with a passkey. MFA and passwords stay out. See [spec 008](../specs/008-passkey-connector/spec.md).
+
 ## What Umbral Is
 
 | Concept | Simple Summary |
 | --- | --- |
-| **Core** | Self-hosted OIDC server with pre-built social connectors |
+| **Core** | Self-hosted OIDC server with pre-built social connectors and its own passkey connector |
 | **Positioning** | Between "wire OAuth in each app" and "run Keycloak" |
 | **User** | Indie devs, homelabbers, small communities |
 | **Differentiator** | Simplicity—no realms, roles, SAML, tenants |
