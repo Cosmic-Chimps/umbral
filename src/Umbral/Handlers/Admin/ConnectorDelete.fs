@@ -82,6 +82,10 @@ let handler (slug: string) : EndpointHandler =
                         match! ConnectorStore.delete config slug with
                         | None -> return None
                         | Some encoded ->
+                            // A reference that does not decode is "no secret": the
+                            // passkey kind stores an empty one, because Umbral is its
+                            // own provider (specs/008). Nothing to clean up, and the
+                            // event below then carries no store.
                             let reference = Secrets.SecretRef.Decode encoded |> Result.toOption
 
                             // The event is recorded with the row, before the store

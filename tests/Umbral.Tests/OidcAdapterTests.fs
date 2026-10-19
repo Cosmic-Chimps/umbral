@@ -39,6 +39,7 @@ let private connector: Connector =
       ClientSecretHint = "ount"
       IssuerUrl = Some issuer
       AllowedEmailDomains = []
+      PasskeyEnrolment = InvitationsOnly
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UtcNow

@@ -47,6 +47,7 @@
   <ItemGroup>
     <Compile Include="Domains/Ids.fs" />
     <Compile Include="Domains/Connectors.fs" />
+    <Compile Include="Domains/Passkeys.fs" />
     <Compile Include="Domains/Linking.fs" />
     <Compile Include="Domains/EmailDomains.fs" />
     <Compile Include="Domains/RedirectUris.fs" />
@@ -81,6 +82,9 @@
     <Compile Include="Infrastructure/AppConnectors.fs" />
     <Compile Include="Infrastructure/BrandingStore.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
+    <Compile Include="Infrastructure/Passkeys.fs" />
+    <Compile Include="Infrastructure/PasskeyInvitations.fs" />
+    <Compile Include="Infrastructure/WebAuthn.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
     <Compile Include="Infrastructure/AppClients.fs" />
     <Compile Include="Infrastructure/WebForms.fs" />
@@ -106,6 +110,7 @@
     <Compile Include="Handlers/Admin/Connectors.fs" />
     <Compile Include="Handlers/Admin/ConnectorToggle.fs" />
     <Compile Include="Handlers/Admin/ConnectorDelete.fs" />
+    <Compile Include="Handlers/Admin/PasskeyConnector.fs" />
     <Compile Include="Handlers/Dev/FakeProvider.fs" />
     <Compile Include="Handlers/Admin/Apps.fs" />
     <Compile Include="Handlers/Admin/AppSecret.fs" />
@@ -114,7 +119,12 @@
     <Compile Include="Handlers/Admin/Users.fs" />
     <Compile Include="Handlers/Admin/UserToggle.fs" />
     <Compile Include="Handlers/Admin/UserDelete.fs" />
+    <Compile Include="Handlers/Admin/UserPasskeys.fs" />
     <Compile Include="Handlers/Connect/Picker.fs" />
+    <Compile Include="Handlers/Passkeys/Ceremonies.fs" />
+    <Compile Include="Handlers/Passkeys/SignIn.fs" />
+    <Compile Include="Handlers/Passkeys/Invitation.fs" />
+    <Compile Include="Handlers/Passkeys/Account.fs" />
     <Compile Include="Handlers/Connect/Start.fs" />
     <Compile Include="Handlers/Connect/Callback.fs" />
     <Compile Include="Handlers/Connect/UserInfo.fs" />
@@ -134,6 +144,8 @@
   <ItemGroup>
     <EmbeddedResource Include="Assets/umbral.css" LogicalName="umbral.css" />
     <EmbeddedResource Include="Assets/umbral.js" LogicalName="umbral.js" />
+    <!-- The WebAuthn ceremony script (spec 008 research R4): linked only on the three pages that run a ceremony. -->
+    <EmbeddedResource Include="Assets/passkeys.js" LogicalName="passkeys.js" />
     <EmbeddedResource Include="Assets/htmx-4.0.0.min.js" LogicalName="htmx.min.js" />
     <!-- The Umbra fonts (spec 007 research R4): same-origin, served as /assets/fonts/<file>. -->
     <EmbeddedResource Include="Assets/fonts/bricolage-grotesque-latin-800-v1001.woff2" LogicalName="bricolage-grotesque-latin-800-v1001.woff2" />
@@ -201,6 +213,17 @@
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <!-- Client for the `bellabaxter` store; preview, hence the exact pin. -->
     <PackageReference Include="BellaBaxter.Client" Version="0.1.1-preview.131" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The WebAuthn verifier the constitution names (specs/008-passkey-connector/research.md R1).
+      It parses and verifies every registration and sign-in; Umbral writes no attestation or
+      signature code. Exact pin, because the reason words in the security log are mapped from
+      its Fido2ErrorCode values. Not Fido2.AspNet: Umbral builds the Fido2 object itself, lazily
+      (R2). Brings Fido2.Models, System.Formats.Cbor and NSec.Cryptography (libsodium, native).
+    -->
+    <PackageReference Include="Fido2" Version="4.3.1" />
   </ItemGroup>
 
 </Project>

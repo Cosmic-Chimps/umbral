@@ -35,6 +35,7 @@ let private seedDiscord (app: Fixtures.TestApp) (enabled: bool) =
                   ClientSecretHint = Secrets.hint "discord-secret"
                   IssuerUrl = None
                   AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
                   IsEnabled = enabled
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

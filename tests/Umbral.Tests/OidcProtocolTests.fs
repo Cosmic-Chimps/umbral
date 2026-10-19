@@ -129,6 +129,7 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
                   ClientSecretHint = "used"
                   IssuerUrl = None
                   AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

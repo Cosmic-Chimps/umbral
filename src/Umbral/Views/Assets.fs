@@ -50,6 +50,11 @@ let css = load "umbral.css" "/assets/umbral.css" "text/css; charset=utf-8"
 let script = load "umbral.js" "/assets/umbral.js" "text/javascript; charset=utf-8"
 let htmx = load "htmx.min.js" "/assets/htmx.min.js" "text/javascript; charset=utf-8"
 
+/// The WebAuthn ceremony script (spec 008 research R4). Not in every page's
+/// `<head>` like `script`: the three pages that run a ceremony ask for it through
+/// `Layout.pageWithScripts`, so no other page carries WebAuthn code.
+let passkeys = load "passkeys.js" "/assets/passkeys.js" "text/javascript; charset=utf-8"
+
 /// The Umbra fonts (spec 007, research R4). The version in each file name is the
 /// cache key: the stylesheet is compiled ahead of time and cannot carry a content
 /// hash in its `url()`s, so a changed font file must get a new name.
@@ -59,4 +64,4 @@ let fonts =
       "spline-sans-mono-latin-400-500-v1004.woff2" ]
     |> List.map (fun file -> load file $"/assets/fonts/{file}" "font/woff2")
 
-let all = [ css; script; htmx ] @ fonts
+let all = [ css; script; htmx; passkeys ] @ fonts

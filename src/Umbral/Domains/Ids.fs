@@ -17,6 +17,10 @@ let private toBase64Url (bytes: byte array) =
 let private random (byteCount: int) =
     toBase64Url (RandomNumberGenerator.GetBytes byteCount)
 
+/// `byteCount` random bytes as base64url, for a secret that is not one of the
+/// fixed shapes below (an invitation link's secret, specs/008 research R9).
+let randomToken (byteCount: int) = random byteCount
+
 /// A user's stable subject identifier — the `sub` claim.
 ///
 /// 128 bits from a cryptographic RNG, and deliberately NOT derived from any

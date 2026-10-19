@@ -991,10 +991,15 @@ let private refuseStoreFailed (ctx: HttpContext) (slug: string) (failure: Secret
 /// that kind is nothing without an issuer and the issuer is typed on the add form
 /// (`createOidc`). Posting to `/admin/connectors/oidc` must not create an OpenID
 /// Connect connector with no issuer.
+///
+/// `Passkey` is refused for the same reason in reverse: it has no client id and
+/// no secret for this path to read, and its card posts to a route of its own
+/// that also chooses who may enrol (specs/008 research R8).
 let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
     match kind with
     | Fake -> (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed
-    | Oidc -> false
+    | Oidc
+    | Passkey -> false
     | Discord
     | GitHub
     | Google -> true
@@ -1125,6 +1130,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   ClientSecretHint = ""
                   IssuerUrl = Some issuer
                   AllowedEmailDomains = domains
+                  PasskeyEnrolment = InvitationsOnly
                   IsEnabled = enabled
                   IsShared = state.Shared
                   CreatedUtc = now
@@ -1255,6 +1261,7 @@ let create: EndpointHandler =
                       ClientSecretHint = ""
                       IssuerUrl = None
                       AllowedEmailDomains = domains
+                      PasskeyEnrolment = InvitationsOnly
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
@@ -1361,6 +1368,7 @@ let save (slug: string) : EndpointHandler =
                           ClientSecretHint = ""
                           IssuerUrl = None
                           AllowedEmailDomains = defaultArg domains []
+                          PasskeyEnrolment = InvitationsOnly
                           // A connector arrives enabled: the operator came here to
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true

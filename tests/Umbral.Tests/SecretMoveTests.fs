@@ -92,6 +92,7 @@ let private seedLocal (app: Fixtures.TestApp) (kind: ProviderKind) (slug: string
                       ClientSecretHint = ""
                       IssuerUrl = issuerUrl
                       AllowedEmailDomains = []
+                      PasskeyEnrolment = InvitationsOnly
                       IsEnabled = true
                       IsShared = true
                       CreatedUtc = now
@@ -723,4 +724,72 @@ let ``a move deletes the copy it wrote when the connector was deleted while it w
         Assert.Empty inner.Locators
         let! moved = movedEvents app "alpha"
         Assert.Equal("0", moved)
+    }
+
+// ---------------------------------------------------------------------------
+// A connector with no secret (the passkey kind, spec 008)
+// ---------------------------------------------------------------------------
+
+/// The passkey connector the way the product stores it: no client id, no secret
+/// reference, no hint.
+let private seedPasskey (app: Fixtures.TestApp) =
+    ConnectorStore.save
+        app.DbConfig
+        app.Clock
+        { Slug = "passkey"
+          Kind = Passkey
+          DisplayName = "Passkey"
+          ClientId = ""
+          ClientSecretRef = ""
+          ClientSecretHint = ""
+          IssuerUrl = None
+          AllowedEmailDomains = []
+          PasskeyEnrolment = InvitationsOnly
+          IsEnabled = true
+          IsShared = true
+          CreatedUtc = app.Clock.GetUtcNow()
+          UpdatedUtc = app.Clock.GetUtcNow() }
+        None
+
+[<Fact>]
+let ``move-secrets skips a passkey connector, which has no secret, and does not fail for it`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app = startWith store
+        use _ = app
+        do! seedLocal app GitHub "alpha" None
+        do! seedPasskey app
+
+        let toAws = app.Services.GetRequiredService<SecretStores>()
+        let! code, lines = move app toAws false
+
+        Assert.Equal(0, code)
+
+        // alpha is moved; the passkey connector is named, skipped, and left as it was.
+        let report = reportLines lines
+        Assert.Equal<string list>([ "moved"; "skipped" ], report |> List.map firstWord)
+        Assert.Contains("passkey", report |> List.find (fun l -> firstWord l = "skipped"))
+        Assert.Contains("2 connectors: 1 moved, 1 already in place, 0 failed.", lines)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "passkey"
+        Assert.Equal("", stored.Value.ClientSecretRef)
+        Assert.Equal(1, store.Locators.Length)
+
+        let! events = Flows.scalar app "SELECT count(*) FROM security_events WHERE event_type = 'secret_store_failed'" []
+        Assert.Equal("0", events)
+    }
+
+[<Fact>]
+let ``a dry run reports a passkey connector as skipped too`` () =
+    task {
+        let store = InMemorySecretStore "aws"
+        let! app = startWith store
+        use _ = app
+        do! seedPasskey app
+
+        let toAws = app.Services.GetRequiredService<SecretStores>()
+        let! code, lines = move app toAws true
+
+        Assert.Equal(0, code)
+        Assert.Equal<string list>([ "skipped" ], reportLines lines |> List.map firstWord)
     }

@@ -215,7 +215,7 @@ let ``a version 1 database comes up as the current version with every connector 
             // 3 -> 4 (app_branding), 4 -> 5 (allowed_email_domains).
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
             Assert.Equal(string SchemaVersion, version)
-            Assert.Equal("5", version)
+            Assert.Equal("6", version)
 
             let! issuers = scalar config "SELECT count(*) FROM connectors WHERE issuer_url IS NULL"
             Assert.Equal("2", issuers)
@@ -246,7 +246,7 @@ let ``a fresh database is stamped with the current version and has every column 
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("5", version)
+            Assert.Equal("6", version)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('connectors')"
             Assert.Contains("is_shared", columns)
@@ -405,7 +405,7 @@ let ``a version 2 database upgrades in place with its rows intact and accepts an
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("5", version)
+            Assert.Equal("6", version)
 
             // Nothing that was there changed.
             let! connector = scalar config "SELECT client_id || '|' || is_shared || '|' || ifnull(issuer_url, 'none') FROM connectors WHERE slug = 'discord'"
@@ -449,20 +449,20 @@ let ``a database written by a newer build refuses to start, naming both versions
     withDb (fun config ->
         task {
             do! initializeSchema config
-            do! exec config "UPDATE settings SET value = '6' WHERE key = 'schema_version'"
+            do! exec config "UPDATE settings SET value = '7' WHERE key = 'schema_version'"
 
             let! error = Record.ExceptionAsync(fun () -> initializeSchema config :> Task)
 
             // Both versions, and what to do about it.
             let message = messageOf error
-            Assert.Contains("version 6", message)
+            Assert.Contains("version 7", message)
             Assert.Contains($"version {SchemaVersion}", message)
             Assert.Contains("newer image", message)
             Assert.Contains("backup", message)
 
             // Refusing is not partly starting: the stamp is still the newer one.
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("6", version)
+            Assert.Equal("7", version)
         })
 
 [<Fact>]
@@ -488,8 +488,8 @@ let ``a fresh database is at the current version and has the app_branding table`
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("5", version)
-            Assert.Equal(5, SchemaVersion)
+            Assert.Equal("6", version)
+            Assert.Equal(6, SchemaVersion)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('app_branding')"
 
@@ -506,12 +506,13 @@ let ``a version 3 database upgrades with an empty app_branding table and its row
     withDb (fun config ->
         task {
             // Version 3 is today's schema without the table and without
-            // version 5's column, so build that: the newest shape, both dropped,
-            // the stamp moved back. Rows of the older tables go in before the
-            // upgrade runs.
+            // version 5's and version 6's columns, so build that: the newest shape,
+            // the table and both columns dropped, the stamp moved back. Rows of the
+            // older tables go in before the upgrade runs.
             do! initializeSchema config
             do! exec config "DROP TABLE app_branding"
             do! exec config "ALTER TABLE connectors DROP COLUMN allowed_email_domains"
+            do! exec config "ALTER TABLE connectors DROP COLUMN passkey_enrolment"
             do! exec config "UPDATE settings SET value = '3' WHERE key = 'schema_version'"
 
             do!
@@ -527,7 +528,7 @@ let ``a version 3 database upgrades with an empty app_branding table and its row
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("5", version)
+            Assert.Equal("6", version)
 
             let! rows = scalar config "SELECT count(*) FROM app_branding"
             Assert.Equal("0", rows)
@@ -541,7 +542,7 @@ let ``a version 3 database upgrades with an empty app_branding table and its row
             // Running it again changes nothing: the step is idempotent as well as versioned.
             do! initializeSchema config
             let! again = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("5", again)
+            Assert.Equal("6", again)
         })
 
 /// Each statement is one row that breaks one CHECK of `app_branding`. Both
@@ -652,7 +653,7 @@ let ``a version 3 database upgrades in place with every allowed domains list emp
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("5", version)
+            Assert.Equal("6", version)
 
             // Step 4 ran on the way: the branding table is there and empty.
             let! branding = scalar config "SELECT count(*) FROM app_branding"
@@ -693,10 +694,242 @@ let ``upgrading a version 3 database twice changes nothing the second time`` () 
             do! initializeSchema config
             do! exec config "UPDATE connectors SET allowed_email_domains = 'acme.com' WHERE slug = 'discord'"
 
-            // The second start finds version 5 and runs no step, so the list
+            // The second start finds version 6 and runs no step, so the list
             // an operator set survives a restart.
             do! initializeSchema config
 
             let! stored = scalar config "SELECT allowed_email_domains FROM connectors WHERE slug = 'discord'"
             Assert.Equal("acme.com", stored)
+        })
+
+// ---------------------------------------------------------------------------
+// Schema version 6 (spec 008, the passkey connector): `connectors.passkey_enrolment`
+// and the passkeys, passkey_invitations and passkey_ceremonies tables.
+// ---------------------------------------------------------------------------
+
+/// A database as version 5 left it: `connectors` has `allowed_email_domains` and
+/// no `passkey_enrolment`, none of the passkey tables exist, there are connector
+/// rows and a user, and the stored version is 5.
+let private seedVersionFive (config: DbConfig) =
+    exec
+        config
+        "CREATE TABLE connectors (
+             slug                    TEXT    NOT NULL PRIMARY KEY,
+             kind                    TEXT    NOT NULL,
+             display_name            TEXT    NOT NULL,
+             client_id               TEXT    NOT NULL,
+             client_secret_ref       TEXT    NOT NULL,
+             client_secret_hint      TEXT    NOT NULL,
+             is_enabled              INTEGER NOT NULL DEFAULT 1,
+             is_shared               INTEGER NOT NULL DEFAULT 1,
+             created_utc             TEXT    NOT NULL,
+             updated_utc             TEXT    NOT NULL,
+             issuer_url              TEXT        NULL,
+             allowed_email_domains   TEXT    NOT NULL DEFAULT ''
+         );
+         CREATE UNIQUE INDEX ux_connectors_issuer ON connectors (issuer_url) WHERE issuer_url IS NOT NULL;
+         CREATE TABLE users (
+             id               TEXT    NOT NULL PRIMARY KEY,
+             display_name     TEXT    NOT NULL,
+             email            TEXT        NULL,
+             email_verified   INTEGER NOT NULL DEFAULT 0,
+             avatar_url       TEXT        NULL,
+             is_enabled       INTEGER NOT NULL DEFAULT 1,
+             first_seen_utc   TEXT    NOT NULL,
+             last_seen_utc    TEXT    NOT NULL
+         );
+         CREATE TABLE settings (
+             key         TEXT NOT NULL PRIMARY KEY,
+             value       TEXT NOT NULL,
+             updated_utc TEXT NOT NULL
+         );
+         INSERT INTO connectors
+             (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint, is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains)
+         VALUES ('discord', 'discord', 'Discord', 'd-id', 'local:x', 'abcd', 1, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', NULL, 'acme.com'),
+                ('github', 'github', 'GitHub', 'g-id', 'local:y', 'efgh', 0, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', NULL, ''),
+                ('home', 'oidc', 'Home', 'h-id', 'local:z', 'ijkl', 1, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'https://auth.example.com/o/umbral', '');
+         INSERT INTO users (id, display_name, email, email_verified, first_seen_utc, last_seen_utc)
+         VALUES ('user-1', 'Jane', 'jane@example.com', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+         INSERT INTO settings (key, value, updated_utc) VALUES ('schema_version', '5', '2026-01-01T00:00:00Z');"
+
+let private passkeyTables = [ "passkeys"; "passkey_invitations"; "passkey_ceremonies" ]
+
+[<Fact>]
+let ``a version 5 database with connector rows upgrades to 6 with every enrolment set to invitations`` () =
+    withDb (fun config ->
+        task {
+            do! seedVersionFive config
+            do! initializeSchema config
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("6", version)
+
+            // The column default gives every row that existed the safe mode.
+            let! total = scalar config "SELECT count(*) FROM connectors"
+            Assert.Equal("3", total)
+            let! invitations = scalar config "SELECT count(*) FROM connectors WHERE passkey_enrolment = 'invitations'"
+            Assert.Equal("3", invitations)
+
+            // The three tables exist and are empty.
+            for table in passkeyTables do
+                let! rows = scalar config $"SELECT count(*) FROM pragma_table_info('{table}')"
+                Assert.NotEqual<string>("0", rows)
+
+            let! passkeys = scalar config "SELECT count(*) FROM passkeys"
+            Assert.Equal("0", passkeys)
+            let! invitationRows = scalar config "SELECT count(*) FROM passkey_invitations"
+            Assert.Equal("0", invitationRows)
+            let! ceremonies = scalar config "SELECT count(*) FROM passkey_ceremonies"
+            Assert.Equal("0", ceremonies)
+
+            // Nothing else about the rows moved.
+            let! discord = scalar config "SELECT client_id || '|' || is_enabled || '|' || allowed_email_domains FROM connectors WHERE slug = 'discord'"
+            Assert.Equal("d-id|1|acme.com", discord)
+            let! issuer = scalar config "SELECT issuer_url FROM connectors WHERE slug = 'home'"
+            Assert.Equal("https://auth.example.com/o/umbral", issuer)
+
+            // And the column takes the other mode.
+            do! exec config "UPDATE connectors SET passkey_enrolment = 'open' WHERE slug = 'github'"
+            let! stored = scalar config "SELECT passkey_enrolment FROM connectors WHERE slug = 'github'"
+            Assert.Equal("open", stored)
+        })
+
+[<Fact>]
+let ``upgrading a version 5 database twice changes nothing the second time`` () =
+    withDb (fun config ->
+        task {
+            do! seedVersionFive config
+            do! initializeSchema config
+            do! exec config "UPDATE connectors SET passkey_enrolment = 'open' WHERE slug = 'github'"
+
+            do! initializeSchema config
+
+            let! stored = scalar config "SELECT passkey_enrolment FROM connectors WHERE slug = 'github'"
+            Assert.Equal("open", stored)
+        })
+
+[<Fact>]
+let ``a fresh database is stamped 6 and has the passkey column and tables`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("6", version)
+
+            let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('connectors')"
+            Assert.Contains("passkey_enrolment", columns)
+
+            let! passkeyColumns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('passkeys')"
+
+            for expected in
+                [ "id"; "user_id"; "credential_id"; "public_key"; "sign_count"; "nickname"; "aaguid"; "transports"; "backup_eligible"; "created_utc"; "last_used_utc" ] do
+                Assert.Contains(expected, passkeyColumns)
+
+            let! invitationColumns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('passkey_invitations')"
+
+            for expected in
+                [ "id"; "secret_hash"; "connector_slug"; "user_id"; "note"; "created_utc"; "expires_utc"; "used_utc"; "revoked_utc" ] do
+                Assert.Contains(expected, invitationColumns)
+
+            let! ceremonyColumns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('passkey_ceremonies')"
+
+            for expected in
+                [ "id"; "purpose"; "options_json"; "user_id"; "invitation_id"; "display_name"; "nickname"; "return_url"; "created_utc"; "expires_utc" ] do
+                Assert.Contains(expected, ceremonyColumns)
+
+            // A connector row that does not name an enrolment gets the safe one.
+            do! exec config "INSERT INTO connectors (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint, created_utc, updated_utc)
+                             VALUES ('passkey', 'passkey', 'Passkey', '', '', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+            let! enrolment = scalar config "SELECT passkey_enrolment FROM connectors WHERE slug = 'passkey'"
+            Assert.Equal("invitations", enrolment)
+        })
+
+let private seedPasskeyRows (config: DbConfig) =
+    exec
+        config
+        "INSERT INTO connectors (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint, created_utc, updated_utc)
+         VALUES ('passkey', 'passkey', 'Passkey', '', '', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+         INSERT INTO users (id, display_name, first_seen_utc, last_seen_utc)
+         VALUES ('user-1', 'Jane', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+                ('user-2', 'Joe', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+         INSERT INTO passkeys (id, user_id, credential_id, public_key, nickname, created_utc)
+         VALUES ('pk-1', 'user-1', x'0102', x'AA', 'Phone', '2026-01-01T00:00:00Z'),
+                ('pk-2', 'user-2', x'0304', x'BB', 'Key', '2026-01-01T00:00:00Z');
+         INSERT INTO passkey_invitations (id, secret_hash, connector_slug, user_id, created_utc, expires_utc)
+         VALUES ('inv-1', 'hash-1', 'passkey', 'user-1', '2026-01-01T00:00:00Z', '2026-01-08T00:00:00Z'),
+                ('inv-2', 'hash-2', 'passkey', NULL, '2026-01-01T00:00:00Z', '2026-01-08T00:00:00Z');"
+
+[<Fact>]
+let ``deleting a user cascades to the passkeys and the invitations bound to them`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+            do! seedPasskeyRows config
+
+            do! exec config "DELETE FROM users WHERE id = 'user-1'"
+
+            let! passkeys = scalar config "SELECT group_concat(id) FROM passkeys"
+            Assert.Equal("pk-2", passkeys)
+
+            // The invitation for a new person has no user and stays.
+            let! invitations = scalar config "SELECT group_concat(id) FROM passkey_invitations"
+            Assert.Equal("inv-2", invitations)
+        })
+
+[<Fact>]
+let ``deleting the connector cascades to its invitations and leaves the passkeys`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+            do! seedPasskeyRows config
+
+            do! exec config "DELETE FROM connectors WHERE slug = 'passkey'"
+
+            let! invitations = scalar config "SELECT count(*) FROM passkey_invitations"
+            Assert.Equal("0", invitations)
+
+            // A passkey belongs to the person, not to the connector: turning
+            // the connector back on finds them as they were.
+            let! passkeys = scalar config "SELECT count(*) FROM passkeys"
+            Assert.Equal("2", passkeys)
+        })
+
+[<Fact>]
+let ``a credential id is unique across every user`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+            do! seedPasskeyRows config
+
+            let! error =
+                Record.ExceptionAsync(fun () ->
+                    exec
+                        config
+                        "INSERT INTO passkeys (id, user_id, credential_id, public_key, nickname, created_utc)
+                         VALUES ('pk-3', 'user-2', x'0102', x'CC', 'Copy', '2026-01-01T00:00:00Z')"
+                    :> Task)
+
+            Assert.Contains("UNIQUE", messageOf error)
+
+            let! count = scalar config "SELECT count(*) FROM passkeys"
+            Assert.Equal("2", count)
+        })
+
+[<Fact>]
+let ``an invitation secret hash is unique`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+            do! seedPasskeyRows config
+
+            let! error =
+                Record.ExceptionAsync(fun () ->
+                    exec
+                        config
+                        "INSERT INTO passkey_invitations (id, secret_hash, connector_slug, created_utc, expires_utc)
+                         VALUES ('inv-3', 'hash-1', 'passkey', '2026-01-01T00:00:00Z', '2026-01-08T00:00:00Z')"
+                    :> Task)
+
+            Assert.Contains("UNIQUE", messageOf error)
         })

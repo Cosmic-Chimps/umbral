@@ -17,6 +17,7 @@ let private connector (slug: string) (kind: ProviderKind) (issuer: string option
       ClientSecretHint = ""
       IssuerUrl = issuer
       AllowedEmailDomains = []
+      PasskeyEnrolment = InvitationsOnly
       IsEnabled = true
       IsShared = true
       CreatedUtc = System.DateTimeOffset.UnixEpoch
@@ -103,4 +104,80 @@ let ``saving a connector again never changes its issuer`` () =
         let! stored = ConnectorStore.findBySlug app.DbConfig "home"
         Assert.Equal("Renamed", stored.Value.DisplayName)
         Assert.Equal(Some "https://one.example.com", stored.Value.IssuerUrl)
+    }
+
+// ---------------------------------------------------------------------------
+// The passkey kind's enrolment mode (spec 008 T007)
+// ---------------------------------------------------------------------------
+
+let private passkeyConnector (enrolment: PasskeyEnrolment) : Connector =
+    { connector "passkey" Passkey None with
+        DisplayName = "Passkey"
+        ClientId = ""
+        PasskeyEnrolment = enrolment }
+
+[<Fact>]
+let ``a saved passkey connector reads back with its kind and its enrolment`` () =
+    task {
+        use! app = Fixtures.createApp ()
+
+        do! ConnectorStore.save app.DbConfig app.Clock (passkeyConnector OpenSignUp) None
+        let! stored = ConnectorStore.findBySlug app.DbConfig "passkey"
+
+        Assert.Equal(Passkey, stored.Value.Kind)
+        Assert.Equal(OpenSignUp, stored.Value.PasskeyEnrolment)
+        Assert.Equal("", stored.Value.ClientId)
+        Assert.Equal("", stored.Value.ClientSecretRef)
+        Assert.Equal(None, stored.Value.IssuerUrl)
+        Assert.Empty stored.Value.AllowedEmailDomains
+    }
+
+[<Fact>]
+let ``creating a passkey connector writes its enrolment, and the default is invitations only`` () =
+    task {
+        use! app = Fixtures.createApp ()
+
+        let! created =
+            ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (passkeyConnector InvitationsOnly) ("", "")
+
+        Assert.Equal(ConnectorStore.Created, created)
+        let! stored = ConnectorStore.findBySlug app.DbConfig "passkey"
+        Assert.Equal(InvitationsOnly, stored.Value.PasskeyEnrolment)
+
+        // A connector of another kind is read as invitations only too.
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "discord" Discord None) secret
+        let! discord = ConnectorStore.findBySlug app.DbConfig "discord"
+        Assert.Equal(InvitationsOnly, discord.Value.PasskeyEnrolment)
+    }
+
+[<Fact>]
+let ``setEnrolment changes the mode and nothing else, and says whether the connector exists`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! ConnectorStore.save app.DbConfig app.Clock (passkeyConnector InvitationsOnly) None
+        let! before = ConnectorStore.findBySlug app.DbConfig "passkey"
+
+        let! changed = ConnectorStore.setEnrolment app.DbConfig app.Clock "passkey" OpenSignUp
+        Assert.True changed
+
+        let! after = ConnectorStore.findBySlug app.DbConfig "passkey"
+        Assert.Equal(OpenSignUp, after.Value.PasskeyEnrolment)
+        Assert.Equal({ before.Value with PasskeyEnrolment = OpenSignUp; UpdatedUtc = after.Value.UpdatedUtc }, after.Value)
+
+        let! missing = ConnectorStore.setEnrolment app.DbConfig app.Clock "nobody" OpenSignUp
+        Assert.False missing
+    }
+
+[<Fact>]
+let ``saving the form of another kind and updating a passkey connector keep its enrolment`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! ConnectorStore.save app.DbConfig app.Clock (passkeyConnector OpenSignUp) None
+
+        // `update` is the generic card's write: it has no enrolment to say.
+        let! _ = ConnectorStore.update app.DbConfig app.Clock "passkey" "Passkey" "" false None None
+        let! stored = ConnectorStore.findBySlug app.DbConfig "passkey"
+
+        Assert.Equal(OpenSignUp, stored.Value.PasskeyEnrolment)
+        Assert.False stored.Value.IsShared
     }

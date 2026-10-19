@@ -60,13 +60,19 @@ let setInstanceList (config: Database.DbConfig) (clock: TimeProvider) (list: str
 
 /// What applies to a connector: its own list, else the instance list, else none.
 /// The instance list is not read when the connector has its own.
+///
+/// The passkey kind is never limited by a list, not even the instance's: a
+/// passkey carries no email, so there is no domain to judge, and the instance
+/// list is not read for it at all. Who may sign in through it is decided by its
+/// enrolment mode (specs/008 FR-010).
 let ruleFor (config: Database.DbConfig) (connector: Connector) : Task<Rule> =
     task {
-        match connector.AllowedEmailDomains with
-        | [] ->
+        match connector.Kind, connector.AllowedEmailDomains with
+        | Passkey, _ -> return NoRule
+        | _, [] ->
             let! instance = instanceList config
             return applying [] instance
-        | own -> return applying own []
+        | _, own -> return applying own []
     }
 
 /// What applies when there is no connector to ask: the instance list alone. For a

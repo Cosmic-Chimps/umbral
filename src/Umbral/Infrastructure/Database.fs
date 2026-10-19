@@ -102,7 +102,12 @@ let private schema =
         -- (specs/006), normalised ASCII joined by one space. Empty: the
         -- instance list applies, if there is one. A database from before schema
         -- version 5 gets this column from `upgradeSteps`.
-        allowed_email_domains   TEXT    NOT NULL DEFAULT ''
+        allowed_email_domains   TEXT    NOT NULL DEFAULT '',
+        -- Only for kind `passkey` (specs/008): who may create an account through
+        -- it, `invitations` or `open`. Every other kind keeps the default and
+        -- ignores it. A database from before schema version 6 gets this column
+        -- from `upgradeSteps`.
+        passkey_enrolment       TEXT    NOT NULL DEFAULT 'invitations'
     );
 
     -- A marker: one row per app limited to a chosen set. No row means "all
@@ -167,6 +172,60 @@ let private schema =
     );
 
     CREATE INDEX IF NOT EXISTS ix_security_events_time ON security_events (occurred_utc DESC);
+
+    -- A person's passkeys (specs/008 data-model.md). The row's own random id is
+    -- what URLs carry: a credential id identifies the person's authenticator and
+    -- does not belong in a form action. `credential_id` is unique across users;
+    -- the public key is a COSE key as the library returns it, and is not a secret.
+    CREATE TABLE IF NOT EXISTS passkeys (
+        id               TEXT    NOT NULL PRIMARY KEY,
+        user_id          TEXT    NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        credential_id    BLOB    NOT NULL UNIQUE,
+        public_key       BLOB    NOT NULL,
+        sign_count       INTEGER NOT NULL DEFAULT 0,
+        nickname         TEXT    NOT NULL,
+        aaguid           TEXT        NULL,
+        transports       TEXT    NOT NULL DEFAULT '',
+        backup_eligible  INTEGER     NULL,
+        created_utc      TEXT    NOT NULL,
+        last_used_utc    TEXT        NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS ix_passkeys_user ON passkeys (user_id);
+
+    -- An invitation link's record: the hash of its secret, never the secret.
+    -- `user_id` NULL means "for a new person". Deleting the connector or the user
+    -- removes it.
+    CREATE TABLE IF NOT EXISTS passkey_invitations (
+        id              TEXT NOT NULL PRIMARY KEY,
+        secret_hash     TEXT NOT NULL UNIQUE,
+        connector_slug  TEXT NOT NULL REFERENCES connectors (slug) ON DELETE CASCADE,
+        user_id         TEXT     NULL REFERENCES users (id) ON DELETE CASCADE,
+        note            TEXT NOT NULL DEFAULT '',
+        created_utc     TEXT NOT NULL,
+        expires_utc     TEXT NOT NULL,
+        used_utc        TEXT     NULL,
+        revoked_utc     TEXT     NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS ix_passkey_invitations_open
+        ON passkey_invitations (connector_slug) WHERE used_utc IS NULL AND revoked_utc IS NULL;
+
+    -- A ceremony in progress: single use, five minutes. No foreign keys: a
+    -- ceremony is minutes old, and a user or invitation deleted meanwhile just
+    -- makes its completion fail its own checks.
+    CREATE TABLE IF NOT EXISTS passkey_ceremonies (
+        id             TEXT NOT NULL PRIMARY KEY,
+        purpose        TEXT NOT NULL,
+        options_json   TEXT NOT NULL,
+        user_id        TEXT     NULL,
+        invitation_id  TEXT     NULL,
+        display_name   TEXT     NULL,
+        nickname       TEXT     NULL,
+        return_url     TEXT     NULL,
+        created_utc    TEXT NOT NULL,
+        expires_utc    TEXT NOT NULL
+    );
     """
 
 /// The unique index on the issuer, kept out of `schema`: that script also runs
@@ -184,7 +243,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 5
+let SchemaVersion = 6
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -225,6 +284,55 @@ let private UpgradeToVersion4 =
 let private UpgradeToVersion5 =
     "ALTER TABLE connectors ADD COLUMN allowed_email_domains TEXT NOT NULL DEFAULT '';"
 
+/// Spec 008. Every connector that exists today gets `invitations` through the
+/// column default, which only the passkey kind reads, so nothing about who can
+/// sign in changes on upgrade. The three tables are the statements `schema` runs
+/// (a database from version 5 already got them from it, because `schema` runs
+/// first and every statement is IF NOT EXISTS); repeating them here keeps the
+/// step complete on its own, as version 4's is. No data is rewritten.
+[<Literal>]
+let private UpgradeToVersion6 =
+    "ALTER TABLE connectors ADD COLUMN passkey_enrolment TEXT NOT NULL DEFAULT 'invitations';
+     CREATE TABLE IF NOT EXISTS passkeys (
+         id               TEXT    NOT NULL PRIMARY KEY,
+         user_id          TEXT    NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+         credential_id    BLOB    NOT NULL UNIQUE,
+         public_key       BLOB    NOT NULL,
+         sign_count       INTEGER NOT NULL DEFAULT 0,
+         nickname         TEXT    NOT NULL,
+         aaguid           TEXT        NULL,
+         transports       TEXT    NOT NULL DEFAULT '',
+         backup_eligible  INTEGER     NULL,
+         created_utc      TEXT    NOT NULL,
+         last_used_utc    TEXT        NULL
+     );
+     CREATE INDEX IF NOT EXISTS ix_passkeys_user ON passkeys (user_id);
+     CREATE TABLE IF NOT EXISTS passkey_invitations (
+         id              TEXT NOT NULL PRIMARY KEY,
+         secret_hash     TEXT NOT NULL UNIQUE,
+         connector_slug  TEXT NOT NULL REFERENCES connectors (slug) ON DELETE CASCADE,
+         user_id         TEXT     NULL REFERENCES users (id) ON DELETE CASCADE,
+         note            TEXT NOT NULL DEFAULT '',
+         created_utc     TEXT NOT NULL,
+         expires_utc     TEXT NOT NULL,
+         used_utc        TEXT     NULL,
+         revoked_utc     TEXT     NULL
+     );
+     CREATE INDEX IF NOT EXISTS ix_passkey_invitations_open
+         ON passkey_invitations (connector_slug) WHERE used_utc IS NULL AND revoked_utc IS NULL;
+     CREATE TABLE IF NOT EXISTS passkey_ceremonies (
+         id             TEXT NOT NULL PRIMARY KEY,
+         purpose        TEXT NOT NULL,
+         options_json   TEXT NOT NULL,
+         user_id        TEXT     NULL,
+         invitation_id  TEXT     NULL,
+         display_name   TEXT     NULL,
+         nickname       TEXT     NULL,
+         return_url     TEXT     NULL,
+         created_utc    TEXT NOT NULL,
+         expires_utc    TEXT NOT NULL
+     );"
+
 /// What takes a database from the version before to the version named. Applied
 /// in order, inside `initializeSchema`'s transaction, to a database stamped
 /// lower than `SchemaVersion`; a fresh database skips them, because `schema`
@@ -241,7 +349,8 @@ let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
     [ 2, (fun command -> command.CommandText <- UpgradeToVersion2)
       3, (fun command -> command.CommandText <- UpgradeToVersion3)
       4, (fun command -> command.CommandText <- UpgradeToVersion4)
-      5, (fun command -> command.CommandText <- UpgradeToVersion5) ]
+      5, (fun command -> command.CommandText <- UpgradeToVersion5)
+      6, (fun command -> command.CommandText <- UpgradeToVersion6) ]
 
 let initializeSchema (config: DbConfig) : Task<unit> =
     task {

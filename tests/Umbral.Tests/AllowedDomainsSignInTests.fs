@@ -833,6 +833,7 @@ let private googleStartUrl (connectorList: string list) (instanceList: string li
                   ClientSecretHint = Secrets.hint "google-client-secret"
                   IssuerUrl = None
                   AllowedEmailDomains = connectorList
+                  PasskeyEnrolment = Connectors.InvitationsOnly
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
@@ -919,6 +920,7 @@ let private addOpenConnector (app: Fixtures.TestApp) (slug: string) =
                   ClientSecretHint = Secrets.hint "open-connector-secret"
                   IssuerUrl = None
                   AllowedEmailDomains = []
+                  PasskeyEnrolment = Connectors.InvitationsOnly
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

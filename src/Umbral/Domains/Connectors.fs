@@ -25,6 +25,11 @@ type ProviderKind =
     /// Its endpoints are not compiled in: `ProviderAdapters.IProviderAdapter.Resolve`
     /// reads them from the provider.
     | Oidc
+    /// Umbral as its own provider: the person proves who they are with a
+    /// passkey Umbral verifies itself (specs/008-passkey-connector). No
+    /// endpoints, no client credentials and no adapter: the ceremonies are
+    /// Umbral's own routes, and at most one connector has this kind.
+    | Passkey
 
     member this.Value =
         match this with
@@ -33,6 +38,7 @@ type ProviderKind =
         | Google -> "google"
         | Fake -> "fake"
         | Oidc -> "oidc"
+        | Passkey -> "passkey"
 
     member this.DisplayName =
         match this with
@@ -41,6 +47,7 @@ type ProviderKind =
         | Google -> "Google"
         | Fake -> "Fake (development)"
         | Oidc -> "OpenID Connect"
+        | Passkey -> "Passkey"
 
 /// The three providers with a card of their own. Deliberately not `Oidc`: an
 /// OpenID Connect provider has no "first connector" to configure in place, it
@@ -54,6 +61,7 @@ let parseKind (value: string) =
     | "google" -> Some Google
     | "fake" -> Some Fake
     | "oidc" -> Some Oidc
+    | "passkey" -> Some Passkey
     | _ -> None
 
 /// Where the provider's OAuth endpoints live, and what we must ask it for.
@@ -110,6 +118,16 @@ let endpointsFor (kind: ProviderKind) =
           SupportsPkce = false
           UsesNonce = false }
 
+    | Passkey ->
+        // Like Fake, nothing to say: no authorization endpoint is ever built
+        // for a passkey, and `/connect/passkey/start` is a route of Umbral's own.
+        { AuthorizationUrl = ""
+          TokenUrl = ""
+          UserInfoUrl = ""
+          Scopes = []
+          SupportsPkce = false
+          UsesNonce = false }
+
     | Oidc ->
         // Only what holds for every OpenID Connect provider. The URLs are empty
         // because they are the provider's to say: `Resolve` fills them from its
@@ -138,7 +156,24 @@ let setupCaveat (kind: ProviderKind) =
     | Discord
     | GitHub
     | Fake
-    | Oidc -> None
+    | Oidc
+    | Passkey -> None
+
+/// Who may become a user through the passkey connector (specs/008 research R8).
+/// It decides who can *create* an account and nothing else: it is not an
+/// authorization rule, and it is stored on the connector's row, read for the
+/// `Passkey` kind only.
+type PasskeyEnrolment =
+    /// Only a person holding an invitation link can enrol. The default.
+    | InvitationsOnly
+    /// Anyone who reaches a sign-in page that offers the connector can enrol.
+    | OpenSignUp
+
+    /// The stored form, `connectors.passkey_enrolment`.
+    member this.Value =
+        match this with
+        | InvitationsOnly -> "invitations"
+        | OpenSignUp -> "open"
 
 /// A configured connector, as stored.
 type Connector =
@@ -164,6 +199,9 @@ type Connector =
       /// normalised ASCII (`EmailDomains`). Empty means the instance list
       /// applies, if there is one (specs/006).
       AllowedEmailDomains: string list
+      /// Only for `Passkey`: who may create an account through it. Every other
+      /// kind keeps `InvitationsOnly` and ignores it, as they ignore `IssuerUrl`.
+      PasskeyEnrolment: PasskeyEnrolment
       CreatedUtc: DateTimeOffset
       UpdatedUtc: DateTimeOffset }
 

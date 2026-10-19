@@ -192,6 +192,14 @@ let run
         let results = ResizeArray<Outcome>()
 
         for connector in connectors do
+            // A connector that has no secret at all (the passkey kind: Umbral is
+            // its own provider) has an empty reference, which is not a broken one.
+            // It is already where it should be, and the run is not failed for it.
+            if connector.ClientSecretRef = "" then
+                write (t.MoveNoSecret connector.Slug)
+                results.Add InPlace
+            else
+
             match SecretRef.Decode connector.ClientSecretRef with
             | Error _ ->
                 // Cannot happen through the product, which always writes a

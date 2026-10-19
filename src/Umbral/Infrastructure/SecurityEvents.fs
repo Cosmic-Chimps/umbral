@@ -46,6 +46,11 @@ type EventType =
     | AppDeleted
     // Allowed email domains (specs/006-allowed-email-domains)
     | AllowedDomainsChanged
+    // Passkeys (specs/008-passkey-connector): credential changes
+    | PasskeyRegistered
+    | PasskeyRemoved
+    | PasskeyInvitationCreated
+    | PasskeyInvitationRevoked
     // Protocol
     | AuthorizationCodeReplayed
 
@@ -76,6 +81,10 @@ type EventType =
         | AppSecretRotated -> "app_secret_rotated"
         | AppDeleted -> "app_deleted"
         | AllowedDomainsChanged -> "allowed_domains_changed"
+        | PasskeyRegistered -> "passkey_registered"
+        | PasskeyRemoved -> "passkey_removed"
+        | PasskeyInvitationCreated -> "passkey_invitation_created"
+        | PasskeyInvitationRevoked -> "passkey_invitation_revoked"
         | AuthorizationCodeReplayed -> "authorization_code_replayed"
 
 /// Every event type, for the test that asserts each one is emitted somewhere in
@@ -104,6 +113,10 @@ let allEventTypes =
       AppSecretRotated
       AppDeleted
       AllowedDomainsChanged
+      PasskeyRegistered
+      PasskeyRemoved
+      PasskeyInvitationCreated
+      PasskeyInvitationRevoked
       AuthorizationCodeReplayed ]
 
 /// The `Detail` of a `secret_store_failed` event: which store, which operation

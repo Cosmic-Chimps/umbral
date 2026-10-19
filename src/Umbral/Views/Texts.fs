@@ -378,7 +378,75 @@ type Texts =
       SecretStoreProblemNotice: string -> StoreFailure -> string
       /// The warning logged at startup for the same failure (store id,
       /// failure).
-      SecretStoreProbeWarning: string -> StoreFailure -> string }
+      SecretStoreProbeWarning: string -> StoreFailure -> string
+
+      // The `move-secrets` line for a connector that keeps no secret (the passkey
+      // kind): it is skipped, not failed (spec 008).
+      MoveNoSecret: string -> string
+
+      // The passkey connector (spec 008). The words are the contracts'
+      // (contracts/ceremonies.md, contracts/admin-surface.md); every one that
+      // asks the person to do something says what.
+      /// The picker's button and the passkey sign-in page's heading and button.
+      SignInWithPasskey: string
+      // The sign-in page, the invitation page and the passkeys page
+      PasskeySignInLead: string
+      PasskeyContinue: string
+      PasskeyDisplayNameLabel: string
+      PasskeyNicknameLabel: string
+      PasskeyCreateAccountButton: string
+      PasskeyInvitationsOnlyLine: string
+      PasskeyJavascriptRequired: string
+      PasskeyInviteNewTitle: string
+      PasskeyInviteNewLead: string
+      PasskeyInviteCreateButton: string
+      PasskeyInviteExistingTitle: string
+      /// The display name of the account the invitation adds a passkey to.
+      PasskeyInviteExistingAccount: string -> string
+      PasskeyInviteUnusableTitle: string
+      PasskeyInviteUnusableBody: string
+      PasskeysTitle: string
+      PasskeysLead: string
+      /// The ways this account signs in, joined as the page lists them.
+      PasskeysWaysIn: string -> string
+      PasskeyAddedLabel: string
+      PasskeyLastUsedLabel: string
+      PasskeyNeverUsed: string
+      PasskeyRemoveButton: string
+      PasskeyRemoveConfirm: string
+      PasskeyAddButton: string
+      PasskeysNotEnabled: string
+      PasskeysLimitReached: string
+      HomePasskeysLink: string
+      // The Passkey card on the Connectors screen
+      PasskeyCardLead: string
+      PasskeyEnableButton: string
+      PasskeyEnrolmentInvitationsLabel: string
+      PasskeyEnrolmentInvitationsHint: string
+      PasskeyEnrolmentOpenLabel: string
+      PasskeyEnrolmentOpenHint: string
+      PasskeyEnrolmentRule: string
+      /// The public origin passkeys are bound to.
+      PasskeyOriginBound: string -> string
+      PasskeyInviteNoteLabel: string
+      PasskeyInviteNoteHint: string
+      PasskeyInviteButton: string
+      PasskeyInvitationLinkNote: string
+      PasskeyOpenInvitationsHeading: string
+      PasskeyNoOpenInvitations: string
+      PasskeyInvitationNoNote: string
+      PasskeyInvitationForLabel: string
+      PasskeyInvitationForNew: string
+      PasskeyInvitationCreatedLabel: string
+      PasskeyInvitationExpiresLabel: string
+      PasskeyInvitationRevokeButton: string
+      PasskeyInvitationRevokeConfirm: string
+      // The Users screen
+      UserInvitePasskeyButton: string
+      /// The name of the user whose passkey the operator is about to remove.
+      UserPasskeyRemoveConfirm: string -> string
+      /// The notice after inviting an existing user, with their name.
+      UserPasskeyInvited: string -> string }
 
 /// The display name of a store, by the id a `SecretRef` carries.
 let private secretStoreNameEn (storeId: string) : string =
@@ -613,6 +681,34 @@ let private noticeEn (code: string) : string option =
     | "user-deleted" -> Some "User deleted."
     | "credential-replaced" -> Some "Operator credential replaced."
     | "credential-current-incorrect" -> Some "That's not the current credential. Check it and try again."
+    // The passkey connector (spec 008). The sign-in and invitation notices are
+    // what a stranger reads, so none says why a ceremony was refused: the reason
+    // word is in the security log, for the operator.
+    | "passkey-connector-saved" -> Some "Saved. People can sign in with a passkey from the next page load."
+    | "passkey-connector-invalid" -> Some "Choose invitations only or anyone can sign up, then save again."
+    | "passkey-invitation-created" ->
+        Some "Invitation created. Copy the link below and send it to the person; it is not shown again."
+    | "passkey-invitation-invalid" -> Some "A note is at most 64 characters. Shorten it, then invite again."
+    | "passkey-invitation-revoked" -> Some "Invitation revoked. Its link no longer works."
+    | "passkey-invitation-not-open" ->
+        Some "That invitation is no longer open. Reload the page to see the invitations that are."
+    | "passkey-user-invited" ->
+        Some "Send this link to the person over a channel you trust. It adds a passkey to their account, works once and for 7 days, and is not shown again."
+    | "passkey-not-enabled" ->
+        Some "Passkeys are not enabled. Enable the Passkey connector on the Connectors screen, then try again."
+    | "passkey-added" -> Some "Your passkey is ready."
+    | "passkey-removed" -> Some "Passkey removed."
+    | "passkey-not-found" -> Some "That passkey no longer exists. Reload the page to see your current passkeys."
+    | "passkey-last-cannot-remove" ->
+        Some "You can't remove your only way to sign in. Add another passkey first, or ask whoever runs this Umbral to delete your account."
+    | "passkey-limit-reached" ->
+        Some "You have the most passkeys an account can hold. Remove one, then add another."
+    | "passkey-sign-in-failed" ->
+        Some "That passkey sign-in didn't complete. Try again, or choose a different way to sign in."
+    | "passkey-registration-failed" ->
+        Some "Your passkey wasn't saved. Try again, or ask whoever runs this Umbral for a new invitation."
+    | "passkey-invitation-unusable" ->
+        Some "This invitation link can't be used. Ask whoever runs this Umbral for a new one."
     | _ -> None
 
 /// What `SecretStoreSettings.parse` found wrong, in the words of someone at 1am with a Pi:
@@ -961,7 +1057,75 @@ let en: Texts =
       SecretStoreLabel = secretStoreLabelEn
       SecretUnreadable = secretUnreadableEn
       SecretStoreProblemNotice = secretStoreProblemNoticeEn
-      SecretStoreProbeWarning = secretStoreProbeWarningEn }
+      SecretStoreProbeWarning = secretStoreProbeWarningEn
+
+      MoveNoSecret = fun slug -> moveLine "skipped" slug "has no secret to move"
+
+      SignInWithPasskey = "Sign in with a passkey"
+      PasskeySignInLead = "Your phone, laptop or security key will ask you to confirm it is you."
+      PasskeyContinue = "Continue with your passkey"
+      PasskeyDisplayNameLabel = "Your name"
+      PasskeyNicknameLabel = "Name this passkey (optional)"
+      PasskeyCreateAccountButton = "Create an account with a passkey"
+      PasskeyInvitationsOnlyLine = "Need an account? Ask whoever runs this Umbral for an invitation link."
+      PasskeyJavascriptRequired =
+        "Passkeys need JavaScript on this page. Turn it on and reload, or go back and choose another way to sign in."
+      PasskeyInviteNewTitle = "You're invited"
+      PasskeyInviteNewLead = "Choose the name apps will see, then create your passkey."
+      PasskeyInviteCreateButton = "Create my passkey"
+      PasskeyInviteExistingTitle = "Add a passkey to your account"
+      PasskeyInviteExistingAccount = fun name -> $"This adds a passkey to the account of {name}."
+      PasskeyInviteUnusableTitle = "This invitation link can't be used"
+      PasskeyInviteUnusableBody =
+        "It may have been used already, run out, or been withdrawn. Ask whoever runs this Umbral for a new one."
+      PasskeysTitle = "Your passkeys"
+      PasskeysLead = "A passkey signs you in with your fingerprint, face or PIN, on the device that holds it."
+      PasskeysWaysIn = fun ways -> $"You can sign in with: {ways}."
+      PasskeyAddedLabel = "Added"
+      PasskeyLastUsedLabel = "Last used"
+      PasskeyNeverUsed = "Never"
+      PasskeyRemoveButton = "Remove"
+      PasskeyRemoveConfirm = "Remove this passkey? You will not be able to sign in with it any more."
+      PasskeyAddButton = "Add a passkey"
+      PasskeysNotEnabled = "Passkeys are not enabled on this Umbral."
+      PasskeysLimitReached = "You have the most passkeys an account can hold. Remove one to add another."
+      HomePasskeysLink = "Your passkeys"
+
+      PasskeyCardLead =
+        "Lets people sign in with their phone, laptop or security key, with no provider account. Umbral is the provider."
+      PasskeyEnableButton = "Enable passkeys"
+      PasskeyEnrolmentInvitationsLabel = "Invitations only"
+      PasskeyEnrolmentInvitationsHint =
+        "Only people you send an invitation link to can create an account. The safe default."
+      PasskeyEnrolmentOpenLabel = "Anyone can sign up"
+      PasskeyEnrolmentOpenHint =
+        "Anyone who reaches a sign-in page that offers this connector can create an account."
+      PasskeyEnrolmentRule =
+        "Who can sign in through this connector is decided by the enrolment mode above, not by the allowed email domains: passkeys carry no email."
+      PasskeyOriginBound =
+        fun origin ->
+            $"Passkeys are bound to this address ({origin}). If it changes, every passkey stops working and people need a new invitation."
+      PasskeyInviteNoteLabel = "Note (optional)"
+      PasskeyInviteNoteHint = "For you: who the link is for. People never see it."
+      PasskeyInviteButton = "Invite someone"
+      PasskeyInvitationLinkNote =
+        "Send this link to the person over a channel you trust. It works once and for 7 days; it is not shown again."
+      PasskeyOpenInvitationsHeading = "Open invitations"
+      PasskeyNoOpenInvitations = "No open invitations."
+      PasskeyInvitationNoNote = "No note"
+      PasskeyInvitationForLabel = "For"
+      PasskeyInvitationForNew = "A new person"
+      PasskeyInvitationCreatedLabel = "Created"
+      PasskeyInvitationExpiresLabel = "Expires"
+      PasskeyInvitationRevokeButton = "Revoke"
+      PasskeyInvitationRevokeConfirm = "Revoke this invitation? The link will stop working."
+
+      UserInvitePasskeyButton = "Invite to add a passkey"
+      UserPasskeyRemoveConfirm =
+        fun name -> $"Remove this passkey from {name}'s account? They will not be able to sign in with it."
+      UserPasskeyInvited =
+        fun name ->
+            $"Send this link to {name} over a channel you trust. It adds a passkey to their account, works once and for 7 days, and is not shown again." }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.

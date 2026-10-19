@@ -180,6 +180,7 @@ let private addLabConnector (app: Fixtures.TestApp) =
                   ClientSecretHint = "used"
                   IssuerUrl = None
                   AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

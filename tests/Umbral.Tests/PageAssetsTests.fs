@@ -233,6 +233,7 @@ let private seedDiscord (app: Fixtures.TestApp) =
                   ClientSecretHint = Secrets.hint "discord-secret"
                   IssuerUrl = None
                   AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
@@ -362,7 +363,7 @@ let ``each asset is served from its versioned URL, immutable, and revalidates wi
 
         // The paths are the ones a page or the stylesheet links to, and the browser has no session.
         Assert.Equal<string list>(
-            [ "/assets/umbral.css"; "/assets/umbral.js"; "/assets/htmx.min.js" ]
+            [ "/assets/umbral.css"; "/assets/umbral.js"; "/assets/htmx.min.js"; "/assets/passkeys.js" ]
             @ (Assets.fonts |> List.map _.Path),
             Assets.all |> List.map _.Path
         )
@@ -524,3 +525,52 @@ let ``the hidden attribute always hides, whatever display a class sets`` () =
     // beat it and the logo form's "Use whole image" showed before a file was
     // chosen (spec 006 browser pass). The base layer's rule must win.
     Assert.Contains("[hidden]{display:none!important}", css)
+
+// ---------------------------------------------------------------------------
+// The passkey ceremony script (spec 008)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``the passkey script is served as javascript, immutable, with an ETag`` () =
+    task {
+        use! app = Fixtures.createApp ()
+
+        Assert.Equal("/assets/passkeys.js", Assets.passkeys.Path)
+        Assert.Equal("text/javascript; charset=utf-8", Assets.passkeys.ContentType)
+        Assert.Contains(Assets.passkeys, Assets.all)
+
+        let! response = app.Client.GetAsync Assets.passkeys.Href
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+        Assert.Equal("text/javascript; charset=utf-8", string response.Content.Headers.ContentType)
+        Assert.Contains("immutable", string response.Headers.CacheControl)
+        Assert.Equal(Assets.passkeys.ETag, string response.Headers.ETag)
+
+        let! body = response.Content.ReadAsStringAsync()
+        Assert.Contains("data-passkey-signin", body)
+        Assert.Contains("RequestVerificationToken", body)
+    }
+
+[<Fact>]
+let ``the passkey script holds no text of its own`` () =
+    // Every word a person reads is in Texts.fs, so a string literal that is a
+    // phrase (it has a space in it) does not belong in the script. Comments are
+    // dropped first: they are prose, and they hold apostrophes.
+    let source = Text.Encoding.UTF8.GetString Assets.passkeys.Bytes
+    let code = Regex.Replace(source, "(?m)//.*$", "")
+
+    let phrases =
+        [ for m in Regex.Matches(code, "'((?:[^'\\\r\n]|\\.)*)'") do
+              if m.Groups[1].Value.Contains ' ' then m.Groups[1].Value ]
+
+    Assert.Empty phrases
+
+    // Guards the check: it does see the script's string literals.
+    Assert.True(Regex.Matches(code, "'[^']*'").Count > 20)
+
+[<Fact>]
+let ``no page links the passkey script unless it asks for it`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! html = app.Client.GetStringAsync "/"
+        Assert.DoesNotContain(Assets.passkeys.Path, html)
+    }

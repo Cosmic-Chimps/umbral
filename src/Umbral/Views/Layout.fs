@@ -97,10 +97,13 @@ type private Chrome =
 /// Umbral itself, so a page loads nothing from a third party and runs no inline
 /// script (see `contentSecurityPolicy`). `stylesheets` are further same-origin
 /// sheets linked after `umbral.css`, so a rule in them wins ties with it: the
-/// accent sheets of spec 006.
+/// accent sheets of spec 006. `scripts` are further same-origin scripts linked
+/// after Umbral's own, for the pages that need one (`Assets.passkeys`); every
+/// page that does not asks for none.
 let private shell
     (chrome: Chrome)
     (stylesheets: string list)
+    (scripts: Assets.Asset list)
     (ctx: HttpContext)
     (t: Texts)
     (titleText: string)
@@ -165,6 +168,9 @@ let private shell
             // htmx 4.x: Oxpecker.Htmx 4.0.* emits attributes for this major version only.
             script(src = Assets.htmx.Href)
             script(src = Assets.script.Href)
+
+            for extra in scripts do
+                script(src = extra.Href)
         }
 
         body' {
@@ -236,25 +242,43 @@ let private shell
 
 /// A page for anyone: the brand only, no operator navigation.
 let page (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
-    shell Plain [] ctx t titleText content
+    shell Plain [] [] ctx t titleText content
 
-/// The sign-in page of an app that has branding: its accent colour on the page,
-/// no Umbral header, and "Secured by Umbral" for a footer. Everything else about
-/// the page, including the Content-Security-Policy, is `page`'s.
-let signInPage (ctx: HttpContext) (t: Texts) (titleText: string) (branding: SignInBranding) (content: HtmlElement) =
+/// `page`, with further same-origin scripts linked: the invitation page and the
+/// passkeys page load the ceremony script this way (specs/008 research R4).
+let pageWithScripts (scripts: Assets.Asset list) (ctx: HttpContext) (t: Texts) (titleText: string) (content: HtmlElement) =
+    shell Plain [] scripts ctx t titleText content
+
+/// The sign-in page of an app that has branding, with further same-origin
+/// scripts linked: the passkey sign-in page, which a branded app shows in its own
+/// colour (specs/008).
+let signInPageWithScripts
+    (scripts: Assets.Asset list)
+    (ctx: HttpContext)
+    (t: Texts)
+    (titleText: string)
+    (branding: SignInBranding)
+    (content: HtmlElement)
+    =
     let stylesheets =
         match branding.Accent with
         | Some accent -> [ $"/branding/accent/{Umbral.Domains.Branding.Accent.hex accent}.css" ]
         | None -> []
 
-    shell (SignIn branding) stylesheets ctx t titleText content
+    shell (SignIn branding) stylesheets scripts ctx t titleText content
+
+/// The sign-in page of an app that has branding: its accent colour on the page,
+/// no Umbral header, and "Secured by Umbral" for a footer. Everything else about
+/// the page, including the Content-Security-Policy, is `page`'s.
+let signInPage (ctx: HttpContext) (t: Texts) (titleText: string) (branding: SignInBranding) (content: HtmlElement) =
+    signInPageWithScripts [] ctx t titleText branding content
 
 /// A page for a signed-in operator: the brand plus the operator navigation.
 /// Call it only from handlers behind `AdminAuth.requireOperator`. `stylesheets`
 /// are extra same-origin sheets, which the Apps screen uses to preview each
 /// app's accent inside its card.
 let operatorPage (ctx: HttpContext) (t: Texts) (titleText: string) (stylesheets: string list) (content: HtmlElement) =
-    shell Operator stylesheets ctx t titleText content
+    shell Operator stylesheets [] ctx t titleText content
 
 /// Where a message page sends the person reading it, which depends on who that is.
 ///

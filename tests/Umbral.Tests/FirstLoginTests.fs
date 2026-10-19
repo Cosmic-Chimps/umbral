@@ -135,6 +135,7 @@ let private claimAndConfigure (app: Fixtures.TestApp) (browser: Browser) : Task<
                   ClientSecretHint = "cret"
                   IssuerUrl = None
                   AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

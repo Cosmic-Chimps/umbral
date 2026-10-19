@@ -151,6 +151,7 @@ let addFakeConnector (app: Fixtures.TestApp) (secret: string) =
                   ClientSecretHint = Secrets.hint secret
                   IssuerUrl = None
                   AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
