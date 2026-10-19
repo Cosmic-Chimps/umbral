@@ -818,6 +818,11 @@ webhook and keeps the changes you made in the console.
 
 ### Release
 
+While you work, add what changed for the people who run Umbral to
+[`CHANGELOG.md`](CHANGELOG.md), under `## Unreleased` (its top says how: what
+changed in plain words, under Added, Changed, Fixed, Security or Upgrade). To
+release, push a tag:
+
 ```bash
 git tag v1.2.3
 git push origin v1.2.3
@@ -825,16 +830,27 @@ git push origin v1.2.3
 
 The workflow ([`release.yml`](.github/workflows/release.yml)) then:
 
-1. runs the same tests as CI;
-2. builds `linux/amd64` and `linux/arm64` and pushes `ghcr.io/<owner>/umbral:1.2.3`
+1. turns `## Unreleased` into `## 1.2.3 - <today>` in its own checkout
+   ([`changelog.sh`](.github/scripts/changelog.sh)), and stops here, before
+   anything is built, if there is nothing under it: no empty releases;
+2. runs the same tests as CI;
+3. builds `linux/amd64` and `linux/arm64` and pushes `ghcr.io/<owner>/umbral:1.2.3`
    and `:latest`;
-3. calls the app's webhook and waits, up to 10 minutes, until Caravana reports the
+4. calls the app's webhook and waits, up to 10 minutes, until Caravana reports the
    rollout healthy. If the app has no services yet (the first release), it
    defines the app from `deploy/caravana-app.json` with the API token instead,
    using the image it just built. It fails if the rollout fails or is reverted,
    and prints the deployment's warnings
    ([`caravana-deploy.sh`](.github/scripts/caravana-deploy.sh));
-4. deletes image versions older than the last 10.
+5. publishes the GitHub release, with that changelog section as its notes
+   (and GitHub's list of commits after it). It does not wait for the rollout,
+   so a failed rollout still has a published image and a release. It then
+   commits the renamed section to `main` as `docs(changelog): release 1.2.3`,
+   but only if `main` is still the tagged commit. If `main` has moved on, the
+   workflow warns instead, and you run `.github/scripts/changelog.sh prepare
+   1.2.3` on `main` by hand, keeping any newer entries under `## Unreleased`.
+   The tag never moves;
+6. deletes image versions older than the last 10.
 
 Re-running a release is safe: when the image has not changed, Caravana deploys
 nothing and the workflow says so.
@@ -847,7 +863,16 @@ Things to know:
   a required reviewer on the `production` environment.
 - **Prereleases do not deploy.** A tag with a hyphen, such as `v1.2.0-rc.1`,
   publishes its image but does not move `latest` and does not call Caravana. Pull
-  it by tag to try it.
+  it by tag to try it. It gets a GitHub prerelease whose notes list what is under
+  `## Unreleased`, and it leaves `CHANGELOG.md` alone, so the real release can
+  still claim those entries.
+- **After merging a released `main` into a feature branch, check your entries.**
+  The merge brings in the renamed section; make sure the entries you added are
+  still under `## Unreleased`, not under a version that has already shipped.
+  Nobody edits a released section.
+- **Re-running a release is safe for the notes too.** If the GitHub release
+  already exists, the run replaces its notes with the changelog section instead
+  of failing.
 - **Only the last 10 versions are kept**, so Caravana's "Redeploy this version"
   reaches 10 releases back; for an older one, whose image was deleted, Caravana
   refuses it. The pruning
@@ -1127,6 +1152,8 @@ Umbral is built on .NET 10 (F#), [Oxpecker](https://github.com/Lanayx/Oxpecker),
 [OpenIddict](https://documentation.openiddict.com/) and SQLite. The project's
 rules are in [`.specify/memory/constitution.md`](.specify/memory/constitution.md)
 and its specification is in [`specs/001-umbral-mvp/`](specs/001-umbral-mvp/).
+A change people who run Umbral will notice also gets an entry under `## Unreleased`
+in [`CHANGELOG.md`](CHANGELOG.md); [Release](#release) says how it is used.
 
 The UI loads nothing from third parties: its stylesheet, htmx and its one small
 script are served by Umbral itself, and every page carries a strict
