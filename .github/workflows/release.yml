@@ -183,9 +183,9 @@ jobs:
 
       # Signs in with the job's OIDC token (no stored secret) and leaves a
       # short-lived key for `bella run`.
-      - uses: cosmic-chimps/bella-baxter-setup-action@3773cde54261a43a9a967fae67f2734259433674 # v0.1.1-preview.135
+      - uses: cosmic-chimps/bella-baxter-setup-action@cf993ff9e477ec89370abb7f166a4e48a2786693 # v0.1.1-preview.137
         with:
-          version: 0.1.1-preview.135
+          version: 0.1.1-preview.137
           oidc: 'true'
 
       # `bella run` puts every secret of the environment in the environment of
