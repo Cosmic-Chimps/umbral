@@ -691,14 +691,13 @@ Caravana is a self-hosted PaaS on Nomad. Its Traefik already terminates TLS
 and routes by domain, so on a Caravana host you use neither Caddy nor the
 compose file above. You create the app in Caravana by name and the release
 workflow does the rest: pushing a tag builds the image, defines the app the
-first time, and tells Caravana to roll it out.
+first time, and deploys that image through Caravana's API.
 
 ### Create the app in Caravana
 
 In the console choose **New app**, enter the name `umbral`, and pick **Create
 without deploying**. A name is enough: the app has no services yet, and the first
-release gives it its definition. Then copy the app's **webhook token**
-(Configure, Webhook token). It starts with `cvwh_` and is shown once.
+release gives it its definition.
 
 | Setting | Value |
 | --- | --- |
@@ -718,9 +717,10 @@ settings. It sets:
 - `UMBRAL__TRUSTED_PROXIES=10.99.0.1`.
 
 To change what the first definition contains (more memory, another variable),
-edit that file before the first release. It is only read when the app has no
-services yet: once the app is defined, change it in the Caravana console, and
-later releases keep your changes. The default memory (256 MB) is enough: Umbral
+edit that file before the first release. It is only used when the app has no
+services yet: once the app is defined, the workflow ignores the file (and says
+so in the log), so change the app in the Caravana console, and later releases
+keep your changes. A release replaces only the image. The default memory (256 MB) is enough: Umbral
 idles under 150 MB (under 160 MB with an external secret store).
 
 `UMBRAL__PUBLIC_ORIGIN` must match the domain exactly, scheme included; the
@@ -735,10 +735,10 @@ and get past the sign-in limits. Their direct requests arrive from their own
 container address or from the bridge gateway (`172.26.64.1`), never from
 `10.99.0.1`, so do not trust the gateway.
 
-The app is stored with the moving tag `latest`. That is fine: Caravana pins the
-tag to a digest on every deploy, so each rollout is a specific image and
-Caravana can roll it back. (The workflow does not store the digest itself: the
-webhook only redeploys when the stored tag now resolves to a new digest.)
+Every release deploys the exact image digest the workflow just built
+(`ghcr.io/<owner>/umbral@sha256:...`), so each rollout is a specific image and
+Caravana can roll it back. The `:latest` and version tags are still pushed, for
+people who pull the image by hand.
 
 **The GHCR package.** A new GHCR package is usually private. You have
 two choices:
@@ -758,7 +758,7 @@ release again.
 
 ### Connect the repository
 
-The release workflow reads the Caravana settings and tokens from
+The release workflow reads the Caravana settings and token from
 Bella Baxter and signs in to it with the job's GitHub
 OIDC token (workload identity). No secret is stored in GitHub, so there is
 nothing in the repository to leak or rotate.
@@ -771,10 +771,12 @@ secrets:
 | --- | --- |
 | `CARAVANA_URL` | The console domain, for example `https://caravana.example.com`, with no trailing slash. |
 | `CARAVANA_DOMAIN` | The domain Umbral is served on, for example `auth.example.com`, without `https://`. Needed for the first release, which defines the app with it; ignored afterwards. |
-| `CARAVANA_TOKEN` | An API token that lets the workflow define the app the first time and read the rollout: Settings, API tokens, or `sudo caravana admin create-token --name umbral-ci` on the host. It starts with `cvat_`. |
-| `CARAVANA_WEBHOOK_TOKEN` | The app's webhook token: Configure, Webhook token. It starts with `cvwh_` and is shown once. It can only trigger a redeploy. |
+| `CARAVANA_TOKEN` | A Caravana API token: Settings, API tokens, or `sudo caravana admin create-token --name umbral-ci` on the host. It starts with `cvat_`. A full API token works on Caravana 0.7.0 and later. Once the host runs Caravana 0.9.0, prefer a deploy token scoped to the app (Settings, API tokens, "Only for one app", or "Create a deploy token for this app" on the app's Configure page): it can only deploy, promote and read that app. |
 | `CARAVANA_APP_ID` | Optional. The app's name, if it is not `umbral`. |
 | `CARAVANA_BACKUP_SCHEDULE` | Optional. A five-field cron line in UTC, for example `0 3 * * *`. The first release then defines the app with a volume backup (see [Back up `/data` with Caravana](#back-up-data-with-caravana)). Ignored once the app is defined. |
+
+`CARAVANA_WEBHOOK_TOKEN`, which earlier versions of the workflow read, is no
+longer used: delete it from Bella Baxter.
 
 Then let GitHub Actions read that environment. On the environment, open
 Identity, Add trust domain, and pick the GitHub template:
@@ -811,14 +813,13 @@ deploy job runs in it, and two things depend on it:
 
 You can also add required reviewers there to approve each rollout by hand.
 
-The first time, go in this order: create the app in Caravana (above), copy its
-webhook token, put the secrets in Bella Baxter (`CARAVANA_URL`,
-`CARAVANA_DOMAIN`, `CARAVANA_TOKEN`, `CARAVANA_WEBHOOK_TOKEN`; and, if you want
-backups from the start, set a backup destination in Caravana and
-`CARAVANA_BACKUP_SCHEDULE`), add the trust domain, set the GitHub variables and
-the `production` environment, then push a tag. The first release defines the app
-from `deploy/caravana-app.json`. Every later release redeploys through the
-webhook and keeps the changes you made in the console.
+The first time, go in this order: create the app in Caravana (above), put the
+secrets in Bella Baxter (`CARAVANA_URL`, `CARAVANA_DOMAIN`, `CARAVANA_TOKEN`;
+and, if you want backups from the start, set a backup destination in Caravana
+and `CARAVANA_BACKUP_SCHEDULE`), add the trust domain, set the GitHub variables
+and the `production` environment, then push a tag. The first release defines the
+app from `deploy/caravana-app.json`. Every later release deploys the new image
+and keeps the changes you made in the console.
 
 ### Release
 
@@ -840,12 +841,15 @@ The workflow ([`release.yml`](.github/workflows/release.yml)) then:
 2. runs the same tests as CI;
 3. builds `linux/amd64` and `linux/arm64` and pushes `ghcr.io/<owner>/umbral:1.2.3`
    and `:latest`;
-4. calls the app's webhook and waits, up to 10 minutes, until Caravana reports the
-   rollout healthy. If the app has no services yet (the first release), it
-   defines the app from `deploy/caravana-app.json` with the API token instead,
-   using the image it just built. It fails if the rollout fails or is reverted,
-   and prints the deployment's warnings
-   ([`caravana-deploy.sh`](.github/scripts/caravana-deploy.sh));
+4. deploys the exact image digest it just built through Caravana's API, with
+   the [`Cosmic-Chimps/caravana-action`](https://github.com/Cosmic-Chimps/caravana-action)
+   action, and waits, up to 10 minutes, until Caravana reports the rollout
+   healthy. If the app has no services yet (the first release), it defines the
+   app from `deploy/caravana-app.json` with that image; afterwards the file is
+   ignored and only the image is replaced. It fails if the rollout fails or is
+   reverted, prints the deployment's warnings and writes them to the job
+   summary. Caravana 0.9.0 and later also shows the commit, branch and run that
+   deployed ("from CI ... run #N") in the app's history;
 5. publishes the GitHub release, with that changelog section as its notes
    (and GitHub's list of commits after it). It does not wait for the rollout,
    so a failed rollout still has a published image and a release. It then
@@ -856,8 +860,8 @@ The workflow ([`release.yml`](.github/workflows/release.yml)) then:
    The tag never moves;
 6. deletes image versions older than the last 10.
 
-Re-running a release is safe: when the image has not changed, Caravana deploys
-nothing and the workflow says so.
+Re-running a release is safe: the same image is deployed again as a new
+deployment, and nothing else changes.
 
 Things to know:
 
@@ -866,7 +870,7 @@ Things to know:
   of downtime, and a rollout takes 15 to 30 seconds. Pick a quiet moment, or put
   a required reviewer on the `production` environment.
 - **Prereleases do not deploy.** A tag with a hyphen, such as `v1.2.0-rc.1`,
-  publishes its image but does not move `latest` and does not call Caravana. Pull
+  publishes its image but does not move `latest` and does not deploy. Pull
   it by tag to try it. It gets a GitHub prerelease whose notes list what is under
   `## Unreleased`, and it leaves `CHANGELOG.md` alone, so the real release can
   still claim those entries.

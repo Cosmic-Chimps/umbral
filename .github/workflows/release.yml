@@ -6,10 +6,11 @@
 #   2. runs the same tests as CI,
 #   3. builds linux/amd64 and linux/arm64 and pushes ghcr.io/<owner>/umbral:1.2.3
 #      (and :latest, unless the tag is a prerelease),
-#   4. tells the Caravana host to roll it out and waits for the rollout to be
-#      healthy; the first time, it defines the app from deploy/caravana-app.json
+#   4. deploys that exact image digest on the Caravana host with the action
+#      Cosmic-Chimps/caravana-action, which waits for the rollout to be healthy;
+#      the first time, it defines the app from deploy/caravana-app.json
 #      (skipped for prereleases, and when the variable BELLA_BAXTER_PROJECT is
-#      not set). The Caravana settings and tokens are read from Bella Baxter
+#      not set). The Caravana settings and token are read from Bella Baxter
 #      with the job's GitHub OIDC token: no secret is stored in GitHub,
 #   5. publishes the GitHub release with the changelog section as its notes
 #      (it does not wait for the rollout: a failed rollout still has a
@@ -187,24 +188,76 @@ jobs:
           version: 0.1.1-preview.135
           oidc: 'true'
 
-      # The script is .github/scripts/caravana-deploy.sh. It calls the webhook;
-      # the first time, when the app has no services yet, it defines the app
-      # from deploy/caravana-app.json.
       # `bella run` puts every secret of the environment in the environment of
       # the command it runs, and nowhere else. It does not mask them, so the
-      # two tokens are masked here before anything can print them. No -p or -e:
-      # the project and environment come from the BELLA_BAXTER_* values above.
-      # The names in Bella Baxter differ from the ones the script reads, hence
-      # the three exports.
-      - name: Roll out on Caravana
+      # token is masked here before anything can print or write it. No -p or
+      # -e: the project and environment come from the BELLA_BAXTER_* values
+      # above. The step hands the Caravana settings to the action below as step
+      # outputs, and builds the definition the first deploy needs from
+      # deploy/caravana-app.json: the placeholders are filled on the JSON
+      # string values (not on the raw text), with the digest image CI built.
+      # A backup policy exists only in the app's definition (the console cannot
+      # turn one on), so it is added when CARAVANA_BACKUP_SCHEDULE is set.
+      - name: Settings from Bella Baxter
+        id: caravana
         run: |
           # shellcheck disable=SC2016 # the single quotes are on purpose: the inner shell expands
           bella run -- bash -c '
-            for name in CARAVANA_API_TOKEN CARAVANA_WEBHOOK_TOKEN; do
-              if [ -n "${!name:-}" ]; then echo "::add-mask::${!name}"; fi
-            done
-            export APP_ID="${CARAVANA_APP_ID:-umbral}" API_TOKEN="$CARAVANA_API_TOKEN" WEBHOOK_TOKEN="$CARAVANA_WEBHOOK_TOKEN"
-            exec .github/scripts/caravana-deploy.sh'
+            set -euo pipefail
+            if [ -n "${CARAVANA_TOKEN:-}" ]; then echo "::add-mask::$CARAVANA_TOKEN"; fi
+            if [ -z "${CARAVANA_URL:-}" ] || [ -z "${CARAVANA_TOKEN:-}" ]; then
+              echo "::error::The Bella Baxter secrets CARAVANA_URL and CARAVANA_TOKEN are both required."
+              exit 1
+            fi
+            definition=""
+            if [ -n "${CARAVANA_DOMAIN:-}" ]; then
+              filter=$(cat <<\JQ
+                walk(if type == "string"
+                     then (split("__IMAGE__") | join($image)) | (split("__DOMAIN__") | join($domain))
+                     else . end)
+                | if $schedule == "" then .
+                  else .services[0].backup = {engine: "volume", schedule: $schedule, keep: 7}
+                  end
+          JQ
+              )
+              definition="$RUNNER_TEMP/app.json"
+              jq --arg image "$IMAGE@$DIGEST" --arg domain "$CARAVANA_DOMAIN" \
+                --arg schedule "${CARAVANA_BACKUP_SCHEDULE:-}" \
+                "$filter" deploy/caravana-app.json > "$definition" || {
+                echo "::error::deploy/caravana-app.json is missing or is not valid JSON."
+                exit 1
+              }
+              if ! jq -e "[.. | strings | select(contains(\"__IMAGE__\") or contains(\"__DOMAIN__\"))] | length == 0" \
+                "$definition" > /dev/null; then
+                echo "::error::A placeholder in deploy/caravana-app.json was not filled."
+                exit 1
+              fi
+            else
+              echo "::notice::CARAVANA_DOMAIN is not set, so no definition is sent. The first deploy needs the Bella Baxter secret CARAVANA_DOMAIN, unless the app is already defined in Caravana."
+            fi
+            {
+              echo "url=$CARAVANA_URL"
+              echo "token=$CARAVANA_TOKEN"
+              echo "app=${CARAVANA_APP_ID:-umbral}"
+              echo "definition=$definition"
+            } >> "$GITHUB_OUTPUT"'
+
+      # Deploys the exact image CI just built, by digest, through Caravana's
+      # API, and waits for the rollout to be healthy. The definition is used
+      # only while the app has none; after that the app stored in Caravana is
+      # the truth, so edits made in its console are kept (only the image is
+      # replaced on each release). The action writes the job summary and prints
+      # Caravana's warnings.
+      # Pinned to the commit of the v1.0.0 tag.
+      - name: Deploy on Caravana
+        id: deploy
+        uses: Cosmic-Chimps/caravana-action@a2b68adb9ba275974a4bb6a7df4d3d880702e4a5 # v1.0.0
+        with:
+          url: ${{ steps.caravana.outputs.url }}
+          token: ${{ steps.caravana.outputs.token }}
+          app: ${{ steps.caravana.outputs.app }}
+          image: ${{ needs.image.outputs.image }}@${{ needs.image.outputs.digest }}
+          definition: ${{ steps.caravana.outputs.definition }}
 
   # Keep the last 10 versions. This waits for the rollout so that a failed one,
   # which Nomad reverts to the previous image, is never racing a deletion. It
