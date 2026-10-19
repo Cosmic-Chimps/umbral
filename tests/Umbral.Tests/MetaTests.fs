@@ -151,6 +151,14 @@ let private jsonFindings (text: string) : string list =
 
     walk "" document.RootElement
 
+/// `path` is the mapping the value sits in; a workflow's permission levels
+/// are `read`, `write` and `none`, at the top level or under a job.
+let private isPermissionLevel (path: string) (value: string | null) =
+    (path = "permissions" || path.EndsWith ".permissions")
+    && (match value with
+        | "read" | "write" | "none" -> true
+        | _ -> false)
+
 let private yamlFindings (text: string) : string list =
     let stream = YamlStream()
     stream.Load(new StringReader(text))
@@ -163,6 +171,9 @@ let private yamlFindings (text: string) : string list =
                   let here = if path = "" then name else $"{path}.{name}"
 
                   match entry.Value with
+                  // A GitHub workflow's `permissions:` names scopes such as
+                  // `id-token`, whose values are access levels, not secrets.
+                  | :? YamlScalarNode as scalar when isPermissionLevel path scalar.Value -> ()
                   | :? YamlScalarNode as scalar -> yield! checkPair here name (scalar.Value |> Option.ofObj |> Option.defaultValue "")
                   | other -> yield! walk here other ]
         | :? YamlSequenceNode as items ->
@@ -263,6 +274,7 @@ let ``the secret scan covers the files it is meant to`` () =
 [<InlineData("docker-compose.yml", "services:\n  umbral:\n    environment:\n      UMBRAL__ADMIN_PASSWORD: hunter2\n", "services.umbral.environment.UMBRAL__ADMIN_PASSWORD")>]
 [<InlineData("docker-compose.yml", "services:\n  umbral:\n    environment:\n      - GITHUB_CLIENT_SECRET=hunter2\n", "services.umbral.environment.GITHUB_CLIENT_SECRET")>]
 [<InlineData(".github/workflows/ci.yml", "jobs:\n  build:\n    steps:\n      - name: deploy\n        env:\n          API_TOKEN: abc\n", "jobs.build.steps.env.API_TOKEN")>]
+[<InlineData(".github/workflows/release.yml", "jobs:\n  deploy:\n    permissions:\n      api-token: abc123\n", "jobs.deploy.permissions.api-token")>]
 [<InlineData(".env", "UMBRAL__API_KEY=abc\n", "UMBRAL__API_KEY")>]
 [<InlineData(".env.production", "export UMBRAL__SECRET=\"abc\"\n", "UMBRAL__SECRET")>]
 let ``the secret scan flags a literal credential`` (fileName: string, text: string, expected: string) =
@@ -276,6 +288,7 @@ let ``the secret scan flags a literal credential`` (fileName: string, text: stri
 [<InlineData("docker-compose.yml", "services:\n  umbral:\n    environment:\n      - UMBRAL__SECRET=${UMBRAL_SECRET:?set it}\n")>]
 [<InlineData("docker-compose.yml", "services:\n  umbral:\n    volumes:\n      - keys:/data/keys\n    environment:\n      UMBRAL__KEYS_DIRECTORY: /data/keys\n")>]
 [<InlineData(".github/workflows/ci.yml", "jobs:\n  build:\n    env:\n      TOKEN: ${{ secrets.TOKEN }}\n")>]
+[<InlineData(".github/workflows/release.yml", "permissions:\n  contents: read\njobs:\n  deploy:\n    permissions:\n      id-token: write\n")>]
 [<InlineData(".env", "# UMBRAL__SECRET=abc\nUMBRAL__SECRET=$FROM_SHELL\nUMBRAL__SECRET_EMPTY=\n")>]
 let ``the secret scan lets references and ordinary values through`` (fileName: string, text: string) =
     Assert.Empty(secretsIn fileName text)
