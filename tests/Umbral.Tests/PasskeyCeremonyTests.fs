@@ -252,3 +252,371 @@ let ``the sign-in page carries the app's accent only when it has one`` () =
         let! _, branded, _ = startPasskeySignIn (Browser(app.Client)) clientId "openid"
         Assert.Contains("data-accent", bodyTag branded)
     }
+
+// ---------------------------------------------------------------------------
+// Refusals (User Story 2): every refusal is a 400 with a fixed notice, one
+// `sign_in_failed` event with a closed reason word, no session and no new
+// person or passkey.
+// ---------------------------------------------------------------------------
+
+type private Counts = { Users: string; Passkeys: string; Failed: string; AllEvents: string }
+
+let private countsOf (app: Fixtures.TestApp) =
+    task {
+        let! users = scalar app "SELECT count(*) FROM users" []
+        let! passkeys = scalar app "SELECT count(*) FROM passkeys" []
+        let! failed = scalar app "SELECT count(*) FROM security_events WHERE event_type = 'sign_in_failed'" []
+        let! all = scalar app "SELECT count(*) FROM security_events" []
+        return { Users = users; Passkeys = passkeys; Failed = failed; AllEvents = all }
+    }
+
+let private assertRefused
+    (app: Fixtures.TestApp)
+    (before: Counts)
+    (visitor: Browser)
+    (response: HttpResponseMessage, body: JsonElement)
+    (notice: string)
+    (reason: string)
+    (stage: string)
+    =
+    task {
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        Assert.Equal(notice, strOf body "error")
+        let! after = countsOf app
+        Assert.Equal(before.Users, after.Users)
+        Assert.Equal(before.Passkeys, after.Passkeys)
+        Assert.Equal(string (int before.Failed + 1), after.Failed)
+        let! failed = events app "sign_in_failed"
+        let _, _, detail = List.last failed
+        Assert.Equal(Some $"passkey_refused;reason={reason};stage={stage}", detail)
+        Assert.False(visitor.Cookies.ContainsKey "umbral_session", "no session was started")
+    }
+
+/// A visitor on the sign-in page, and its antiforgery token.
+let private visit (app: Fixtures.TestApp) =
+    task {
+        let visitor = Browser(app.Client)
+        let! token = visitor.TokenFrom "/connect/passkey/start?returnUrl=%2F"
+        return visitor, token
+    }
+
+let private assertionOptions (visitor: Browser) (token: string) =
+    task {
+        let! _, started = postJson visitor "/passkey/assertion/options" token {| returnUrl = "/" |}
+        return started
+    }
+
+/// Ana, with a passkey, and Bea, with another.
+let private twoPeople (app: Fixtures.TestApp) (operator: Browser) =
+    task {
+        let! ana, anaId = enrolled app operator
+        let! link = inviteNewPerson operator "Bea"
+        let bea = authenticator ()
+        let! r, _ = registerThroughInvitation (Browser(app.Client)) bea (secretOf link) (Some "Bea") "Key"
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode)
+        let! beaId = scalar app "SELECT id FROM users WHERE display_name = 'Bea'" []
+        return ana, anaId, bea, beaId
+    }
+
+/// One refused sign-in attempt by Ana's authenticator with `overrides`.
+let private refusedSignIn (overrides: SoftwareAuthenticator.AssertOverrides) (reason: string) =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! ana, _ = enrolled app operator
+        let credentialId = (List.head ana.Credentials).Id
+        let! visitor, token = visit app
+        let! started = assertionOptions visitor token
+        let! before = countsOf app
+        let credential = ana.Assert(started.GetProperty "options", credentialId, overrides)
+        let! result = postJson visitor "/passkey/assertion" token {| ceremony = strOf started "ceremony"; credential = credential |}
+        do! assertRefused app before visitor result "passkey-sign-in-failed" reason "assertion"
+    }
+
+[<Fact>]
+let ``an assertion for another origin is refused as origin_mismatch`` () =
+    refusedSignIn { SoftwareAuthenticator.AssertOverrides.None with Origin = Some "https://evil.example" } "origin_mismatch"
+
+[<Fact>]
+let ``an assertion for another RP id is refused as rpid_mismatch`` () =
+    refusedSignIn { SoftwareAuthenticator.AssertOverrides.None with RpId = Some "evil.example" } "rpid_mismatch"
+
+[<Fact>]
+let ``an assertion without user verification is refused`` () =
+    refusedSignIn { SoftwareAuthenticator.AssertOverrides.None with Flags = Some 0x01uy } "user_verification_missing"
+
+[<Fact>]
+let ``an assertion without user presence is refused`` () =
+    refusedSignIn { SoftwareAuthenticator.AssertOverrides.None with Flags = Some 0x04uy } "user_presence_missing"
+
+[<Fact>]
+let ``an assertion for an unknown credential id is refused`` () =
+    refusedSignIn
+        { SoftwareAuthenticator.AssertOverrides.None with CredentialId = Some(Security.Cryptography.RandomNumberGenerator.GetBytes 16) }
+        "unknown_credential"
+
+[<Fact>]
+let ``an assertion of the wrong type is refused`` () =
+    refusedSignIn { SoftwareAuthenticator.AssertOverrides.None with Type = Some "webauthn.create" } "type_mismatch"
+
+[<Fact>]
+let ``an assertion without a credential is refused as malformed`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! _ = enrolled app operator
+        let! visitor, token = visit app
+        let! started = assertionOptions visitor token
+        let! before = countsOf app
+        let! result = postJson visitor "/passkey/assertion" token {| ceremony = strOf started "ceremony" |}
+        do! assertRefused app before visitor result "passkey-sign-in-failed" "malformed_response" "assertion"
+    }
+
+[<Fact>]
+let ``an assertion carrying another person's handle is refused`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! ana, _, _, beaId = twoPeople app operator
+        let credentialId = (List.head ana.Credentials).Id
+        let! visitor, token = visit app
+        let! started = assertionOptions visitor token
+        let! before = countsOf app
+        let overrides = { SoftwareAuthenticator.AssertOverrides.None with UserHandle = Some(Text.Encoding.UTF8.GetBytes beaId) }
+        let credential = ana.Assert(started.GetProperty "options", credentialId, overrides)
+        let! result = postJson visitor "/passkey/assertion" token {| ceremony = strOf started "ceremony"; credential = credential |}
+        do! assertRefused app before visitor result "passkey-sign-in-failed" "user_handle_mismatch" "assertion"
+    }
+
+[<Fact>]
+let ``an assertion signed with another credential's key is refused`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! ana, _, bea, _ = twoPeople app operator
+        let credentialId = (List.head ana.Credentials).Id
+        let! visitor, token = visit app
+        let! started = assertionOptions visitor token
+        let! before = countsOf app
+        // Bea's authenticator answers with her key but under Ana's credential id
+        // and handle: the signature cannot verify against Ana's stored key.
+        let beaKey = List.head bea.Credentials
+        let anaHandle = (List.head ana.Credentials).UserHandle
+        let credential =
+            bea.Assert(
+                started.GetProperty "options",
+                beaKey.Id,
+                { SoftwareAuthenticator.AssertOverrides.None with
+                    CredentialId = Some credentialId
+                    UserHandle = Some anaHandle }
+            )
+
+        let! result = postJson visitor "/passkey/assertion" token {| ceremony = strOf started "ceremony"; credential = credential |}
+        do! assertRefused app before visitor result "passkey-sign-in-failed" "invalid_signature" "assertion"
+    }
+
+[<Fact>]
+let ``a ceremony id used twice is refused the second time`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! ana, _ = enrolled app operator
+        let credentialId = (List.head ana.Credentials).Id
+        let! visitor, token = visit app
+        let! started = assertionOptions visitor token
+        let respond () = ana.Assert(started.GetProperty "options", credentialId)
+        let! first, _ = postJson visitor "/passkey/assertion" token {| ceremony = strOf started "ceremony"; credential = respond () |}
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode)
+        visitor.Cookies.Remove "umbral_session" |> ignore
+        let! before = countsOf app
+        let! result = postJson visitor "/passkey/assertion" token {| ceremony = strOf started "ceremony"; credential = respond () |}
+        do! assertRefused app before visitor result "passkey-sign-in-failed" "ceremony_unknown_or_expired" "assertion"
+    }
+
+[<Fact>]
+let ``an assertion on a ceremony older than five minutes is refused`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! ana, _ = enrolled app operator
+        let credentialId = (List.head ana.Credentials).Id
+        let! visitor, token = visit app
+        let! started = assertionOptions visitor token
+        app.Clock.Advance(TimeSpan.FromMinutes 6.)
+        let! before = countsOf app
+        let credential = ana.Assert(started.GetProperty "options", credentialId)
+        let! result = postJson visitor "/passkey/assertion" token {| ceremony = strOf started "ceremony"; credential = credential |}
+        do! assertRefused app before visitor result "passkey-sign-in-failed" "ceremony_unknown_or_expired" "assertion"
+    }
+
+[<Fact>]
+let ``a counter that does not advance is refused, a credential that always reports zero is not`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! ana, _ = enrolled app operator
+        let credentialId = (List.head ana.Credentials).Id
+        let attempt (counter: uint32 option) (browser: Browser) (token: string) =
+            task {
+                let! started = assertionOptions browser token
+                let credential =
+                    ana.Assert(started.GetProperty "options", credentialId, { SoftwareAuthenticator.AssertOverrides.None with Counter = counter })
+                return! postJson browser "/passkey/assertion" token {| ceremony = strOf started "ceremony"; credential = credential |}
+            }
+
+        // Counter 0, twice: accepted, as the authenticators that never count do.
+        for _ in 1..2 do
+            // A signed-in browser's antiforgery token no longer fits a new
+            // visitor, so each attempt starts from a fresh one.
+            let! visitor, token = visit app
+            let! r, _ = attempt (Some 0u) visitor token
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode)
+
+        let! visitor1, token1 = visit app
+        let! r1, _ = attempt (Some 1u) visitor1 token1
+        Assert.Equal(HttpStatusCode.OK, r1.StatusCode)
+
+        let! visitor, token = visit app
+        let! before = countsOf app
+        let! result = attempt (Some 1u) visitor token
+        do! assertRefused app before visitor result "passkey-sign-in-failed" "sign_count_regressed" "assertion"
+    }
+
+[<Fact>]
+let ``a disabled person is refused with account-disabled`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! ana, anaId = enrolled app operator
+        let credentialId = (List.head ana.Credentials).Id
+        let! toggled = operator.PostForm("/admin/users", $"/admin/users/{anaId}/toggle", [])
+        Assert.Equal(HttpStatusCode.Redirect, toggled.StatusCode)
+        let! visitor, token = visit app
+        let! started = assertionOptions visitor token
+        let! before = countsOf app
+        let credential = ana.Assert(started.GetProperty "options", credentialId)
+        let! result = postJson visitor "/passkey/assertion" token {| ceremony = strOf started "ceremony"; credential = credential |}
+        do! assertRefused app before visitor result "account-disabled" "user_disabled" "assertion"
+    }
+
+/// One registration through a fresh invitation, the response built with `overrides`.
+let private refusedRegistration (overrides: SoftwareAuthenticator.RegisterOverrides) (reason: string) =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! link = inviteNewPerson operator "Ana"
+        let secret = secretOf link
+        let visitor = Browser(app.Client)
+        let! _, token = openInvitation visitor secret
+
+        let! _, started =
+            postJson visitor "/passkey/registration/options" token {| mode = "invitation"; invitation = secret; displayName = "Ana"; nickname = "Phone" |}
+
+        let! before = countsOf app
+        let credential = (authenticator ()).Register(started.GetProperty "options", overrides)
+        let! result = postJson visitor "/passkey/registration" token {| ceremony = strOf started "ceremony"; credential = credential |}
+        do! assertRefused app before visitor result "passkey-registration-failed" reason "registration"
+    }
+
+[<Fact>]
+let ``a registration without a discoverable credential is refused`` () =
+    refusedRegistration { SoftwareAuthenticator.RegisterOverrides.None with Rk = Some false } "passkey_not_discoverable"
+
+[<Fact>]
+let ``a registration for another origin is refused`` () =
+    refusedRegistration { SoftwareAuthenticator.RegisterOverrides.None with Origin = Some "https://evil.example" } "origin_mismatch"
+
+[<Fact>]
+let ``a registration of the wrong type is refused`` () =
+    refusedRegistration { SoftwareAuthenticator.RegisterOverrides.None with Type = Some "webauthn.get" } "type_mismatch"
+
+[<Fact>]
+let ``a registration ceremony id used twice is refused the second time`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, _, _ = prepare app
+        let! link = inviteNewPerson operator "Ana"
+        let secret = secretOf link
+        let visitor = Browser(app.Client)
+        let! _, token = openInvitation visitor secret
+
+        let! _, started =
+            postJson visitor "/passkey/registration/options" token {| mode = "invitation"; invitation = secret; displayName = "Ana"; nickname = "Phone" |}
+
+        let respond () = (authenticator ()).Register(started.GetProperty "options")
+        let! first, _ = postJson visitor "/passkey/registration" token {| ceremony = strOf started "ceremony"; credential = respond () |}
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode)
+        visitor.Cookies.Remove "umbral_session" |> ignore
+        let! before = countsOf app
+        let! result = postJson visitor "/passkey/registration" token {| ceremony = strOf started "ceremony"; credential = respond () |}
+        do! assertRefused app before visitor result "passkey-registration-failed" "ceremony_unknown_or_expired" "registration"
+    }
+
+[<Fact>]
+let ``signing up while the connector is invitations-only is refused`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _ = prepare app
+        let! visitor, token = visit app
+        let! before = countsOf app
+
+        let! result =
+            postJson visitor "/passkey/registration/options" token {| mode = "signup"; displayName = "Mallory"; nickname = "Phone"; returnUrl = "/" |}
+
+        do! assertRefused app before visitor result "passkey-registration-failed" "enrolment_closed" "registration"
+    }
+
+[<Fact>]
+let ``two different refusals end on the same page text, with no reason word`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _ = prepare app
+        let alert (html: string) = Regex.Match(html, "role=\"alert\"[^>]*>(.*?)</", RegexOptions.Singleline).Groups[1].Value.Trim()
+        let! first = Browser(app.Client).GetHtml "/connect/passkey/start?returnUrl=%2F&msg=passkey-sign-in-failed"
+        let! second = Browser(app.Client).GetHtml "/connect/passkey/start?returnUrl=%2F&msg=passkey-sign-in-failed"
+        Assert.NotEqual<string>("", alert first)
+        Assert.Equal(alert first, alert second)
+
+        for word in [ "origin_mismatch"; "rpid_mismatch"; "unknown_credential"; "sign_count_regressed"; "user_handle_mismatch" ] do
+            Assert.DoesNotContain(word, first)
+    }
+
+[<Fact>]
+let ``the 31st assertion start from one source is limited`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _ = prepare app
+        let! visitor, token = visit app
+
+        let send () =
+            task {
+                let message = new HttpRequestMessage(HttpMethod.Post, "/passkey/assertion/options")
+                message.Content <- new StringContent("""{"returnUrl":"/"}""", Text.Encoding.UTF8, "application/json")
+                message.Headers.Add("RequestVerificationToken", token)
+                message.Headers.Add("X-Forwarded-For", "203.0.113.50")
+                return! visitor.Send message
+            }
+
+        for _ in 1..30 do
+            let! r = send ()
+            Assert.NotEqual(HttpStatusCode.TooManyRequests, r.StatusCode)
+
+        let! over = send ()
+        Assert.Equal(HttpStatusCode.TooManyRequests, over.StatusCode)
+        Assert.True(over.Headers.Contains "Retry-After")
+    }
+
+[<Fact>]
+let ``a passkey POST without the antiforgery header is refused and changes nothing`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _ = prepare app
+        let! visitor, _ = visit app
+        let! before = countsOf app
+        let message = new HttpRequestMessage(HttpMethod.Post, "/passkey/assertion/options")
+        message.Content <- new StringContent("""{"returnUrl":"/"}""", Text.Encoding.UTF8, "application/json")
+        let! response = visitor.Send message
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        let! after = countsOf app
+        Assert.Equal(before, after)
+    }

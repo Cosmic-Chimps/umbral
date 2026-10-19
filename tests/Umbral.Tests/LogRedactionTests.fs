@@ -641,3 +641,47 @@ let ``no full email address reaches a log sink or the security log when a sign-i
 
         Assert.True(List.isEmpty leaks, "full addresses reached a log sink:" + Environment.NewLine + String.Join(Environment.NewLine, leaks))
     }
+
+/// Spec 008: a passkey journey (enable, invite, enrol, sign in) and one
+/// refusal for another origin. Neither a log line nor an event row may carry
+/// the library's message (`evil.example`), a credential id, the invitation
+/// secret or the word `challenge`.
+[<Fact>]
+let ``no credential id, challenge or library message reaches a log sink or the security log through a passkey journey`` () =
+    task {
+        let provider = new CapturingProvider()
+        use! app = Fixtures.createAppWith (fakeSettings @ verboseSettings) (captureAt provider)
+        let operator = Flows.Browser(app.Client)
+        do! Flows.claimOperator app operator
+        do! PasskeyFlows.enablePasskeyConnector operator "invitations"
+        let! link = PasskeyFlows.inviteNewPerson operator "Ana"
+        let secret = PasskeyFlows.secretOf link
+        let authenticator = SoftwareAuthenticator.SoftwareAuthenticator("umbral.test", Fixtures.TestOrigin)
+        let! registered, _ = PasskeyFlows.registerThroughInvitation (Flows.Browser(app.Client)) authenticator secret (Some "Ana") "Phone"
+        Assert.Equal(HttpStatusCode.OK, registered.StatusCode)
+        let credentialId = (List.head authenticator.Credentials).Id
+
+        let attempt (overrides: SoftwareAuthenticator.AssertOverrides) =
+            task {
+                let visitor = Flows.Browser(app.Client)
+                let! token = visitor.TokenFrom "/connect/passkey/start?returnUrl=%2F"
+                let! _, started = PasskeyFlows.postJson visitor "/passkey/assertion/options" token {| returnUrl = "/" |}
+                let credential = authenticator.Assert(started.GetProperty "options", credentialId, overrides)
+                let ceremony = started.GetProperty("ceremony").GetString()
+                return! PasskeyFlows.postJson visitor "/passkey/assertion" token {| ceremony = ceremony; credential = credential |}
+            }
+
+        let! ok, _ = attempt SoftwareAuthenticator.AssertOverrides.None
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode)
+        let! refused, _ = attempt { SoftwareAuthenticator.AssertOverrides.None with Origin = Some "https://evil.example" }
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode)
+
+        let secrets =
+            [ { Label = "library message"; Value = "evil.example" }
+              { Label = "invitation secret"; Value = secret }
+              { Label = "the word challenge"; Value = "challenge" }
+              for c in authenticator.Credentials do
+                  { Label = "credential id"; Value = SoftwareAuthenticator.toBase64Url c.Id } ]
+
+        do! assertNoLeaks app provider secrets []
+    }

@@ -87,6 +87,11 @@ let handler (secret: string) : EndpointHandler =
 
             let! found = PasskeyInvitations.findBySecret config clock secret
 
+            // The secret is in this page's address. The page links nowhere
+            // else, but a browser would still put the address in `Referer` on
+            // any request the page made; this says never to.
+            ctx.Response.Headers.Append("Referrer-Policy", "no-referrer")
+
             match found with
             | Some(invitation, PasskeyInvitations.Open) ->
                 let forUser =

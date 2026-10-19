@@ -13,6 +13,12 @@
 ///                `redirect_uri` registration, PKCE, `state`, bearer tokens —
 ///                and a browser form cannot supply an antiforgery token for a
 ///                request an arbitrary third-party app is meant to make.
+///   /passkey/*   The passkey ceremonies' JSON endpoints. They validate the same
+///                antiforgery token through the `RequestVerificationToken`
+///                header (`WebForms.validateAntiforgery`), and
+///                `PasskeyCeremonyTests` holds a POST without the header to a
+///                400 with nothing changed; this test posts form bodies and
+///                cannot exercise them.
 ///   /dev/*       The Fake provider, a stand-in for somebody else's login page.
 ///                It exists only behind two gates and changes no Umbral state.
 ///
@@ -51,7 +57,7 @@ type private MutatingRoute =
 
 /// Path prefixes that are not Umbral's to protect with antiforgery. See the
 /// module comment for the reasons.
-let private outOfScope = [ "/connect/"; "/dev/" ]
+let private outOfScope = [ "/connect/"; "/dev/"; "/passkey/" ]
 
 let private mutatingRoutes (app: Fixtures.TestApp) =
     (app.App :> IEndpointRouteBuilder).DataSources

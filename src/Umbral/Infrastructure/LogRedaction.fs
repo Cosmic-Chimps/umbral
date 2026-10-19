@@ -29,7 +29,21 @@ let cappedCategories =
 
       // The same, for the validation half (userinfo): at Trace it prints
       // the bearer token it is validating.
-      "OpenIddict.Validation.OpenIddictValidationDispatcher" ]
+      "OpenIddict.Validation.OpenIddictValidationDispatcher"
+
+      // Spec 008: an invitation link is `/invite/<secret>`, so the secret is in
+      // the request PATH, which these framework categories echo. Routing logs
+      // "Executing endpoint" and its matching at Information and Debug with the
+      // path; antiforgery, the cookie handler and host filtering repeat the
+      // request at Debug and Trace; Data Protection names the purposes it
+      // protects with, which include a path, at Trace. None of it is diagnostic
+      // for an operator, and `security_events` records what the link did. The
+      // passkey journey in LogRedactionTests found each of these.
+      "Microsoft.AspNetCore.Routing"
+      "Microsoft.AspNetCore.Antiforgery"
+      "Microsoft.AspNetCore.Authentication.Cookies"
+      "Microsoft.AspNetCore.HostFiltering"
+      "Microsoft.AspNetCore.DataProtection" ]
 
 let capCategories (logging: ILoggingBuilder) =
     for category in cappedCategories do
