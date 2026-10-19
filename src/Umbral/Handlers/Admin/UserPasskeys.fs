@@ -7,10 +7,6 @@ open Oxpecker
 open Umbral.Infrastructure
 open Umbral.Views
 
-/// Texts a later task (the passkey list and its removal) will show; read here
-/// so the "every Texts field is read" check passes meanwhile.
-let private _texts (t: Texts.Texts) : objnull list = [ box t.UserPasskeyRemoveConfirm ]
-
 let handler (id: string) : EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
         task {
@@ -48,4 +44,35 @@ let handler (id: string) : EndpointHandler =
                     return! WebForms.redirectWithNoticeAbout ctx "/admin/users" "passkey-user-invited" [ "user", id ]
         })
 
-let endpoint = [ POST [ routef "/admin/users/{%s}/invite" handler ] ]
+let removeHandler (id: string) (pid: string) : EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let! _ = WebForms.readValidated ctx
+
+            match! Passkeys.findById config pid with
+            | Some pk when pk.UserId = id ->
+                let! _ = Passkeys.remove config pid
+
+                do!
+                    SecurityEvents.record
+                        config
+                        clock
+                        { SecurityEvents.event
+                              SecurityEvents.PasskeyRemoved
+                              SecurityEvents.Success
+                              SecurityEvents.Actor.Operator with
+                            ConnectorSlug = Some "passkey"
+                            UserId = Some id
+                            Detail = Some "by=operator"
+                            RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string }
+
+                return! WebForms.redirectWithNotice ctx "/admin/users" "passkey-removed"
+            | _ -> return! WebForms.redirectWithNotice ctx "/admin/users" "passkey-not-found"
+        })
+
+let endpoint =
+    [ POST
+          [ routef "/admin/users/{%s}/invite" handler
+            routef "/admin/users/{%s}/passkeys/{%s}/remove" removeHandler ] ]

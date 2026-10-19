@@ -125,6 +125,9 @@ let linkedProviders (config: Database.DbConfig) (userId: string) : Task<(string 
 let private formatSignIn (value: DateTimeOffset) =
     value.ToString("yyyy-MM-dd HH:mm 'UTC'", Globalization.CultureInfo.InvariantCulture)
 
+let private day (value: DateTimeOffset) =
+    value.ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+
 let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
     let user = data.User
 
@@ -147,7 +150,44 @@ let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
         div(class' = "flex flex-wrap gap-1.5") {
             for kind, label in data.LinkedProviders do
                 (Components.pill Components.PrimaryTone label).data ("linked-provider", kind)
+            if not data.Passkeys.IsEmpty then
+                (Components.pill Components.PrimaryTone "Passkey").data ("linked-provider", "passkey")
         }
+
+        if not data.Passkeys.IsEmpty then
+            (ul(class' = "space-y-1 text-body-md text-on-surface-variant").data ("user-passkeys", "") {
+                for pk in data.Passkeys do
+                    li(class' = "flex flex-wrap items-center gap-2").data ("passkey", pk.Id) {
+                        span(class' = "text-on-surface") { pk.Nickname }
+
+                        span() {
+                            $"{t.PasskeyAddedLabel}: {day pk.CreatedUtc}"
+                        }
+
+                        span() {
+                            match pk.LastUsedUtc with
+                            | Some d ->
+                                $"{t.PasskeyLastUsedLabel}: {day d}"
+                            | None -> $"{t.PasskeyLastUsedLabel}: {t.PasskeyNeverUsed}"
+                        }
+
+                        (form(
+                            method = "post",
+                            action = $"/admin/users/{user.Id}/passkeys/{pk.Id}/remove",
+                            class' = "inline"
+                        ) {
+                            ctx.GetAntiforgeryInput()
+
+                            button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                                t.PasskeyRemoveButton
+                            }
+                        })
+                        |> Components.confirmSubmit (t.UserPasskeyRemoveConfirm user.DisplayName)
+                    }
+            })
+            :> HtmlElement
+        else
+            Fragment() :> HtmlElement
 
         if data.CanInvite then
             (form(method = "post", action = $"/admin/users/{user.Id}/invite", class' = "inline") {
