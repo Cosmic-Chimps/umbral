@@ -771,7 +771,7 @@ secrets:
 | --- | --- |
 | `CARAVANA_URL` | The console domain, for example `https://caravana.example.com`, with no trailing slash. |
 | `CARAVANA_DOMAIN` | The domain Umbral is served on, for example `auth.example.com`, without `https://`. Needed for the first release, which defines the app with it; ignored afterwards. |
-| `CARAVANA_TOKEN` | A Caravana API token: Settings, API tokens, or `sudo caravana admin create-token --name umbral-ci` on the host. It starts with `cvat_`. A full API token works on Caravana 0.7.0 and later. Once the host runs Caravana 0.9.0, prefer a deploy token scoped to the app (Settings, API tokens, "Only for one app", or "Create a deploy token for this app" on the app's Configure page): it can only deploy, promote and read that app. |
+| `CARAVANA_TOKEN` | A deploy token for the app (Caravana 0.8.1 and later): Settings, API tokens, "Only for one app" (project `default`, app `umbral`), or "Create a deploy token for this app" on the app's Configure page. It starts with `cvat_` and can only deploy, define, promote and read that app; anything else is refused with `token_scope`. On an older Caravana (0.7.0 to 0.8.0), use a full API token instead: Settings, API tokens, or `sudo caravana admin create-token --name umbral-ci` on the host. |
 | `CARAVANA_APP_ID` | Optional. The app's name, if it is not `umbral`. |
 | `CARAVANA_BACKUP_SCHEDULE` | Optional. A five-field cron line in UTC, for example `0 3 * * *`. The first release then defines the app with a volume backup (see [Back up `/data` with Caravana](#back-up-data-with-caravana)). Ignored once the app is defined. |
 
@@ -848,7 +848,7 @@ The workflow ([`release.yml`](.github/workflows/release.yml)) then:
    app from `deploy/caravana-app.json` with that image; afterwards the file is
    ignored and only the image is replaced. It fails if the rollout fails or is
    reverted, prints the deployment's warnings and writes them to the job
-   summary. Caravana 0.9.0 and later also shows the commit, branch and run that
+   summary. Caravana 0.8.1 and later also shows the commit, branch and run that
    deployed ("from CI ... run #N") in the app's history;
 5. publishes the GitHub release, with that changelog section as its notes
    (and GitHub's list of commits after it). It does not wait for the rollout,
