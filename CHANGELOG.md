@@ -10,6 +10,14 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+### Changed
+- The Caravana guide in the README now uses a deploy token that can only deploy and read the
+  `umbral` app (Caravana 0.8.1 and later), with a full API token as the fallback for older hosts.
+
+### Fixed
+- A tagged release deploys to Caravana again when its settings come from a Bella Baxter tenant
+  that requires registered device keys. 0.1.0 was published but never reached Caravana.
+
 ## 0.1.0 - 2026-10-19
 
 ### Added
