@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B · Connectors, light</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&amp;family=Schibsted+Grotesk:wght@400;500;600&amp;family=Spline+Sans+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f1ea}
+a{text-decoration:none;color:#5f5a6b}
+input:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid #8a5a00;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 1300px; background: #f4f1ea; color: #17151f; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; flex-wrap: wrap">
+  <aside style="flex: 1 1 220px; max-width: 100%; box-sizing: border-box; padding: 28px 20px; border-right: 1px solid #e3ddd0; display: flex; flex-direction: column; justify-content: space-between; gap: 32px">
+    <div style="display: flex; flex-direction: column; gap: 32px">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><circle cx="11" cy="11" r="5.5" fill="#b8801f"></circle><path d="M22 40H45L22 32Z" fill="#5f5a6b" opacity="0.4"></path><path d="M22 40V13" stroke="#17151f" stroke-width="5.5" stroke-linecap="round"></path></svg>
+        <span style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.035em">umbral</span>
+      </div>
+      <nav aria-label="Admin" style="display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500">
+        <a href="#" style="padding: 11px 14px; border-radius: 12px">Apps</a>
+        <a href="#" aria-current="page" style="padding: 11px 14px; border-radius: 12px; background: #ebe5d8; color: #8a5a00; font-weight: 600">Connectors</a>
+        <a href="#" style="padding: 11px 14px; border-radius: 12px">Users</a>
+        <a href="#" style="padding: 11px 14px; border-radius: 12px">Credential</a>
+        <a href="#" style="padding: 11px 14px; border-radius: 12px">Sign out</a>
+      </nav>
+    </div>
+    <div role="group" aria-label="Theme" style="display: flex; padding: 3px; border-radius: 999px; border: 1px solid #ddd6c8; background: #fffdf8; align-self: flex-start">
+      <button type="button" aria-label="Follow system" aria-pressed="false" style="width: 44px; height: 44px; border: 0; border-radius: 999px; background: transparent; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f5a6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg></button>
+      <button type="button" aria-label="Light" aria-pressed="true" style="width: 44px; height: 44px; border: 0; border-radius: 999px; background: #17151f; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f5c26b" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg></button>
+      <button type="button" aria-label="Dark" aria-pressed="false" style="width: 44px; height: 44px; border: 0; border-radius: 999px; background: transparent; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f5a6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"></path></svg></button>
+    </div>
+  </aside>
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 48px clamp(20px, 5vw, 64px) 64px; display: flex; flex-direction: column; gap: 28px; max-width: 1000px">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 48px; line-height: 50px; font-weight: 800; letter-spacing: -0.035em">Connectors</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 24px; color: #5f5a6b; max-width: 620px">Upstream providers people can sign in with. Enable the ones you've registered an OAuth app with.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; border-radius: 20px; border: 1px solid #ddd6c8; background: #fffdf8">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 22px; border-bottom: 1px solid #e3ddd0">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px"><span style="font-size: 18px; font-weight: 600">Discord</span><span style="padding: 3px 10px; border-radius: 999px; background: #e6eedc; color: #2f5d1e; font-size: 12px; font-weight: 600">Enabled</span><span style="padding: 3px 10px; border-radius: 999px; background: #ebe5d8; color: #5f5a6b; font-size: 12px; font-weight: 600">Shared</span></div>
+        <div style="display: flex; gap: 8px"><button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #ddd6c8; border-radius: 999px; background: transparent; color: #17151f; font: 500 14px 'Schibsted Grotesk', sans-serif">Disable</button><button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #ddd6c8; border-radius: 999px; background: transparent; color: #17151f; font: 500 14px 'Schibsted Grotesk', sans-serif">Edit</button></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px; padding: 20px 22px; border-bottom: 1px solid #e3ddd0">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px"><span style="font-size: 18px; font-weight: 600">GitHub</span><span style="padding: 3px 10px; border-radius: 999px; background: #e6eedc; color: #2f5d1e; font-size: 12px; font-weight: 600">Enabled</span><span style="padding: 3px 10px; border-radius: 999px; background: #ebe5d8; color: #5f5a6b; font-size: 12px; font-weight: 600">Not shared</span></div>
+          <div style="display: flex; gap: 8px"><button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #ddd6c8; border-radius: 999px; background: transparent; color: #17151f; font: 500 14px 'Schibsted Grotesk', sans-serif">Disable</button><button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #ddd6c8; border-radius: 999px; background: transparent; color: #17151f; font: 500 14px 'Schibsted Grotesk', sans-serif">Edit</button></div>
+        </div>
+        <p style="margin: 0; padding: 12px 14px; border-radius: 12px; background: #fbefd6; border: 1px solid #e2c27f; color: #6b4500; font-size: 14px; line-height: 20px">Not shared, and no app has chosen it, so nobody sees it yet. Choose it on an app's Sign-in methods, or tick Shared.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 18px; padding: 20px 22px; border-bottom: 1px solid #e3ddd0; background: #faf7f0">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px"><span style="font-size: 18px; font-weight: 600">Google</span><span style="padding: 3px 10px; border-radius: 999px; background: #ebe5d8; color: #5f5a6b; font-size: 12px; font-weight: 600">Not set up</span></div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 14px; font-weight: 600">Redirect URI to register with the provider</div>
+          <div style="display: flex; gap: 8px"><code style="flex: 1; min-width: 0; overflow-x: auto; font-family: 'Spline Sans Mono', monospace; font-size: 14px; padding: 11px 14px; border-radius: 12px; background: #fffdf8; border: 1px solid #ddd6c8">https://auth.example.com/connect/google/callback</code><button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #ddd6c8; border-radius: 999px; background: #fffdf8; color: #17151f; font: 500 14px 'Schibsted Grotesk', sans-serif">Copy</button></div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <label for="g-id" style="font-size: 14px; font-weight: 600">Client ID</label>
+            <input id="g-id" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #ddd6c8; background: #fffdf8; color: #17151f; font: 400 15px 'Spline Sans Mono', monospace">
+            <div style="font-size: 13px; line-height: 18px; color: #5f5a6b">From the OAuth application you created in Google's developer console.</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <label for="g-secret" style="font-size: 14px; font-weight: 600">Client secret</label>
+            <input id="g-secret" type="password" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #ddd6c8; background: #fffdf8; color: #17151f; font: 400 15px 'Spline Sans Mono', monospace">
+            <div style="font-size: 13px; line-height: 18px; color: #5f5a6b">Stored encrypted. It can't be shown again once saved — only replaced.</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <label for="g-label" style="font-size: 14px; font-weight: 600">Button label</label>
+            <input id="g-label" value="Google" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #ddd6c8; background: #fffdf8; color: #17151f; font: 400 16px 'Schibsted Grotesk', sans-serif">
+            <div style="font-size: 13px; line-height: 18px; color: #5f5a6b">Shown on the sign-in button as "Sign in with …".</div>
+          </div>
+        </div>
+        <label style="display: flex; gap: 12px; align-items: flex-start; cursor: pointer">
+          <input type="checkbox" checked style="accent-color: #8a5a00; width: 20px; height: 20px; margin: 1px 0 0">
+          <span style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 15px; font-weight: 600">Shared with every app</span><span style="font-size: 13px; line-height: 18px; color: #5f5a6b">Shared connectors are offered to every app set to "all shared connectors". Untick it to offer this one only to the apps that choose it.</span></span>
+        </label>
+        <div><button type="submit" style="height: 46px; padding: 0 22px; border: 0; border-radius: 999px; background: #17151f; color: #f5c26b; font: 600 15px 'Schibsted Grotesk', sans-serif">Save connector</button></div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 22px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px"><span style="font-size: 18px; font-weight: 600">Home</span><span style="padding: 3px 10px; border-radius: 999px; background: #e6eedc; color: #2f5d1e; font-size: 12px; font-weight: 600">Enabled</span><span style="padding: 3px 10px; border-radius: 999px; background: #ebe5d8; color: #5f5a6b; font-size: 12px; font-weight: 600">Shared</span></div>
+          <div style="font-size: 13px; color: #5f5a6b">OpenID Connect provider · <code style="font-family: 'Spline Sans Mono', monospace">https://id.example.com</code></div>
+        </div>
+        <div style="display: flex; gap: 8px"><button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #ddd6c8; border-radius: 999px; background: transparent; color: #17151f; font: 500 14px 'Schibsted Grotesk', sans-serif">Disable</button><button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #ddd6c8; border-radius: 999px; background: transparent; color: #17151f; font: 500 14px 'Schibsted Grotesk', sans-serif">Edit</button></div>
+      </div>
+    </div>
+
+    <section style="display: flex; flex-direction: column; gap: 16px; padding: 24px; border-radius: 20px; border: 1px dashed #cfc6b4">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.03em">Add another connector</h2>
+        <p style="margin: 0; font-size: 14px; line-height: 20px; color: #5f5a6b; max-width: 640px">A second Discord, GitHub or Google application, for example one with its own name for a single app, or an OpenID Connect provider such as Authentik, Keycloak or Pocket ID.</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="add-kind" style="font-size: 14px; font-weight: 600">Provider</label>
+          <select id="add-kind" style="height: 48px; box-sizing: border-box; padding: 0 12px; border-radius: 12px; border: 1px solid #ddd6c8; background: #fffdf8; color: #17151f; font: 400 15px 'Schibsted Grotesk', sans-serif"><option>OpenID Connect provider</option><option>Discord</option><option>GitHub</option><option>Google</option></select>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="add-slug" style="font-size: 14px; font-weight: 600">Identifier</label>
+          <input id="add-slug" value="club-keycloak" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #ddd6c8; background: #fffdf8; color: #17151f; font: 400 15px 'Spline Sans Mono', monospace">
+          <div style="font-size: 13px; line-height: 18px; color: #5f5a6b">Lower-case letters, digits and hyphens, up to 32. It becomes part of the callback URL, so it can't be changed once saved.</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="add-issuer" style="font-size: 14px; font-weight: 600">Issuer URL</label>
+          <input id="add-issuer" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #ddd6c8; background: #fffdf8; color: #17151f; font: 400 15px 'Spline Sans Mono', monospace">
+          <div style="font-size: 13px; line-height: 18px; color: #5f5a6b">Only for an OpenID Connect provider. Umbral reads everything else from it.</div>
+        </div>
+      </div>
+      <p style="margin: 0; padding: 12px 14px; border-radius: 12px; background: #fbefd6; border: 1px solid #e2c27f; color: #6b4500; font-size: 14px; line-height: 20px">Umbral trusts an email address that an OpenID Connect provider marks as verified. Add only a provider you run or trust.</p>
+      <div><button type="button" style="height: 46px; padding: 0 22px; border: 1px solid #17151f; border-radius: 999px; background: transparent; color: #17151f; font: 600 15px 'Schibsted Grotesk', sans-serif">Add connector</button></div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

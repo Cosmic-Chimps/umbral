@@ -153,10 +153,10 @@ jobs:
         run: |
           # shellcheck disable=SC2016 # the single quotes are on purpose: the inner shell expands
           bella run -- bash -c '
-            for name in CARAVANA_TOKEN CARAVANA_WEBHOOK_TOKEN; do
+            for name in CARAVANA_API_TOKEN CARAVANA_WEBHOOK_TOKEN; do
               if [ -n "${!name:-}" ]; then echo "::add-mask::${!name}"; fi
             done
-            export APP_ID="${CARAVANA_APP_ID:-umbral}" API_TOKEN="$CARAVANA_TOKEN" WEBHOOK_TOKEN="$CARAVANA_WEBHOOK_TOKEN"
+            export APP_ID="${CARAVANA_APP_ID:-umbral}" API_TOKEN="$CARAVANA_API_TOKEN" WEBHOOK_TOKEN="$CARAVANA_WEBHOOK_TOKEN"
             exec .github/scripts/caravana-deploy.sh'
 
   # Keep the last 10 versions. This waits for the rollout so that a failed one,

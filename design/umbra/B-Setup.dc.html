@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B · First-run setup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&amp;family=Schibsted+Grotesk:wght@400;500;600&amp;family=Spline+Sans+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0b14}
+input:focus-visible,button:focus-visible{outline:2px solid #f5c26b;outline-offset:2px}
+</style>
+</helmet>
+<main style="min-height: 844px; box-sizing: border-box; padding: 56px 16px; background: #0b0b14; color: #ece8df; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; align-items: center; justify-content: center">
+  <form style="width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 26px">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <svg width="44" height="44" viewBox="0 0 48 48" aria-hidden="true"><circle cx="11" cy="11" r="4.5" fill="#f5c26b"></circle><path d="M6 39h36" stroke="#3a3a52" stroke-width="3" stroke-linecap="round"></path><path d="M22 39H44L22 33Z" fill="#a7a2b6" opacity="0.5"></path><path d="M22 39V13" stroke="#ece8df" stroke-width="4" stroke-linecap="round"></path></svg>
+      <span style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -0.035em">umbral</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 44px; line-height: 46px; font-weight: 800; letter-spacing: -0.035em">Set up Umbral</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 24px; color: #a7a2b6">Choose the operator credential. It's the only way to reach this admin area, so keep it somewhere safe. There's no recovery screen: if you lose it, run this on the host.</p>
+      <code style="font-family: 'Spline Sans Mono', monospace; font-size: 13px; padding: 12px 14px; border-radius: 12px; background: #14141f; border: 1px solid #2e2e40; overflow-x: auto; white-space: nowrap">docker exec -it umbral /app/Umbral reset-credential</code>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 18px; padding: 24px; border-radius: 20px; background: #14141f; border: 1px solid #2e2e40">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="setup-token" style="font-size: 14px; font-weight: 600">Setup token</label>
+        <input id="setup-token" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #2e2e40; background: #0b0b14; color: #ece8df; font: 400 15px 'Spline Sans Mono', monospace">
+        <div style="font-size: 13px; line-height: 18px; color: #a7a2b6">Printed in the container's log when Umbral starts.</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="cred" style="font-size: 14px; font-weight: 600">Operator credential</label>
+        <input id="cred" type="password" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #2e2e40; background: #0b0b14; color: #ece8df; font: 400 16px 'Schibsted Grotesk', sans-serif">
+        <div style="font-size: 13px; line-height: 18px; color: #a7a2b6">At least 12 characters. This is not tied to any connector, so a broken Discord or Google app can never lock you out.</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="cred2" style="font-size: 14px; font-weight: 600">Confirm credential</label>
+        <input id="cred2" type="password" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #2e2e40; background: #0b0b14; color: #ece8df; font: 400 16px 'Schibsted Grotesk', sans-serif">
+      </div>
+      <button type="submit" style="height: 50px; border: 0; border-radius: 999px; background: #f5c26b; color: #2a1d05; font: 600 16px 'Schibsted Grotesk', sans-serif">Set credential and continue</button>
+    </div>
+  </form>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B · Apps</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&amp;family=Schibsted+Grotesk:wght@400;500;600&amp;family=Spline+Sans+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{text-decoration:none}
+</style>
+</helmet>
+<div style="min-height: 844px; background: {{t.bg}}; color: {{t.text}}; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; flex-wrap: wrap">
+  <aside style="flex: 1 1 220px; max-width: 100%; box-sizing: border-box; padding: 28px 20px; border-right: 1px solid {{t.line}}; display: flex; flex-direction: column; justify-content: space-between; gap: 32px">
+    <div style="display: flex; flex-direction: column; gap: 32px">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><circle cx="11" cy="11" r="5.5" fill="{{t.markGold}}"></circle><path d="M22 40H45L22 32Z" fill="{{t.markShadow}}" opacity="0.5"></path><path d="M22 40V13" stroke="{{t.markFrame}}" stroke-width="5.5" stroke-linecap="round"></path></svg>
+        <span style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.035em">umbral</span>
+      </div>
+      <nav aria-label="Admin" style="display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500">
+        <a href="#" aria-current="page" style="padding: 11px 14px; border-radius: 12px; background: {{t.activeBg}}; color: {{t.accent}}; font-weight: 600">Apps</a>
+        <a href="#" style="padding: 11px 14px; border-radius: 12px; color: {{t.muted}}">Connectors</a>
+        <a href="#" style="padding: 11px 14px; border-radius: 12px; color: {{t.muted}}">Users</a>
+        <a href="#" style="padding: 11px 14px; border-radius: 12px; color: {{t.muted}}">Credential</a>
+        <a href="#" style="padding: 11px 14px; border-radius: 12px; color: {{t.muted}}">Sign out</a>
+      </nav>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div id="theme-label" style="font-size: 13px; font-weight: 600; color: {{t.muted}}">Theme</div>
+      <div role="group" aria-labelledby="theme-label" style="display: flex; padding: 3px; border-radius: 999px; border: 1px solid {{t.outline}}; background: {{t.card}}; align-self: flex-start">
+        <button type="button" aria-label="Follow system" aria-pressed="{{sysPressed}}" onClick="{{pickSystem}}" style="width: 44px; height: 44px; border: 0; border-radius: 999px; background: {{sysBg}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{sysFg}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg></button>
+        <button type="button" aria-label="Light" aria-pressed="{{lightPressed}}" onClick="{{pickLight}}" style="width: 44px; height: 44px; border: 0; border-radius: 999px; background: {{lightBg}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{lightFg}}" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg></button>
+        <button type="button" aria-label="Dark" aria-pressed="{{darkPressed}}" onClick="{{pickDark}}" style="width: 44px; height: 44px; border: 0; border-radius: 999px; background: {{darkBg}}; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{darkFg}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"></path></svg></button>
+      </div>
+      <div style="font-size: 12px; color: {{t.muted}}">{{modeNote}}</div>
+    </div>
+  </aside>
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 48px clamp(20px, 5vw, 64px) 64px; display: flex; flex-direction: column; gap: 32px">
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 10px; max-width: 600px">
+        <h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 48px; line-height: 50px; font-weight: 800; letter-spacing: -0.035em">Apps</h1>
+        <p style="margin: 0; font-size: 16px; line-height: 24px; color: {{t.muted}}">Apps that delegate sign-in to Umbral. Each gets its own client ID and secret.</p>
+      </div>
+      <button type="button" style="height: 46px; padding: 0 22px; border: 0; border-radius: 999px; background: {{t.btnBg}}; color: {{t.btnText}}; font: 600 15px 'Schibsted Grotesk', sans-serif">Create app</button>
+    </div>
+    <div style="border-top: 1px solid {{t.line}}">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: center; padding: 22px 4px; border-bottom: 1px solid {{t.line}}">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 18px; font-weight: 600">Hollo</div>
+          <div style="font-size: 13px; color: {{t.muted}}">Web application · All shared connectors</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 13px; font-weight: 600; color: {{t.muted}}">Client ID</div>
+          <code style="font-family: 'Spline Sans Mono', monospace; font-size: 14px; overflow-x: auto">um_3f9c2a71b0e44d1c</code>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px">
+          <button type="button" style="height: 44px; padding: 0 16px; border: 1px solid {{t.outline}}; border-radius: 999px; background: transparent; color: {{t.text}}; font: 500 14px 'Schibsted Grotesk', sans-serif">Copy client ID</button>
+          <button type="button" style="height: 44px; padding: 0 16px; border: 1px solid {{t.outline}}; border-radius: 999px; background: transparent; color: {{t.text}}; font: 500 14px 'Schibsted Grotesk', sans-serif">Open</button>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: center; padding: 22px 4px; border-bottom: 1px solid {{t.line}}">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 18px; font-weight: 600">Uptime Kuma</div>
+          <div style="font-size: 13px; color: {{t.muted}}">Web application · Chosen connectors</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 13px; font-weight: 600; color: {{t.muted}}">Client ID</div>
+          <code style="font-family: 'Spline Sans Mono', monospace; font-size: 14px; overflow-x: auto">um_8d01e6f5c27a4b90</code>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px">
+          <button type="button" style="height: 44px; padding: 0 16px; border: 1px solid {{t.outline}}; border-radius: 999px; background: transparent; color: {{t.text}}; font: 500 14px 'Schibsted Grotesk', sans-serif">Copy client ID</button>
+          <button type="button" style="height: 44px; padding: 0 16px; border: 1px solid {{t.outline}}; border-radius: 999px; background: transparent; color: {{t.text}}; font: 500 14px 'Schibsted Grotesk', sans-serif">Open</button>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 18px; border-radius: 16px; background: {{t.card}}; border: 1px solid {{t.outline}}">
+      <span style="font-size: 13px; font-weight: 600; color: {{t.muted}}">Issuer URL</span>
+      <code style="font-family: 'Spline Sans Mono', monospace; font-size: 14px; color: {{t.accent}}; overflow-x: auto">https://auth.example.com</code>
+      <span style="font-size: 14px; color: {{t.muted}}">Same for every app.</span>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { mode: 'system' };
+  }
+  renderVals() {
+    const dark = {
+      bg: '#0b0b14', line: '#1d1d2b', card: '#14141f', outline: '#2e2e40',
+      text: '#ece8df', muted: '#a7a2b6', accent: '#f5c26b', activeBg: '#1d1d2b',
+      btnBg: '#f5c26b', btnText: '#2a1d05', markFrame: '#ece8df', markGold: '#f5c26b', markShadow: '#a7a2b6',
+      onBg: '#f5c26b', onFg: '#2a1d05', offFg: '#a7a2b6'
+    };
+    const light = {
+      bg: '#f4f1ea', line: '#e3ddd0', card: '#fffdf8', outline: '#ddd6c8',
+      text: '#17151f', muted: '#5f5a6b', accent: '#8a5a00', activeBg: '#ebe5d8',
+      btnBg: '#17151f', btnText: '#f5c26b', markFrame: '#17151f', markGold: '#b8801f', markShadow: '#5f5a6b',
+      onBg: '#17151f', onFg: '#f5c26b', offFg: '#5f5a6b'
+    };
+    const mode = this.state.mode;
+    // In this mockup "system" stands for a visitor whose OS is set to dark.
+    const t = mode === 'light' ? light : dark;
+    const on = (m) => mode === m;
+    return {
+      t,
+      pickSystem: () => this.setState({ mode: 'system' }),
+      pickLight: () => this.setState({ mode: 'light' }),
+      pickDark: () => this.setState({ mode: 'dark' }),
+      sysPressed: on('system') ? 'true' : 'false',
+      lightPressed: on('light') ? 'true' : 'false',
+      darkPressed: on('dark') ? 'true' : 'false',
+      sysBg: on('system') ? t.onBg : 'transparent',
+      lightBg: on('light') ? t.onBg : 'transparent',
+      darkBg: on('dark') ? t.onBg : 'transparent',
+      sysFg: on('system') ? t.onFg : t.offFg,
+      lightFg: on('light') ? t.onFg : t.offFg,
+      darkFg: on('dark') ? t.onFg : t.offFg,
+      modeNote: mode === 'system' ? 'Following your system (dark).' : (mode === 'light' ? 'Light, on this browser.' : 'Dark, on this browser.')
+    };
+  }
+}
+</script>
+</body>
+</html>

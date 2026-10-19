@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B · App detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&amp;family=Schibsted+Grotesk:wght@400;500;600&amp;family=Spline+Sans+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0b14}
+a{text-decoration:none;color:#a7a2b6}
+</style>
+</helmet>
+<div style="min-height: 1060px; background: #0b0b14; color: #ece8df; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; flex-wrap: wrap">
+  <aside style="flex: 1 1 220px; max-width: 100%; box-sizing: border-box; padding: 28px 20px; border-right: 1px solid #1d1d2b; display: flex; flex-direction: column; gap: 32px">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><circle cx="11" cy="11" r="5.5" fill="#f5c26b"></circle><path d="M22 40H45L22 32Z" fill="#a7a2b6" opacity="0.5"></path><path d="M22 40V13" stroke="#ece8df" stroke-width="5.5" stroke-linecap="round"></path></svg>
+      <span style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.035em">umbral</span>
+    </div>
+    <nav aria-label="Admin" style="display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500">
+      <a href="#" aria-current="page" style="padding: 11px 14px; border-radius: 12px; background: #1d1d2b; color: #f5c26b; font-weight: 600">Apps</a>
+      <a href="#" style="padding: 11px 14px; border-radius: 12px">Connectors</a>
+      <a href="#" style="padding: 11px 14px; border-radius: 12px">Users</a>
+      <a href="#" style="padding: 11px 14px; border-radius: 12px">Credential</a>
+      <a href="#" style="padding: 11px 14px; border-radius: 12px">Sign out</a>
+    </nav>
+  </aside>
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 40px clamp(20px, 5vw, 64px) 64px; display: flex; flex-direction: column; gap: 28px; max-width: 980px">
+    <a href="#" style="font-size: 14px">← Apps</a>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 48px; line-height: 50px; font-weight: 800; letter-spacing: -0.035em">Hollo</h1>
+      <div style="font-size: 14px; color: #a7a2b6">Web application · All shared connectors</div>
+    </div>
+    <section style="border-radius: 20px; border: 1px solid #f5c26b; background: rgba(245, 194, 107, 0.07); padding: 22px 24px; display: flex; flex-direction: column; gap: 12px">
+      <div style="font-size: 14px; font-weight: 600">Client secret</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px"><code style="flex: 1 1 320px; min-width: 0; overflow-x: auto; font-family: 'Spline Sans Mono', monospace; font-size: 15px; padding: 12px 14px; border-radius: 12px; background: #0b0b14; border: 1px solid #2e2e40">cvs_Qe7m2Lw9xP4tN8rA1kD6vH3zB5yJ0uFc</code><button type="button" style="height: 46px; padding: 0 20px; border: 0; border-radius: 999px; background: #f5c26b; color: #2a1d05; font: 600 14px 'Schibsted Grotesk', sans-serif">Copy</button></div>
+      <p style="margin: 0; font-size: 14px; line-height: 20px; color: #ece8df">This secret is shown only once and Umbral keeps no way to show it again. If you lose it, come back here and regenerate it.</p>
+    </section>
+    <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px"><div style="font-size: 13px; font-weight: 600; color: #a7a2b6">Client ID</div><div style="display: flex; gap: 8px"><code style="flex: 1; min-width: 0; overflow-x: auto; font-family: 'Spline Sans Mono', monospace; font-size: 14px; padding: 11px 14px; border-radius: 12px; background: #14141f; border: 1px solid #2e2e40">um_3f9c2a71b0e44d1c</code><button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #2e2e40; border-radius: 999px; background: transparent; color: #ece8df; font: 500 13px 'Schibsted Grotesk', sans-serif">Copy</button></div></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><div style="font-size: 13px; font-weight: 600; color: #a7a2b6">Issuer URL</div><div style="display: flex; gap: 8px"><code style="flex: 1; min-width: 0; overflow-x: auto; font-family: 'Spline Sans Mono', monospace; font-size: 14px; padding: 11px 14px; border-radius: 12px; background: #14141f; border: 1px solid #2e2e40">https://auth.example.com</code><button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #2e2e40; border-radius: 999px; background: transparent; color: #ece8df; font: 500 13px 'Schibsted Grotesk', sans-serif">Copy</button></div></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><div style="font-size: 13px; font-weight: 600; color: #a7a2b6">Redirect URI</div><code style="font-family: 'Spline Sans Mono', monospace; font-size: 14px; padding: 11px 0; overflow-x: auto">https://hollo.example.com/oauth/callback</code></div>
+    </section>
+    <section style="border-top: 1px solid #1d1d2b; padding-top: 24px; display: flex; flex-direction: column; gap: 10px">
+      <h2 style="margin: 0; font-size: 18px; font-weight: 600">Sign-in methods</h2>
+      <p style="margin: 0; font-size: 14px; color: #a7a2b6">All shared connectors: Discord, GitHub, Home (Pocket ID).</p>
+    </section>
+    <section style="border-radius: 20px; border: 1px solid #5a2a26; padding: 22px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 4px; max-width: 520px"><div style="font-size: 16px; font-weight: 600">Regenerate or delete</div><div style="font-size: 14px; line-height: 20px; color: #a7a2b6">Deleting stops every token already issued to this app immediately, and can't be undone.</div></div>
+      <div style="display: flex; gap: 8px"><button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #2e2e40; border-radius: 999px; background: transparent; color: #ece8df; font: 500 14px 'Schibsted Grotesk', sans-serif">Regenerate secret</button><button type="button" style="height: 44px; padding: 0 18px; border: 1px solid #ff8f7e; border-radius: 999px; background: transparent; color: #ff8f7e; font: 600 14px 'Schibsted Grotesk', sans-serif">Delete app</button></div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

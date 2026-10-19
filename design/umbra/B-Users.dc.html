@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B · Users</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&amp;family=Schibsted+Grotesk:wght@400;500;600&amp;family=Spline+Sans+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0b14}
+a{text-decoration:none;color:#a7a2b6}
+input:focus-visible,button:focus-visible{outline:2px solid #f5c26b;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 844px; background: #0b0b14; color: #ece8df; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; flex-wrap: wrap">
+  <aside style="flex: 1 1 220px; max-width: 100%; box-sizing: border-box; padding: 28px 20px; border-right: 1px solid #1d1d2b; display: flex; flex-direction: column; gap: 32px">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><circle cx="11" cy="11" r="5.5" fill="#f5c26b"></circle><path d="M22 40H45L22 32Z" fill="#a7a2b6" opacity="0.5"></path><path d="M22 40V13" stroke="#ece8df" stroke-width="5.5" stroke-linecap="round"></path></svg>
+      <span style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.035em">umbral</span>
+    </div>
+    <nav aria-label="Admin" style="display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500">
+      <a href="#" style="padding: 11px 14px; border-radius: 12px">Apps</a>
+      <a href="#" style="padding: 11px 14px; border-radius: 12px">Connectors</a>
+      <a href="#" aria-current="page" style="padding: 11px 14px; border-radius: 12px; background: #1d1d2b; color: #f5c26b; font-weight: 600">Users</a>
+      <a href="#" style="padding: 11px 14px; border-radius: 12px">Credential</a>
+      <a href="#" style="padding: 11px 14px; border-radius: 12px">Sign out</a>
+    </nav>
+  </aside>
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 48px clamp(20px, 5vw, 64px) 64px; display: flex; flex-direction: column; gap: 28px">
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 10px; max-width: 560px">
+        <h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 48px; line-height: 50px; font-weight: 800; letter-spacing: -0.035em">Users</h1>
+        <p style="margin: 0; font-size: 16px; line-height: 24px; color: #a7a2b6">People who have signed in at least once, across every app.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 0 1 320px">
+        <label for="user-search" style="font-size: 13px; font-weight: 600; color: #a7a2b6">Search users</label>
+        <input id="user-search" placeholder="Search by name or email" style="height: 46px; box-sizing: border-box; padding: 0 16px; border-radius: 999px; border: 1px solid #2e2e40; background: #14141f; color: #ece8df; font: 400 15px 'Schibsted Grotesk', sans-serif">
+      </div>
+    </div>
+    <div style="overflow-x: auto; border-radius: 20px; border: 1px solid #2e2e40; background: #14141f">
+      <table style="width: 100%; min-width: 760px; border-collapse: collapse; font-size: 15px">
+        <thead>
+          <tr style="text-align: left; font-size: 13px; color: #a7a2b6">
+            <th scope="col" style="padding: 16px 22px; font-weight: 600; border-bottom: 1px solid #2e2e40">Person</th>
+            <th scope="col" style="padding: 16px 22px; font-weight: 600; border-bottom: 1px solid #2e2e40">First sign-in</th>
+            <th scope="col" style="padding: 16px 22px; font-weight: 600; border-bottom: 1px solid #2e2e40">Last sign-in</th>
+            <th scope="col" style="padding: 16px 22px; font-weight: 600; border-bottom: 1px solid #2e2e40">Status</th>
+            <th scope="col" style="padding: 16px 22px; font-weight: 600; border-bottom: 1px solid #2e2e40"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 16px 22px; border-bottom: 1px solid #1d1d2b"><div style="font-weight: 600">Marta Ruiz</div><div style="font-size: 13px; color: #a7a2b6">marta@example.com</div></td>
+            <td style="padding: 16px 22px; border-bottom: 1px solid #1d1d2b; color: #a7a2b6; font-family: 'Spline Sans Mono', monospace; font-size: 13px">2026-09-30</td>
+            <td style="padding: 16px 22px; border-bottom: 1px solid #1d1d2b; color: #a7a2b6; font-family: 'Spline Sans Mono', monospace; font-size: 13px">2026-10-15</td>
+            <td style="padding: 16px 22px; border-bottom: 1px solid #1d1d2b"><span style="padding: 3px 10px; border-radius: 999px; background: #20301f; color: #a8d99a; font-size: 12px; font-weight: 600">Enabled</span></td>
+            <td style="padding: 12px 22px; border-bottom: 1px solid #1d1d2b; text-align: right; white-space: nowrap"><button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #2e2e40; border-radius: 999px; background: transparent; color: #ece8df; font: 500 13px 'Schibsted Grotesk', sans-serif">Disable</button> <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #2e2e40; border-radius: 999px; background: transparent; color: #ff8f7e; font: 500 13px 'Schibsted Grotesk', sans-serif">Delete</button></td>
+          </tr>
+          <tr>
+            <td style="padding: 16px 22px; border-bottom: 1px solid #1d1d2b"><div style="font-weight: 600">Kai Tan</div><div style="font-size: 13px; color: #a7a2b6">kai@example.com</div></td>
+            <td style="padding: 16px 22px; border-bottom: 1px solid #1d1d2b; color: #a7a2b6; font-family: 'Spline Sans Mono', monospace; font-size: 13px">2026-10-02</td>
+            <td style="padding: 16px 22px; border-bottom: 1px solid #1d1d2b; color: #a7a2b6; font-family: 'Spline Sans Mono', monospace; font-size: 13px">2026-10-14</td>
+            <td style="padding: 16px 22px; border-bottom: 1px solid #1d1d2b"><span style="padding: 3px 10px; border-radius: 999px; background: #20301f; color: #a8d99a; font-size: 12px; font-weight: 600">Enabled</span></td>
+            <td style="padding: 12px 22px; border-bottom: 1px solid #1d1d2b; text-align: right; white-space: nowrap"><button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #2e2e40; border-radius: 999px; background: transparent; color: #ece8df; font: 500 13px 'Schibsted Grotesk', sans-serif">Disable</button> <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #2e2e40; border-radius: 999px; background: transparent; color: #ff8f7e; font: 500 13px 'Schibsted Grotesk', sans-serif">Delete</button></td>
+          </tr>
+          <tr>
+            <td style="padding: 16px 22px"><div style="font-weight: 600; color: #a7a2b6">Noah Becker</div><div style="font-size: 13px; color: #a7a2b6">noah@example.com</div></td>
+            <td style="padding: 16px 22px; color: #a7a2b6; font-family: 'Spline Sans Mono', monospace; font-size: 13px">2026-10-05</td>
+            <td style="padding: 16px 22px; color: #a7a2b6; font-family: 'Spline Sans Mono', monospace; font-size: 13px">2026-10-06</td>
+            <td style="padding: 16px 22px"><span style="padding: 3px 10px; border-radius: 999px; background: #1d1d2b; color: #a7a2b6; font-size: 12px; font-weight: 600">Disabled</span></td>
+            <td style="padding: 12px 22px; text-align: right; white-space: nowrap"><button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #2e2e40; border-radius: 999px; background: transparent; color: #ece8df; font: 500 13px 'Schibsted Grotesk', sans-serif">Enable</button> <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #2e2e40; border-radius: 999px; background: transparent; color: #ff8f7e; font: 500 13px 'Schibsted Grotesk', sans-serif">Delete</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
