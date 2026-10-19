@@ -79,7 +79,18 @@ let handler (id: string) : EndpointHandler =
                 | Some refreshedUser ->
                     let! linked = linkedProviders config id
 
-                    let fragment = row ctx t { User = refreshedUser; LinkedProviders = linked }
+                    let! passkeys = Passkeys.listForUser config id
+                    let! passkeyConnector = ConnectorStore.findBySlug config "passkey"
+
+                    let fragment =
+                        row
+                            ctx
+                            t
+                            { User = refreshedUser
+                              LinkedProviders = linked
+                              Passkeys = passkeys
+                              CanInvite = passkeyConnector.IsSome
+                              RevealedLink = None }
 
                     return! ctx.WriteHtmlView fragment
             else

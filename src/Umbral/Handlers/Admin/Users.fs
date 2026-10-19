@@ -79,7 +79,10 @@ let private search
 /// hook, and the label the screen shows for it (`linkedProviders`).
 type Row =
     { User: Umbral.Infrastructure.Users.User
-      LinkedProviders: (string * string) list }
+      LinkedProviders: (string * string) list
+      Passkeys: Umbral.Infrastructure.Passkeys.Passkey list
+      CanInvite: bool
+      RevealedLink: string option }
 
 let private providerLabel (kind: string) =
     Umbral.Domains.Connectors.parseKind kind
@@ -146,6 +149,25 @@ let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
                 (Components.pill Components.PrimaryTone label).data ("linked-provider", kind)
         }
 
+        if data.CanInvite then
+            (form(method = "post", action = $"/admin/users/{user.Id}/invite", class' = "inline") {
+                ctx.GetAntiforgeryInput()
+
+                button(type' = "submit", class' = Components.btnSm Components.Secondary).data ("user-invite", "") {
+                    t.UserInvitePasskeyButton
+                }
+            })
+            :> HtmlElement
+        else
+            Fragment() :> HtmlElement
+
+        match data.RevealedLink with
+        | Some link ->
+            Components.copyField t.Copy t.Copied t.UserInvitePasskeyButton $"invite-{user.Id}" link (fun i ->
+                i.data ("invitation-link", "") |> ignore)
+            :> HtmlElement
+        | None -> Fragment() :> HtmlElement
+
         div(class' = "grid gap-1 text-body-md text-on-surface-variant sm:grid-cols-2") {
             span() { $"{t.UserFirstSignInLabel}: {formatSignIn user.FirstSeenUtc}" }
             span() { $"{t.UserLastSignInLabel}: {formatSignIn user.LastSeenUtc}" }
@@ -209,12 +231,18 @@ let private searchForm (t: Texts.Texts) (term: string) =
         }
     }
 
-let private view (ctx: HttpContext) (t: Texts.Texts) (rows: Row list) (term: string) (notice: string option) =
+let private view (ctx: HttpContext) (t: Texts.Texts) (rows: Row list) (term: string) (notice: string option) (invitedName: string option) =
     div(class' = "space-y-6").data("screen", "users") {
         Components.pageHeading t.UsersTitle (Some t.UsersLead)
 
         match notice with
-        | Some code -> (div().data("notice", code) { Components.alert Components.Success (t.Notice code) }) :> HtmlElement
+        | Some code ->
+            let text =
+                match code, invitedName with
+                | "passkey-user-invited", Some name -> t.UserPasskeyInvited name
+                | _ -> t.Notice code
+
+            (div().data("notice", code) { Components.alert Components.Success text }) :> HtmlElement
         | None -> Fragment() :> HtmlElement
 
         searchForm t term
@@ -235,14 +263,36 @@ let page: EndpointHandler =
             let term = ctx.TryGetQueryValue "search" |> Option.defaultValue ""
             let! users = search config term
 
+            let! passkeyConnector = ConnectorStore.findBySlug config "passkey"
+            let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
+
+            let invitedId =
+                match notice with
+                | Some "passkey-user-invited" -> ctx.TryGetQueryValue "user"
+                | _ -> None
+
             let rows = ResizeArray()
+            let mutable invitedName = None
 
             for user in users do
                 let! linked = linkedProviders config user.Id
-                rows.Add { User = user; LinkedProviders = linked }
+                let! passkeys = Passkeys.listForUser config user.Id
 
-            let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
-            return! ctx.WriteHtmlView(view ctx t (List.ofSeq rows) term notice)
+                let revealed =
+                    if invitedId = Some user.Id then
+                        invitedName <- Some user.DisplayName
+                        Umbral.Handlers.Admin.PasskeyConnector.InviteReveal.consume ctx $"user:{user.Id}"
+                    else
+                        None
+
+                rows.Add
+                    { User = user
+                      LinkedProviders = linked
+                      Passkeys = passkeys
+                      CanInvite = passkeyConnector.IsSome
+                      RevealedLink = revealed }
+
+            return! ctx.WriteHtmlView(view ctx t (List.ofSeq rows) term notice invitedName)
         })
 
 let endpoint = GET [ route "/admin/users" page ]
