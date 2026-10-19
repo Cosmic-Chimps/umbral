@@ -67,6 +67,7 @@ let endpoints: Endpoint list =
       Umbral.Handlers.Connect.Error.endpoint
       yield! Umbral.Handlers.Passkeys.SignIn.endpoint
       yield! Umbral.Handlers.Passkeys.Invitation.endpoint
+      yield! Umbral.Handlers.Passkeys.Account.endpoint
       yield! Umbral.Handlers.Passkeys.Ceremonies.endpoint ]
 
 // ---------------------------------------------------------------------------

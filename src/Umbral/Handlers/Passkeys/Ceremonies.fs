@@ -15,6 +15,7 @@ open System.Text
 open System.Text.Json
 open System.Text.Json.Nodes
 open System.Threading.Tasks
+open Microsoft.AspNetCore.Authentication
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
 open Oxpecker
@@ -373,6 +374,45 @@ let private invitationOptions (ctx: HttpContext) (body: JsonElement) (connector:
                         nickname
     }
 
+/// `mode: add`: a signed-in person adding a passkey to their own account.
+let private addOptions (ctx: HttpContext) (body: JsonElement) : Task =
+    task {
+        let config = ctx.GetService<Database.DbConfig>()
+        let refuse = refuse ctx Registration
+        let! session = ctx.AuthenticateAsync Sessions.Scheme
+
+        match (if session.Succeeded then Option.ofObj session.Principal else None)
+              |> Option.bind Sessions.currentSubject with
+        | None -> do! refuse None UserNotFound NoticeRegistration
+        | Some userId ->
+
+        match! Users.findById config userId with
+        | None -> do! refuse (Some userId) UserNotFound NoticeRegistration
+        | Some user when not user.IsEnabled -> do! refuse (Some userId) Reason.UserDisabled NoticeRegistration
+        | Some user ->
+
+        match Rules.validateNickname (tryString body "nickname" |> Option.toObj) with
+        | Error _ -> do! refuse (Some userId) NicknameInvalid NoticeRegistration
+        | Ok nickname ->
+
+        let! existing = Store.listForUser config userId
+
+        if existing.Length >= Rules.MaxPerUser then
+            do! refuse (Some userId) PasskeyLimitReached NoticeRegistration
+        else
+            do!
+                startRegistration
+                    ctx
+                    Store.Add
+                    user.Id
+                    (defaultArg user.Email user.DisplayName)
+                    user.DisplayName
+                    existing
+                    None
+                    None
+                    nickname
+    }
+
 let registrationOptions: EndpointHandler =
     fun ctx ->
         withBody ctx (fun body ->
@@ -386,7 +426,7 @@ let registrationOptions: EndpointHandler =
                 // Open sign-up and adding to one's own account come with their
                 // own stories; until then they are refused like a closed door.
                 | Some "signup" -> do! refuse ctx Registration None EnrolmentClosed NoticeRegistration
-                | Some "add" -> do! refuse ctx Registration None UserNotFound NoticeRegistration
+                | Some "add" -> do! addOptions ctx body
                 | _ -> do! badRequest ctx
             })
 
@@ -478,8 +518,17 @@ let registration: EndpointHandler =
 
                 let userId = ceremony.UserId
 
+                // An `add` ceremony belongs to the session that started it.
+                let! session = ctx.AuthenticateAsync Sessions.Scheme
+
+                let sessionSubject =
+                    (if session.Succeeded then Option.ofObj session.Principal else None)
+                    |> Option.bind Sessions.currentSubject
+
                 match! enabledConnector config with
                 | None -> do! refuse userId Reason.ConnectorDisabled NoticeRegistration
+                | Some _ when ceremony.Purpose = Store.Add && (sessionSubject.IsNone || sessionSubject <> userId) ->
+                    do! refuse userId UserNotFound NoticeRegistration
                 | Some _ ->
 
                 match tryProperty body "credential", userId with

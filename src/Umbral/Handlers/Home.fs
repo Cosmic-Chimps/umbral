@@ -20,7 +20,7 @@ open Umbral.Infrastructure
 open Umbral.Views
 open Umbral.Views.Theme
 
-let private view (t: Texts.Texts) (origin: PublicOrigin.PublicOrigin) =
+let private view (t: Texts.Texts) (origin: PublicOrigin.PublicOrigin) (hasPasskeys: bool) =
     div(class' = "space-y-10") {
         section(class' = "flex flex-col items-center gap-4 py-6 text-center") {
             span(class' = "block h-16 w-16") { raw Mark.full }
@@ -36,6 +36,11 @@ let private view (t: Texts.Texts) (origin: PublicOrigin.PublicOrigin) =
 
                 h2(class' = "text-headline-md text-on-surface") { t.HomeSigningInHeading }
                 p(class' = "text-body-md text-on-surface-variant") { t.HomeSigningInBody }
+
+                if hasPasskeys then
+                    a(href = "/account/passkeys", class' = Components.btn Components.Secondary).data("passkeys-link", "") {
+                        t.HomePasskeysLink
+                    }
             }
 
             section(class' = "um-card space-y-3") {
@@ -71,8 +76,11 @@ let private view (t: Texts.Texts) (origin: PublicOrigin.PublicOrigin) =
 
 let handler: EndpointHandler =
     fun ctx ->
-        let t = Texts.current ()
-        let origin = ctx.GetService<PublicOrigin.PublicOrigin>()
-        ctx.WriteHtmlView(Layout.page ctx t t.HomeTitle (view t origin))
+        task {
+            let t = Texts.current ()
+            let origin = ctx.GetService<PublicOrigin.PublicOrigin>()
+            let! passkey = ConnectorStore.findBySlug (ctx.GetService<Database.DbConfig>()) "passkey"
+            return! ctx.WriteHtmlView(Layout.page ctx t t.HomeTitle (view t origin passkey.IsSome))
+        }
 
 let endpoint = GET [ route "/" handler ]

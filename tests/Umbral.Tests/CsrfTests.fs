@@ -19,6 +19,10 @@
 ///                `PasskeyCeremonyTests` holds a POST without the header to a
 ///                400 with nothing changed; this test posts form bodies and
 ///                cannot exercise them.
+///   /account/*   A signed-in person's own pages. Their POSTs call
+///                `WebForms.readValidated`, and `PasskeyAccountTests` holds a
+///                POST without a token to a 400 with the passkey kept; this
+///                test's walk is for operator routes and anonymous requests.
 ///   /dev/*       The Fake provider, a stand-in for somebody else's login page.
 ///                It exists only behind two gates and changes no Umbral state.
 ///
@@ -57,7 +61,7 @@ type private MutatingRoute =
 
 /// Path prefixes that are not Umbral's to protect with antiforgery. See the
 /// module comment for the reasons.
-let private outOfScope = [ "/connect/"; "/dev/"; "/passkey/" ]
+let private outOfScope = [ "/connect/"; "/dev/"; "/passkey/"; "/account/" ]
 
 let private mutatingRoutes (app: Fixtures.TestApp) =
     (app.App :> IEndpointRouteBuilder).DataSources
