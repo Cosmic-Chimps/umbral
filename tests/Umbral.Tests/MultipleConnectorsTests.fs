@@ -233,13 +233,19 @@ let ``every card carries the naming advice and the kind and shared markers`` () 
         let! html = operator.GetHtml "/admin/connectors"
 
         // Every stored connector (the fake one has a card now) and an empty
-        // card for each kind with none.
-        Assert.Equal<string list>([ "discord"; "fake"; "fake-two"; "github"; "google" ], connectorsOn html)
+        // card for each kind with none, the passkey kind's included (spec 008).
+        Assert.Equal<string list>([ "discord"; "fake"; "fake-two"; "github"; "google"; "passkey" ], connectorsOn html)
 
         for slug in connectorsOn html do
-            Assert.Contains("data-naming-advice", cardOf html slug)
+            // The passkey card has no provider to name an application at, so
+            // it alone carries no naming advice (spec 008, contracts/admin-surface.md).
+            if slug <> "passkey" then
+                Assert.Contains("data-naming-advice", cardOf html slug)
+
             Assert.Contains("data-connector-kind=", cardOf html slug)
             Assert.Contains("data-connector-shared=", cardOf html slug)
+
+        Assert.DoesNotContain("data-naming-advice", cardOf html "passkey")
 
         Assert.Contains("data-connector-shared=\"shared\"", cardOf html "fake")
         Assert.Contains("data-connector-shared=\"not-shared\"", cardOf html "fake-two")
