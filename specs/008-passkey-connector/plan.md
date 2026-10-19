@@ -264,9 +264,21 @@ then `GET /invite/{secret}` for the antiforgery token and cookie, `POST
 /passkey/registration/options` (`mode: invitation`), `POST
 /passkey/registration` with the software authenticator's response, then `POST
 /passkey/assertion/options` and `POST /passkey/assertion`; idle; measure.
-Ceiling 160 MiB on Linux, printed everywhere. **Measured figures**: to be
-recorded here by the implementation task (linux/amd64 and linux/arm64 from
-CI's job summary, macOS locally for information).
+Ceiling 160 MiB on Linux, printed everywhere.
+
+**Measured figures** (T036, 2026-10-19, macOS arm64, informational: macOS RSS
+is noisy, as the test's module comment says; the Linux figures are read off
+CI's job summary after the first push and belong here too):
+
+| Run | Idle resident set | Ceiling asserted on Linux |
+| --- | --- | --- |
+| local store | 144.1 MiB | 150 MiB (SC-007) |
+| aws store | 128.9 MiB | 160 MiB (SC-006) |
+| passkey connector, after one registration and one sign-in | 123.7 MiB | 160 MiB (SC-008) |
+
+On this machine the passkey run came in below the local-store run, so the
+library's cost is within the noise here; the Linux figures decide whether the
+README's "under 160 MB with the passkey connector in use" can be tightened.
 
 ## Implementation order
 

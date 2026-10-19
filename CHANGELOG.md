@@ -34,8 +34,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 ### Upgrade
 - The database becomes schema version 6. An older image refuses to start on it: take a backup
   before you upgrade.
-- An instance with the passkey connector in use idles under 160 MB (a ceiling, to be confirmed by
-  the idle-memory test); without it, under 150 MB as before.
+- An instance with the passkey connector in use idles under 160 MB (the ceiling the idle-memory
+  test asserts on Linux); without it, under 150 MB as before.
 
 ## 0.1.1 - 2026-10-19
 

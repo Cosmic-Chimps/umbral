@@ -219,6 +219,60 @@ let ``a disabled user with a live session is turned away at authorize and it is 
     }
 
 // ---------------------------------------------------------------------------
+// Passkeys (spec 008)
+// ---------------------------------------------------------------------------
+
+type private Enrolled =
+    { UserId: string
+      Authenticator: SoftwareAuthenticator.SoftwareAuthenticator }
+
+let private authenticator () =
+    SoftwareAuthenticator.SoftwareAuthenticator("umbral.test", Fixtures.TestOrigin)
+
+/// The operator invites `name`, and the person registers through the link.
+let private enrollWithPasskey (app: Fixtures.TestApp) (operator: Browser) (name: string) =
+    task {
+        let! link = PasskeyFlows.inviteNewPerson operator name
+        let authenticator = authenticator ()
+
+        let! response, _ =
+            PasskeyFlows.registerThroughInvitation (Browser(app.Client)) authenticator (PasskeyFlows.secretOf link) (Some name) "Phone"
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+        let! userId = scalar app "SELECT id FROM users WHERE display_name = @n" [ "@n", name ]
+        return { UserId = userId; Authenticator = authenticator }
+    }
+
+/// Revokes the one invitation the passkey card still lists as open.
+let private revokeOpenInvitation (operator: Browser) =
+    task {
+        let! card = operator.GetHtml "/admin/connectors"
+        let m = System.Text.RegularExpressions.Regex.Match(card, "data-invitation=\"([^\"]+)\"")
+        Assert.True(m.Success, "the card lists the open invitation")
+        return! operator.PostForm("/admin/connectors", $"/admin/connectors/passkey/invitations/{m.Groups[1].Value}/revoke", [])
+    }
+
+/// A sign-in whose assertion names another origin: refused, and recorded.
+let private refuseAnAssertionForAnotherOrigin (app: Fixtures.TestApp) (enrolled: Enrolled) =
+    task {
+        let visitor = Browser(app.Client)
+        let! token = visitor.TokenFrom "/connect/passkey/start?returnUrl=%2F"
+        let! _, started = PasskeyFlows.postJson visitor "/passkey/assertion/options" token {| returnUrl = "/" |}
+
+        let credential =
+            enrolled.Authenticator.Assert(
+                started.GetProperty "options",
+                (List.head enrolled.Authenticator.Credentials).Id,
+                { SoftwareAuthenticator.AssertOverrides.None with Origin = Some "https://evil.example" }
+            )
+
+        let! response, _ =
+            PasskeyFlows.postJson visitor "/passkey/assertion" token {| ceremony = Journeys.strOf started "ceremony"; credential = credential |}
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+    }
+
+// ---------------------------------------------------------------------------
 // T092 — every event type, emitted by the product
 // ---------------------------------------------------------------------------
 
@@ -323,6 +377,23 @@ let ``every event type in the data model is emitted by the real product`` () =
         let! listed = operator.PostForm("/admin/connectors", "/admin/allowed-domains", [ "allowedDomains", "acme.com" ])
         Assert.Contains("allowed-domains-saved", location listed)
 
+        // -- Passkeys (spec 008): enable the connector, invite a person, let them
+        //    register through the invitation (passkey_registered, user_created),
+        //    invite and revoke a second link (passkey_invitation_revoked), turn
+        //    away an assertion for another origin (sign_in_failed), and have the
+        //    operator remove the passkey (passkey_removed). The connector holds no
+        //    secret, so the `aws` store has nothing to say about it.
+        do! PasskeyFlows.enablePasskeyConnector operator "invitations"
+        let! ana = enrollWithPasskey app operator "Ana"
+        let! _ = PasskeyFlows.inviteNewPerson operator "Bea"
+        let! revoked = revokeOpenInvitation operator
+        Assert.Contains("passkey-invitation-revoked", location revoked)
+        do! refuseAnAssertionForAnotherOrigin app ana
+
+        let! anaPasskey = scalar app "SELECT id FROM passkeys WHERE user_id = @u" [ "@u", ana.UserId ]
+        let! removed = operator.PostForm("/admin/users", $"/admin/users/{ana.UserId}/passkeys/{anaPasskey}/remove", [])
+        Assert.Contains("passkey-removed", location removed)
+
         // -- The offline command: the instance goes back to `local`, so every
         //    connector's secret moves (connector_secret_moved)
         let! exitCode = moveToLocal app store
@@ -418,4 +489,59 @@ let ``moving a connector's secret records one move per connector, by the system,
         Assert.Equal(0, again)
         let! after = events app
         Assert.Equal(moved.Length, (ofType ConnectorSecretMoved after).Length)
+    }
+
+// ---------------------------------------------------------------------------
+// The passkey events say the right thing about the right person (spec 008)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``the passkey events name the actor, the person, the connector and how`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+        do! PasskeyFlows.enablePasskeyConnector operator "invitations"
+        let! ana = enrollWithPasskey app operator "Ana"
+        let! _ = PasskeyFlows.inviteNewPerson operator "Bea"
+        let! revoked = revokeOpenInvitation operator
+        Assert.Contains("passkey-invitation-revoked", location revoked)
+        do! refuseAnAssertionForAnotherOrigin app ana
+
+        let! passkey = scalar app "SELECT id FROM passkeys WHERE user_id = @u" [ "@u", ana.UserId ]
+        let! _ = operator.PostForm("/admin/users", $"/admin/users/{ana.UserId}/passkeys/{passkey}/remove", [])
+        let! rows = events app
+
+        // The person registered through an invitation: the user is created by
+        // that, and the registration names them.
+        let registered = Assert.Single(ofType PasskeyRegistered rows)
+        Assert.Equal("success", registered.Outcome)
+        Assert.Equal("user", registered.Actor)
+        Assert.Equal(Some ana.UserId, registered.UserId)
+        Assert.Equal(Some "passkey", registered.ConnectorSlug)
+        Assert.Equal(Some "via=invitation", registered.Detail)
+        Assert.Equal(Some ana.UserId, (Assert.Single(ofType UserCreated rows)).UserId)
+
+        let removed = Assert.Single(ofType PasskeyRemoved rows)
+        Assert.Equal("operator", removed.Actor)
+        Assert.Equal(Some ana.UserId, removed.UserId)
+        Assert.Equal(Some "by=operator", removed.Detail)
+
+        // Two invitations for new people, one of them revoked.
+        let created = ofType PasskeyInvitationCreated rows
+        Assert.Equal(2, created.Length)
+
+        for row in created do
+            Assert.Equal("operator", row.Actor)
+            Assert.Equal(Some "passkey", row.ConnectorSlug)
+            Assert.Equal(Some "for=new", row.Detail)
+            Assert.Equal(None, row.UserId)
+
+        let revokedEvent = Assert.Single(ofType PasskeyInvitationRevoked rows)
+        Assert.Equal("operator", revokedEvent.Actor)
+        Assert.Equal(Some "passkey", revokedEvent.ConnectorSlug)
+
+        // The refused assertion is a sign-in failure with the closed words.
+        let refused = ofType SignInFailed rows |> List.filter (fun r -> r.Detail = Some "passkey_refused;reason=origin_mismatch;stage=assertion")
+        Assert.Single refused |> ignore
     }

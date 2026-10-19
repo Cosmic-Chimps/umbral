@@ -27,8 +27,9 @@
 ///            reasons that say nothing about a Raspberry Pi. CI on Linux runs
 ///            the strict one.
 ///
-/// It runs twice (specs/005 SC-006), with two ceilings. The default, the local
-/// store, is held to 150 MiB: that is the Raspberry Pi promise. The second run
+/// It runs three times (specs/005 SC-006, specs/008 SC-008), with two ceilings.
+/// The default, the local store, is held to 150 MiB: that is the Raspberry Pi
+/// promise, and it stays at 150 MiB whatever the other runs need. The second run
 /// has an external secret store, `aws`, the configuration that pulls a vendor
 /// SDK, its HTTP stack and its credential chain into the process (~11 MiB, the
 /// store's startup probe loads them). It has its own explicit ceiling of
@@ -36,6 +37,15 @@
 /// rarely on a 1 GB board, and the alternative was giving up the probe. There is
 /// no AWS in a test, so the SDK is pointed at a stub on a local port that
 /// refuses everything the way a manager would an unknown secret.
+///
+/// The third run is an instance with the passkey connector IN USE (specs/008
+/// research R13): the data directory is seeded with the connector and one
+/// invitation before the child starts, and once the child answers, one
+/// registration and one sign-in go through its HTTP endpoints with a software
+/// authenticator. The cost of a passkey is not paid by being configured:
+/// NSec/libsodium and the WebAuthn library load on the first ceremony, so only a
+/// run that performs one measures it. It shares the 160 MiB ceiling of the
+/// external-store run.
 ///
 /// Umbral.fsproj sets TieredCompilation=false (measured on linux/arm64: local
 /// 144.0 -> 137.7 MiB, aws 154.8 -> 147.6 MiB), and the child process reads it
@@ -52,8 +62,13 @@ open System.Net.Sockets
 open System.Runtime.InteropServices
 open System.Text
 open System.Threading
+open System.Text.Json
+open System.Text.RegularExpressions
 open System.Threading.Tasks
 open Xunit
+open Umbral.Domains.Connectors
+open Umbral.Infrastructure
+open Umbral.Tests.Infrastructure
 
 /// The SC-007 ceiling for the default (local store), "150 MB" read the way a
 /// container limit (`--memory=150m`) and every memory tool reads it: mebibytes.
@@ -153,11 +168,15 @@ type private ManagerStub(port: int) =
 /// production one, waits until it answers and sits idle, and asserts the
 /// resident set against `linuxCeiling`. `label` names the run in the report and
 /// the job summary; `rule` names the budget that applies (SC-007, SC-006).
-let private assertIdleUnderCeiling
+/// `beforeStart` gets the fresh data directory before the child opens it;
+/// `afterAnswers` gets the child's port once it answers, before it idles.
+let private assertIdleUnderCeilingWith
     (label: string)
     (rule: string)
     (linuxCeiling: int64)
     (extraEnvironment: (string * string) list)
+    (beforeStart: string -> Task<unit>)
+    (afterAnswers: int -> Task<unit>)
     =
     task {
         let umbralDll = Path.Combine(AppContext.BaseDirectory, "Umbral.dll")
@@ -169,6 +188,7 @@ let private assertIdleUnderCeiling
 
         let dataDirectory = Path.Combine(Path.GetTempPath(), "umbral-idle-" + Guid.NewGuid().ToString "N")
         Directory.CreateDirectory dataDirectory |> ignore
+        do! beforeStart dataDirectory
         let port = freePort ()
 
         let start = ProcessStartInfo(dotnetHost ())
@@ -249,6 +269,7 @@ let private assertIdleUnderCeiling
                 use! _ = get path
                 ()
 
+            do! afterAnswers port
             do! Task.Delay idleFor
 
             Assert.False(child.HasExited, $"the app exited while idle:{Environment.NewLine}{said ()}")
@@ -289,6 +310,9 @@ let private assertIdleUnderCeiling
                 ()
     }
 
+let private assertIdleUnderCeiling label rule linuxCeiling extraEnvironment =
+    assertIdleUnderCeilingWith label rule linuxCeiling extraEnvironment (fun _ -> Task.FromResult()) (fun _ -> Task.FromResult())
+
 [<Fact>]
 let ``an idle instance stays under 150 MB resident`` () =
     assertIdleUnderCeiling "local store" "SC-007" LocalStoreCeilingBytes []
@@ -325,4 +349,156 @@ let ``an idle instance with an external secret store stays under 160 MB resident
         | null
         | "" -> ()
         | summary -> File.AppendAllText(summary, $"- aws store: the stub manager saw {stub.Requests} request(s){Environment.NewLine}")
+    }
+
+/// The passkey connector, enabled for invitations, and one invitation: written
+/// to the data directory before the child opens it. Returns the invitation's
+/// secret. The pools are cleared so the file is released: from here on the child
+/// is the only process that touches the database.
+let private seedPasskeyConnector (dataDirectory: string) =
+    task {
+        let config: Database.DbConfig = { DataSource = Path.Combine(dataDirectory, "umbral.db") }
+        do! Database.initializeSchema config
+        let now = DateTimeOffset.UtcNow
+
+        do!
+            ConnectorStore.save
+                config
+                TimeProvider.System
+                { Slug = "passkey"
+                  Kind = Passkey
+                  DisplayName = "Passkey"
+                  ClientId = ""
+                  ClientSecretRef = ""
+                  ClientSecretHint = ""
+                  IssuerUrl = None
+                  AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = now
+                  UpdatedUtc = now }
+                None
+
+        let! _, secret = PasskeyInvitations.create config TimeProvider.System "passkey" None "idle"
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
+        return secret
+    }
+
+/// One person at the child's HTTP endpoints, as a browser behind a TLS proxy:
+/// the `X-Forwarded-Proto` header on every request and a cookie jar of its own.
+/// The jar is by hand because the app's cookies are `Secure` and the child is
+/// reached over plain http, which a `CookieContainer` would not send them over.
+type private Visitor(port: int) =
+    let http = new HttpClient(new HttpClientHandler(UseCookies = false), BaseAddress = Uri $"http://127.0.0.1:{port}")
+    let jar = Collections.Generic.Dictionary<string, string>()
+
+    do http.Timeout <- TimeSpan.FromSeconds 30.0
+
+    member _.Send(request: HttpRequestMessage) =
+        task {
+            request.Headers.Add("X-Forwarded-Proto", "https")
+
+            if jar.Count > 0 then
+                request.Headers.Add("Cookie", String.Join("; ", jar |> Seq.map (fun pair -> $"{pair.Key}={pair.Value}")))
+
+            let! response = http.SendAsync request
+
+            if response.Headers.Contains "Set-Cookie" then
+                for header in response.Headers.GetValues "Set-Cookie" do
+                    let pair = header.Split(';')[0]
+                    let at = pair.IndexOf '='
+
+                    if at > 0 then
+                        let name, value = pair.Substring(0, at), pair.Substring(at + 1)
+                        if value = "" then jar.Remove name |> ignore else jar[name] <- value
+
+            return response
+        }
+
+    /// GET a page and return the antiforgery token its form carries.
+    member this.TokenFrom(path: string) =
+        task {
+            use! response = this.Send(new HttpRequestMessage(HttpMethod.Get, path))
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+            let! html = response.Content.ReadAsStringAsync()
+            let m = Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"")
+            Assert.True(m.Success, $"{path} carries an antiforgery token")
+            return m.Groups[1].Value
+        }
+
+    /// POST JSON with the antiforgery token in its header; the status and the answer.
+    member this.PostJson(path: string, token: string, body: obj) =
+        task {
+            let request = new HttpRequestMessage(HttpMethod.Post, path)
+            request.Content <- new StringContent(JsonSerializer.Serialize body, Encoding.UTF8, "application/json")
+            request.Headers.Add("RequestVerificationToken", token)
+            use! response = this.Send request
+            let! text = response.Content.ReadAsStringAsync()
+            return response.StatusCode, text
+        }
+
+    interface IDisposable with
+        member _.Dispose() = http.Dispose()
+
+/// One registration through the invitation and one sign-in with the passkey it
+/// made, each answered 200: a run that never reached the library would measure
+/// an instance that has not paid for a ceremony.
+let private performCeremonies (secret: string) (port: int) =
+    task {
+        let authenticator = SoftwareAuthenticator.SoftwareAuthenticator("umbral.test", "https://umbral.test")
+        let parse (text: string) = JsonDocument.Parse(text).RootElement.Clone()
+
+        use registering = new Visitor(port)
+        let! token = registering.TokenFrom $"/invite/{secret}"
+
+        let! status, text =
+            registering.PostJson(
+                "/passkey/registration/options",
+                token,
+                {| mode = "invitation"
+                   invitation = secret
+                   displayName = "Idle"
+                   nickname = "" |}
+            )
+
+        Assert.True((status = HttpStatusCode.OK), $"registration options answered {int status}: {text}")
+        let started = parse text
+        let credential = authenticator.Register(started.GetProperty "options")
+
+        let! status, text =
+            registering.PostJson("/passkey/registration", token, {| ceremony = Journeys.strOf started "ceremony"; credential = credential |})
+
+        Assert.True((status = HttpStatusCode.OK), $"registration answered {int status}: {text}")
+
+        use signingIn = new Visitor(port)
+        let! token = signingIn.TokenFrom "/connect/passkey/start?returnUrl=%2F"
+        let! status, text = signingIn.PostJson("/passkey/assertion/options", token, {| returnUrl = "/" |})
+        Assert.True((status = HttpStatusCode.OK), $"assertion options answered {int status}: {text}")
+        let started = parse text
+        let credential = authenticator.Assert(started.GetProperty "options", (List.head authenticator.Credentials).Id)
+
+        let! status, text =
+            signingIn.PostJson("/passkey/assertion", token, {| ceremony = Journeys.strOf started "ceremony"; credential = credential |})
+
+        Assert.True((status = HttpStatusCode.OK), $"assertion answered {int status}: {text}")
+    }
+
+[<Fact>]
+let ``an idle instance with the passkey connector in use stays under 160 MB resident`` () =
+    task {
+        let mutable secret = ""
+
+        do!
+            assertIdleUnderCeilingWith
+                "passkey connector"
+                "SC-008"
+                ExternalStoreCeilingBytes
+                []
+                (fun dataDirectory ->
+                    task {
+                        let! created = seedPasskeyConnector dataDirectory
+                        secret <- created
+                    })
+                (fun port -> performCeremonies secret port)
     }
