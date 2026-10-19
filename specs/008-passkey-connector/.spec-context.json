@@ -2,8 +2,8 @@
   "workflow": "speckit",
   "specName": "The Passkey Connector",
   "branch": "alta/rapid-centauri-mjkq",
-  "currentStep": "specify",
-  "status": "specified",
+  "currentStep": "plan",
+  "status": "planned",
   "history": [
     {
       "step": "specify",
@@ -11,6 +11,13 @@
       "kind": "start",
       "by": "extension",
       "at": "2026-10-19T20:03:30.127Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-19T20:13:28.435Z"
     }
   ]
 }
