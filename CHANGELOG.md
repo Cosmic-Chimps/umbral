@@ -48,7 +48,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 - Connector client secrets can be kept in AWS Secrets Manager, Google Cloud Secret Manager, Azure
   Key Vault or Bella Baxter instead of encrypted in `/data`, chosen with `UMBRAL__SECRET_STORE`.
   Secrets are cached briefly, and the last one read is used for an hour if the manager can't be
-  reached. A command moves existing secrets between stores.
+  reached. A command moves existing secrets between stores. An instance with an external store
+  idles under 160 MB rather than 150 MB, because it loads the manager's client library.
 - A `/healthz` endpoint and a container health check, a security log of sign-ins and changes, and
   a compose file with Caddy that gets and renews the HTTPS certificate.
 - Tagged versions are published as a multi-architecture image at `ghcr.io/<owner>/umbral`, with a

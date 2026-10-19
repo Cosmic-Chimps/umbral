@@ -51,11 +51,15 @@ Where connector secrets can live (optional):
 [Azure Key Vault](docs/secret-stores/azure.md) ·
 [BellaBaxter](docs/secret-stores/bellabaxter.md)
 
+An external store loads the manager's client library, so an instance that uses one idles under
+160 MB instead of 150 MB.
+
 ## Requirements
 
 - **Docker.** Nothing else is needed to run Umbral.
 - **A 64-bit machine**: `linux/amd64` or `linux/arm64` (a Raspberry Pi 4 or 5
-  with a 64-bit OS works). Umbral is designed to idle under 150 MB of memory.
+  with a 64-bit OS works). Umbral is designed to idle under 150 MB of memory (under 160 MB with an
+  external secret store).
 - **For a real deployment: a domain name and HTTPS.** Umbral refuses an
   `http://` address for anything but `localhost`, so a bare LAN IP such as
   `http://192.168.1.50:8080` does not work. See
@@ -717,7 +721,7 @@ To change what the first definition contains (more memory, another variable),
 edit that file before the first release. It is only read when the app has no
 services yet: once the app is defined, change it in the Caravana console, and
 later releases keep your changes. The default memory (256 MB) is enough: Umbral
-idles under 150 MB.
+idles under 150 MB (under 160 MB with an external secret store).
 
 `UMBRAL__PUBLIC_ORIGIN` must match the domain exactly, scheme included; the
 [section above](#the-public-origin-must-match-exactly) explains why.

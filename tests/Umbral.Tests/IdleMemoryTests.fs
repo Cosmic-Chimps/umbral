@@ -27,12 +27,19 @@
 ///            reasons that say nothing about a Raspberry Pi. CI on Linux runs
 ///            the strict one.
 ///
-/// It runs twice (specs/005 SC-006). The second time the instance has an
-/// external secret store, `aws`, because that is the configuration that pulls a
-/// vendor SDK, its HTTP stack and its credential chain into the process: the
-/// promise to a Pi owner has to hold with the SDK loaded, not only without it.
-/// There is no AWS in a test, so the SDK is pointed at a stub on a local port
-/// that refuses everything the way a manager would an unknown secret.
+/// It runs twice (specs/005 SC-006), with two ceilings. The default, the local
+/// store, is held to 150 MiB: that is the Raspberry Pi promise. The second run
+/// has an external secret store, `aws`, the configuration that pulls a vendor
+/// SDK, its HTTP stack and its credential chain into the process (~11 MiB, the
+/// store's startup probe loads them). It has its own explicit ceiling of
+/// 160 MiB (amended 2026-10-19): an operator who runs a cloud secret manager is
+/// rarely on a 1 GB board, and the alternative was giving up the probe. There is
+/// no AWS in a test, so the SDK is pointed at a stub on a local port that
+/// refuses everything the way a manager would an unknown secret.
+///
+/// Umbral.fsproj sets TieredCompilation=false (measured on linux/arm64: local
+/// 144.0 -> 137.7 MiB, aws 154.8 -> 147.6 MiB), and the child process reads it
+/// from Umbral.runtimeconfig.json like the container does.
 module Umbral.Tests.IdleMemoryTests
 
 open System
@@ -48,10 +55,15 @@ open System.Threading
 open System.Threading.Tasks
 open Xunit
 
-/// The SC-007 ceiling, "150 MB" read the way a container limit (`--memory=150m`)
-/// and every memory tool reads it: mebibytes.
+/// The SC-007 ceiling for the default (local store), "150 MB" read the way a
+/// container limit (`--memory=150m`) and every memory tool reads it: mebibytes.
 [<Literal>]
-let private CeilingBytes = 157_286_400L
+let private LocalStoreCeilingBytes = 157_286_400L
+
+/// The SC-006 ceiling with an external secret store: 160 MiB. See the module
+/// comment for why it is separate.
+[<Literal>]
+let private ExternalStoreCeilingBytes = 167_772_160L
 
 /// Off Linux: only a runaway fails. See the module comment.
 [<Literal>]
@@ -139,8 +151,14 @@ type private ManagerStub(port: int) =
 
 /// Starts Umbral as its own process with `extraEnvironment` on top of the
 /// production one, waits until it answers and sits idle, and asserts the
-/// resident set. `label` names the run in the report and the job summary.
-let private assertIdleUnderCeiling (label: string) (extraEnvironment: (string * string) list) =
+/// resident set against `linuxCeiling`. `label` names the run in the report and
+/// the job summary; `rule` names the budget that applies (SC-007, SC-006).
+let private assertIdleUnderCeiling
+    (label: string)
+    (rule: string)
+    (linuxCeiling: int64)
+    (extraEnvironment: (string * string) list)
+    =
     task {
         let umbralDll = Path.Combine(AppContext.BaseDirectory, "Umbral.dll")
 
@@ -235,12 +253,12 @@ let private assertIdleUnderCeiling (label: string) (extraEnvironment: (string * 
 
             Assert.False(child.HasExited, $"the app exited while idle:{Environment.NewLine}{said ()}")
             let resident = residentBytes child
-            let ceiling = if OperatingSystem.IsLinux() then CeilingBytes else SanityCeilingBytes
+            let ceiling = if OperatingSystem.IsLinux() then linuxCeiling else SanityCeilingBytes
 
             // Visible in the test output, because a number that passes with
             // 3 MB to spare and one that passes with 90 MB are different news.
             let mebibytes (bytes: int64) = float bytes / 1_048_576.0
-            let report = $"[SC-007] {label}: idle resident set: {mebibytes resident:F1} MiB (ceiling {mebibytes ceiling:F0} MiB, {RuntimeInformation.OSDescription})"
+            let report = $"[{rule}] {label}: idle resident set: {mebibytes resident:F1} MiB (ceiling {mebibytes ceiling:F0} MiB, {RuntimeInformation.OSDescription})"
             Console.WriteLine report
             TestContext.Current.SendDiagnosticMessage report
 
@@ -256,7 +274,7 @@ let private assertIdleUnderCeiling (label: string) (extraEnvironment: (string * 
 
             Assert.True(
                 resident < ceiling,
-                $"idle resident set ({label}) was {mebibytes resident:F1} MiB, over the {mebibytes ceiling:F0} MiB ceiling (SC-007)"
+                $"idle resident set ({label}) was {mebibytes resident:F1} MiB, over the {mebibytes ceiling:F0} MiB ceiling for {label} ({rule})"
             )
         finally
             if not child.HasExited then
@@ -273,10 +291,10 @@ let private assertIdleUnderCeiling (label: string) (extraEnvironment: (string * 
 
 [<Fact>]
 let ``an idle instance stays under 150 MB resident`` () =
-    assertIdleUnderCeiling "local store" []
+    assertIdleUnderCeiling "local store" "SC-007" LocalStoreCeilingBytes []
 
 [<Fact>]
-let ``an idle instance with an external secret store stays under 150 MB resident`` () =
+let ``an idle instance with an external secret store stays under 160 MB resident`` () =
     task {
         let port = freePort ()
         use stub = new ManagerStub(port)
@@ -288,6 +306,8 @@ let ``an idle instance with an external secret store stays under 150 MB resident
         do!
             assertIdleUnderCeiling
                 "aws store"
+                "SC-006"
+                ExternalStoreCeilingBytes
                 [ "UMBRAL__SECRET_STORE", "aws"
                   "AWS_REGION", "eu-west-1"
                   "AWS_ACCESS_KEY_ID", "AKIAIDLEMEMORYTEST"

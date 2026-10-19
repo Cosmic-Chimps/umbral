@@ -19,6 +19,16 @@
     <!-- SC-007 puts a 150 MB ceiling on idle residency; workstation GC is how we get there. -->
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <!--
+      Also for SC-007. The GC heap is small; JIT'd code dominates the resident set. Tiered
+      compilation compiles every hot method twice (tier 0, then tier 1) and keeps call-counting
+      stubs: about 8 MiB at idle (measured on linux/arm64, 144.0 -> 137.7 MiB with the local
+      store). Startup readiness is unchanged and steady-state code is a little slower, which a
+      low-traffic sign-in service does not notice. Lands in Umbral.runtimeconfig.json, so the
+      container and the idle-memory test's child process both get it. DOTNET_TieredCompilation=1
+      in the environment overrides it (CI uses that to show what the setting saves).
+    -->
+    <TieredCompilation>false</TieredCompilation>
   </PropertyGroup>
 
   <!--

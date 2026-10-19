@@ -82,7 +82,8 @@ dotnet test -c Release --filter-class "*IdleMemory*"
 ```
 
 Expected: the extra run with `UMBRAL__SECRET_STORE=aws` against a local stub
-(`AWS_ENDPOINT_URL_SECRETS_MANAGER`) stays under 150 MB.
+(`AWS_ENDPOINT_URL_SECRETS_MANAGER`) stays under 160 MB (the local-store run stays
+under 150 MB; SC-006, amended 2026-10-19).
 
 ## 5. Real managers (manual, once per store)
 

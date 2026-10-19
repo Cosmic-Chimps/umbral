@@ -1,11 +1,12 @@
 # Build and test, on both architectures a self-hoster runs Umbral on.
 #
-# The matrix is not decoration: SC-007 (idle resident set under 150 MB) is
-# asserted by tests/Umbral.Tests/IdleMemoryTests.fs on Linux only, and its
-# margin was only ever measured on arm64. The x64 runner is where the number
-# for an ordinary VPS comes from. Each job writes its figure to the job summary
-# (the test appends it when GITHUB_STEP_SUMMARY is set), so it can be read off a
-# run without opening a log.
+# The matrix is not decoration: SC-007 (idle resident set under 150 MB, or 160 MB
+# with an external secret store) is asserted by
+# tests/Umbral.Tests/IdleMemoryTests.fs on Linux only, and its margin was only
+# ever measured on arm64. The x64 runner is where the number for an ordinary VPS
+# comes from. Each job writes its figure to the job summary (the test appends it
+# when GITHUB_STEP_SUMMARY is set), so it can be read off a run without opening
+# a log.
 name: ci
 
 on:
@@ -46,12 +47,13 @@ jobs:
           echo "### Idle resident set (SC-007)" >> "$GITHUB_STEP_SUMMARY"
           dotnet test -c Release
 
-      # Not a gate: the same test again with tiered PGO off, to see what that
-      # knob is worth on this architecture before anyone turns it on. The app
-      # inherits the environment, so nothing in the test changes.
-      - name: Idle memory with DOTNET_TieredPGO=0 (comparison)
+      # Not a gate: the same test again with tiered compilation back on (the .NET
+      # default; Umbral.fsproj turns it off), to keep showing what the setting
+      # saves on this architecture. The environment overrides runtimeconfig.json
+      # and the app inherits it, so nothing in the test changes.
+      - name: Idle memory with DOTNET_TieredCompilation=1 (comparison)
         env:
-          DOTNET_TieredPGO: "0"
+          DOTNET_TieredCompilation: "1"
         run: |
-          echo "#### With DOTNET_TieredPGO=0" >> "$GITHUB_STEP_SUMMARY"
+          echo "#### With DOTNET_TieredCompilation=1 (the old default)" >> "$GITHUB_STEP_SUMMARY"
           dotnet test -c Release --no-build --filter-class "Umbral.Tests.IdleMemoryTests"

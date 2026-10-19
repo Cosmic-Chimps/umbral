@@ -54,7 +54,8 @@ framework-dependent publish (not trimmed, not AOT).
 **Performance Goals**: warm-cache sign-in adds no call to the manager; a cold
 one adds one, bounded at 10 s (SC-005, FR-012).
 
-**Constraints**: idle RSS < 150 MB with any store active (SC-006); a local-only
+**Constraints**: idle RSS < 160 MB with any store active, < 150 MB with the local
+store (SC-006, amended 2026-10-19); a local-only
 instance loads no vendor assembly (SC-004); no secret in any log (SC-007);
 `TreatWarningsAsErrors` applies to new packages.
 

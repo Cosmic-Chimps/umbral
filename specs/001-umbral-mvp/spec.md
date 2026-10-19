@@ -439,7 +439,9 @@ work against the second instance.
   **Superseded by [004](../004-remove-config-document/spec.md).**
 - **SC-007**: The running instance holds under 150 MB resident at idle and serves
   both 64-bit Intel and 64-bit ARM hosts, so that a Raspberry Pi-class machine is
-  a supported deployment.
+  a supported deployment. *Amended 2026-10-19: with an external secret store the
+  ceiling is 160 MB; see [005](../005-external-secret-stores/spec.md) SC-006.
+  The default (local store) stays under 150 MB.*
 - **SC-008**: No secret — upstream or app — is readable from the admin UI, the
   configuration export, or the logs after it has been saved.
   **Superseded by [004](../004-remove-config-document/spec.md), the configuration export part.**

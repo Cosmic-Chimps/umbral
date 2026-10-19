@@ -452,8 +452,18 @@ what is wrong and what to do; confirm each connector card names its store.
 - **SC-005**: With a warm cache, a sign-in through a connector in an external
   store takes no longer than one through the local store (no call to the
   manager); with a cold cache it adds at most one call to the manager.
-- **SC-006**: With an external store configured, Umbral stays under the 150 MB
-  idle memory budget of Principle II.
+- **SC-006**: With an external store configured, Umbral stays under 160 MB
+  idle resident memory. The 150 MB budget of Principle II is the default (local
+  store) promise and is unchanged.
+  **Amended 2026-10-19**: this was "under the 150 MB budget". Measured on
+  linux/arm64, an instance with an external store idles ~10.8 MiB above the
+  local one (about 148 MiB against 138 MiB, tiered compilation off), because the
+  store's startup probe loads the vendor SDK and its HTTP stack. The maintainer
+  chose a separate 160 MiB ceiling for that configuration over dropping the SDK
+  or the probe: the Raspberry Pi promise is about the default, and an operator
+  who runs a cloud secret manager is rarely on a 1 GB board. Tiered compilation
+  is also turned off for the whole app (about 6 MiB). The test is
+  `IdleMemoryTests`.
 - **SC-007**: No log line, security log entry, error page or admin page
   produced during any test of this feature contains a secret value or a
   manager credential.
