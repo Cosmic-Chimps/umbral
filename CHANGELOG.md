@@ -10,6 +10,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+## 0.1.1 - 2026-10-19
+
 ### Changed
 - The Caravana guide in the README now uses a deploy token that can only deploy and read the
   `umbral` app (Caravana 0.8.1 and later), with a full API token as the fallback for older hosts.
