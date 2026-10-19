@@ -10,6 +10,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+## 0.1.0 - 2026-10-19
+
 ### Added
 - Umbral is a self-hosted OpenID Connect provider for social login, in one container with an
   embedded SQLite database: no Postgres, no Redis. Your apps use any standard OIDC library with
