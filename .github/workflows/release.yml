@@ -248,10 +248,10 @@ jobs:
       # the truth, so edits made in its console are kept (only the image is
       # replaced on each release). The action writes the job summary and prints
       # Caravana's warnings.
-      # Pinned to the commit of the v1.0.0 tag.
+      # Pinned to the commit of the v1.1.0 tag.
       - name: Deploy on Caravana
         id: deploy
-        uses: Cosmic-Chimps/caravana-action@a2b68adb9ba275974a4bb6a7df4d3d880702e4a5 # v1.0.0
+        uses: Cosmic-Chimps/caravana-action@e05c7a3e11c0f33a7d268d6ea32eaae70d12516d # v1.1.0
         with:
           url: ${{ steps.caravana.outputs.url }}
           token: ${{ steps.caravana.outputs.token }}
