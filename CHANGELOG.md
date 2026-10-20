@@ -10,6 +10,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+## 0.2.0 - 2026-10-20
+
 ### Added
 - The passkey connector: people can sign in with a passkey (a phone, laptop or security key,
   unlocked by fingerprint, face or PIN) and need no social provider. Enable it on the **Passkey**
