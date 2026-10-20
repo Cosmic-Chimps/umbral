@@ -34,6 +34,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The same check the Dockerfile runs: a view that gained a class without
+      # the committed umbral.css being regenerated fails here, on the push,
+      # instead of in the release's image build.
+      - name: Stylesheet is up to date
+        run: src/Umbral/Assets/build-css.sh --check
+
       # global.json pins the SDK (10.0.400, rolling forward to the latest
       # feature band) and the Microsoft.Testing.Platform runner.
       - uses: actions/setup-dotnet@v4
