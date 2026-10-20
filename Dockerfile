@@ -32,7 +32,10 @@ COPY src/ src/
 # serve. Fail the build when a view gained a class and the CSS was not
 # regenerated. The build stage runs on $BUILDPLATFORM, so `uname -m` picks the
 # Tailwind CLI that runs natively; the cache mount keeps the download between builds.
-RUN --mount=type=cache,target=/root/.cache/umbral src/Umbral/Assets/build-css.sh --check
+# sharing=locked: a multi-arch build runs this stage once per target, in
+# parallel, against the same cache. Unlocked, both download the CLI and one
+# replaces the file while the other is running it ("ENOENT ... (deleted)").
+RUN --mount=type=cache,target=/root/.cache/umbral,sharing=locked src/Umbral/Assets/build-css.sh --check
 
 # Framework-dependent: the aspnet base image supplies the runtime. A
 # RID-specific publish still emits the /app/Umbral apphost, which is the
