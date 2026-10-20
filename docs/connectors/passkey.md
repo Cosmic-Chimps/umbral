@@ -170,7 +170,10 @@ it is invitations only. See [Who can sign in](../../README.md#who-can-sign-in).
   authenticator with **resident keys** and **user verification** ticked, and the
   page works as with a real device. (Menu names are as of writing.)
 - **Several passkeys per account**, up to 10: a phone and a security key make a
-  good pair.
+  good pair. A second passkey comes from a second device: Umbral tells the
+  browser which passkeys the account already has, so the same device refuses to
+  make another one for it (the page says the passkey wasn't saved). That is the
+  device's doing, not a fault.
 - **The invitation is a bearer link.** Send it over a channel you trust. It works
   once, for 7 days, and a used, expired, revoked or unusable link all show the
   same page: *This invitation link can't be used*. The cause is in

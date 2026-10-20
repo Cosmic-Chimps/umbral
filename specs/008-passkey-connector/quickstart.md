@@ -75,6 +75,19 @@ reader.
     `passkey_refused;reason=invitation_used;stage=invitation`,
     `passkey_removed`, and nothing that looks like a key or a link.
 
+## Automating the walk
+
+The steps above were run on 2026-10-19 in a headless Google Chrome driven
+through the DevTools Protocol, which is the one way to exercise
+`src/Umbral/Assets/passkeys.js` without a person: `WebAuthn.enable`, then
+`WebAuthn.addVirtualAuthenticator` with `protocol: ctap2`, `transport:
+internal`, `hasResidentKey`, `hasUserVerification`, `isUserVerified` and
+`automaticPresenceSimulation`, then the clicks. Two things to know when
+repeating it: the Create app form on `/admin/apps` is a dialog, so use
+`/admin/apps/new`; and a second passkey for the same account needs a second
+virtual authenticator, because the first one holds a credential the options
+exclude and the browser refuses without asking the server.
+
 ## Memory
 
 ```bash
