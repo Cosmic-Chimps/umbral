@@ -13,18 +13,13 @@
 ///                `redirect_uri` registration, PKCE, `state`, bearer tokens —
 ///                and a browser form cannot supply an antiforgery token for a
 ///                request an arbitrary third-party app is meant to make.
-///   /passkey/*   The passkey ceremonies' JSON endpoints. They validate the same
-///                antiforgery token through the `RequestVerificationToken`
-///                header (`WebForms.validateAntiforgery`), and
-///                `PasskeyCeremonyTests` holds a POST without the header to a
-///                400 with nothing changed; this test posts form bodies and
-///                cannot exercise them.
-///   /account/*   A signed-in person's own pages. Their POSTs call
-///                `WebForms.readValidated`, and `PasskeyAccountTests` holds a
-///                POST without a token to a 400 with the passkey kept; this
-///                test's walk is for operator routes and anonymous requests.
 ///   /dev/*       The Fake provider, a stand-in for somebody else's login page.
 ///                It exists only behind two gates and changes no Umbral state.
+///
+/// A signed-in person's routes (/account/*) and the passkey ceremonies'
+/// JSON endpoints (/passkey/*, which take the token in the
+/// `RequestVerificationToken` header and `{}` as the body here) are walked too:
+/// the operator, a person and a stranger are each held to "no token, no change".
 ///
 /// Anything else that mutates and is NOT under /admin fails the test until it
 /// is either protected or consciously added to that list: a new kind of route
@@ -61,7 +56,25 @@ type private MutatingRoute =
 
 /// Path prefixes that are not Umbral's to protect with antiforgery. See the
 /// module comment for the reasons.
-let private outOfScope = [ "/connect/"; "/dev/"; "/passkey/"; "/account/" ]
+let private outOfScope = [ "/connect/"; "/dev/" ]
+
+/// Path prefixes whose routes take a JSON body and the antiforgery token in
+/// the `RequestVerificationToken` header, as a script sends it, rather than
+/// a form. The walk posts `{}` to them and moves any token field into that
+/// header.
+let private jsonRoutes = [ "/passkey/" ]
+
+let private isJson (route: MutatingRoute) =
+    jsonRoutes |> List.exists route.Pattern.StartsWith
+
+let private tokenField = "__RequestVerificationToken"
+
+/// Path prefixes of a signed-in person's own routes. Like the JSON ones they
+/// are walked, so a new route under them is covered the day it lands.
+let private personRoutes = [ "/account/" ]
+
+let private isWalkedOutsideAdmin (route: MutatingRoute) =
+    personRoutes @ jsonRoutes |> List.exists route.Pattern.StartsWith
 
 let private mutatingRoutes (app: Fixtures.TestApp) =
     (app.App :> IEndpointRouteBuilder).DataSources
@@ -180,16 +193,35 @@ let private bodyFor (setupToken: string) (credential: string) =
       // skipped its antiforgery check would save it.
       "accent", "#f26b1d" ]
 
-let private send (browser: Browser) (method': string) (path: string) (fields: (string * string) list) =
-    let message = new HttpRequestMessage(HttpMethod method', path)
-    message.Content <- new FormUrlEncodedContent(dict fields)
+let private send (browser: Browser) (route: MutatingRoute) (path: string) (fields: (string * string) list) =
+    let message = new HttpRequestMessage(HttpMethod route.Method, path)
+
+    if isJson route then
+        message.Content <- new StringContent("{}", Encoding.UTF8, "application/json")
+
+        match fields |> List.tryFind (fun (name, _) -> name = tokenField) with
+        | Some(_, token) -> message.Headers.Add("RequestVerificationToken", token)
+        | None -> ()
+    else
+        message.Content <- new FormUrlEncodedContent(dict fields)
+
     browser.Send message
+
+/// Who sends the forged request. It decides which answers count as a refusal.
+type private Visitor =
+    /// No session: a redirect to either sign-in gate is a refusal.
+    | Stranger
+    /// Signed in through a connector (not the operator): /admin may send them
+    /// to its own sign-in; their own routes must answer 400.
+    | Person
+    /// The operator: 400 everywhere, except /admin/setup's "already done".
+    | Operator
 
 /// Statuses that mean "refused": the 400 of a rejected token, or a redirect
 /// to sign in / set up for a visitor who is not the operator. Anything else —
 /// above all a 2xx, or a redirect somewhere real — means the request got
 /// through.
-let private refusedAsExpected (signedIn: bool) (route: MutatingRoute) (response: HttpResponseMessage) =
+let private refusedAsExpected (visitor: Visitor) (route: MutatingRoute) (response: HttpResponseMessage) =
     let location = response.Headers.Location |> Option.ofObj |> Option.map string |> Option.defaultValue ""
 
     match response.StatusCode with
@@ -199,16 +231,25 @@ let private refusedAsExpected (signedIn: bool) (route: MutatingRoute) (response:
         // the form — "already done, go sign in" — and requireOperator sends a
         // visitor to the sign-in form. Both change nothing by construction;
         // the snapshot is what proves it.
-        let toAGate = location.StartsWith "/admin/signin" || location.StartsWith "/admin/setup"
+        let adminGate = location.StartsWith "/admin/signin" || location.StartsWith "/admin/setup"
+        // The gate of a person's route outside /admin, e.g.
+        // `/signin?returnUrl=%2Faccount%2Fpasskeys`.
+        let personGate = location.StartsWith "/signin?" && not (route.Pattern.StartsWith "/admin")
+
+        match visitor with
         // A signed-in operator must be refused with a 400. Only setup answers
         // them with a redirect, because it never reads the form at all.
-        if signedIn then route.Pattern = "/admin/setup" && toAGate else toAGate
+        | Operator -> route.Pattern = "/admin/setup" && adminGate
+        // A person is not the operator, so /admin may send them to its own
+        // sign-in; their own routes read the form first and must answer 400.
+        | Person -> route.Pattern.StartsWith "/admin" && adminGate
+        | Stranger -> adminGate || personGate
     | _ -> false
 
 let private rejectionFailures
     (app: Fixtures.TestApp)
     (browser: Browser)
-    (signedIn: bool)
+    (visitor: Visitor)
     (targets: Targets)
     (fields: (string * string) list)
     (routes: MutatingRoute list)
@@ -218,13 +259,13 @@ let private rejectionFailures
 
         for route in routes do
             let! before = snapshot app
-            let! response = send browser route.Method (fill targets route.Pattern) fields
+            let! response = send browser route (fill targets route.Pattern) fields
             let! after = snapshot app
             let changed = changedTables before after
 
             if not (List.isEmpty changed) then
                 failures.Add(route.Name + " changed " + String.Join(", ", changed))
-            elif not (refusedAsExpected signedIn route response) then
+            elif not (refusedAsExpected visitor route response) then
                 failures.Add(
                     route.Name + " answered " + string (int response.StatusCode)
                     + " (location: " + string response.Headers.Location + ") instead of refusing"
@@ -237,6 +278,8 @@ let private assertNone (what: string) (failures: string list) =
     Assert.True(List.isEmpty failures, what + Environment.NewLine + String.Join(Environment.NewLine, failures))
 
 /// A configured instance with an operator, a connector, an app and a person.
+/// Returns the operator's browser, the person's (signed in through the fake
+/// provider) and the rows the routes act on.
 let private populated (app: Fixtures.TestApp) =
     task {
         let operator = Browser(app.Client)
@@ -273,6 +316,7 @@ let private populated (app: Fixtures.TestApp) =
 
         return
             operator,
+            person,
             { ClientId = prepared.ClientId
               UserId = string userId }
     }
@@ -290,7 +334,7 @@ let ``the endpoint table has state-changing admin routes to protect`` () =
         use! app = Fixtures.createApp ()
         let names = mutatingRoutes app |> List.map _.Name
 
-        for expected in [ "POST /admin/apps"; "POST /admin/setup"; "POST /admin/signout" ] do
+        for expected in [ "POST /admin/apps"; "POST /admin/setup"; "POST /admin/signout"; "POST /passkey/assertion" ] do
             Assert.Contains(expected, names)
 
         // The three branding routes (spec 006) are in the table the other tests
@@ -302,6 +346,13 @@ let ``the endpoint table has state-changing admin routes to protect`` () =
                 names |> List.exists (fun name -> name.StartsWith "POST /admin/apps/" && name.EndsWith suffix),
                 $"no POST route ending {suffix} in the endpoint table"
             )
+
+        // A signed-in person's route and the passkey ceremonies (spec 008) are in
+        // the table the walks cover too, the person's one named here.
+        Assert.True(
+            names |> List.exists (fun name -> name.StartsWith "POST /account/passkeys/" && name.EndsWith "/remove"),
+            "no POST /account/passkeys/{id}/remove route in the endpoint table"
+        )
 
         Assert.True(names.Length >= 10, $"only {names.Length} state-changing routes were discovered")
     }
@@ -317,7 +368,11 @@ let ``every state-changing route is either protected or consciously out of scope
             // cookie, no operator needed) but it is protected by the token: it is
             // in `routes` of every walk below, so it is held to "no token, no
             // change", and ThemeTests covers it by name.
-            |> List.filter (fun r -> not (r.Pattern.StartsWith "/admin") && r.Pattern <> "/theme" && not (isOutOfScope r))
+            |> List.filter (fun r ->
+                not (r.Pattern.StartsWith "/admin")
+                && r.Pattern <> "/theme"
+                && not (isWalkedOutsideAdmin r)
+                && not (isOutOfScope r))
             |> List.map _.Name
 
         assertNone
@@ -329,18 +384,18 @@ let ``every state-changing route is either protected or consciously out of scope
 let ``the operator cannot change anything without an antiforgery token`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
-        let! operator, targets = populated app
+        let! operator, _, targets = populated app
 
         let routes = mutatingRoutes app |> List.filter (isOutOfScope >> not)
         let fields = bodyFor "not-the-token" OperatorCredential
 
         // 1. No token at all — the forged cross-site POST.
-        let! missing = rejectionFailures app operator true targets fields routes
+        let! missing = rejectionFailures app operator Operator targets fields routes
         assertNone "a signed-in operator's request with NO antiforgery token got through:" missing
 
         // 2. A token that was never issued: present, well-formed, wrong.
-        let forged = ("__RequestVerificationToken", "CfDJ8-this-token-was-never-issued") :: fields
-        let! wrong = rejectionFailures app operator true targets forged routes
+        let forged = (tokenField, "CfDJ8-this-token-was-never-issued") :: fields
+        let! wrong = rejectionFailures app operator Operator targets forged routes
         assertNone "a signed-in operator's request with a FORGED antiforgery token got through:" wrong
 
         // Refusing a sign-out must not have signed anybody out.
@@ -363,29 +418,67 @@ let ``the operator cannot change anything without an antiforgery token`` () =
     }
 
 [<Fact>]
+let ``a signed-in person cannot change anything without an antiforgery token`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, person, targets = populated app
+
+        let routes = mutatingRoutes app |> List.filter (isOutOfScope >> not)
+        let fields = bodyFor "not-the-token" OperatorCredential
+
+        // 1. No token at all — the forged cross-site POST from a site the
+        //    person is visiting while signed in to Umbral.
+        let! missing = rejectionFailures app person Person targets fields routes
+        assertNone "a signed-in person's request with NO antiforgery token got through:" missing
+
+        // 2. A token that was never issued.
+        let forged = (tokenField, "CfDJ8-this-token-was-never-issued") :: fields
+        let! wrong = rejectionFailures app person Person targets forged routes
+        assertNone "a signed-in person's request with a FORGED antiforgery token got through:" wrong
+
+        // Refusing must not have ended the person's session.
+        let! stillIn = person.Get "/account/passkeys"
+        Assert.Equal(HttpStatusCode.OK, stillIn.StatusCode)
+
+        // The control: the same removal WITH a token is accepted — answered
+        // with the page's notice (there is no passkey of that id to remove),
+        // not with a 400 — so "refused" above cannot mean "malformed".
+        let! removed = person.PostForm("/account/passkeys", $"/account/passkeys/{targets.UserId}/remove", [])
+        Assert.Equal(HttpStatusCode.Redirect, removed.StatusCode)
+        Assert.StartsWith("/account/passkeys", string removed.Headers.Location)
+    }
+
+[<Fact>]
 let ``a visitor who is not signed in cannot change anything either`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
-        let! _, targets = populated app
+        let! _, _, targets = populated app
 
         // A browser that has never authenticated, with and without a token.
         let stranger = Browser(app.Client)
         let routes = mutatingRoutes app |> List.filter (isOutOfScope >> not)
         let fields = bodyFor "not-the-token" OperatorCredential
 
-        let! bare = rejectionFailures app stranger false targets fields routes
+        let! bare = rejectionFailures app stranger Stranger targets fields routes
         assertNone "an anonymous request with no token changed something or was not refused:" bare
 
         // A real, valid token — a stranger can fetch one from the sign-in page —
         // must still not unlock an operator-only route. (`/theme` is not one: a
-        // stranger may choose their own theme.)
+        // stranger may choose their own theme. Nor are a person's routes, which
+        // send a stranger to sign in, or the passkey ceremonies, which a
+        // stranger may start: they are open to a stranger with a token on purpose.)
         let! token = stranger.TokenFrom "/admin/signin"
-        let withToken = ("__RequestVerificationToken", token) :: fields
+        let withToken = (tokenField, token) :: fields
 
         let operatorOnly =
-            routes |> List.filter (fun r -> r.Pattern <> "/admin/signin" && r.Pattern <> "/admin/signout" && r.Pattern <> "/admin/setup" && r.Pattern <> "/theme")
+            routes
+            |> List.filter (fun r ->
+                r.Pattern.StartsWith "/admin/"
+                && r.Pattern <> "/admin/signin"
+                && r.Pattern <> "/admin/signout"
+                && r.Pattern <> "/admin/setup")
 
-        let! tokenOnly = rejectionFailures app stranger false targets withToken operatorOnly
+        let! tokenOnly = rejectionFailures app stranger Stranger targets withToken operatorOnly
         assertNone "a valid token without an operator session unlocked an operator route:" tokenOnly
     }
 
@@ -421,7 +514,7 @@ let ``an unclaimed instance cannot be claimed without an antiforgery token`` () 
         // Every other mutating route, on an instance that has no operator yet.
         let routes = mutatingRoutes app |> List.filter (isOutOfScope >> not)
         let targets = { ClientId = "x"; UserId = "x" }
-        let! failures = rejectionFailures app browser false targets (bodyFor setupToken OperatorCredential) routes
+        let! failures = rejectionFailures app browser Stranger targets (bodyFor setupToken OperatorCredential) routes
         assertNone "on an unclaimed instance a request with no token changed something or was not refused:" failures
 
         let! stillConfigured = AdminAuth.isConfigured app.DbConfig
