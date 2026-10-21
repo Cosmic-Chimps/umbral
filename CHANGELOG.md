@@ -22,6 +22,10 @@ new image. Add to "Unreleased" as you work; a release renames it.
 - Apps receive an ordinary sign-in with `idp` set to `passkey`. A passkey-only user has no `email`.
 - A walkthrough, `docs/connectors/passkey.md`, and a Passkeys section in the README.
 
+### Fixed
+- Tick boxes in the admin screens follow the dark and light themes instead of the browser's
+  default look, and the list of an app's chosen connectors no longer sits flush under its options.
+
 ### Security
 - User verification is required, challenges are single-use, and the origin and relying-party
   identifier are checked against `UMBRAL__PUBLIC_ORIGIN`.

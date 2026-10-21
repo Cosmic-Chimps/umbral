@@ -41,8 +41,8 @@ let page: EndpointHandler =
                         Components.field "Email" "email" "test@example.com" None None
                         Components.field "Display name" "displayName" "Test User" None None
 
-                        label(class' = "flex items-center gap-2 text-body-md text-on-surface-variant") {
-                            input(type' = "checkbox", name = "emailVerified", value = "on")
+                        label(class' = "um-check-row") {
+                            input(type' = "checkbox", name = "emailVerified", value = "on", class' = "um-check")
                                 .attr("checked", "checked")
 
                             span() { "Email verified" }

@@ -438,10 +438,18 @@ let ``every url in the stylesheet is an asset Umbral serves`` () =
     let served = Assets.all |> List.map _.Path |> set
     let urls = [ for m in Regex.Matches(css, "url\\(\\s*[\"']?([^)\"']*)") -> m.Groups[1].Value.Trim() ]
 
-    // Guards the check: the stylesheet does name the three fonts.
-    Assert.Equal(Assets.fonts.Length, urls.Length)
+    // An inline `data:` image fetches nothing (the tick of `.um-check`, one per
+    // theme), and the page CSP allows `img-src data:`. Only SVG images, so a
+    // data: font or anything else still fails here.
+    let inlined, linked = urls |> List.partition (fun url -> url.StartsWith "data:")
 
-    for url in urls do
+    for url in inlined do
+        Assert.True(url.StartsWith "data:image/svg+xml", $"umbral.css inlines {url[..40]}, which is not an SVG image")
+
+    // Guards the check: the stylesheet does name the three fonts.
+    Assert.Equal(Assets.fonts.Length, linked.Length)
+
+    for url in linked do
         Assert.True(served.Contains url, $"umbral.css names {url}, which no asset serves")
 
 [<Fact>]

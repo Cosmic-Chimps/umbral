@@ -296,19 +296,20 @@ let private connectorChoices
         if connectors.IsEmpty then
             p(class' = "um-hint") { t.AppConnectorChoiceNoneToChoose }
         else
-            div(class' = "space-y-1").data("connector-options", "") {
+            div(class' = "mt-4 space-y-2").data("connector-options", "") {
                 for connector in connectors do
-                    label(class' = "flex items-center gap-2 text-body-md text-on-surface") {
+                    label(class' = "um-check-row") {
                         let box =
-                            input(type' = "checkbox", name = "connectors", value = connector.Slug)
+                            input(type' = "checkbox", name = "connectors", value = connector.Slug, class' = "um-check")
 
                         if Set.contains connector.Slug members then
                             box.attr("checked", "checked") |> ignore
 
                         box
 
-                        span() { $"{connector.DisplayName} " }
-                        span(class' = "um-mono") { connector.Slug }
+                        span() { connector.DisplayName }
+                        // The identifier, quieter: often it repeats the name.
+                        span(class' = "um-mono text-label-md text-on-surface-variant") { connector.Slug }
                     }
             }
 

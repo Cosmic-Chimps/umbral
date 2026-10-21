@@ -73,8 +73,8 @@ let private secretStoreBanner (ctx: HttpContext) (t: Texts.Texts) =
 /// not shared (FR-014).
 let private sharedBox (t: Texts.Texts) (isShared: bool) =
     div(class' = "space-y-1") {
-        label(class' = "flex items-center gap-2 text-body-md text-on-surface") {
-            let box = input(type' = "checkbox", name = "shared", value = "true")
+        label(class' = "um-check-row") {
+            let box = input(type' = "checkbox", name = "shared", value = "true", class' = "um-check")
 
             if isShared then
                 box.attr("checked", "checked") |> ignore

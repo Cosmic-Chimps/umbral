@@ -47,6 +47,15 @@
   :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
   a { text-underline-offset: 3px; }
   input { caret-color: var(--color-primary); }
+  /* The tick of a checked `.um-check`, in on-primary. A data: image cannot read a
+     CSS variable, so there is one per theme, chosen the way tailwind.config.js
+     chooses the tokens: dark on :root, light under data-theme="light" and under
+     "system" when the OS asks for light. */
+  :root { --um-check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%232a1d05' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+  :root[data-theme="light"] { --um-check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fffdf8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+  @media (prefers-color-scheme: light) {
+    :root[data-theme="system"] { --um-check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fffdf8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+  }
   /* The `hidden` attribute always hides. Tailwind's own rule for it is
      `:where()`-wrapped, so any class that sets `display` (`.um-btn` is
      inline-flex) used to win and show an element the markup hid: the logo
@@ -84,6 +93,11 @@
   .um-choice-body { @apply flex min-w-0 flex-col gap-1; }
   .um-choice-title { @apply text-body-md font-semibold text-on-surface; }
   .um-choice-desc { @apply text-label-md font-normal text-on-surface-variant; }
+  /* A tick box in the Umbra look, the square sibling of .um-choice-radio. */
+  .um-check-row { @apply flex cursor-pointer items-center gap-3 text-body-md text-on-surface; }
+  .um-check { appearance: none; flex: none; margin: 0; width: 1.125rem; height: 1.125rem; border-radius: var(--radius-sm); border: 2px solid var(--color-outline); background: transparent; cursor: pointer; }
+  .um-check:hover { border-color: var(--color-on-surface-variant); }
+  .um-check:checked { border-color: var(--color-primary); background: var(--color-primary) var(--um-check-mark) center / 100% 100% no-repeat; }
   .um-hint { @apply mt-1.5 text-label-md font-normal text-on-surface-variant; }
   .um-field-error { @apply mt-1.5 flex items-center gap-1.5 text-label-md text-error; }
   .um-alert { @apply flex items-start gap-3 rounded p-4 text-body-md border; }
@@ -103,7 +117,7 @@
   .um-icon { display: inline-block; flex: none; width: 1.25em; height: 1.25em; vertical-align: -0.25em; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .um-btn, .um-input, .um-link, .um-choice { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
+  .um-btn, .um-input, .um-link, .um-choice, .um-check { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .um-dialog[open] { animation: um-dialog-in 160ms ease-out; }
