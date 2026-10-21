@@ -908,8 +908,13 @@ deploy job runs in it, and two things depend on it:
 - Bella Baxter's trust domain requires `environment` to equal `production`, so
   only jobs running in that environment can read the secrets.
 - Under Deployment branches and tags, choose Selected branches and tags and add
-  the tag pattern `v*`. Bella Baxter cannot limit a token to certain tags, so
-  this rule is what keeps a branch or an unrelated tag from deploying.
+  the tag pattern `v*` and the branch `main`. Bella Baxter cannot limit a token
+  to certain tags, so these rules are what keep another branch or an unrelated
+  tag from deploying. Both are needed: a pushed tag runs on `v*`, but a release
+  started with the **Run workflow** button (below) runs on `refs/heads/main`, so
+  without the `main` rule the deploy job is refused after the tag is pushed.
+  Bella Baxter's trust domain needs no change: it matches the repository and the
+  environment's name, not the ref.
 
 You can also add required reviewers there to approve each rollout by hand.
 
@@ -917,7 +922,7 @@ The first time, go in this order: create the app in Caravana (above), put the
 secrets in Bella Baxter (`CARAVANA_URL`, `CARAVANA_DOMAIN`, `CARAVANA_TOKEN`;
 and, if you want backups from the start, set a backup destination in Caravana
 and `CARAVANA_BACKUP_SCHEDULE`), add the trust domain, set the GitHub variables
-and the `production` environment, then push a tag. The first release defines the
+and the `production` environment, then run a release. The first release defines the
 app from `deploy/caravana-app.json`. Every later release deploys the new image
 and keeps the changes you made in the console.
 
@@ -926,19 +931,21 @@ and keeps the changes you made in the console.
 While you work, add what changed for the people who run Umbral to
 [`CHANGELOG.md`](CHANGELOG.md), under `## Unreleased` (its top says how: what
 changed in plain words, under Added, Changed, Fixed, Security or Upgrade). To
-release, push a tag:
-
-```bash
-git tag v1.2.3
-git push origin v1.2.3
-```
+release, use the button: Actions, **release**, **Run workflow**, branch `main`,
+version `1.2.3` (no `v`). From a terminal, the same thing is
+`gh workflow run release.yml --ref main -f version=1.2.3`.
 
 The workflow ([`release.yml`](.github/workflows/release.yml)) then:
 
-1. turns `## Unreleased` into `## 1.2.3 - <today>` in its own checkout
-   ([`changelog.sh`](.github/scripts/changelog.sh)), and stops here, before
-   anything is built, if there is nothing under it: no empty releases;
-2. runs the same tests as CI;
+1. runs the same tests as CI on the tip of `main`, so a red test never leaves a
+   tag;
+2. turns `## Unreleased` into `## 1.2.3 - <today>`
+   ([`changelog.sh`](.github/scripts/changelog.sh)), commits that to `main` as
+   `chore(release): 1.2.3`, tags that commit `v1.2.3` and pushes both in one
+   atomic push, so the tag always contains its own changelog section. It stops
+   here, before anything is built, if there is nothing under `## Unreleased`
+   (no empty releases), if the tag already exists, or if `main` moved while the
+   tests ran (run it again);
 3. builds `linux/amd64` and `linux/arm64` and pushes `ghcr.io/<owner>/umbral:1.2.3`
    and `:latest`;
 4. deploys the exact image digest it just built through Caravana's API, with
@@ -952,16 +959,24 @@ The workflow ([`release.yml`](.github/workflows/release.yml)) then:
    deployed ("from CI ... run #N") in the app's history;
 5. publishes the GitHub release, with that changelog section as its notes
    (and GitHub's list of commits after it). It does not wait for the rollout,
-   so a failed rollout still has a published image and a release. It then
-   commits the renamed section to `main` as `docs(changelog): release 1.2.3`,
-   but only if `main` is still the tagged commit. If `main` has moved on, the
-   workflow warns instead, and you run `.github/scripts/changelog.sh prepare
-   1.2.3` on `main` by hand, keeping any newer entries under `## Unreleased`.
-   The tag never moves;
+   so a failed rollout still has a published image and a release;
 6. deletes image versions older than the last 10.
 
-Re-running a release is safe: the same image is deployed again as a new
-deployment, and nothing else changes.
+Pushing a tag still works (`git tag v1.2.3 && git push origin v1.2.3`): the
+workflow then prepares the changelog in its own checkout, builds and publishes
+the tag, and afterwards commits the renamed section to `main` as
+`docs(changelog): release 1.2.3`, but only if `main` is still the tagged commit.
+If `main` has moved on, it warns instead, and you run
+`.github/scripts/changelog.sh prepare 1.2.3` on `main` by hand, keeping any
+newer entries under `## Unreleased`. The tag never moves. The button is better:
+it commits the changelog first, so the tag never points at a changelog that
+still says `## Unreleased`, and branches merged after the release cannot put
+entries into the released section.
+
+Re-running the failed jobs of a release is safe: the same image is deployed
+again as a new deployment, and nothing else changes. Re-running all jobs of a
+button run is refused, because the tag exists by then; start a new run (with a
+new version) or, if no release was published, delete the tag first.
 
 Things to know:
 
@@ -969,8 +984,9 @@ Things to know:
   use, so Caravana stops the old copy before it starts the new one: a few seconds
   of downtime, and a rollout takes 15 to 30 seconds. Pick a quiet moment, or put
   a required reviewer on the `production` environment.
-- **Prereleases do not deploy.** A tag with a hyphen, such as `v1.2.0-rc.1`,
-  publishes its image but does not move `latest` and does not deploy. Pull
+- **Prereleases do not deploy.** A version with a hyphen, such as `1.2.0-rc.1`,
+  publishes its image but does not move `latest` and does not deploy. The
+  button only tags it, on the tested commit of `main`. Pull
   it by tag to try it. It gets a GitHub prerelease whose notes list what is under
   `## Unreleased`, and it leaves `CHANGELOG.md` alone, so the real release can
   still claim those entries.

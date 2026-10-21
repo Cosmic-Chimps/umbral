@@ -1,11 +1,23 @@
-# Release: push a tag like v1.2.3 and this workflow
+# Release: start it from the Actions tab (release > Run workflow > branch main >
+# version X.Y.Z), or push a tag like v1.2.3. Either way this workflow
 #
-#   1. turns CHANGELOG.md's "## Unreleased" into the notes of 1.2.3 and fails,
-#      before anything is built, when there is nothing under it (no empty
-#      releases); a prerelease such as v1.2.0-rc.1 leaves the changelog alone,
-#   2. runs the same tests as CI,
+#   1. runs the same tests as CI, on the commit the run started from, so red
+#      tests never leave a tag,
+#   2. gets the changelog right, and fails, before anything is built, when there
+#      is nothing under "## Unreleased" (no empty releases):
+#        - Run workflow: it turns "## Unreleased" into "## X.Y.Z - <today>",
+#          commits that to main as github-actions[bot], tags that commit vX.Y.Z
+#          and pushes both in one atomic push. The tag therefore always contains
+#          its own changelog section, and main is renamed before anything else
+#          can merge. If main moved during the tests, the push is refused and
+#          nothing is tagged: run it again.
+#        - a pushed tag: the section is prepared in this run's own checkout and
+#          recorded on main afterwards, only if main is still the tagged commit
+#          (job `release`). The tag never moves.
+#      A prerelease such as 1.2.0-rc.1 only gets its tag, on the tested commit,
+#      and leaves the changelog alone,
 #   3. builds linux/amd64 and linux/arm64 and pushes ghcr.io/<owner>/umbral:1.2.3
-#      (and :latest, unless the tag is a prerelease),
+#      (and :latest, unless it is a prerelease),
 #   4. deploys that exact image digest on the Caravana host with the action
 #      Cosmic-Chimps/caravana-action, which waits for the rollout to be healthy;
 #      the first time, it defines the app from deploy/caravana-app.json
@@ -14,44 +26,118 @@
 #      with the job's GitHub OIDC token: no secret is stored in GitHub,
 #   5. publishes the GitHub release with the changelog section as its notes
 #      (it does not wait for the rollout: a failed rollout still has a
-#      published image) and, for a release, commits the renamed section to main
-#      when main is still the tagged commit,
+#      published image),
 #   6. keeps the last 10 image versions and deletes older ones.
 #
+# Every job after `changelog` takes the version and the tag from that job's
+# outputs, never from GITHUB_REF_NAME (which is "main" on a Run workflow), and
+# checks out the tag, so it builds exactly the tagged commit.
+#
 # Setup (Bella Baxter, variables, the production environment): README,
-# "Deploying on Caravana".
+# "Deploying on Caravana". The production environment's deployment rule must
+# allow the tag pattern v* (a pushed tag) AND the branch main (Run workflow: the
+# run's ref is refs/heads/main, so the deploy job is refused without it).
 name: release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'X.Y.Z, no v'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
-# Two tags pushed close together run one after the other, never at once: the
-# prune of one must not race the push of the next. Nothing is cancelled, since
-# a half-finished rollout is worse than a queued one.
-concurrency: release
+# Two releases run one after the other, never at once: both would push to main,
+# and the prune of one must not race the push of the next. Nothing is
+# cancelled, since a half-finished rollout is worse than a queued one.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  # The release notes. A release (v1.2.3) gets its section of CHANGELOG.md; when
-  # the tagged commit has none, "## Unreleased" is renamed in this checkout, which
-  # fails when it is empty. A prerelease (v1.2.3-rc.1) is never prepared: its
-  # notes say so and list what is under Unreleased. The result is handed to the
-  # release job as an artifact, so nothing is written back from here.
+  # The same tests as CI, on the commit the run started from: main's tip for a
+  # Run workflow, the tagged commit for a tag push. They come first, so a
+  # failing test leaves no tag behind. (ci.yml has no concurrency group, so
+  # nothing in it can cancel this run.)
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  # The version, the notes and, on a Run workflow, the release itself. A release
+  # (1.2.3) gets its section of CHANGELOG.md; when the commit has none,
+  # "## Unreleased" is renamed in this checkout, which fails when it is empty.
+  # A prerelease (1.2.3-rc.1) is never prepared: its notes say so and list what
+  # is under Unreleased. The notes (and, for a pushed tag, the prepared
+  # changelog) go to the release job as an artifact.
   changelog:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # a Run workflow pushes the changelog commit and the tag
+    outputs:
+      version: ${{ steps.ver.outputs.version }} # X.Y.Z or X.Y.Z-suffix, no v
+      tag: ${{ steps.ver.outputs.tag }} # vX.Y.Z...
+      prerelease: ${{ steps.ver.outputs.prerelease }} # 'true' or 'false'
     steps:
+      # A Run workflow works on the commit the tests just passed on (full
+      # history, to push to main and to see every tag): if main moved meanwhile,
+      # the atomic push below is refused and nothing is tagged. A tag push
+      # works on its own tag.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.ref }}
+          fetch-depth: 0
+
+      - name: Decide the version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::Run this workflow on main (it was run on $GITHUB_REF): the release commit and the tag are made on main."
+              exit 1
+            fi
+            VERSION="${INPUT_VERSION#v}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::\"$VERSION\" is not X.Y.Z (a prerelease suffix is allowed, like 1.2.0-rc.1)."
+            exit 1
+          fi
+          PRERELEASE=false
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE=true; fi
+          {
+            echo "version=$VERSION"
+            echo "tag=v$VERSION"
+            echo "prerelease=$PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
+
+      # Before anything is written: a tag that exists, here or on the remote,
+      # is never reused.
+      - name: Refuse a tag that already exists
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          git fetch --tags --force -q origin
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || [ -n "$(git ls-remote --tags origin "refs/tags/$TAG")" ]; then
+            echo "::error::The tag $TAG already exists. Pick another version, or delete the tag first (git push --delete origin $TAG, and gh release delete $TAG --yes if it has a GitHub release) and run this workflow again."
+            exit 1
+          fi
 
       - name: Notes
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          PRERELEASE: ${{ steps.ver.outputs.prerelease }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           mkdir out
-          if [[ "$VERSION" == *-* ]]; then
+          if [ "$PRERELEASE" = "true" ]; then
             {
               echo "Prerelease $VERSION: a version to try, not a release. Its image is published by tag only, and \`latest\` and the changelog stay as they were."
               if [ -n "$(.github/scripts/changelog.sh unreleased)" ]; then
@@ -69,14 +155,37 @@ jobs:
           fi
           { echo "### Release notes"; echo; cat out/notes.md; } >> "$GITHUB_STEP_SUMMARY"
 
+      # Run workflow only: commit the renamed changelog to main, tag that commit
+      # and push both at once (atomic: if main moved meanwhile, nothing is
+      # pushed and the run fails, so run it again). A prerelease only gets its
+      # tag. A tag pushed with GITHUB_TOKEN does not start another workflow
+      # run (GitHub suppresses it), so there is no second release: this run
+      # goes on to build, deploy and publish the tag it just made.
+      - name: Commit the changelog, tag and push
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          PRERELEASE: ${{ steps.ver.outputs.prerelease }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "$PRERELEASE" != "true" ] && ! git diff --quiet -- CHANGELOG.md; then
+            git commit -m "chore(release): $VERSION" -- CHANGELOG.md
+          fi
+          git tag -a "$TAG" -m "$TAG"
+          if [ "$PRERELEASE" = "true" ]; then
+            git push origin "refs/tags/$TAG"
+          else
+            git push --atomic origin HEAD:main "refs/tags/$TAG"
+          fi
+          echo "Tagged $TAG at $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-notes
           path: out
           if-no-files-found: error
-
-  test:
-    uses: ./.github/workflows/ci.yml
 
   image:
     needs: [test, changelog]
@@ -88,7 +197,11 @@ jobs:
       image: ${{ steps.name.outputs.image }}
       digest: ${{ steps.build.outputs.digest }}
     steps:
+      # The tag, not the ref the run started from: the tagged commit is what
+      # gets built (on a Run workflow it includes the changelog commit).
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changelog.outputs.tag }}
 
       # GHCR names are lowercase, and a GitHub owner can have capitals.
       - name: Image name
@@ -110,7 +223,9 @@ jobs:
 
       # org.opencontainers.image.source (the repository) is among the labels
       # this sets. It is what links the package to the repository on GHCR.
-      # `latest` only moves for a release: a tag with a "-" is a prerelease.
+      # `latest` only moves for a release: a version with a "-" is a prerelease.
+      # Both come from the changelog job's outputs: github.ref_name is "main"
+      # on a Run workflow.
       - name: Tags and labels
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -118,8 +233,8 @@ jobs:
           images: ${{ steps.name.outputs.image }}
           flavor: latest=false
           tags: |
-            type=semver,pattern={{version}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+            type=raw,value=${{ needs.changelog.outputs.version }}
+            type=raw,value=latest,enable=${{ needs.changelog.outputs.prerelease != 'true' }}
 
       - name: Build and push
         id: build
@@ -150,13 +265,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
-    needs: image
+    needs: [image, changelog]
     # A prerelease is published but never deployed. The repository opts in to
     # deploying by setting the variable BELLA_BAXTER_PROJECT; without it (a
     # fork, say) this job is skipped.
-    if: ${{ !contains(github.ref_name, '-') && vars.BELLA_BAXTER_PROJECT != '' }}
+    if: ${{ needs.changelog.outputs.prerelease != 'true' && vars.BELLA_BAXTER_PROJECT != '' }}
     runs-on: ubuntu-latest
-    # The environment's deployment rule limits it to tags v*, and Bella
+    # The environment's deployment rule limits it to tags v* (a pushed tag) and
+    # the branch main (Run workflow: the run's ref is refs/heads/main), and Bella
     # Baxter's trust domain requires this environment name in the token. Add
     # required reviewers to approve each rollout.
     environment: production
@@ -172,6 +288,8 @@ jobs:
       DIGEST: ${{ needs.image.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changelog.outputs.tag }}
 
       # Only when the variable is set: an unset one must not become an empty
       # audience. The value goes in through env, never into the script text.
@@ -265,7 +383,7 @@ jobs:
   # when the deploy failed or was cancelled: then the old images stay until the
   # next good release.
   prune:
-    needs: [image, deploy]
+    needs: [image, deploy, changelog]
     if: ${{ always() && needs.image.result == 'success' && needs.deploy.result != 'failure' && needs.deploy.result != 'cancelled' }}
     runs-on: ubuntu-latest
     permissions:
@@ -273,6 +391,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changelog.outputs.tag }}
       - name: Delete old image versions
         env:
           GH_TOKEN: ${{ github.token }}
@@ -290,9 +410,13 @@ jobs:
       contents: write # create the release, push the changelog to main
     env:
       GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.changelog.outputs.version }}
+      TAG: ${{ needs.changelog.outputs.tag }}
+      PRERELEASE: ${{ needs.changelog.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.changelog.outputs.tag }}
           fetch-depth: 0
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -303,22 +427,23 @@ jobs:
       - name: Publish the release
         run: |
           args=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then args+=(--prerelease); fi
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release edit "$GITHUB_REF_NAME" --notes-file out/notes.md "${args[@]}"
+          if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file out/notes.md "${args[@]}"
           else
-            gh release create "$GITHUB_REF_NAME" --notes-file out/notes.md --generate-notes --verify-tag "${args[@]}"
+            gh release create "$TAG" --notes-file out/notes.md --generate-notes --verify-tag "${args[@]}"
           fi
 
-      # A release whose changelog was prepared above: main gets the rename, so the
-      # next release starts from an empty "Unreleased". Only when main is still the
-      # tagged commit; otherwise its "Unreleased" may hold newer entries, which a
-      # rename would wrongly claim. The release is out either way, so this step
-      # warns rather than fails. The tag never moves.
+      # A pushed tag whose changelog was prepared above: main gets the rename, so
+      # the next release starts from an empty "Unreleased". Only when main is
+      # still the tagged commit; otherwise its "Unreleased" may hold newer
+      # entries, which a rename would wrongly claim. The release is out either
+      # way, so this step warns rather than fails. The tag never moves. A Run
+      # workflow skips this: it committed the rename to main before tagging.
       - name: Record the changelog on main
+        if: ${{ github.event_name == 'push' }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [[ "$VERSION" == *-* ]]; then
+          if [ "$PRERELEASE" = "true" ]; then
             exit 0 # a prerelease leaves the changelog alone
           fi
           cp out/CHANGELOG.md CHANGELOG.md
@@ -327,7 +452,7 @@ jobs:
           fi
           git fetch -q origin main
           if [ "$(git rev-parse origin/main)" != "$(git rev-parse HEAD)" ]; then
-            echo "::warning::main has moved past $GITHUB_REF_NAME, so its CHANGELOG.md still lists $VERSION's entries under \"## Unreleased\". On main, run .github/scripts/changelog.sh prepare $VERSION and keep any newer entries under Unreleased."
+            echo "::warning::main has moved past $TAG, so its CHANGELOG.md still lists $VERSION's entries under \"## Unreleased\". On main, run .github/scripts/changelog.sh prepare $VERSION and keep any newer entries under Unreleased."
             exit 0
           fi
           git config user.name "github-actions[bot]"
