@@ -10,6 +10,12 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+### Added
+- The sign-in page shows which way this browser signed in last: that connector's button comes
+  first with a **Last used** badge, above an "or" and the other buttons. The browser keeps only the
+  connector's name (`umbral_last_connector`, a year), never an email or account, and only after a
+  sign-in that worked. With a single connector, or one no longer offered, the page is as before.
+
 ## 0.2.0 - 2026-10-20
 
 ### Added

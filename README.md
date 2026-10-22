@@ -427,6 +427,17 @@ page). It is a plain form, so it works with JavaScript off.
 server, and it is not tied to a person or an account, so each browser chooses for
 itself.
 
+**The sign-in page remembers the way in, not the person.** After someone signs in,
+their browser keeps the connector they used in a second cookie,
+`umbral_last_connector`, for a year: only its name as in the URL (`google`,
+`discord`, `passkey`), never an email, a name or an account. The next time, when
+the page offers that connector among others, its button comes first with a
+**Last used** badge, then "or", then the rest; otherwise the page is as usual. It
+is written only by a sign-in that worked (never by a failed or refused one, nor by
+your own sign-in to the admin screens), and signing out leaves it, because it
+describes the browser rather than a session. The page is seen before anyone is
+signed in, which is why it holds nothing that says who signed in.
+
 **The fonts are served by Umbral itself.** Bricolage Grotesque (headings),
 Schibsted Grotesk (text) and Spline Sans Mono (identifiers and secrets) are
 shipped inside the image, as a Latin subset of about 84 KB in all, and loaded

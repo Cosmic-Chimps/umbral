@@ -59,6 +59,13 @@ type Texts =
       PickerTitle: string
       PickerLead: string
       SignInWith: string -> string
+      /// The badge on the connector this browser signed in with last (spec 009).
+      PickerLastUsed: string
+      /// That button's accessible name. It starts with the visible label, so
+      /// speech input that says the label still finds it (label in name).
+      PickerLastUsedName: string -> string
+      /// The divider between the last-used button and the others.
+      PickerOr: string
       PickerNoConnectors: string
       /// The title once the page serves a registered app (FR-001).
       PickerTitleForApp: string -> string
@@ -787,6 +794,9 @@ let en: Texts =
       PickerTitle = "Sign in"
       PickerLead = "Choose how you'd like to sign in."
       SignInWith = fun provider -> $"Sign in with {provider}"
+      PickerLastUsed = "Last used"
+      PickerLastUsedName = fun label -> $"{label}, last used"
+      PickerOr = "or"
       SecuredByUmbral = "Secured by Umbral"
       PickerNoConnectors = "No sign-in option is available right now. Contact the operator of this service."
       PickerTitleForApp = fun app -> $"Sign in to {app}"

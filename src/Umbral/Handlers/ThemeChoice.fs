@@ -19,23 +19,6 @@ open Oxpecker
 open Umbral.Infrastructure
 open Umbral.Views
 
-/// A year: long enough that the choice is not asked again, short enough that a
-/// forgotten browser does not hold a preference forever.
-let private Lifetime = TimeSpan.FromDays 365.0
-
-/// The cookie's options. Path `/` so every page sees it, `Lax` so it is sent
-/// when someone follows a link here, `HttpOnly` because no script of ours reads
-/// it, `Secure` whenever the request was HTTPS.
-let private cookieOptions (ctx: HttpContext) (lifetime: TimeSpan option) =
-    let options = CookieOptions()
-    options.Path <- "/"
-    options.SameSite <- SameSiteMode.Lax
-    options.HttpOnly <- true
-    options.IsEssential <- true
-    options.Secure <- ctx.Request.IsHttps
-    lifetime |> Option.iter (fun l -> options.MaxAge <- l)
-    options
-
 let handler: EndpointHandler =
     fun ctx ->
         task {
@@ -51,9 +34,11 @@ let handler: EndpointHandler =
 
             // An unknown choice, like a missing one, changes nothing.
             match Theme.ThemeChoice.parseChoice (posted "theme") with
-            | Some Theme.Light -> ctx.Response.Cookies.Append(Theme.ThemeCookie, "light", cookieOptions ctx (Some Lifetime))
-            | Some Theme.Dark -> ctx.Response.Cookies.Append(Theme.ThemeCookie, "dark", cookieOptions ctx (Some Lifetime))
-            | Some Theme.System -> ctx.Response.Cookies.Delete(Theme.ThemeCookie, cookieOptions ctx None)
+            | Some Theme.Light ->
+                ctx.Response.Cookies.Append(Theme.ThemeCookie, "light", BrowserCookies.options ctx (Some BrowserCookies.Year))
+            | Some Theme.Dark ->
+                ctx.Response.Cookies.Append(Theme.ThemeCookie, "dark", BrowserCookies.options ctx (Some BrowserCookies.Year))
+            | Some Theme.System -> ctx.Response.Cookies.Delete(Theme.ThemeCookie, BrowserCookies.options ctx None)
             | None -> ()
 
             let returnUrl = posted "returnUrl"

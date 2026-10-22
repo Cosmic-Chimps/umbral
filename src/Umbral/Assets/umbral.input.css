@@ -109,6 +109,13 @@
   .um-pill-primary { @apply bg-primary/10 text-primary border-primary/25; }
   .um-pill-success { @apply bg-success-container text-success border-success/25; }
   .um-pill-muted { @apply bg-surface-container-high text-on-surface-variant border-outline-variant; }
+  /* "Last used" on the sign-in page (spec 009). Drawn in currentColor, which in a
+     button is the button's own label colour, so the badge has the label's contrast
+     on any accent and in both themes. The divider uses theme tokens the accent
+     sheets do not touch. */
+  .um-last-used { @apply inline-flex items-center rounded-full border border-current px-2 py-0.5 text-label-sm font-medium; }
+  .um-or { @apply flex items-center gap-3 text-label-md text-on-surface-variant; }
+  .um-or::before, .um-or::after { content: ""; flex: 1 1 0%; border-top: 1px solid var(--color-outline-variant); }
   .um-link { @apply text-primary underline decoration-primary/40 hover:decoration-primary; }
   /* The Create app dialog (`<dialog>`, opened by umbral.js with showModal()). The
      browser centres a modal dialog and traps focus in it; this only dresses it. */

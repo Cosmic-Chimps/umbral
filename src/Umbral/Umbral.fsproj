@@ -89,6 +89,7 @@
     <Compile Include="Infrastructure/AppClients.fs" />
     <Compile Include="Infrastructure/WebForms.fs" />
     <Compile Include="Infrastructure/RateLimits.fs" />
+    <Compile Include="Infrastructure/BrowserCookies.fs" />
     <Compile Include="Infrastructure/Sessions.fs" />
     <Compile Include="Infrastructure/OpenIddictSetup.fs" />
     <Compile Include="Views/Texts.fs" />

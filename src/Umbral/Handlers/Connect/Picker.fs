@@ -113,20 +113,49 @@ let findApp (ctx: Microsoft.AspNetCore.Http.HttpContext) (returnUrl: string) : S
                           Name = (if String.IsNullOrEmpty name then clientId else string name) }
     }
 
+/// Which connector, if any, goes first as the one this browser signed in with
+/// last, and the rest in their original order. The cookie's value is only
+/// compared, never rendered. `offered` is already the offered, enabled list, so a
+/// disabled or not-offered connector needs no rule here; with one connector there
+/// is nothing to choose, so nothing is singled out.
+let arrange (last: string option) (offered: Connector list) : Connector option * Connector list =
+    match last with
+    | Some slug when List.length offered >= 2 ->
+        match offered |> List.tryFind (fun c -> String.Equals(c.Slug, slug, StringComparison.Ordinal)) with
+        | Some remembered -> Some remembered, offered |> List.filter (fun c -> c.Slug <> remembered.Slug)
+        | None -> None, offered
+    | _ -> None, offered
+
 /// A connector's button. Primary when the app chose an accent colour, so the
 /// colour is what the person sees to press; secondary otherwise, as it always
-/// was (a logo alone does not recolour anything).
-let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: string) (connector: Connector) =
+/// was (a logo alone does not recolour anything). The one last used carries a
+/// badge, and its accessible name says so after the visible label.
+let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: string) (lastUsed: bool) (connector: Connector) =
     let href =
         $"/connect/{Uri.EscapeDataString connector.Slug}/start?returnUrl={Uri.EscapeDataString returnUrl}"
 
-    a(href = href, class' = Components.btn kind + " w-full justify-center")
-        .data("connector", connector.Slug) {
-        Components.icon Theme.Link
+    let label =
         match connector.Kind with
         | Passkey -> t.SignInWithPasskey
         | _ -> t.SignInWith connector.DisplayName
-    }
+
+    let link =
+        a(href = href, class' = Components.btn kind + " w-full justify-center")
+            .data("connector", connector.Slug)
+
+    if lastUsed then
+        link
+            .data("last-used", "")
+            .attr("aria-label", t.PickerLastUsedName label) {
+            Components.icon Theme.Link
+            label
+            span(class' = "um-last-used") { t.PickerLastUsed }
+        }
+    else
+        link {
+            Components.icon Theme.Link
+            label
+        }
 
 let private view
     (ctx: Microsoft.AspNetCore.Http.HttpContext)
@@ -135,6 +164,7 @@ let private view
     (app: NamedApp option)
     (branding: AppBranding option)
     (connectors: Connector list)
+    (last: string option)
     (notice: string option)
     =
     let title =
@@ -199,8 +229,16 @@ let private view
 
             | connectors ->
                 (div(class' = "flex flex-col gap-3") {
-                    for connector in connectors do
-                        button t buttonKind returnUrl connector
+                    match arrange last connectors with
+                    | Some first, others ->
+                        button t buttonKind returnUrl true first
+                        div(class' = "um-or").data("or-divider", "") { t.PickerOr }
+
+                        for connector in others do
+                            button t buttonKind returnUrl false connector
+                    | None, all ->
+                        for connector in all do
+                            button t buttonKind returnUrl false connector
                 })
                 :> HtmlElement
         }
@@ -244,7 +282,7 @@ let handler: EndpointHandler =
                     | None -> return AllShared
                 }
 
-            return! ctx.WriteHtmlView(view ctx t returnUrl app branding (offeredTo choice all) notice)
+            return! ctx.WriteHtmlView(view ctx t returnUrl app branding (offeredTo choice all) (BrowserCookies.lastConnector ctx) notice)
         }
 
 let endpoint = GET [ route "/signin" handler ]

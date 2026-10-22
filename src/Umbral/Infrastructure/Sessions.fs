@@ -81,6 +81,12 @@ let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) (em
     | Some domain -> identity.AddClaim(Claim(EmailDomainClaim, domain))
     | None -> ()
 
+    // Every end-user session starts here, and only after every check passed
+    // (callback, passkey sign-in, passkey sign-up or invitation). The admin
+    // sign-in goes through AdminAuth and never comes here, so this is the one
+    // place the "last used" hint is written (specs/009, research R1).
+    BrowserCookies.rememberConnector ctx slug
+
     ctx.SignInAsync(Scheme, ClaimsPrincipal identity)
 
 let signOut (ctx: HttpContext) : Task = ctx.SignOutAsync Scheme

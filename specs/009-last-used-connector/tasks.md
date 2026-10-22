@@ -6,15 +6,15 @@
 
 ## Phase 1: Foundational (the cookie)
 
-- [ ] T001 Create `src/Umbral/Infrastructure/BrowserCookies.fs` (compiled before `Sessions.fs` in `src/Umbral/Umbral.fsproj`): the hint-cookie options moved from `Handlers/ThemeChoice.fs` (`Path=/`, `Lax`, `HttpOnly`, `IsEssential`, `Secure` when HTTPS, optional `MaxAge`), `Year = 365 days`, `LastConnectorCookie = "umbral_last_connector"`, `rememberConnector ctx slug`, `lastConnector ctx : string option` (research R2)
-- [ ] T002 `src/Umbral/Handlers/ThemeChoice.fs` uses `BrowserCookies.options` and `BrowserCookies.Year`; no behaviour change (`ThemeTests` stay green)
-- [ ] T003 `src/Umbral/Infrastructure/Sessions.fs` `signIn` calls `BrowserCookies.rememberConnector ctx slug` (research R1)
+- [x] T001 Create `src/Umbral/Infrastructure/BrowserCookies.fs` (compiled before `Sessions.fs` in `src/Umbral/Umbral.fsproj`): the hint-cookie options moved from `Handlers/ThemeChoice.fs` (`Path=/`, `Lax`, `HttpOnly`, `IsEssential`, `Secure` when HTTPS, optional `MaxAge`), `Year = 365 days`, `LastConnectorCookie = "umbral_last_connector"`, `rememberConnector ctx slug`, `lastConnector ctx : string option` (research R2)
+- [x] T002 `src/Umbral/Handlers/ThemeChoice.fs` uses `BrowserCookies.options` and `BrowserCookies.Year`; no behaviour change (`ThemeTests` stay green)
+- [x] T003 `src/Umbral/Infrastructure/Sessions.fs` `signIn` calls `BrowserCookies.rememberConnector ctx slug` (research R1)
 
 ## Phase 2: User Story 1, 3 and 4 — the picker (P1, P2, P3)
 
-- [ ] T004 [US1] `src/Umbral/Views/Texts.fs`: `LastUsedBadge` ("Last used"), `LastUsedName: string -> string` ("<label>, last used"), `PickerOr` ("or")
-- [ ] T005 [US1] `src/Umbral/Handlers/Connect/Picker.fs`: public `arrange (last: string option) (offered: Connector list) : Connector option * Connector list` (research R3); the view renders the remembered button first with `data-last-used`, `aria-label` and the `span.um-last-used` badge, then `div.um-or` (`data-or-divider`), then the others (research R4, contract)
-- [ ] T006 [US4] `src/Umbral/Assets/umbral.input.css`: `.um-last-used` (pill in `currentColor`) and `.um-or` (divider in theme tokens) in `@layer components` (research R5); run `src/Umbral/Assets/build-css.sh` and keep the regenerated `umbral.css`
+- [x] T004 [US1] `src/Umbral/Views/Texts.fs`: `LastUsedBadge` ("Last used"), `LastUsedName: string -> string` ("<label>, last used"), `PickerOr` ("or")
+- [x] T005 [US1] `src/Umbral/Handlers/Connect/Picker.fs`: public `arrange (last: string option) (offered: Connector list) : Connector option * Connector list` (research R3); the view renders the remembered button first with `data-last-used`, `aria-label` and the `span.um-last-used` badge, then `div.um-or` (`data-or-divider`), then the others (research R4, contract)
+- [x] T006 [US4] `src/Umbral/Assets/umbral.input.css`: `.um-last-used` (pill in `currentColor`) and `.um-or` (divider in theme tokens) in `@layer components` (research R5); run `src/Umbral/Assets/build-css.sh` and keep the regenerated `umbral.css`
 
 ## Phase 3: Tests
 
@@ -23,8 +23,8 @@
 
 ## Phase 4: Docs and polish
 
-- [ ] T009 README: a paragraph after the `umbral_theme` one (what the cookie holds, no email, when it is set, signing out keeps it)
-- [ ] T010 CHANGELOG.md: `### Added` bullet under `## Unreleased`
+- [x] T009 README: a paragraph after the `umbral_theme` one (what the cookie holds, no email, when it is set, signing out keeps it)
+- [x] T010 CHANGELOG.md: `### Added` bullet under `## Unreleased`
 - [ ] T011 `dotnet test -c Release` green; `src/Umbral/Assets/build-css.sh --check` clean (both are CI gates)
 - [ ] T012 Browser check of the picker with a hint: unbranded and branded, dark and light
 
