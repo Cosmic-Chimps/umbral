@@ -8,6 +8,32 @@ light, with and without a logo).
 
 ## Verdict
 
+**Re-check, 2026-10-22, at `c2f0ef0` plus `a00e9ca`: clear to merge.**
+
+- Item 1 (blocking) fixed: the `noscript` sits inside the hint paragraph and `aria-describedby`
+  names one id. The new test strips `noscript` content and checks every described id against
+  what remains, which is the right shape for it.
+- Item 2 fixed: `hover:text-error` is on the button and compiled into `umbral.css`.
+- Item 3 fixed: the label reads "Preview of the sign-in page", changed in `Texts.fs` only.
+- Item 4 left for the maintainer, as agreed.
+- Captures: `card-360-dark` and `card-360-light` show one filled red button on the card (Delete
+  app) with Remove logo as a red ghost beside Save logo; `crop-open-360-dark` shows Save logo and
+  Use whole image on one line and Remove logo wrapped below with the 8px gap, which is the
+  intended `flex-wrap` behaviour at 360. The section captures at 1280 and 360 in both themes
+  match the first review's.
+- Tests and stylesheet: see the line at the end of this file.
+
+**For the maintainer, outside this task** (from the implementer's `notes.md`, and I agree): on the
+app card the Regenerate secret / Delete app row sits 16px under the accent form, closer than the
+20px between groups inside the branding section, so it can read as part of that section. With
+nit 4 (the section heading styled like its field labels), that is one card-level task: a
+section heading one step above `um-label`, and a hairline or larger gap above the card's final
+action row.
+
+---
+
+First review, 2026-10-22, at `195ed76` plus `16d445f`:
+
 **Not yet clear. One blocking item, three nits, two captures to add.** The change does what the
 task asked and stays inside the Umbra look. Fix the blocking item, apply the nits you agree
 with, add the captures, and I re-check once.
@@ -100,6 +126,11 @@ diff this time, so none of it blocks. For the next task, commit the folder on th
 
 ## Tests and stylesheet check
 
-Run by the reviewer on the branch's worktree on 2026-10-22:
-`dotnet test tests/Umbral.Tests --filter "FullyQualifiedName~AppBranding"`: 42 passed, 0 failed.
+Run by the reviewer on the branch's worktree on 2026-10-22.
+
+At `c2f0ef0` (re-check): `dotnet test tests/Umbral.Tests --filter
+"FullyQualifiedName~AppBranding|FullyQualifiedName~Csrf"`: 48 passed, 0 failed.
 `build-css.sh --check`: clean, `umbral.css` is current.
+
+At `16d445f` (first review): the branding filter alone, 42 passed, 0 failed; stylesheet check
+clean.
