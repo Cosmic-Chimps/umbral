@@ -3,6 +3,7 @@
 #
 #   changelog.sh notes VERSION       print VERSION's section, without its heading
 #   changelog.sh unreleased          print the "## Unreleased" section (may print nothing)
+#   changelog.sh released BASE_FILE  fail when a released section of BASE_FILE differs here
 #   changelog.sh prepare VERSION     turn "## Unreleased" into "## VERSION - <today, UTC>"
 #
 #   CHANGELOG   path of the file (default: CHANGELOG.md at the repository root)
@@ -22,7 +23,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 changelog="${CHANGELOG:-$root/CHANGELOG.md}"
 
 usage() {
-  echo "usage: changelog.sh notes VERSION | unreleased | prepare VERSION" >&2
+  echo "usage: changelog.sh notes VERSION | unreleased | prepare VERSION | released BASE_FILE" >&2
   exit 2
 }
 
@@ -33,11 +34,34 @@ check_version() {
 }
 
 # The lines under the heading "## NAME" (exactly that, then the end of the line or " - date"),
-# up to the next "## ", blank lines at either end trimmed.
+# up to the next "## ", blank lines at either end trimmed. A second argument reads another file.
 section() {
   awk -v v="$1" '
     /^## / { on = ($2 == v && (NF == 2 || $3 == "-")); next }
-    on' "$changelog" | sed -e '/./,$!d' | sed -e ':a' -e '/^\n*$/{$d;N;ba' -e '}'
+    on' "${2:-$changelog}" | sed -e '/./,$!d' | sed -e ':a' -e '/^\n*$/{$d;N;ba' -e '}'
+}
+
+# A released section never changes. The trap this catches: a branch made before a release adds
+# its entries under "## Unreleased"; the release renames that heading on main; merging the branch
+# then puts the entries inside the released section, Unreleased is empty and the next release is
+# refused. CI runs this against the commit before a push (or a PR's base) so the merge turns main
+# red at once. BASE_FILE is that commit's CHANGELOG.md.
+released() {
+  local base="$1" version changed=""
+  [ -f "$base" ] || { echo "changelog: $base doesn't exist" >&2; exit 2; }
+  while read -r version; do
+    if [ "$(section "$version" "$base")" != "$(section "$version")" ]; then
+      changed="$changed $version"
+    fi
+  done < <(awk '/^## / && $2 != "Unreleased" { print $2 }' "$base")
+  if [ -n "$changed" ]; then
+    echo "changelog: released sections changed:$changed. Released notes don't change: move new" >&2
+    echo "changelog: entries back under \"## Unreleased\" (a branch made before that release puts them" >&2
+    echo "changelog: there on merge). To correct a released section on purpose, put" >&2
+    echo "changelog: \"[edit released changelog]\" in the commit message or the pull request's title." >&2
+    exit 1
+  fi
+  echo "changelog: every released section is unchanged"
 }
 
 notes() {
@@ -96,6 +120,10 @@ unreleased)
 prepare)
   [ $# -eq 2 ] || usage
   prepare "$2"
+  ;;
+released)
+  [ $# -eq 2 ] || usage
+  released "$2"
   ;;
 *) usage ;;
 esac
