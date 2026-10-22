@@ -408,12 +408,16 @@ let private logoForm (ctx: HttpContext) (t: Texts.Texts) (row: Row) (hasLogo: bo
 
             input(type' = "file", id = fieldId, name = "logo", class' = "um-file block w-full text-body-md text-on-surface-variant")
                 .attr("accept", "image/png,image/jpeg,image/webp")
-                .attr("aria-describedby", $"{hintId} {hintId}-noscript")
+                .attr("aria-describedby", hintId)
                 .data("logo-input", "")
 
-            p(id = hintId, class' = "um-hint") { t.LogoHint }
-
-            noscript() { p(id = $"{hintId}-noscript", class' = "um-hint") { t.LogoHintNoScript } }
+            // The `noscript` sits inside the hint, so the input's description
+            // names one id that always exists and gains the second sentence
+            // only where it is rendered.
+            p(id = hintId, class' = "um-hint") {
+                t.LogoHint
+                noscript() { " " + t.LogoHintNoScript }
+            }
         }
 
         div(class' = "space-y-2").data("logo-crop", "") {}
@@ -430,7 +434,7 @@ let private logoForm (ctx: HttpContext) (t: Texts.Texts) (row: Row) (hasLogo: bo
             }
 
             if hasLogo then
-                (button(type' = "submit", class' = Components.btnSm Components.Ghost + " text-error")
+                (button(type' = "submit", class' = Components.btnSm Components.Ghost + " text-error hover:text-error")
                     .attr("form", $"logo-delete-{row.ClientId}")
                     .data("logo-remove", "") {
                     Components.icon Theme.DeleteForever
