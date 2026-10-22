@@ -10,6 +10,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+## 0.4.0 - 2026-10-22
+
 ### Fixed
 - The **Sign-in page branding** section of an app card no longer looks broken: **Remove logo**
   sits on the same row as **Save logo**, as a quiet red button rather than the filled one kept for
