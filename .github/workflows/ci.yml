@@ -26,9 +26,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Both pinned to Ubuntu 24.04, where the SC-007 budget was measured.
+        # ubuntu-latest moved to 26.04, and one of its images (20261012.163)
+        # reads the same build ~15 MiB higher at idle (154 against 150), so a
+        # floating image failed unrelated changes. Move both together, on
+        # purpose, after measuring the new image.
         include:
           - arch: x64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
     steps:
