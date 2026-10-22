@@ -81,6 +81,8 @@
   .um-input:focus { @apply border-primary outline-none; }
   .um-input[aria-invalid="true"] { @apply border-error; }
   .um-input[readonly] { @apply text-on-surface-variant; }
+  /* The native file input's "Choose file" button, dressed as a small secondary button. */
+  .um-file::file-selector-button { @apply mr-3 h-9 cursor-pointer rounded-full border border-outline bg-surface-container-high px-3.5 text-label-md font-semibold text-on-surface; }
   .um-mono { @apply font-mono; }
   .um-choice-group { @apply m-0 min-w-0 border-0 p-0; }
   .um-choice { @apply relative flex cursor-pointer items-start gap-3 rounded-md border border-outline-variant bg-surface-container p-4; }

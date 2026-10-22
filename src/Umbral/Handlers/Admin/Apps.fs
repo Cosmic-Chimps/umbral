@@ -377,10 +377,14 @@ let private brandingNoticeText (ctx: HttpContext) (t: Texts.Texts) (clientId: st
 /// server's numbers) and its words, so it holds no text of its own.
 ///
 /// Without the script, the file goes as it is and the server accepts a PNG that
-/// already meets its limits (research R1). The hint says so. The crop container
-/// is empty and so is the error line; the script fills the one and shows the
-/// other.
-let private logoForm (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
+/// already meets its limits (research R1). A `noscript` hint says so, and only
+/// people without the script see it. The crop container is empty and so is the
+/// error line; the script fills the one and shows the other.
+///
+/// An app with a logo gets its Remove button in the button row. The button
+/// belongs to the delete form, which sits outside this one, by its `form`
+/// attribute.
+let private logoForm (ctx: HttpContext) (t: Texts.Texts) (row: Row) (hasLogo: bool) =
     let fieldId = $"logo-{row.ClientId}"
     let hintId = $"{fieldId}-hint"
 
@@ -402,12 +406,14 @@ let private logoForm (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
         div() {
             label(for' = fieldId, class' = "um-label") { t.LogoLabel }
 
-            input(type' = "file", id = fieldId, name = "logo", class' = "block w-full text-body-md text-on-surface-variant")
+            input(type' = "file", id = fieldId, name = "logo", class' = "um-file block w-full text-body-md text-on-surface-variant")
                 .attr("accept", "image/png,image/jpeg,image/webp")
-                .attr("aria-describedby", hintId)
+                .attr("aria-describedby", $"{hintId} {hintId}-noscript")
                 .data("logo-input", "")
 
             p(id = hintId, class' = "um-hint") { t.LogoHint }
+
+            noscript() { p(id = $"{hintId}-noscript", class' = "um-hint") { t.LogoHintNoScript } }
         }
 
         div(class' = "space-y-2").data("logo-crop", "") {}
@@ -422,11 +428,25 @@ let private logoForm (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
                 .data("logo-whole", "") {
                 t.LogoUseWhole
             }
+
+            if hasLogo then
+                (button(type' = "submit", class' = Components.btnSm Components.Ghost + " text-error")
+                    .attr("form", $"logo-delete-{row.ClientId}")
+                    .data("logo-remove", "") {
+                    Components.icon Theme.DeleteForever
+                    t.AppLogoRemoveButton
+                })
+                :> HtmlElement
+            else
+                Fragment() :> HtmlElement
         }
     }
 
 /// The branding section of an app card: the logo and its upload form, a preview
 /// of the sign-in button in the saved colour, and the accent form.
+///
+/// The preview is a panel that composes the logo above the sample button, as
+/// the sign-in page does.
 ///
 /// The preview sits inside `data-accent` when there is an accent, which is what
 /// lets the accent sheet (linked in the page's head, one per distinct colour)
@@ -443,7 +463,7 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string
     let logo = row.Branding |> Option.bind (fun b -> b.Logo)
 
     let sample =
-        button(type' = "button", class' = Components.btn Components.Primary)
+        button(type' = "button", class' = Components.btn Components.Primary + " w-full justify-center")
             .attr("disabled", "disabled")
             .data("branding-sample", "") {
             Components.icon Theme.Link
@@ -456,7 +476,7 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string
             .attr("aria-label", t.AccentLabel)
             .data("accent-picker", "")
 
-    div(class' = "space-y-3 border-t border-outline-variant/40 pt-4").data("branding", row.ClientId) {
+    div(class' = "space-y-5 border-t border-outline-variant/40 pt-4").data("branding", row.ClientId) {
         h3(class' = "um-label") { t.BrandingHeading }
 
         match notice with
@@ -464,24 +484,24 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string
             (div().data("notice", code) { Components.alert (brandingAlertKind code) text }) :> HtmlElement
         | None -> Fragment() :> HtmlElement
 
-        div(class' = "flex flex-wrap items-center gap-4") {
-            // The logo at the size people see it on the sign-in page.
-            div(class' = "flex min-h-11 items-center").data("branding-logo", "") {
-                match logo with
-                | Some logo ->
-                    (img(
-                        src = $"/branding/logo/{logo.Sha256}.png",
-                        alt = row.DisplayName,
-                        width = logo.Width,
-                        height = logo.Height,
-                        class' = Components.signInLogoClass
-                    ))
-                    :> HtmlElement
-                | None -> (p(class' = "text-body-md text-on-surface-variant") { t.NoLogo }) :> HtmlElement
-            }
+        div() {
+            p(class' = "um-label") { t.BrandingSampleLabel }
 
-            div(class' = "space-y-1.5") {
-                p(class' = "um-hint mt-0") { t.BrandingSampleLabel }
+            div(class' = "w-full max-w-sm space-y-4 rounded-lg bg-surface-container p-4") {
+                // The logo at the size people see it on the sign-in page.
+                div(class' = "flex min-h-11 items-center justify-center").data("branding-logo", "") {
+                    match logo with
+                    | Some logo ->
+                        (img(
+                            src = $"/branding/logo/{logo.Sha256}.png",
+                            alt = row.DisplayName,
+                            width = logo.Width,
+                            height = logo.Height,
+                            class' = Components.signInLogoClass
+                        ))
+                        :> HtmlElement
+                    | None -> (p(class' = "text-body-md text-on-surface-variant") { t.NoLogo }) :> HtmlElement
+                }
 
                 match accent with
                 | Some accent -> (div().data("accent", Accent.hex accent) { sample }) :> HtmlElement
@@ -489,26 +509,27 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string
             }
         }
 
-        logoForm ctx t row
+        logoForm ctx t row logo.IsSome
 
-        // Only an app with a logo has one to remove. It is a form of its own
-        // (a form cannot sit inside the upload form), and asks first like
-        // every destructive form on this screen.
+        // Only an app with a logo has one to remove. Its button sits in the
+        // upload form's button row, tied to this form by the `form` attribute
+        // (a form cannot nest in another). The submit event still fires here,
+        // so the script's data-confirm listener asks first, like every
+        // destructive form on this screen. `hidden` keeps the empty form out of
+        // the section's spacing. Removing a logo can be undone by uploading it
+        // again, so its button is a ghost in the error colour; the filled
+        // danger button stays for Delete app.
         match logo with
         | Some _ ->
-            (form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/logo/delete", class' = "inline") {
+            (form(id = $"logo-delete-{row.ClientId}", method = "post", action = $"/admin/apps/{row.ClientId}/branding/logo/delete")
+                .attr("hidden", "hidden") {
                 ctx.GetAntiforgeryInput()
-
-                button(type' = "submit", class' = Components.btnSm Components.Danger) {
-                    Components.icon Theme.DeleteForever
-                    t.AppLogoRemoveButton
-                }
             })
             |> Components.confirmSubmit (t.AppLogoRemoveConfirm row.DisplayName)
             :> HtmlElement
         | None -> Fragment() :> HtmlElement
 
-        form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/accent", class' = "space-y-2")
+        form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/accent", class' = "space-y-3")
             .data("accent-form", "") {
             ctx.GetAntiforgeryInput()
 

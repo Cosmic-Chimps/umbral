@@ -283,6 +283,11 @@ let ``an app card has the branding section with its accent form, and an app with
 
         Assert.Equal(2, Regex.Matches(html, "data-accent-form").Count)
         Assert.Equal(2, Regex.Matches(html, "data-branding-logo").Count)
+
+        // The upload form carries the hooks the script looks for.
+        for hook in [ "data-logo-form"; "data-logo-input"; "data-logo-crop"; "data-logo-whole"; "data-logo-error" ] do
+            Assert.Contains(hook, html)
+
         // The native colour picker has no name, so it is never posted, and starts hidden.
         Assert.Matches("<input[^>]*type=\"color\"[^>]*data-accent-picker[^>]*>", html)
         Assert.DoesNotMatch("<input[^>]*type=\"color\"[^>]*name=", html)
@@ -971,6 +976,57 @@ let ``the remove form is on the card only when the app has a logo, and asks firs
         let form = Regex.Match(html, "<form[^>]*logo/delete[^>]*>").Value
         Assert.Contains("data-confirm=", form)
         Assert.Contains(Texts.en.AppLogoRemoveConfirm "App A", decode form)
+    }
+
+[<Fact>]
+let ``Remove logo sits in the upload form's button row and submits the delete form, which carries the token`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, idB = prepare app
+        let! _ = postLogo operator idA (Some("logo.png", pngOf 100 100))
+
+        let! html = operator.GetHtml "/admin/apps"
+
+        // One button, only for the app with a logo, tied to the delete form by `form`,
+        // and quiet: a ghost in the error colour, not the filled danger button.
+        let buttons = Regex.Matches(html, "<button[^>]*data-logo-remove[^>]*>")
+        Assert.Equal(1, buttons.Count)
+        let button = buttons[0].Value
+        Assert.Contains($"form=\"logo-delete-{idA}\"", button)
+        Assert.DoesNotContain("um-btn-danger", button)
+        Assert.Contains("um-btn-ghost", button)
+        Assert.Contains("text-error", button)
+        Assert.Equal(1, Regex.Matches(html, "data-logo-remove").Count)
+
+        // It lies inside A's upload form.
+        let uploadForms =
+            Regex.Matches(html, "<form[^>]*data-logo-form[^>]*>.*?</form>", RegexOptions.Singleline)
+            |> Seq.map (fun m -> m.Value)
+            |> Seq.filter (fun f -> f.Contains $"action=\"/admin/apps/{idA}/branding/logo\"")
+            |> Seq.toList
+
+        Assert.Equal(1, uploadForms.Length)
+        Assert.Contains("data-logo-remove", uploadForms[0])
+
+        // The delete form is hidden, asks first, posts, and carries the token; the button is not in it.
+        let deleteForm = Regex.Match(html, $"<form[^>]*id=\"logo-delete-{idA}\"[^>]*>(.*?)</form>", RegexOptions.Singleline)
+        Assert.True(deleteForm.Success)
+        let opening = Regex.Match(deleteForm.Value, "<form[^>]*>").Value
+        Assert.Contains($"action=\"/admin/apps/{idA}/branding/logo/delete\"", opening)
+        Assert.Contains("method=\"post\"", opening)
+        Assert.Contains("data-confirm=", opening)
+        Assert.Contains("hidden", opening)
+        Assert.Contains("__RequestVerificationToken", deleteForm.Groups[1].Value)
+        Assert.DoesNotContain("<button", deleteForm.Value)
+
+        // The app without a logo has neither.
+        Assert.DoesNotContain($"logo-delete-{idB}", html)
+
+        // And the form does what the button says.
+        let! response = postRemoveLogo operator idA
+        Assert.Equal(cardRedirect "app-logo-removed" idA, location response)
+        let! stored = storedLogo app idA
+        Assert.True(stored.IsNone)
     }
 
 [<Fact>]

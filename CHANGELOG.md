@@ -16,6 +16,13 @@ new image. Add to "Unreleased" as you work; a release renames it.
   connector's name (`umbral_last_connector`, a year), never an email or account, and only after a
   sign-in that worked. With a single connector, or one no longer offered, the page is as before.
 
+### Fixed
+- The **Sign-in page branding** section of an app card no longer looks broken: **Remove logo**
+  sits on the same row as **Save logo**, as a quiet red button rather than the filled one kept for
+  **Delete app** (a logo can be uploaded again), the preview shows the logo above the sample
+  sign-in button as the sign-in page does, and the no-JavaScript upload advice shows only to
+  browsers without JavaScript.
+
 ## 0.2.0 - 2026-10-20
 
 ### Added

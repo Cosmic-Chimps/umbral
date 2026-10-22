@@ -134,6 +134,7 @@ type Texts =
       // `{limit}`, `{actual}`, `{width}` and `{height}` are filled in there.
       LogoLabel: string
       LogoHint: string
+      LogoHintNoScript: string
       LogoSave: string
       LogoUseWhole: string
       LogoCropLabel: string
@@ -848,7 +849,9 @@ let en: Texts =
       NoLogo = "No logo"
       LogoLabel = "Logo"
       LogoHint =
-        $"PNG, JPEG or WebP. Umbral stores a PNG of at most {PngLogo.maxSide} × {PngLogo.maxSide} pixels. Without JavaScript, upload a PNG of {PngLogo.minSide}–{PngLogo.maxSide} pixels a side, up to {logoLimitMegabytes} MB."
+        $"PNG, JPEG or WebP. Umbral stores a PNG of at most {PngLogo.maxSide} × {PngLogo.maxSide} pixels."
+      LogoHintNoScript =
+        $"Without JavaScript, upload a PNG of {PngLogo.minSide}–{PngLogo.maxSide} pixels a side, up to {logoLimitMegabytes} MB."
       LogoSave = "Save logo"
       LogoUseWhole = "Use whole image"
       LogoCropLabel =
