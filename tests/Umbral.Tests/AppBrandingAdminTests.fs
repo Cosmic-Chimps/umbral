@@ -288,6 +288,17 @@ let ``an app card has the branding section with its accent form, and an app with
         for hook in [ "data-logo-form"; "data-logo-input"; "data-logo-crop"; "data-logo-whole"; "data-logo-error" ] do
             Assert.Contains(hook, html)
 
+        // Every id the logo input names as its description is in the page a
+        // browser with scripts builds, where `noscript` content is only text.
+        let withScripts = Regex.Replace(html, "<noscript>.*?</noscript>", "", RegexOptions.Singleline)
+
+        for input in Regex.Matches(html, "<input[^>]*data-logo-input[^>]*>") do
+            let describedBy = Regex.Match(input.Value, "aria-describedby=\"([^\"]+)\"")
+            Assert.True(describedBy.Success, "the logo input has no description")
+
+            for id in describedBy.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries) do
+                Assert.Contains($"id=\"{id}\"", withScripts)
+
         // The native colour picker has no name, so it is never posted, and starts hidden.
         Assert.Matches("<input[^>]*type=\"color\"[^>]*data-accent-picker[^>]*>", html)
         Assert.DoesNotMatch("<input[^>]*type=\"color\"[^>]*name=", html)
