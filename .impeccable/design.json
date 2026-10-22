@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-22T00:00:00Z",
+  "title": "Design System: Umbral",
+  "extensions": {
+    "colorMeta": {
+      "corona-gold": { "role": "primary", "displayName": "Corona Gold", "canonical": "#f5c26b", "light": "#8a5a00", "tonalRamp": ["#2a1d05", "#3a2e12", "#5c4310", "#8a5a00", "#b8801f", "#d9a44a", "#f5c26b", "#fbefd6"] },
+      "on-corona-gold": { "role": "primary", "displayName": "On Corona Gold", "canonical": "#2a1d05", "light": "#fffdf8" },
+      "gold-container": { "role": "primary", "displayName": "Gold Container", "canonical": "#3a2e12", "light": "#fbefd6" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#0b0b14", "light": "#f4f1ea", "tonalRamp": ["#07070e", "#0b0b14", "#14141f", "#181826", "#1d1d2b", "#26263a", "#2e2e40", "#3a3a52"] },
+      "ink-lowest": { "role": "neutral", "displayName": "Ink, lowest step", "canonical": "#07070e", "light": "#ebe5d8" },
+      "ink-low": { "role": "neutral", "displayName": "Ink, low step", "canonical": "#14141f", "light": "#fffdf8" },
+      "ink-container": { "role": "neutral", "displayName": "Ink, container step", "canonical": "#181826", "light": "#faf7f0" },
+      "ink-high": { "role": "neutral", "displayName": "Ink, high step", "canonical": "#1d1d2b", "light": "#ebe5d8" },
+      "ink-highest": { "role": "neutral", "displayName": "Ink, highest step", "canonical": "#26263a", "light": "#e3ddd0" },
+      "bone": { "role": "neutral", "displayName": "Bone", "canonical": "#ece8df", "light": "#17151f", "tonalRamp": ["#17151f", "#2e2e40", "#5f5a6b", "#74708a", "#a7a2b6", "#ddd6c8", "#ece8df", "#f4f1ea"] },
+      "bone-muted": { "role": "neutral", "displayName": "Bone, muted", "canonical": "#a7a2b6", "light": "#5f5a6b" },
+      "outline": { "role": "neutral", "displayName": "Outline", "canonical": "#74708a", "light": "#857e6e" },
+      "outline-variant": { "role": "neutral", "displayName": "Outline, variant (hairline)", "canonical": "#2e2e40", "light": "#ddd6c8" },
+      "success": { "role": "status", "displayName": "Success", "canonical": "#a8d99a", "light": "#2f5d1e" },
+      "success-container": { "role": "status", "displayName": "Success container", "canonical": "#20301f", "light": "#e6eedc" },
+      "warning": { "role": "status", "displayName": "Warning", "canonical": "#f0b45e", "light": "#6b4500" },
+      "warning-container": { "role": "status", "displayName": "Warning container", "canonical": "#2a2111", "light": "#fbefd6" },
+      "warning-outline": { "role": "status", "displayName": "Warning outline", "canonical": "#6b5328", "light": "#e2c27f" },
+      "error": { "role": "status", "displayName": "Error", "canonical": "#ff8f7e", "light": "#b3261e" },
+      "on-error": { "role": "status", "displayName": "On error", "canonical": "#3a0b05", "light": "#ffffff" },
+      "error-container": { "role": "status", "displayName": "Error container", "canonical": "#3a1613", "light": "#f9dedb" },
+      "on-error-container": { "role": "status", "displayName": "On error container", "canonical": "#ffdad4", "light": "#410e0b" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The page title, one per page. Bricolage Grotesque, the only weight shipped is 800." },
+      "headline-lg": { "displayName": "Headline large", "purpose": "A message page's or a card's main heading; the second and last use of the display face." },
+      "headline-md": { "displayName": "Headline medium", "purpose": "A card's title in the text face." },
+      "body-lg": { "displayName": "Body large", "purpose": "The page's base size." },
+      "body-md": { "displayName": "Body medium", "purpose": "Most interface text, buttons, inputs, leads." },
+      "label-md": { "displayName": "Label medium", "purpose": "Small buttons, hints, pills, field errors." },
+      "label-sm": { "displayName": "Label small", "purpose": "Field and section labels, uppercase." },
+      "mono": { "displayName": "Mono", "purpose": "Client IDs, URLs, secrets, tokens, hashes: anything a machine reads." }
+    },
+    "shadows": [
+      { "name": "level-1", "value": "0 1px 2px 0 rgb(0 0 0 / 0.4)", "purpose": "Reserved for something lifted. Nothing uses it at rest." },
+      { "name": "level-2", "value": "0 10px 28px -8px rgb(0 0 0 / 0.55)", "purpose": "Reserved for something floating. Nothing uses it today; the dialog floats on its backdrop instead." }
+    ],
+    "motion": [
+      { "name": "state", "value": "background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease", "purpose": "Buttons, inputs, links, choices and checks, only under prefers-reduced-motion: no-preference." },
+      { "name": "dialog-in", "value": "160ms ease-out, from opacity 0 and translateY(8px)", "purpose": "The Create app dialog opening, only under prefers-reduced-motion: no-preference." }
+    ],
+    "breakpoints": [
+      { "name": "md", "value": "768px" },
+      { "name": "page", "value": "1120px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action on a surface. Gold on umber in the dark theme; ink with gold text in the light theme (the Fill Pair rule).",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Create app</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 0; border-radius: 9999px; font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; } .ds-btn-primary { background: var(--color-primary-fill, #f5c26b); color: var(--color-on-primary-fill, #2a1d05); } .ds-btn-primary:hover { filter: brightness(1.1); } .ds-btn:focus-visible { outline: 2px solid var(--color-primary, #f5c26b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "The default for ordinary actions: a tonal step with an outline.",
+      "html": "<button class=\"ds-btn ds-btn-secondary\">Save logo</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 0; border-radius: 9999px; font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; } .ds-btn-secondary { background: var(--color-surface-container-high, #1d1d2b); color: var(--color-on-surface, #ece8df); border: 1px solid var(--color-outline, #74708a); } .ds-btn-secondary:hover { background: var(--color-surface-container-highest, #26263a); } .ds-btn:focus-visible { outline: 2px solid var(--color-primary, #f5c26b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The quiet choice. With the error colour, a destructive action that can be undone.",
+      "html": "<button class=\"ds-btn ds-btn-ghost\">Use whole image</button> <button class=\"ds-btn ds-btn-ghost ds-btn-ghost-error\">Remove logo</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 0; border-radius: 9999px; font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; background: transparent; transition: background-color 160ms ease, color 160ms ease; } .ds-btn-ghost { color: var(--color-on-surface-variant, #a7a2b6); } .ds-btn-ghost:hover { background: var(--color-surface-container, #181826); color: var(--color-on-surface, #ece8df); } .ds-btn-ghost-error, .ds-btn-ghost-error:hover { color: var(--color-error, #ff8f7e); } .ds-btn:focus-visible { outline: 2px solid var(--color-primary, #f5c26b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "One per card, for what cannot be undone, always behind a native confirm.",
+      "html": "<button class=\"ds-btn ds-btn-danger\">Delete app</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 0; border-radius: 9999px; font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; } .ds-btn-danger { background: var(--color-error, #ff8f7e); color: var(--color-on-error, #3a0b05); } .ds-btn-danger:hover { filter: brightness(1.1); } .ds-btn:focus-visible { outline: 2px solid var(--color-primary, #f5c26b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Label small uppercase above, hint below, gold border on focus, red border and aria-invalid on error.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-label\" for=\"ds-accent\">Accent colour</label><input class=\"ds-input\" id=\"ds-accent\" value=\"#d9480f\"><p class=\"ds-hint\"># and six hexadecimal digits, for example #d9480f.</p></div>",
+      "css": ".ds-field { font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); max-width: 24rem; } .ds-label { display: block; margin-bottom: 6px; font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant, #a7a2b6); } .ds-input { width: 100%; height: 44px; padding: 0 14px; border-radius: 12px; background: var(--color-surface-container, #181826); border: 1px solid var(--color-outline, #74708a); color: var(--color-on-surface, #ece8df); font: inherit; font-size: 14px; caret-color: var(--color-primary, #f5c26b); transition: border-color 160ms ease; } .ds-input:focus { border-color: var(--color-primary, #f5c26b); outline: none; } .ds-input[aria-invalid=\"true\"] { border-color: var(--color-error, #ff8f7e); } .ds-hint { margin: 6px 0 0; font-size: 13px; line-height: 18px; color: var(--color-on-surface-variant, #a7a2b6); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The low tonal step with a hairline; no shadow at rest. Sections inside separate with a 40% hairline and a label.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Family photos</h3><p class=\"ds-card-text\">Client ID <code class=\"ds-mono\">app_7f3c9a</code></p><div class=\"ds-card-section\"><p class=\"ds-label\">Sign-in page branding</p></div></div>",
+      "css": ".ds-card { font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); background: var(--color-surface-container-low, #14141f); border: 1px solid var(--color-outline-variant, #2e2e40); border-radius: 16px; padding: 24px; color: var(--color-on-surface, #ece8df); } .ds-card-title { margin: 0 0 8px; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; } .ds-card-text { margin: 0; font-size: 14px; line-height: 20px; color: var(--color-on-surface-variant, #a7a2b6); } .ds-mono { font-family: var(--font-mono, 'Spline Sans Mono', ui-monospace, monospace); color: var(--color-on-surface, #ece8df); } .ds-card-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgb(var(--color-outline-variant-rgb, 46 46 64) / 0.4); } .ds-label { margin: 0; font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant, #a7a2b6); }"
+    },
+    {
+      "name": "Rail",
+      "kind": "nav",
+      "refersTo": "rail-entry-current",
+      "description": "The operator's side rail entries: muted at rest, a tonal step on hover, the high step with a gold label when current.",
+      "html": "<nav class=\"ds-rail\"><a class=\"ds-rail-entry ds-rail-current\" href=\"#\" aria-current=\"page\">Apps</a><a class=\"ds-rail-entry\" href=\"#\">Connectors</a><a class=\"ds-rail-entry\" href=\"#\">Users</a><a class=\"ds-rail-entry\" href=\"#\">Credential</a></nav>",
+      "css": ".ds-rail { display: flex; flex-direction: column; gap: 4px; width: 224px; font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); } .ds-rail-entry { display: flex; align-items: center; min-height: 44px; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 20px; font-weight: 500; text-decoration: none; color: var(--color-on-surface-variant, #a7a2b6); transition: background-color 160ms ease, color 160ms ease; } .ds-rail-entry:hover { background: var(--color-surface-container, #181826); color: var(--color-on-surface, #ece8df); } .ds-rail-current, .ds-rail-current:hover { background: var(--color-surface-container-high, #1d1d2b); color: var(--color-primary, #f5c26b); font-weight: 600; } .ds-rail-entry:focus-visible { outline: 2px solid var(--color-primary, #f5c26b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Pill",
+      "kind": "chip",
+      "refersTo": "pill",
+      "description": "A status pill in label medium: primary (gold tint), success, or muted.",
+      "html": "<span class=\"ds-pill ds-pill-primary\">Enabled</span> <span class=\"ds-pill ds-pill-success\">Signed in</span> <span class=\"ds-pill ds-pill-muted\">Invitations only</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 9999px; border: 1px solid; font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); font-size: 13px; line-height: 18px; font-weight: 600; letter-spacing: 0.01em; } .ds-pill-primary { color: var(--color-primary, #f5c26b); background: rgb(var(--color-primary-rgb, 245 194 107) / 0.1); border-color: rgb(var(--color-primary-rgb, 245 194 107) / 0.25); } .ds-pill-success { color: var(--color-success, #a8d99a); background: var(--color-success-container, #20301f); border-color: rgb(var(--color-success-rgb, 168 217 154) / 0.25); } .ds-pill-muted { color: var(--color-on-surface-variant, #a7a2b6); background: var(--color-surface-container-high, #1d1d2b); border-color: var(--color-outline-variant, #2e2e40); }"
+    },
+    {
+      "name": "The Gnomon",
+      "kind": "custom",
+      "refersTo": "label",
+      "description": "The mark: a sun, an upright and the shadow it casts on the threshold, beside the lowercase wordmark. Its colours come from --mark-*, which no accent sheet sets.",
+      "html": "<span class=\"ds-brand\"><svg class=\"ds-mark\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\" fill=\"none\" aria-hidden=\"true\"><circle class=\"ds-mark-sun\" cx=\"11\" cy=\"11\" r=\"4.5\"/><path class=\"ds-mark-base\" d=\"M6 39h36\" stroke-width=\"3\" stroke-linecap=\"round\"/><path class=\"ds-mark-shadow\" d=\"M22 39H44L22 33Z\"/><path class=\"ds-mark-upright\" d=\"M22 39V13\" stroke-width=\"4\" stroke-linecap=\"round\"/></svg><span class=\"ds-wordmark\">Umbral</span></span>",
+      "css": ".ds-brand { display: inline-flex; align-items: center; gap: 10px; } .ds-mark { width: 28px; height: 28px; } .ds-mark-sun { fill: var(--mark-sun, #f5c26b); } .ds-mark-base { stroke: var(--mark-base, #3a3a52); } .ds-mark-shadow { fill: var(--mark-shadow, #a7a2b6); opacity: var(--mark-shadow-opacity, 0.5); } .ds-mark-upright { stroke: var(--mark-upright, #ece8df); } .ds-wordmark { font-family: var(--font-display, 'Bricolage Grotesque', 'Schibsted Grotesk', system-ui, sans-serif); font-weight: 800; font-size: 24px; line-height: 32px; letter-spacing: -0.035em; text-transform: lowercase; color: var(--color-on-surface, #ece8df); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Sundial at the Threshold",
+    "overview": "Umbral means threshold; an umbra is the shadow a thing casts. The mark draws exactly that: a sun, an upright, and the shadow it casts on a threshold line. The identity providers are the light, Umbral stands in it, and every app receives the same shadow. The whole look follows from the mark: a field of ink (or, in the light theme, of warm paper), a single corona of gold for what matters, and nothing else that asks for attention.\n\nThe product is a tool the operator opens a few times a year and a page that other people pass through in seconds. Both want the same thing: quiet, exact surfaces where the one gold element is the one to act on. Density is moderate, line lengths are short, and everything that is not text is either a tonal step of the background or a one-pixel line. The light theme is not an inversion but the same scene by day: paper instead of ink, ink instead of bone, a darker gold that still reads as gold, and a primary button that becomes ink with gold text so the accent never has to carry dark type.",
+    "keyCharacteristics": [
+      "One accent, used sparingly: gold for the primary action, links, focus and the current place, and for nothing decorative.",
+      "Two themes always, chosen by the system unless the person picks one; the first paint is already in the right theme.",
+      "Depth by tone and hairline, not by shadow.",
+      "Three faces with fixed jobs: a display face for headings and the wordmark, a text face for everything else, a mono face for anything a machine reads.",
+      "Pill buttons and softly rounded fields and cards; no sharp corners anywhere but the focus ring.",
+      "Everything self-hosted and legible with JavaScript off."
+    ],
+    "rules": [
+      { "name": "The Fill Pair Rule", "body": "The primary button uses primary-fill / on-primary-fill, not primary / on-primary. In the dark theme both pairs are gold on umber. In the light theme the fill pair is ink (#17151f) with gold text (#f5c26b) while links stay the darker gold (#8a5a00), so a gold fill never has to carry dark text at 4.5:1. An app's accent sheet overrides both pairs and nothing else.", "section": "colors" },
+      { "name": "The One Red Fill Rule", "body": "On any card, at most one button has the red danger fill, and it is the action that cannot be undone (Delete app, Delete connector). A destructive action that can be undone, such as removing a logo that can be uploaded again, is a ghost button in the error colour.", "section": "colors" },
+      { "name": "The Contrast Floor", "body": "Spec 007 FR-007: every text at 4.5:1 or better against what it sits on, every input border and focus indicator at 3:1 or better, in both themes. Where a palette value misses this for a border, the plan records a darker (light) or lighter (dark) value of the same hue for that use. An app's accent is checked against both themes and saved with a warning, never refused; its button text is black or white, whichever reads better, chosen by Umbral.", "section": "colors" },
+      { "name": "The Mark Keeps Its Colours", "body": "The Gnomon takes its colours from --mark-*, which no accent rule touches, so an app's colour never recolours Umbral's mark. The \"Secured by Umbral\" line cannot be hidden or recoloured.", "section": "colors" },
+      { "name": "The Lowercase Wordmark Rule", "body": "The wordmark reads umbral, in the display face at 800 with -0.035em tracking, lowercased by CSS so the text stays \"Umbral\" for titles and screen readers.", "section": "typography" },
+      { "name": "The Machine Text Rule", "body": "Anything a person will copy into a configuration file or compare character by character is set in the mono face.", "section": "typography" },
+      { "name": "The Catalogue Rule", "body": "Every word on a page comes from Views/Texts.fs. When a mockup and the catalogue disagree, the catalogue wins.", "section": "typography" },
+      { "name": "The Flat Rest Rule", "body": "No shadow on a surface at rest. A shadow, if one ever appears, answers a state: something lifted, dragged or floating.", "section": "elevation" },
+      { "name": "The Hairline Rule", "body": "Separation is a 1px line in outline-variant, often at 40% (border-outline-variant/40) for the rail's edge, the name bar and the footer. Thicker lines appear only as the 2px focus ring and the 2px crop box.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do take every colour, size and radius from the tokens (bg-primary, text-on-surface-variant, rounded-lg), so both themes and an app's accent sheet keep working.",
+      "Do write class names as literal strings in views; the Tailwind scanner reads Views/ and Handlers/ and cannot see a name built by interpolation.",
+      "Do regenerate umbral.css with src/Umbral/Assets/build-css.sh after touching a view, the tokens or umbral.input.css, and commit it; CI and the image build run --check and fail on a stale file.",
+      "Do check every new surface at 1280px and 360px in both themes, with the system theme and with a chosen one.",
+      "Do keep text at 4.5:1 and borders and focus at 3:1 in both themes, and measure from the tokens, not by eye.",
+      "Do make every control work with JavaScript off and every form carry the antiforgery token; a destructive form carries data-confirm.",
+      "Do put a new reusable look into .um-* in umbral.input.css and a helper in Components.fs, not into a one-off class string.",
+      "Do take wording from Views/Texts.fs and add new strings there."
+    ],
+    "donts": [
+      "Don't use a second accent, a gradient, a glow or a coloured shadow. Gold is the only colour that is not a tone of the surface or a status.",
+      "Don't put a shadow on a surface at rest.",
+      "Don't give a card more than one red-filled button, or fill red for an action that can be undone.",
+      "Don't set a colour on the Gnomon, hide or move \"Secured by Umbral\", or let an app's accent reach anything but the primary pairs.",
+      "Don't load a font, script, stylesheet, image or icon from another host; the Content-Security-Policy refuses it and the product promises it.",
+      "Don't put style=\"\" in markup; the policy allows inline style only when a script writes it.",
+      "Don't use the display face below headline large, or the mono face for prose.",
+      "Don't build a menu or a drawer for the rail; it wraps on narrow screens by design."
+    ]
+  }
+}
