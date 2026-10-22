@@ -26,7 +26,8 @@
 - [x] T009 README: a paragraph after the `umbral_theme` one (what the cookie holds, no email, when it is set, signing out keeps it)
 - [x] T010 CHANGELOG.md: `### Added` bullet under `## Unreleased`
 - [x] T011 `dotnet test -c Release` green; `src/Umbral/Assets/build-css.sh --check` clean (both are CI gates)
-- [ ] T012 Browser check of the picker with a hint: unbranded and branded, dark and light
+- [x] T012 Browser check of the picker with a hint: unbranded and branded, dark and light
+  - Done 2026-10-21 in headless Google Chrome (Playwright, script outside the repo): a fake-provider sign-in left `umbral_last_connector=fake` (HttpOnly, Lax, a year); the picker showed Fake first with the badge, aria-label "Sign in with Fake, last used" and the divider, in dark and light, plain and with a coral accent (the badge in the button's text colour, readable on the accent); a forged `nope` gave the plain page. Firefox and Safari not checked.
 
 ## Dependencies
 

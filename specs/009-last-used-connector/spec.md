@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-21
 
-**Status**: Draft
+**Status**: Implemented (browser pass in Chrome only)
 
 **Input**: User description: "Spec 009: 'Last used' on the sign-in page — remember which sign-in method this browser used" (task `2026-10-21-last-used-sign-in-method-badge-on-the-sign-in-page-l4su`). The maintainer asked for the badge on 2026-10-21 and decided against showing the email.
 
