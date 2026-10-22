@@ -10,6 +10,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+## 0.3.0 - 2026-10-22
+
 ### Added
 - The sign-in page shows which way this browser signed in last: that connector's button comes
   first with a **Last used** badge, above an "or" and the other buttons. The browser keeps only the
