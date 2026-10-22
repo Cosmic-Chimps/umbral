@@ -1,0 +1,30 @@
+{
+  "workflow": "speckit",
+  "specName": "\"Last used\" on the sign-in page",
+  "branch": "alta/loyal-oder-ccph",
+  "currentStep": "tasks",
+  "status": "ready-to-implement",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-22T02:22:27.306Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-22T02:23:52.108Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-22T02:24:09.395Z"
+    }
+  ]
+}
