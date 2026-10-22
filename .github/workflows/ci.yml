@@ -45,6 +45,26 @@ jobs:
       - name: Stylesheet is up to date
         run: src/Umbral/Assets/build-css.sh --check
 
+      # A merge must not move entries into a released section (a branch made
+      # before a release does, and then the next release finds Unreleased empty).
+      # Compare with the commit before this push, or with a PR's base. The
+      # release workflow calls this file too; there the step is skipped.
+      - name: Released changelog sections are unchanged
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No earlier commit to compare with."; exit 0
+          fi
+          case "$MESSAGE" in
+            *"[edit released changelog]"*) echo "A released section may change: the commit or PR says so."; exit 0 ;;
+          esac
+          git fetch -q --depth=1 origin "$BASE"
+          git show "$BASE:CHANGELOG.md" > "$RUNNER_TEMP/base-CHANGELOG.md"
+          .github/scripts/changelog.sh released "$RUNNER_TEMP/base-CHANGELOG.md"
+
       # global.json pins the SDK (10.0.400, rolling forward to the latest
       # feature band) and the Microsoft.Testing.Platform runner.
       - uses: actions/setup-dotnet@v4
