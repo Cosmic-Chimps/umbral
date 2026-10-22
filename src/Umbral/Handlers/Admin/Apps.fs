@@ -485,7 +485,7 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string
         | None -> Fragment() :> HtmlElement
 
         div() {
-            p(class' = "um-label") { t.BrandingSampleLabel }
+            p(class' = "um-hint mt-0 mb-1.5") { t.BrandingSampleLabel }
 
             div(class' = "w-full max-w-sm space-y-4 rounded-lg bg-surface-container p-4") {
                 // The logo at the size people see it on the sign-in page.
