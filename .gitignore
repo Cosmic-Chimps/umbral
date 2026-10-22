@@ -28,3 +28,7 @@ __pycache__/
 
 # Local run: the data directory a launch profile points at.
 .data/
+
+# Impeccable: per-developer hook consent and cache
+.impeccable/config.local.json
+.impeccable/hook.cache.json
