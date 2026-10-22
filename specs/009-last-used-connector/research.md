@@ -57,7 +57,7 @@ The other buttons keep their order because `List.filter` keeps it.
 
 **Decision**: the remembered button is the same `a` as the others, with
 `data-last-used=""`, an `aria-label` of `"<visible label>, last used"`
-(`Texts.LastUsedName`), and a `span.um-last-used` badge after the label. Then a
+(`Texts.PickerLastUsedName`), and a `span.um-last-used` badge after the label. Then a
 `div.um-or` holding `Texts.PickerOr` ("or"). Then the other buttons.
 
 **Rationale**: `aria-label` makes the badge part of the accessible name, and it

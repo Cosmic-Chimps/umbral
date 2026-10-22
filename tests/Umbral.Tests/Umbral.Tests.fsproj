@@ -88,6 +88,7 @@
     <Compile Include="PasskeyCeremonyTests.fs" />
     <Compile Include="PasskeyInvitationTests.fs" />
     <Compile Include="PasskeyAccountTests.fs" />
+    <Compile Include="LastUsedConnectorTests.fs" />
     <Compile Include="PasskeyAdminTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
