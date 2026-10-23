@@ -57,9 +57,12 @@ Users is untouched. Section "Later: Users" says what it would need to match.
   line (label medium, muted; mono where it is an identifier), and at the
   right edge one status marker (a pill or an icon, see each screen). Nothing
   else: no form, no copy field, no alert, no third line.
-- **Rest:** text muted. **Hover:** the container step, text bone. **Selected:**
-  the high step, first line in gold at 600, `aria-current="page"`. **Focus:**
-  the global 2px gold ring. Selected and hover never both fill: selected wins.
+- **Rest:** the first line in bone, the second muted, no fill. **Hover:** the
+  container step, both lines unchanged. **Selected:** the high step, first
+  line in gold at 600, `aria-current="page"`. **Focus:** the global 2px gold
+  ring. Selected and hover never both fill: selected wins. (Amended
+  2026-10-23 after the Apps review: the earlier "rest: text muted" line
+  contradicted the entry definition above it.)
 - A **pinned entry** (Connectors only) sits below the connector entries after
   a 40% hairline with 12px above and below, drawn like any entry.
 - **Empty list:** the column shows the existing empty-state component (icon,
@@ -160,9 +163,12 @@ Order: by display name, case-insensitive. Each entry:
   methods" (catalogue). No other marker.
 
 Create: the list heading's primary button "Create app", shown only when at
-least one connector is enabled (today's rule). With no enabled connector the
-whole frame is replaced by today's "need a connector" empty state with its
-link to Connectors, unchanged.
+least one connector is enabled (today's rule). With no enabled connector and
+no apps, the whole frame is replaced by today's "need a connector" empty
+state with its link to Connectors, unchanged. With no enabled connector but
+apps that exist, that empty state sits above the frame and the frame stays
+without its Create button, so the apps' actions (Regenerate secret, Delete)
+remain reachable. (Amended 2026-10-23 after the Apps review.)
 
 Empty list (no apps, a connector enabled): the list column shows today's empty
 state; on wide screens the pane shows the create form at once, as if
