@@ -20,6 +20,23 @@ permissions:
   contents: read
 
 jobs:
+  # Documentation is the support channel (Principle VI), so a dead link is a
+  # bug: every relative link in README.md and docs/**/*.md must reach a file,
+  # and every #anchor a heading there. External URLs are not fetched. One run
+  # is enough, so it is a job of its own rather than a step of the matrix.
+  links:
+    name: links
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Links and anchors in the docs resolve
+        # T8 lands before T1 (docs audit, docs/audit-2026-10.md), and main
+        # still has the dead anchor of W15 in docs/connectors/oidc.md: the step
+        # reports it without failing the run. T1 fixes it and removes this line.
+        continue-on-error: true
+        run: .github/scripts/check-links.py
+
   test:
     name: test (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
