@@ -407,15 +407,25 @@ one gold element on a surface is the one to use.
 - **Background:** the low tonal step.
 - **Shadow Strategy:** none; a hairline (`--border-micro`).
 - **Internal Padding:** 24px, 32px from 768px.
-- **Sections inside a card** are separated by a 40% hairline top border with
-  16px above, headed by a `.um-section-title`. The card's closing action row
-  (Regenerate secret, Delete app) gets the same hairline and 16px above it.
+- **Sections inside a card or a pane** are separated by a 40% hairline top
+  border with 24px above and 20px below, headed by a `.um-section-title`
+  (body large at 600, 12px below). A pane's closing action row (Regenerate
+  secret, Delete app) gets the same hairline and 24px above it.
 
-### Dialog
-The Create app dialog: a native `<dialog>` opened with `showModal()`, 12px
-radius, the low step with a hairline, 24px padding (32px from 768px), at most
-672px wide, scrolling inside past the viewport, over a near-opaque ink
-backdrop, entering with a 160ms fade and 8px rise unless motion is reduced.
+### List and detail
+The frame for the screens whose items are not cards one under another (Apps,
+later Connectors). From 1024px, a 320px list and the pane fill the page
+column, 32px apart; below it, one column: the list URL shows the list, an
+item's URL shows the pane with a ghost back link (chevron and screen name).
+The list is a `nav` of entries drawn like the rail's: 44px tall, 12px radius,
+14px by 10px padding, 4px apart, the name in body medium at 500 over a muted
+label-medium line, at most one status marker at the right. Hover takes the
+container step; the selected entry the high step with its name in gold at 600
+and `aria-current="page"`. The create button sits in the list's heading row
+beside the count, and is drawn as selected while its form is the pane. The
+pane is a `section` on the page surface, not a card: the item's name as
+headline large with its pills, then notices, then sections, then the closing
+action row. Focus goes to the pane's heading after an htmx swap.
 
 ### Alerts
 An 8px rounded block, 16px padding, body medium, icon and text 12px

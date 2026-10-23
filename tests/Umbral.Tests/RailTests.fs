@@ -1,4 +1,4 @@
-/// The operator's side rail and the Create app dialog (specs/007-umbra-look,
+/// The operator's side rail and the Create app pane (specs/007-umbra-look,
 /// User Story 3, research R7 and R8): the four screens and sign-out in an
 /// `<aside>` with `aria-current` on the right one, nothing of the kind on a page
 /// anyone else can see, and "Create app" as a link that is also a page.
@@ -144,24 +144,31 @@ let ``the Create app page says what to do when no connector is enabled`` () =
     }
 
 [<Fact>]
-let ``the Apps screen opens Create app as a dialog and falls back to the page`` () =
+let ``the Apps screen opens Create app as a pane, and the link is also a page`` () =
     task {
         let! app, browser = signedIn ()
         use _ = app
-        let! html = browser.GetHtml "/admin/apps"
+        let! list = browser.GetHtml "/admin/apps"
 
-        Assert.Matches("<a\\b[^>]*href=\"/admin/apps/new\"[^>]*data-dialog=\"create-app\"|<a\\b[^>]*data-dialog=\"create-app\"[^>]*href=\"/admin/apps/new\"", html)
+        // The list's Create link goes to the page; there is no dialog any more.
+        Assert.Matches("<a\\b[^>]*href=\"/admin/apps/new\"", list)
+        Assert.DoesNotContain("<dialog", list)
+        Assert.DoesNotContain("data-dialog", list)
 
-        let dialog = inner "dialog" html
-        Assert.True(dialog.IsSome, "no <dialog>")
-        Assert.Matches("<dialog[^>]*\\sid=\"create-app\"", dialog.Value)
-        Assert.Matches("<dialog[^>]*aria-labelledby=\"create-app-title\"", dialog.Value)
-        Assert.Contains("id=\"create-app-title\"", dialog.Value)
-        Assert.Matches("<form[^>]*action=\"/admin/apps\"", dialog.Value)
-        Assert.Matches("<button[^>]*data-dialog-close", dialog.Value)
+        let! html = browser.GetHtml "/admin/apps/new"
 
-        // The form is in the dialog and nowhere else on the screen.
+        Assert.Contains("data-screen=\"app-new\"", html)
+        Assert.DoesNotContain("<dialog", html)
+        Assert.DoesNotContain("data-dialog", html)
+
+        // The form is in the pane and nowhere else on the screen.
+        let pane = Regex.Match(html, "<section[^>]*um-frame-pane.*?</section>", RegexOptions.Singleline)
+        Assert.True(pane.Success, "no pane")
+        Assert.Matches("<form[^>]*action=\"/admin/apps\"", pane.Value)
         Assert.Equal(1, Regex.Matches(html, "<form[^>]*action=\"/admin/apps\"").Count)
+
+        // The Create link is the current one while the form shows.
+        Assert.Matches("<a\\b[^>]*href=\"/admin/apps/new\"[^>]*aria-current=\"page\"|<a\\b[^>]*aria-current=\"page\"[^>]*href=\"/admin/apps/new\"", html)
     }
 
 [<Fact>]

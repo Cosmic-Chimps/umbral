@@ -66,8 +66,9 @@ let private allEvents (app: Fixtures.TestApp) =
         return int n
     }
 
-let private cardRedirect (notice: string) (clientId: string) =
-    $"/admin/apps?msg={notice}&app={clientId}#app-{clientId}"
+/// Every app POST lands on that app's detail page, never on the list.
+let private appRedirect (notice: string) (clientId: string) =
+    $"/admin/apps/{clientId}?msg={notice}"
 
 /// The operator signed in, the fake connector, and two apps: the operator's
 /// browser and the two client ids.
@@ -133,7 +134,7 @@ let ``a colour is saved lowercase, announced, and logged once`` () =
         let! response = postAccent operator idA "#D9480F"
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
-        Assert.Equal(cardRedirect "app-accent-saved" idA, location response)
+        Assert.Equal(appRedirect "app-accent-saved" idA, location response)
 
         let! stored = storedAccent app idA
         Assert.Equal("d9480f", stored)
@@ -163,7 +164,7 @@ let ``a colour that is hard to see on the card is saved and the notice says so``
 
         let! response = postAccent operator idA "#0a0a10"
 
-        Assert.Equal(cardRedirect "app-accent-low-contrast" idA, location response)
+        Assert.Equal(appRedirect "app-accent-low-contrast" idA, location response)
         let! stored = storedAccent app idA
         Assert.Equal("0a0a10", stored)
         let! events = eventCount app idA "branding_accent_set"
@@ -187,7 +188,7 @@ let ``a value that is not #rrggbb is refused, changing nothing and logging nothi
 
         let! response = postAccent operator idA value
 
-        Assert.Equal(cardRedirect "app-accent-invalid" idA, location response)
+        Assert.Equal(appRedirect "app-accent-invalid" idA, location response)
         let! stored = storedAccent app idA
         Assert.Equal("1f6fa8", stored)
         let! after = allEvents app
@@ -201,7 +202,7 @@ let ``a refusal on an app with no branding creates no row`` () =
         let! operator, idA, _ = prepare app
 
         let! response = postAccent operator idA "orange"
-        Assert.Equal(cardRedirect "app-accent-invalid" idA, location response)
+        Assert.Equal(appRedirect "app-accent-invalid" idA, location response)
 
         let! rows = scalar app "SELECT count(*) FROM app_branding" []
         Assert.Equal("0", rows)
@@ -231,58 +232,60 @@ let ``an unknown client is app-not-found and nothing is written`` () =
 let private bodyTag (html: string) = Regex.Match(html, "<body[^>]*>").Value
 
 [<Fact>]
-let ``the Apps page links each accent once, shows the sample in it, and never colours its own body`` () =
+let ``an app's pane links its own accent once, shows the sample in it, and never colours its own body`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
         let! operator, idA, idB = prepare app
 
-        // Two apps, one colour: one stylesheet.
+        // Two apps, one colour: each pane links the one stylesheet, once.
         let! _ = postAccent operator idA "#f26b1d"
         let! _ = postAccent operator idB "#F26B1D"
 
-        let! html = operator.GetHtml "/admin/apps"
+        let! html = operator.GetHtml $"/admin/apps/{idA}"
 
         let links = Regex.Matches(html, "<link[^>]*href=\"/branding/accent/f26b1d.css\"")
         Assert.Equal(1, links.Count)
 
-        // After umbral.css, before the scripts.
-        Assert.True(html.IndexOf "/assets/umbral.css" < html.IndexOf "/branding/accent/f26b1d.css")
-        Assert.True(html.IndexOf "/branding/accent/f26b1d.css" < html.IndexOf "/assets/htmx.min.js")
+        // The sheet travels with the pane, so a swap brings it: inside the pane, not in the head.
+        let pane = Regex.Match(html, "<section[^>]*data-app=.*?</section>", RegexOptions.Singleline)
+        Assert.True(pane.Success, "no pane")
+        Assert.Contains("/branding/accent/f26b1d.css", pane.Value)
+        Assert.DoesNotContain("/branding/accent/", Regex.Match(html, "<head.*?</head>", RegexOptions.Singleline).Value)
 
         // The page itself keeps Umbral's colour (FR-005).
         Assert.DoesNotContain("data-accent", bodyTag html)
 
-        // Each card's sample sits inside the accent it previews.
+        // The pane's sample sits inside the accent it previews.
         let samples = Regex.Matches(html, "data-accent=\"f26b1d\"[^>]*>\\s*<button[^>]*data-branding-sample")
-        Assert.Equal(2, samples.Count)
+        Assert.Equal(1, samples.Count)
 
         // The sample is the primary button, which reads the `primary-fill`
         // properties the accent sheet sets (007), so it shows the accent in
         // either theme. Nothing outside the samples sits under an accent: the
         // rail, with the theme control in it, keeps Umbral's own colours.
-        Assert.Equal(2, Regex.Matches(html, "<button[^>]*um-btn-primary[^>]*data-branding-sample").Count)
-        Assert.Equal(2, Regex.Matches(html, "data-accent=").Count)
+        Assert.Equal(1, Regex.Matches(html, "<button[^>]*um-btn-primary[^>]*data-branding-sample").Count)
+        Assert.Equal(1, Regex.Matches(html, "data-accent=").Count)
         let rail = Regex.Match(html, "<aside.*?</aside>", RegexOptions.Singleline)
         Assert.True(rail.Success, "no rail")
         Assert.DoesNotContain("data-accent", rail.Value)
     }
 
 [<Fact>]
-let ``an app card has the branding section with its accent form, and an app with none previews Umbral's colour`` () =
+let ``an app pane has the branding section with its accent form, and an app with none previews Umbral's colour`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
         let! operator, idA, idB = prepare app
         let! _ = postAccent operator idA "#f26b1d"
 
-        let! html = operator.GetHtml "/admin/apps"
+        let! html = operator.GetHtml $"/admin/apps/{idA}"
+        let! htmlB = operator.GetHtml $"/admin/apps/{idB}"
 
-        for id in [ idA; idB ] do
-            Assert.Contains($"id=\"app-{id}\"", html)
-            Assert.Contains($"data-branding=\"{id}\"", html)
-            Assert.Contains($"action=\"/admin/apps/{id}/branding/accent\"", html)
-
-        Assert.Equal(2, Regex.Matches(html, "data-accent-form").Count)
-        Assert.Equal(2, Regex.Matches(html, "data-branding-logo").Count)
+        for id, page in [ idA, html; idB, htmlB ] do
+            Assert.Contains($"data-app=\"{id}\"", page)
+            Assert.Contains($"data-branding=\"{id}\"", page)
+            Assert.Contains($"action=\"/admin/apps/{id}/branding/accent\"", page)
+            Assert.Equal(1, Regex.Matches(page, "data-accent-form").Count)
+            Assert.Equal(1, Regex.Matches(page, "data-branding-logo").Count)
 
         // The upload form carries the hooks the script looks for.
         for hook in [ "data-logo-form"; "data-logo-input"; "data-logo-crop"; "data-logo-whole"; "data-logo-error" ] do
@@ -308,39 +311,41 @@ let ``an app card has the branding section with its accent form, and an app with
         // The text field carries the colour as `#hex`, or nothing for an app with none.
         Assert.Contains("value=\"#f26b1d\"", html)
 
-        // Only A has an accent, so only A's sample is wrapped.
+        // Only A has an accent, so only A's sample is wrapped; B's is bare.
         Assert.Equal(1, Regex.Matches(html, "data-accent=\"f26b1d\"").Count)
-        Assert.Equal(2, Regex.Matches(html, "data-branding-sample").Count)
+        Assert.Equal(1, Regex.Matches(html, "data-branding-sample").Count)
+        Assert.DoesNotContain("data-accent=", htmlB)
+        Assert.Equal(1, Regex.Matches(htmlB, "data-branding-sample").Count)
 
-        // No logo upload yet: the card says so.
+        // No logo upload yet: the pane says so.
         Assert.Contains(Texts.en.NoLogo, decode html)
     }
 
 [<Fact>]
-let ``the branding section has a section title, and the card's actions sit behind a hairline after it`` () =
+let ``the branding section has a section title, and the pane's actions sit behind a hairline after it`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
         let! operator, idA, idB = prepare app
 
-        let! html = operator.GetHtml "/admin/apps"
-
-        // The heading is a step above the LOGO and ACCENT COLOUR labels it groups.
-        let headings =
-            Regex.Matches(html, $"<h3[^>]*class=\"um-section-title\"[^>]*>\\s*{Regex.Escape Texts.en.BrandingHeading}")
-
-        Assert.Equal(2, headings.Count)
-        Assert.DoesNotMatch("<h3[^>]*um-label", html)
-
-        // Regenerate secret / Delete app close the card: their row has its own
-        // hairline and comes after the accent form, not inside it.
-        Assert.Equal(2, Regex.Matches(html, "<div[^>]*border-t[^>]*data-app-actions").Count)
-
         for id in [ idA; idB ] do
-            let card = html.IndexOf $"id=\"app-{id}\""
-            let accentForm = html.IndexOf($"action=\"/admin/apps/{id}/branding/accent\"", card)
+            let! html = operator.GetHtml $"/admin/apps/{id}"
+
+            // The heading is a step above the LOGO and ACCENT COLOUR labels it groups.
+            let headings =
+                Regex.Matches(html, $"<h3[^>]*class=\"um-section-title\"[^>]*>\\s*{Regex.Escape Texts.en.BrandingHeading}")
+
+            Assert.Equal(1, headings.Count)
+            Assert.DoesNotMatch("<h3[^>]*um-label", html)
+
+            // Regenerate secret / Delete app close the pane: their row is its own
+            // block after the accent form, not inside it.
+            Assert.Equal(1, Regex.Matches(html, "<div[^>]*um-pane-actions[^>]*data-app-actions").Count)
+
+            let pane = html.IndexOf $"data-app=\"{id}\""
+            let accentForm = html.IndexOf($"action=\"/admin/apps/{id}/branding/accent\"", pane)
             let actions = html.IndexOf("data-app-actions", accentForm)
-            let delete = html.IndexOf($"action=\"/admin/apps/{id}/delete\"", card)
-            Assert.True(accentForm > card && actions > accentForm && delete > actions, $"the actions of {id} are not after its accent form")
+            let delete = html.IndexOf($"action=\"/admin/apps/{id}/delete\"", pane)
+            Assert.True(accentForm > pane && actions > accentForm && delete > actions, $"the actions of {id} are not after its accent form")
     }
 
 [<Fact>]
@@ -352,7 +357,7 @@ let ``a colour that is hard to see on the light card only is saved and the notic
         // Spec 006's own example: 6.00:1 on the dark card, 2.995:1 on the light one (007, FR-023).
         let! response = postAccent operator idA "#f26b1d"
 
-        Assert.Equal(cardRedirect "app-accent-low-contrast" idA, location response)
+        Assert.Equal(appRedirect "app-accent-low-contrast" idA, location response)
         let! stored = storedAccent app idA
         Assert.Equal("f26b1d", stored)
     }
@@ -437,7 +442,7 @@ let ``a valid PNG is saved as the file Umbral wrote, announced, logged once and 
         let! response = postLogo operator idA (Some("logo.png", upload))
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
-        Assert.Equal(cardRedirect "app-logo-saved" idA, location response)
+        Assert.Equal(appRedirect "app-logo-saved" idA, location response)
 
         // Stored: the rewritten file, not the upload (which carried a text chunk).
         let expected = (match PngLogo.validate upload with Ok l -> l | Error e -> failwith $"{e}")
@@ -499,7 +504,7 @@ let ``every refused upload leaves the existing logo byte-identical and logs noth
         // A logo already there, and an accent beside it.
         let! _ = postAccent operator idA "#f26b1d"
         let! first = postLogo operator idA (Some("logo.png", pngOf 100 100))
-        Assert.Equal(cardRedirect "app-logo-saved" idA, location first)
+        Assert.Equal(appRedirect "app-logo-saved" idA, location first)
         let! before = storedLogo app idA
         let! eventsBefore = allEvents app
 
@@ -507,7 +512,7 @@ let ``every refused upload leaves the existing logo byte-identical and logs noth
             let! response = postLogo operator idA file
 
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
-            Assert.Equal(cardRedirect notice idA, location response)
+            Assert.Equal(appRedirect notice idA, location response)
 
             let! after = storedLogo app idA
             Assert.Equal<byte array>(before.Value, after.Value)
@@ -552,7 +557,7 @@ let ``the size a refusal names is the measured one, shown once, from the cookie`
 
         // Too small: 16 x 20 pixels.
         let! small = postLogo operator idA (Some("logo.png", pngOf 16 20))
-        Assert.Equal(cardRedirect "app-logo-too-small" idA, location small)
+        Assert.Equal(appRedirect "app-logo-too-small" idA, location small)
         // The size is not in the redirect.
         Assert.DoesNotContain("16", location small)
         let! html = operator.GetHtml(location small)
@@ -577,7 +582,7 @@ let ``a size written into the address is never shown`` () =
 
         // A link a person could be sent. No cookie came with it, so there is no measured value.
         for code in [ "app-logo-too-small"; "app-logo-too-big"; "app-logo-too-large" ] do
-            let! html = operator.GetHtml($"/admin/apps?msg={code}&app={idA}&width=9999&height=8888&bytes=777777777#app-{idA}")
+            let! html = operator.GetHtml($"/admin/apps/{idA}?msg={code}&width=9999&height=8888&bytes=777777777")
             // Without the theme control, whose hidden return address is this very URL.
             let text = decode (Umbral.Tests.Infrastructure.Flows.withoutThemeControl html)
             Assert.DoesNotContain("9999", text)
@@ -587,14 +592,14 @@ let ``a size written into the address is never shown`` () =
     }
 
 [<Fact>]
-let ``a measured value for one app is not shown on another's card`` () =
+let ``a measured value for one app is not shown on another's pane`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
         let! operator, idA, idB = prepare app
 
         let! small = postLogo operator idA (Some("logo.png", pngOf 16 20))
         // The cookie is for A; a page that says B was refused must not use it.
-        let! html = operator.GetHtml($"/admin/apps?msg=app-logo-too-small&app={idB}")
+        let! html = operator.GetHtml($"/admin/apps/{idB}?msg=app-logo-too-small")
         Assert.DoesNotContain(Texts.en.AppLogoTooSmall 16 20, decode html)
         ignore small
     }
@@ -688,7 +693,7 @@ let ``a 1 MB logo is read into memory, with no temp file, and saved`` () =
 
         let! response = postLogo operator idA (Some("logo.png", upload))
 
-        Assert.Equal(cardRedirect "app-logo-saved" idA, location response)
+        Assert.Equal(appRedirect "app-logo-saved" idA, location response)
         Assert.False(log.Spills.ContainsKey $"/admin/apps/{idA}/branding/logo", "the logo upload spilled to a temp file")
         let! stored = storedLogo app idA
         Assert.True(stored.IsSome)
@@ -706,7 +711,7 @@ let ``a 2.5 MB body is read and judged by the validator, and a 3.5 MB body is re
         let under = Array.append signature (Array.zeroCreate (2_621_440 - signature.Length))
         let! accepted = postLogo operator idA (Some("logo.png", under))
         Assert.Equal(HttpStatusCode.Redirect, accepted.StatusCode)
-        Assert.Equal(cardRedirect "app-logo-too-large" idA, location accepted)
+        Assert.Equal(appRedirect "app-logo-too-large" idA, location accepted)
         let! sized = operator.GetHtml(location accepted)
         Assert.Contains(Texts.en.AppLogoTooLarge 2_621_440L, decode sized)
 
@@ -716,7 +721,7 @@ let ``a 2.5 MB body is read and judged by the validator, and a 3.5 MB body is re
         let over = Array.append signature (Array.zeroCreate (3_670_016 - signature.Length))
         let! refused = postLogo operator idA (Some("logo.png", over))
         Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode)
-        Assert.Equal(cardRedirect "app-logo-too-large" idA, location refused)
+        Assert.Equal(appRedirect "app-logo-too-large" idA, location refused)
         let! plain = operator.GetHtml(location refused)
         Assert.Contains(Texts.en.Notice "app-logo-too-large", decode plain)
 
@@ -807,14 +812,14 @@ let ``a body past Kestrel's request limit is the too-large notice, not a bare 41
         Assert.Equal(3_145_728L, state.LimitSeenAtEndpoint)
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
-        Assert.Equal(cardRedirect "app-logo-too-large" idA, location response)
+        Assert.Equal(appRedirect "app-logo-too-large" idA, location response)
         let! rows = scalar app "SELECT count(*) FROM app_branding" []
         Assert.Equal("0", rows)
 
         // And a body under it still goes through to the validator.
         let under = Array.append signature (Array.zeroCreate (2_000_000 - signature.Length))
         let! second = postLogo operator idA (Some("logo.png", under))
-        Assert.Equal(cardRedirect "app-logo-too-large" idA, location second)
+        Assert.Equal(appRedirect "app-logo-too-large" idA, location second)
         let! sized = operator.GetHtml(location second)
         Assert.Contains(Texts.en.AppLogoTooLarge 2_000_000L, decode sized)
     }
@@ -894,7 +899,7 @@ let ``replacing a logo serves the new one, retires the old address, and changes 
         Assert.Contains(logoAddress first, pickerBefore)
 
         let! replaced = postLogo operator idA (Some("logo.png", second))
-        Assert.Equal(cardRedirect "app-logo-saved" idA, location replaced)
+        Assert.Equal(appRedirect "app-logo-saved" idA, location replaced)
 
         // The new address serves the new logo.
         let expected = (match PngLogo.validate second with Ok l -> l | Error e -> failwith $"{e}")
@@ -913,7 +918,7 @@ let ``replacing a logo serves the new one, retires the old address, and changes 
         let! pickerAfter = pickerOf app idA
         Assert.Contains(logoAddress second, pickerAfter)
         Assert.DoesNotContain(logoAddress first, pickerAfter)
-        let! card = operator.GetHtml "/admin/apps"
+        let! card = operator.GetHtml $"/admin/apps/{idA}"
         Assert.Contains(logoAddress second, card)
         Assert.DoesNotContain(logoAddress first, card)
 
@@ -934,7 +939,7 @@ let ``removing a logo retires its address and keeps the accent and the row`` () 
         let! response = postRemoveLogo operator idA
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
-        Assert.Equal(cardRedirect "app-logo-removed" idA, location response)
+        Assert.Equal(appRedirect "app-logo-removed" idA, location response)
 
         let! events = eventCount app idA "branding_logo_removed"
         Assert.Equal(1, events)
@@ -963,7 +968,7 @@ let ``removing the only thing an app has deletes its row`` () =
 
         let! response = postRemoveLogo operator idA
 
-        Assert.Equal(cardRedirect "app-logo-removed" idA, location response)
+        Assert.Equal(appRedirect "app-logo-removed" idA, location response)
         let! rows = rowCount app
         Assert.Equal(0, rows)
     }
@@ -979,13 +984,13 @@ let ``removing a logo that is not there gives the notice and no event`` () =
 
         // The second remove: nothing to remove, the same notice, no new event.
         let! second = postRemoveLogo operator idA
-        Assert.Equal(cardRedirect "app-logo-removed" idA, location second)
+        Assert.Equal(appRedirect "app-logo-removed" idA, location second)
         let! after = allEvents app
         Assert.Equal(before, after)
 
         // An app that never had branding.
         let! third = postRemoveLogo operator idA
-        Assert.Equal(cardRedirect "app-logo-removed" idA, location third)
+        Assert.Equal(appRedirect "app-logo-removed" idA, location third)
         let! events = eventCount app idA "branding_logo_removed"
         Assert.Equal(1, events)
     }
@@ -1006,10 +1011,11 @@ let ``the remove form is on the card only when the app has a logo, and asks firs
         let! operator, idA, idB = prepare app
         let! _ = postLogo operator idA (Some("logo.png", pngOf 100 100))
 
-        let! html = operator.GetHtml "/admin/apps"
+        let! html = operator.GetHtml $"/admin/apps/{idA}"
+        let! other = operator.GetHtml $"/admin/apps/{idB}"
 
         Assert.Contains($"action=\"/admin/apps/{idA}/branding/logo/delete\"", html)
-        Assert.DoesNotContain($"/admin/apps/{idB}/branding/logo/delete", html)
+        Assert.DoesNotContain($"/admin/apps/{idB}/branding/logo/delete", other)
         // The confirmation travels as data-confirm, like every destructive form here.
         let form = Regex.Match(html, "<form[^>]*logo/delete[^>]*>").Value
         Assert.Contains("data-confirm=", form)
@@ -1023,7 +1029,8 @@ let ``Remove logo sits in the upload form's button row and submits the delete fo
         let! operator, idA, idB = prepare app
         let! _ = postLogo operator idA (Some("logo.png", pngOf 100 100))
 
-        let! html = operator.GetHtml "/admin/apps"
+        let! html = operator.GetHtml $"/admin/apps/{idA}"
+        let! other = operator.GetHtml $"/admin/apps/{idB}"
 
         // One button, only for the app with a logo, tied to the delete form by `form`,
         // and quiet: a ghost in the error colour, not the filled danger button.
@@ -1058,11 +1065,12 @@ let ``Remove logo sits in the upload form's button row and submits the delete fo
         Assert.DoesNotContain("<button", deleteForm.Value)
 
         // The app without a logo has neither.
-        Assert.DoesNotContain($"logo-delete-{idB}", html)
+        Assert.DoesNotContain("logo-delete-", other)
+        Assert.DoesNotContain("data-logo-remove", other)
 
         // And the form does what the button says.
         let! response = postRemoveLogo operator idA
-        Assert.Equal(cardRedirect "app-logo-removed" idA, location response)
+        Assert.Equal(appRedirect "app-logo-removed" idA, location response)
         let! stored = storedLogo app idA
         Assert.True(stored.IsNone)
     }
@@ -1109,7 +1117,7 @@ let ``an empty accent clears it, logs once, and deletes the row when no logo is 
 
         let! response = postAccent operator idA ""
 
-        Assert.Equal(cardRedirect "app-accent-cleared" idA, location response)
+        Assert.Equal(appRedirect "app-accent-cleared" idA, location response)
         let! accent = storedAccent app idA
         Assert.Equal("", accent)
         let! rows = rowCount app
@@ -1136,7 +1144,7 @@ let ``clearing the accent keeps the logo and its row`` () =
         // Whitespace is empty too: the field is trimmed.
         let! response = postAccent operator idA "   "
 
-        Assert.Equal(cardRedirect "app-accent-cleared" idA, location response)
+        Assert.Equal(appRedirect "app-accent-cleared" idA, location response)
         let! rows = rowCount app
         Assert.Equal(1, rows)
         let! stored = storedLogo app idA
@@ -1154,7 +1162,7 @@ let ``clearing an accent that is not set gives the notice and no event`` () =
 
         let! response = postAccent operator idA ""
 
-        Assert.Equal(cardRedirect "app-accent-cleared" idA, location response)
+        Assert.Equal(appRedirect "app-accent-cleared" idA, location response)
         let! after = allEvents app
         Assert.Equal(before, after)
         let! rows = rowCount app

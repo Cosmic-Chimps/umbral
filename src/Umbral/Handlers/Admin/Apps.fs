@@ -46,9 +46,9 @@ let private AppTypeInvalidNotice = "Choose an app type from the list, then save 
 // rule 3 requires every POST to end in a redirect rather than a rendered
 // response. Both are true at once by stashing the plaintext in memory under a
 // single-use token, redirecting with that token in the query string, and
-// having the GET consume (remove) it on the very read that shows it — a
-// refresh of the same URL then shows nothing, which is what "not on any later
-// page load" means in practice.
+// having the GET of the app's own page consume (remove) it on the very read
+// that shows it — a refresh of the same URL then shows nothing, which is what
+// "not on any later page load" means in practice.
 // ---------------------------------------------------------------------------
 
 /// Not private: AppSecret.fs stashes a regenerated secret through this same
@@ -93,7 +93,18 @@ module SecretReveal =
 
         ctx.Response.Cookies.Append(CookieName, payload, options)
 
-    let consume (ctx: HttpContext) : RevealedSecret option =
+    let private expire (ctx: HttpContext) =
+        let options = CookieOptions()
+        options.Path <- "/admin"
+        options.SameSite <- SameSiteMode.Strict
+        options.Secure <- ctx.Request.IsHttps
+        ctx.Response.Cookies.Delete(CookieName, options)
+
+    /// The secret the cookie holds, if it is about `clientId`, the app whose pane
+    /// is being drawn. A cookie about another app is left alone: it is that app's
+    /// to show, and it expires by itself. One that does not decode is deleted,
+    /// since nothing will ever show it.
+    let consumeFor (ctx: HttpContext) (clientId: string) : RevealedSecret option =
         let payload =
             match ctx.Request.Cookies.TryGetValue CookieName with
             | true, value ->
@@ -106,20 +117,29 @@ module SecretReveal =
         | None -> None
         | Some payload ->
 
-        // Deleted before it is decoded, so a refresh shows nothing whether or
-        // not the decode succeeds.
-        let options = CookieOptions()
-        options.Path <- "/admin"
-        options.SameSite <- SameSiteMode.Strict
-        options.Secure <- ctx.Request.IsHttps
-        ctx.Response.Cookies.Delete(CookieName, options)
+        let decoded =
+            try
+                match ((protector ctx).Unprotect payload).Split '\u001f' with
+                | [| id; secret |] -> Some { ClientId = id; Secret = secret }
+                | _ -> None
+            with _ ->
+                None
 
-        try
-            match ((protector ctx).Unprotect payload).Split '\u001f' with
-            | [| clientId; secret |] -> Some { ClientId = clientId; Secret = secret }
-            | _ -> None
-        with _ ->
+        match decoded with
+        | Some revealed when revealed.ClientId = clientId ->
+            // Deleted on the read that shows it, so a refresh shows nothing.
+            expire ctx
+            Some revealed
+        | Some _ -> None
+        | None ->
+            expire ctx
             None
+
+let listPath = "/admin/apps"
+
+/// An app's own address: where every POST about it redirects, and what a list
+/// entry links to. The client id is generated, but it is escaped all the same.
+let detailPath (clientId: string) = listPath + "/" + Uri.EscapeDataString clientId
 
 // ---------------------------------------------------------------------------
 // App type -> permissions
@@ -258,10 +278,11 @@ let private choiceFromForm (form: IFormCollection) : AppChoice =
 /// The connector choice as two radio cards, like the app type, with a tick box
 /// per connector under the second. Every stored connector is listed, shared or
 /// not, enabled or not: a chosen set may name a connector that is off today.
-/// `idPrefix` keeps the ids unique when the form appears once per app.
+/// `idPrefix` keeps the ids unique should two forms ever share a page.
 let private connectorChoices
     (t: Texts.Texts)
     (idPrefix: string)
+    (showLegend: bool)
     (connectors: Connector list)
     (selected: AppChoice)
     =
@@ -271,7 +292,9 @@ let private connectorChoices
         | AllShared -> Set.empty
 
     fieldset(class' = "um-choice-group").attr("aria-describedby", $"{idPrefix}-hint") {
-        legend(class' = "um-label") { t.AppConnectorsLabel }
+        // In a pane the section title already says it; the legend stays for
+        // screen readers.
+        legend(class' = (if showLegend then "um-label" else "sr-only")) { t.AppConnectorsLabel }
 
         div(class' = "grid gap-3 md:grid-cols-2") {
             for value, title, description in
@@ -326,9 +349,8 @@ let private accentText (branding: AppBranding option) =
     | Some accent -> "#" + Accent.hex accent
     | None -> ""
 
-/// The notices of the branding forms are shown inside the card they are about,
-/// not at the top of the page: the redirect lands on `#app-{clientId}`, and a
-/// message above the fold would be somewhere the operator is no longer looking.
+/// The notices of the branding forms are about the app whose pane they land in,
+/// so they are drawn there, under its heading, like every notice about one app.
 let private isBrandingNotice (code: string) =
     code.StartsWith "app-logo-" || code.StartsWith "app-accent-"
 
@@ -446,21 +468,21 @@ let private logoForm (ctx: HttpContext) (t: Texts.Texts) (row: Row) (hasLogo: bo
         }
     }
 
-/// The branding section of an app card: the logo and its upload form, a preview
+/// The branding section of an app's pane: the logo and its upload form, a preview
 /// of the sign-in button in the saved colour, and the accent form.
 ///
 /// The preview is a panel that composes the logo above the sample button, as
 /// the sign-in page does.
 ///
 /// The preview sits inside `data-accent` when there is an accent, which is what
-/// lets the accent sheet (linked in the page's head, one per distinct colour)
+/// lets the accent sheet (linked in the pane, the app's own)
 /// recolour it without touching the rest of the page (FR-005, FR-019). Without
 /// an accent it is Umbral's own colour, which is what that app's page uses.
 ///
 /// `hidden` on the native colour picker is removed by the script when it runs:
 /// a picker that does nothing is worse than none. It has no `name`, because a
 /// colour input cannot be empty and so could never clear the field.
-let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string * string) option) (row: Row) =
+let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (row: Row) =
     let fieldId = $"accent-{row.ClientId}"
     let hintId = $"{fieldId}-hint"
     let accent = row.Branding |> Option.bind (fun b -> b.Accent)
@@ -480,213 +502,77 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string
             .attr("aria-label", t.AccentLabel)
             .data("accent-picker", "")
 
-    div(class' = "space-y-5 border-t border-outline-variant/40 pt-4").data("branding", row.ClientId) {
+    div(class' = "um-pane-section").data("branding", row.ClientId) {
         h3(class' = "um-section-title") { t.BrandingHeading }
 
-        match notice with
-        | Some(code, text) ->
-            (div().data("notice", code) { Components.alert (brandingAlertKind code) text }) :> HtmlElement
-        | None -> Fragment() :> HtmlElement
-
-        div() {
-            p(class' = "um-hint mt-0 mb-1.5") { t.BrandingSampleLabel }
-
-            div(class' = "w-full max-w-sm space-y-4 rounded-lg bg-surface-container p-4") {
-                // The logo at the size people see it on the sign-in page.
-                div(class' = "flex min-h-11 items-center justify-center").data("branding-logo", "") {
-                    match logo with
-                    | Some logo ->
-                        (img(
-                            src = $"/branding/logo/{logo.Sha256}.png",
-                            alt = row.DisplayName,
-                            width = logo.Width,
-                            height = logo.Height,
-                            class' = Components.signInLogoClass
-                        ))
-                        :> HtmlElement
-                    | None -> (p(class' = "text-body-md text-on-surface-variant") { t.NoLogo }) :> HtmlElement
-                }
-
-                match accent with
-                | Some accent -> (div().data("accent", Accent.hex accent) { sample }) :> HtmlElement
-                | None -> (div() { sample }) :> HtmlElement
-            }
-        }
-
-        logoForm ctx t row logo.IsSome
-
-        // Only an app with a logo has one to remove. Its button sits in the
-        // upload form's button row, tied to this form by the `form` attribute
-        // (a form cannot nest in another). The submit event still fires here,
-        // so the script's data-confirm listener asks first, like every
-        // destructive form on this screen. `hidden` keeps the empty form out of
-        // the section's spacing. Removing a logo can be undone by uploading it
-        // again, so its button is a ghost in the error colour; the filled
-        // danger button stays for Delete app.
-        match logo with
-        | Some _ ->
-            (form(id = $"logo-delete-{row.ClientId}", method = "post", action = $"/admin/apps/{row.ClientId}/branding/logo/delete")
-                .attr("hidden", "hidden") {
-                ctx.GetAntiforgeryInput()
-            })
-            |> Components.confirmSubmit (t.AppLogoRemoveConfirm row.DisplayName)
-            :> HtmlElement
-        | None -> Fragment() :> HtmlElement
-
-        form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/accent", class' = "space-y-3")
-            .data("accent-form", "") {
-            ctx.GetAntiforgeryInput()
-
+        div(class' = "space-y-5") {
             div() {
-                label(for' = fieldId, class' = "um-label") { t.AccentLabel }
+                p(class' = "um-hint mt-0 mb-1.5") { t.BrandingSampleLabel }
 
-                div(class' = "flex items-center gap-2") {
-                    input(type' = "text", id = fieldId, name = "accent", value = accentText row.Branding, class' = "um-input um-mono max-w-xs")
-                        .attr("aria-describedby", hintId)
-                        .attr("autocomplete", "off")
-                        .attr("spellcheck", "false")
-
-                    picker
-                }
-
-                p(id = hintId, class' = "um-hint") { t.AccentHint }
-            }
-
-            button(type' = "submit", class' = Components.btnSm Components.Secondary) { t.AccentSave }
-        }
-    }
-
-let private appRow
-    (ctx: HttpContext)
-    (t: Texts.Texts)
-    (origin: PublicOrigin.PublicOrigin)
-    (connectors: Connector list)
-    (cardNotice: (string * string * string) option)
-    (row: Row)
-    =
-    let isPublic = row.ClientType = ClientTypes.Public
-
-    // The notice, if it is about this card.
-    let noticeHere =
-        match cardNotice with
-        | Some(clientId, code, text) when clientId = row.ClientId -> Some(code, text)
-        | _ -> None
-
-    // `id` is where a redirect from the branding forms lands, so the operator
-    // returns to the card they were on.
-    article(class' = "um-card space-y-4", id = $"app-{row.ClientId}")
-        .data("app", row.ClientId)
-        .data("app-choice", choiceValue row.Choice) {
-        div(class' = "flex items-center justify-between gap-3") {
-            h2(class' = "text-headline-md text-on-surface") { row.DisplayName }
-            Components.pill Components.MutedTone (if isPublic then SpaOrNative.Label t else Web.Label t)
-        }
-
-        div(class' = "grid gap-3 sm:grid-cols-2") {
-            Components.copyField
-                t.Copy
-                t.Copied
-                t.AppClientIdLabel
-                $"client-id-{row.ClientId}"
-                row.ClientId
-                ignore
-
-            Components.copyField
-                t.Copy
-                t.Copied
-                t.AppIssuerUrlLabel
-                $"issuer-{row.ClientId}"
-                origin.Text
-                ignore
-        }
-
-        div(class' = "space-y-1 text-body-md text-on-surface-variant") {
-            for uri in row.RedirectUris do
-                p(class' = "um-mono") { uri }
-        }
-
-        // FR-020: never blocks, only says what the choice lets in.
-        if not row.Unrestricted.IsEmpty then
-            (div().data("warning", "unrestricted-connectors") {
-                Components.alert Components.Warning (t.AppsUnrestrictedWarning row.Unrestricted)
-            })
-            :> HtmlElement
-
-        // FR-009: which connectors this app offers, readable at a glance, with
-        // a small form to change it.
-        div(class' = "space-y-2") {
-            match row.Choice with
-            | AllShared -> p(class' = "text-body-md text-on-surface-variant") { t.AppConnectorsAllSharedSummary }
-            | Only slugs when slugs.IsEmpty ->
-                p(class' = "text-body-md text-on-surface-variant") { t.AppConnectorsChosenNone }
-            | Only slugs ->
-                div(class' = "flex flex-wrap items-center gap-2") {
-                    span(class' = "text-body-md text-on-surface-variant") { t.AppConnectorsChosenSummary }
-
-                    for slug in slugs do
-                        let label =
-                            connectors
-                            |> List.tryFind (fun c -> c.Slug = slug)
-                            |> Option.map (fun c -> c.DisplayName)
-                            |> Option.defaultValue slug
-
-                        (span().data("app-connector", slug) { Components.pill Components.MutedTone label })
-                        :> HtmlElement
-                }
-
-            form(method = "post", action = $"/admin/apps/{row.ClientId}/connectors", class' = "space-y-3") {
-                ctx.GetAntiforgeryInput()
-                connectorChoices t $"connectors-{row.ClientId}" connectors row.Choice
-
-                button(type' = "submit", class' = Components.btnSm Components.Secondary) {
-                    t.AppConnectorsSaveButton
-                }
-            }
-        }
-
-        brandingSection ctx t noticeHere row
-
-        // The card's own actions close it, behind the same hairline as the
-        // branding section, so they do not read as part of the accent form.
-        div(class' = "flex flex-wrap items-center gap-2 border-t border-outline-variant/40 pt-4")
-            .data("app-actions", "") {
-            if not isPublic then
-                (form(method = "post", action = $"/admin/apps/{row.ClientId}/secret", class' = "inline") {
-                    ctx.GetAntiforgeryInput()
-
-                    button(type' = "submit", class' = Components.btnSm Components.Secondary) {
-                        Components.icon Theme.Key
-                        t.AppRegenerateButton
+                div(class' = "w-full max-w-sm space-y-4 rounded-lg bg-surface-container p-4") {
+                    // The logo at the size people see it on the sign-in page.
+                    div(class' = "flex min-h-11 items-center justify-center").data("branding-logo", "") {
+                        match logo with
+                        | Some logo ->
+                            (img(
+                                src = $"/branding/logo/{logo.Sha256}.png",
+                                alt = row.DisplayName,
+                                width = logo.Width,
+                                height = logo.Height,
+                                class' = Components.signInLogoClass
+                            ))
+                            :> HtmlElement
+                        | None -> (p(class' = "text-body-md text-on-surface-variant") { t.NoLogo }) :> HtmlElement
                     }
-                })
-                |> Components.confirmSubmit (t.AppRegenerateConfirm row.DisplayName)
-                :> HtmlElement
-            else
-                Fragment() :> HtmlElement
 
-            (form(method = "post", action = $"/admin/apps/{row.ClientId}/delete", class' = "inline") {
+                    match accent with
+                    | Some accent -> (div().data("accent", Accent.hex accent) { sample }) :> HtmlElement
+                    | None -> (div() { sample }) :> HtmlElement
+                }
+            }
+
+            logoForm ctx t row logo.IsSome
+
+            // Only an app with a logo has one to remove. Its button sits in the
+            // upload form's button row, tied to this form by the `form` attribute
+            // (a form cannot nest in another). The submit event still fires here,
+            // so the script's data-confirm listener asks first, like every
+            // destructive form on this screen. `hidden` keeps the empty form out of
+            // the section's spacing. Removing a logo can be undone by uploading it
+            // again, so its button is a ghost in the error colour; the filled
+            // danger button stays for Delete app.
+            match logo with
+            | Some _ ->
+                (form(id = $"logo-delete-{row.ClientId}", method = "post", action = $"/admin/apps/{row.ClientId}/branding/logo/delete")
+                    .attr("hidden", "hidden") {
+                    ctx.GetAntiforgeryInput()
+                })
+                |> Components.confirmSubmit (t.AppLogoRemoveConfirm row.DisplayName)
+                :> HtmlElement
+            | None -> Fragment() :> HtmlElement
+
+            form(method = "post", action = $"/admin/apps/{row.ClientId}/branding/accent", class' = "space-y-3")
+                .data("accent-form", "") {
                 ctx.GetAntiforgeryInput()
 
-                button(type' = "submit", class' = Components.btnSm Components.Danger) {
-                    Components.icon Theme.DeleteForever
-                    t.AppDeleteButton
+                div() {
+                    label(for' = fieldId, class' = "um-label") { t.AccentLabel }
+
+                    div(class' = "flex items-center gap-2") {
+                        input(type' = "text", id = fieldId, name = "accent", value = accentText row.Branding, class' = "um-input um-mono max-w-xs")
+                            .attr("aria-describedby", hintId)
+                            .attr("autocomplete", "off")
+                            .attr("spellcheck", "false")
+
+                        picker
+                    }
+
+                    p(id = hintId, class' = "um-hint") { t.AccentHint }
                 }
-            })
-            |> Components.confirmSubmit (t.AppDeleteConfirm row.DisplayName)
+
+                button(type' = "submit", class' = Components.btnSm Components.Secondary) { t.AccentSave }
+            }
         }
-    }
-
-// ---------------------------------------------------------------------------
-// The shown-once secret card
-// ---------------------------------------------------------------------------
-
-let private secretRevealCard (t: Texts.Texts) (revealed: RevealedSecret) =
-    div(class' = "um-card space-y-4 border-2 border-primary").data("secret-once", "") {
-        Components.alert Components.Warning t.AppSecretOnceWarning
-
-        Components.copyField t.Copy t.Copied t.AppClientIdLabel "revealed-client-id" revealed.ClientId ignore
-
-        Components.copyField t.Copy t.Copied t.AppSecretLabel "revealed-secret" revealed.Secret ignore
     }
 
 // ---------------------------------------------------------------------------
@@ -723,10 +609,8 @@ let private appTypeChoices (t: Texts.Texts) (selected: AppType) =
         p(id = "appType-hint", class' = "um-hint") { t.AppTypeHint }
     }
 
-/// The create form. It is the same on the Apps screen, where it sits in a dialog,
-/// and on its own page (`/admin/apps/new`), which is what the "Create app" link
-/// opens when script is off: only the frame (`formClass`) and what Cancel is
-/// differ, so the two cannot drift apart.
+/// The create form, the pane of `/admin/apps/new` and of an Apps screen with no
+/// app yet. `cancel` is what the Cancel button is.
 let private createForm (ctx: HttpContext) (t: Texts.Texts) (connectors: Connector list) (formClass: string) (cancel: HtmlElement) =
     form(method = "post", action = "/admin/apps", class' = formClass) {
         ctx.GetAntiforgeryInput()
@@ -736,7 +620,7 @@ let private createForm (ctx: HttpContext) (t: Texts.Texts) (connectors: Connecto
         Components.field t.AppPostLogoutRedirectUriLabel "postLogoutRedirectUri" "" None None
 
         appTypeChoices t Web
-        connectorChoices t "connectors-new" connectors AllShared
+        connectorChoices t "connectors-new" true connectors AllShared
 
         div(class' = "flex flex-wrap items-center gap-3") {
             button(type' = "submit", class' = Components.btn Components.Primary) {
@@ -780,6 +664,209 @@ let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWa
         }
     }
 
+/// A notice about the app whose pane this is, drawn under its heading.
+let private itemNotice (ctx: HttpContext) (t: Texts.Texts) (row: Row) (code: string) : HtmlElement =
+    match code with
+    // The same text as the pane's warning, from the names the app has now; a
+    // link that outlived the mix says the fixed text.
+    | "app-connectors-unrestricted" ->
+        (div().data("notice", code) {
+            Components.alert
+                Components.Warning
+                (if row.Unrestricted.IsEmpty then
+                     t.Notice code
+                 else
+                     // Saved either way: the warning says so first.
+                     let saved = t.Notice "app-connectors-saved"
+                     $"{saved} {t.AppsUnrestrictedWarning row.Unrestricted}")
+        })
+        :> HtmlElement
+    // The choice that was attempted travels in the query; the app is this one.
+    | "app-connectors-strand" ->
+        let slugs =
+            (ctx.TryGetQueryValue "connectors" |> Option.defaultValue "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+
+        let warning =
+            { ClientId = row.ClientId
+              Name = row.DisplayName
+              Choice = choiceFrom (ctx.TryGetQueryValue "choice" |> Option.defaultValue "") slugs }
+
+        (div().data("notice", code) {
+            Components.alert Components.Warning (t.Notice code)
+            strandWarning ctx t warning
+        })
+        :> HtmlElement
+    | code when isBrandingNotice code ->
+        (div().data("notice", code) {
+            Components.alert (brandingAlertKind code) (brandingNoticeText ctx t row.ClientId code)
+        })
+        :> HtmlElement
+    | code -> (div().data("notice", code) { Components.alert Components.Success (t.Notice code) }) :> HtmlElement
+
+/// The shown-once secret. Not a card: it sits in a pane, and a pane has none.
+let private secretReveal (t: Texts.Texts) (revealed: RevealedSecret) =
+    div(class' = "space-y-4").data("secret-once", "") {
+        Components.alert Components.Warning t.AppSecretOnceWarning
+
+        Components.copyField t.Copy t.Copied t.AppClientIdLabel "revealed-client-id" revealed.ClientId ignore
+
+        Components.copyField t.Copy t.Copied t.AppSecretLabel "revealed-secret" revealed.Secret ignore
+    }
+
+/// One app's pane (the contract's order): heading, the notices about it, the
+/// connection details, the sign-in methods, the branding, and the closing row.
+let private appPane
+    (ctx: HttpContext)
+    (t: Texts.Texts)
+    (origin: PublicOrigin.PublicOrigin)
+    (connectors: Connector list)
+    (view: Components.FrameView)
+    (notice: string option)
+    (revealed: RevealedSecret option)
+    (row: Row)
+    =
+    let isPublic = row.ClientType = ClientTypes.Public
+
+    let accent = row.Branding |> Option.bind (fun b -> b.Accent)
+
+    (Components.framePane
+        view
+        "app-heading"
+        (listPath, t.NavApps)
+        [ // The selected app's accent sheet travels with the pane, so a swap brings
+          // it, and no other app's colour is on the page.
+          match accent with
+          | Some accent ->
+              (link(rel = "stylesheet", href = $"/branding/accent/{Accent.hex accent}.css")) :> HtmlElement
+          | None -> Fragment() :> HtmlElement
+
+          Components.paneHeading
+              "app-heading"
+              row.DisplayName
+              [ Components.pill Components.MutedTone (if isPublic then SpaOrNative.Label t else Web.Label t) ]
+
+          match notice with
+          | Some code -> (div(class' = "mt-6") { itemNotice ctx t row code }) :> HtmlElement
+          | None -> Fragment() :> HtmlElement
+
+          match revealed with
+          | Some r -> (div(class' = "mt-6") { secretReveal t r }) :> HtmlElement
+          | None -> Fragment() :> HtmlElement
+
+          Components.paneSection
+              t.AppConnectionTitle
+              (div(class' = "space-y-5") {
+                  div(class' = "grid gap-3 sm:grid-cols-2") {
+                      Components.copyField
+                          t.Copy
+                          t.Copied
+                          t.AppClientIdLabel
+                          $"client-id-{row.ClientId}"
+                          row.ClientId
+                          ignore
+
+                      Components.copyField
+                          t.Copy
+                          t.Copied
+                          t.AppIssuerUrlLabel
+                          $"issuer-{row.ClientId}"
+                          origin.Text
+                          ignore
+                  }
+
+                  // A redirect URI has no break points of its own; at 360px it
+                  // would push the pane wider than the screen.
+                  ul(class' = "space-y-1 text-body-md text-on-surface-variant") {
+                      for uri in row.RedirectUris do
+                          li(class' = "um-mono [overflow-wrap:anywhere]") { uri }
+                  }
+              })
+
+          // FR-009: which connectors this app offers, readable at a glance, with
+          // a small form to change it.
+          Components.paneSection
+              t.AppConnectorsLabel
+              (div(class' = "space-y-5") {
+                  // FR-020: never blocks, only says what the choice lets in.
+                  if not row.Unrestricted.IsEmpty then
+                      (div().data("warning", "unrestricted-connectors") {
+                          Components.alert Components.Warning (t.AppsUnrestrictedWarning row.Unrestricted)
+                      })
+                      :> HtmlElement
+
+                  match row.Choice with
+                  | AllShared -> p(class' = "text-body-md text-on-surface-variant") { t.AppConnectorsAllSharedSummary }
+                  | Only slugs when slugs.IsEmpty ->
+                      p(class' = "text-body-md text-on-surface-variant") { t.AppConnectorsChosenNone }
+                  | Only slugs ->
+                      div(class' = "flex flex-wrap items-center gap-2") {
+                          span(class' = "text-body-md text-on-surface-variant") { t.AppConnectorsChosenSummary }
+
+                          for slug in slugs do
+                              let label =
+                                  connectors
+                                  |> List.tryFind (fun c -> c.Slug = slug)
+                                  |> Option.map (fun c -> c.DisplayName)
+                                  |> Option.defaultValue slug
+
+                              (span().data("app-connector", slug) { Components.pill Components.MutedTone label })
+                              :> HtmlElement
+                      }
+
+                  form(method = "post", action = $"/admin/apps/{row.ClientId}/connectors", class' = "space-y-3") {
+                      ctx.GetAntiforgeryInput()
+                      connectorChoices t $"connectors-{row.ClientId}" false connectors row.Choice
+
+                      button(type' = "submit", class' = Components.btnSm Components.Secondary) {
+                          t.AppConnectorsSaveButton
+                      }
+                  }
+              })
+
+          brandingSection ctx t row
+
+          // The app's state and lifetime actions close the pane, behind their own
+          // hairline, so they do not read as part of the accent form.
+          (Components.paneActions
+              [ if not isPublic then
+                    (form(method = "post", action = $"/admin/apps/{row.ClientId}/secret", class' = "inline") {
+                        ctx.GetAntiforgeryInput()
+
+                        button(type' = "submit", class' = Components.btnSm Components.Secondary) {
+                            Components.icon Theme.Key
+                            t.AppRegenerateButton
+                        }
+                    })
+                    |> Components.confirmSubmit (t.AppRegenerateConfirm row.DisplayName)
+                    :> HtmlElement
+
+                (form(method = "post", action = $"/admin/apps/{row.ClientId}/delete", class' = "inline") {
+                    ctx.GetAntiforgeryInput()
+
+                    button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                        Components.icon Theme.DeleteForever
+                        t.AppDeleteButton
+                    }
+                })
+                |> Components.confirmSubmit (t.AppDeleteConfirm row.DisplayName)
+                :> HtmlElement ])
+              .data("app-actions", "") :> HtmlElement ])
+        .data("app", row.ClientId)
+        .data("app-choice", choiceValue row.Choice)
+
+/// What the URL asked for: the list, one app, or the create form.
+type private Selection =
+    | ListUrl
+    | Item of string
+    | Create
+
+let private needConnector (t: Texts.Texts) =
+    Components.emptyState
+        Theme.Warning
+        t.AppsNeedConnectorTitle
+        t.AppsNeedConnectorBody
+        (Some(a (href = "/admin/connectors", class' = Components.btn Components.Primary) { t.NavConnectors }))
+
 let private view
     (ctx: HttpContext)
     (t: Texts.Texts)
@@ -787,90 +874,123 @@ let private view
     (rows: Row list)
     (connectors: Connector list)
     (hasEnabledConnector: bool)
+    (selection: Selection)
+    (selected: Row option)
     (revealed: RevealedSecret option)
     (notice: string option)
-    (cardNotice: (string * string * string) option)
-    (strand: StrandWarning option)
-    (unrestricted: string list)
     =
-    // One sheet per distinct accent in use, however many apps share it: each
-    // card's preview sits under `data-accent` and takes its colour from these.
-    let accentSheets =
-        rows
-        |> List.choose (fun row -> row.Branding |> Option.bind (fun b -> b.Accent))
-        |> List.map Accent.hex
-        |> List.distinct
-        |> List.map (fun hex -> $"/branding/accent/{hex}.css")
+    // The create form is the pane for `/new`, and for an Apps screen with no app
+    // to show; with no enabled connector there is nothing to create with.
+    let showCreate =
+        hasEnabledConnector && (selection = Create || (selection = ListUrl && rows.IsEmpty))
 
-    div(class' = "space-y-6").data("screen", "apps") {
-        div(class' = "flex flex-wrap items-end justify-between gap-4") {
-            Components.pageHeading t.AppsTitle (Some t.AppsLead)
+    let frameView =
+        match selection, selected with
+        | Create, _ -> Components.DetailView
+        | Item _, Some _ -> Components.DetailView
+        | _ -> Components.ListView
 
-            // A link first: without script it is the page, with script it opens
-            // the dialog below (umbral.js, `data-dialog`).
-            if hasEnabledConnector then
-                a(href = "/admin/apps/new", class' = Components.btn Components.Primary).data("dialog", "create-app") {
+    // On the list URL, and for an unknown app, the notice is about the page; for
+    // a known app and for create, it is about what the pane shows.
+    let pageNotice =
+        match selection, notice with
+        | Item _, _ when selected.IsSome -> None
+        | Create, _ -> None
+        | Item _, _ -> Some "app-not-found"
+        | ListUrl, code -> code
+
+    let createButton =
+        if hasEnabledConnector then
+            let button =
+                a(href = "/admin/apps/new", class' = Components.btnSm Components.Primary)
+
+            Components.frameNav button "/admin/apps/new" |> ignore
+
+            if showCreate then
+                button.attr("aria-current", "page") |> ignore
+
+            Some(
+                (button {
                     Components.icon Theme.Add
                     t.AppCreateButton
-                }
-        }
+                })
+                :> HtmlElement
+            )
+        else
+            None
 
-        match notice, strand with
-        // The same text as the row's warning, from the names the app has now; a
-        // link that outlived the mix says the fixed text.
-        | Some("app-connectors-unrestricted" as code), _ ->
-            (div().data("notice", code) {
-                Components.alert
-                    Components.Warning
-                    (if unrestricted.IsEmpty then
-                         t.Notice code
+    let entries =
+        rows
+        |> List.map (fun row ->
+            let entry =
+                Components.frameEntry
+                    (detailPath row.ClientId)
+                    (not showCreate && (selected |> Option.exists (fun s -> s.ClientId = row.ClientId)))
+                    row.DisplayName
+                    (span() { if row.ClientType = ClientTypes.Public then SpaOrNative.Label t else Web.Label t })
+                    (if row.Unrestricted.IsEmpty then
+                         None
                      else
-                         // Saved either way: the warning says so first.
-                         let saved = t.Notice "app-connectors-saved"
-                         $"{saved} {t.AppsUnrestrictedWarning unrestricted}")
-            })
-            :> HtmlElement
-        | Some code, Some warning ->
-            (div().data("notice", code) {
-                Components.alert Components.Warning (t.Notice code)
-                strandWarning ctx t warning
-            })
-            :> HtmlElement
-        | Some code, None ->
-            (div().data("notice", code) { Components.alert Components.Success (t.Notice code) }) :> HtmlElement
-        | None, _ -> Fragment() :> HtmlElement
+                         Some(Components.markerIcon Theme.Warning t.AppsUnrestrictedMarker))
 
-        match revealed with
-        | Some r -> secretRevealCard t r
+            entry.data ("app-entry", row.ClientId) :> HtmlElement)
+
+    let list =
+        Components.frameList
+            frameView
+            t.AppsListLabel
+            (t.AppsCount rows.Length)
+            createButton
+            (if rows.IsEmpty then
+                 Components.emptyState Theme.ExploreOff t.AppsEmptyTitle t.AppsEmptyBody None
+             else
+                 Components.frameEntries entries)
+
+    let pane =
+        if showCreate then
+            Components.framePane
+                frameView
+                "app-heading"
+                (listPath, t.NavApps)
+                [ Components.paneHeading "app-heading" t.AppCreateTitle []
+
+                  (match notice with
+                   | Some code ->
+                       (div(class' = "mt-6").data("notice", code) { Components.alert Components.Success (t.Notice code) })
+                       :> HtmlElement
+                   | None -> Fragment() :> HtmlElement)
+
+                  (let cancel = a(href = listPath, class' = Components.btn Components.Secondary)
+                   Components.frameNav cancel listPath |> ignore
+
+                   div(class' = "mt-6") {
+                       createForm ctx t connectors "space-y-4" (cancel { t.AppCreateCancel })
+                   })
+                  :> HtmlElement ]
+            :> HtmlElement
+        else
+            match selected with
+            | Some row when selection <> ListUrl || not rows.IsEmpty ->
+                appPane ctx t origin connectors frameView (match selection with Item _ -> notice | _ -> None) revealed row
+                :> HtmlElement
+            | _ -> Fragment() :> HtmlElement
+
+    div(class' = "space-y-6").data("screen", (if selection = Create then "app-new" else "apps")) {
+        Components.pageHeading t.AppsTitle (Some t.AppsLead)
+
+        match pageNotice with
+        | Some code ->
+            (div().data("notice", code) { Components.alert Components.Success (t.Notice code) }) :> HtmlElement
         | None -> Fragment() :> HtmlElement
 
-        if not hasEnabledConnector then
-            Components.emptyState
-                Theme.Warning
-                t.AppsNeedConnectorTitle
-                t.AppsNeedConnectorBody
-                (Some(a (href = "/admin/connectors", class' = Components.btn Components.Primary) { t.NavConnectors }))
-        else
-            dialog(id = "create-app", class' = "um-dialog").attr("aria-labelledby", "create-app-title") {
-                h2(id = "create-app-title", class' = "mb-6 text-headline-lg text-on-surface") { t.AppCreateTitle }
+        if not hasEnabledConnector then needConnector t
 
-                createForm
-                    ctx
-                    t
-                    connectors
-                    "space-y-4"
-                    (button(type' = "button", class' = Components.btn Components.Secondary).data("dialog-close", "") {
-                        t.AppCreateCancel
-                    })
-            }
-
-        if rows.IsEmpty then
-            Components.emptyState Theme.ExploreOff t.AppsEmptyTitle t.AppsEmptyBody None
-        else
-            for row in rows do
-                appRow ctx t origin connectors cardNotice row
+        // With nothing to create with, `/new` is only the advice above; the list
+        // URL keeps the frame while there are apps to look after.
+        if hasEnabledConnector || (selection <> Create && not rows.IsEmpty) then
+            Components.frame frameView list pane
     }
-    |> Layout.operatorPage ctx t t.AppsTitle accentSheets
+    |> Layout.operatorPage ctx t t.AppsTitle []
 
 /// F#'s `task { for x in ... }` binds `seq<'T>`, not `IAsyncEnumerable<'T>`, so
 /// OpenIddict's manager enumerables (backed by EF Core queries) are drained by
@@ -922,7 +1042,9 @@ let private knownSlugs (choice: AppChoice) (connectors: Connector list) =
     | AllShared -> true
     | Only slugs -> slugs |> Set.forall (fun slug -> connectors |> List.exists (fun c -> c.Slug = slug))
 
-let page: EndpointHandler =
+/// One body for the three GETs: the list, one app, and the create form. Every one
+/// renders the whole page; htmx keeps only the frame.
+let private screen (selection: Selection) : EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
         task {
             let t = Texts.current ()
@@ -932,7 +1054,7 @@ let page: EndpointHandler =
 
             let! apps = toListAsync (applications.ListAsync())
             let! choices = AppConnectors.allChoices config
-            // One read for every card, and never the logo bytes.
+            // One read for every app, and never the logo bytes.
             let! branding = BrandingStore.allForApps config
             let rows = ResizeArray()
 
@@ -949,87 +1071,40 @@ let page: EndpointHandler =
                 rows
                 |> Seq.map (fun row -> { row with Unrestricted = unrestrictedFor instanceList connectors row.Choice })
                 |> List.ofSeq
+                |> List.sortBy (fun row -> row.DisplayName.ToLowerInvariant(), row.ClientId)
 
             // An app made now starts on "all shared connectors" (FR-005), so
             // the create form is useful only when that offers something.
             let hasEnabledConnector = not (List.isEmpty (offeredTo AllShared connectors))
 
             let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
-            let revealed = SecretReveal.consume ctx
 
-            // A branding notice about an app that is here is drawn in its card;
-            // one about nothing here (the app was deleted meanwhile) stays at the top.
-            let cardNotice =
-                match notice, ctx.TryGetQueryValue "app" with
-                | Some code, Some clientId when isBrandingNotice code && rows |> Seq.exists (fun r -> r.ClientId = clientId) ->
-                    Some(clientId, code, brandingNoticeText ctx t clientId code)
+            // The first app is the one a list URL shows on a wide screen.
+            let selected =
+                match selection with
+                | ListUrl -> List.tryHead rows
+                | Item clientId -> rows |> List.tryFind (fun row -> row.ClientId = clientId)
+                | Create -> None
+
+            // An app that is not here is a 404 with the list around it.
+            match selection, selected with
+            | Item _, None -> ctx.SetStatusCode 404
+            | _ -> ()
+
+            // Only the app being shown takes its secret off the cookie.
+            let revealed =
+                match selected with
+                | Some row when selection <> Create -> SecretReveal.consumeFor ctx row.ClientId
                 | _ -> None
 
-            let notice = if cardNotice.IsSome then None else notice
-
-            // `app-connectors-strand` carries the app and the choice that was
-            // attempted; the app's name is looked up here, never in the URL.
-            let unrestricted =
-                match notice, ctx.TryGetQueryValue "app" with
-                | Some "app-connectors-unrestricted", Some clientId ->
-                    rows
-                    |> List.tryFind (fun r -> r.ClientId = clientId)
-                    |> Option.map (fun r -> r.Unrestricted)
-                    |> Option.defaultValue []
-                | _ -> []
-
-            let strand =
-                match notice, ctx.TryGetQueryValue "app" with
-                | Some "app-connectors-strand", Some clientId ->
-                    rows
-                    |> Seq.tryFind (fun r -> r.ClientId = clientId)
-                    |> Option.map (fun r ->
-                        let slugs =
-                            (ctx.TryGetQueryValue "connectors" |> Option.defaultValue "").Split(',', StringSplitOptions.RemoveEmptyEntries)
-
-                        { ClientId = clientId
-                          Name = r.DisplayName
-                          Choice = choiceFrom (ctx.TryGetQueryValue "choice" |> Option.defaultValue "") slugs })
-                | _ -> None
-
-            return!
-                ctx.WriteHtmlView(
-                    view ctx t origin rows connectors hasEnabledConnector revealed notice cardNotice strand unrestricted
-                )
+            return! ctx.WriteHtmlView(view ctx t origin rows connectors hasEnabledConnector selection selected revealed notice)
         })
 
-/// The create form on a page of its own, for a browser without script and for a
-/// link someone opens in a new tab. The same form as the dialog's, or the same
-/// "add a connector first" answer the Apps screen gives.
-let newPage: EndpointHandler =
-    AdminAuth.requireOperator (fun ctx ->
-        task {
-            let t = Texts.current ()
-            let config = ctx.GetService<Database.DbConfig>()
-            let! connectors = ConnectorStore.listAll config
+let page: EndpointHandler = screen ListUrl
 
-            return!
-                ctx.WriteHtmlView(
-                    div(class' = "space-y-6").data("screen", "app-new") {
-                        Components.pageHeading t.AppCreateTitle None
+let newPage: EndpointHandler = screen Create
 
-                        if List.isEmpty (offeredTo AllShared connectors) then
-                            Components.emptyState
-                                Theme.Warning
-                                t.AppsNeedConnectorTitle
-                                t.AppsNeedConnectorBody
-                                (Some(a (href = "/admin/connectors", class' = Components.btn Components.Primary) { t.NavConnectors }))
-                        else
-                            createForm
-                                ctx
-                                t
-                                connectors
-                                "um-card space-y-4"
-                                (a(href = "/admin/apps", class' = Components.btn Components.Secondary) { t.AppCreateCancel })
-                    }
-                    |> Layout.operatorPage ctx t t.AppCreateTitle []
-                )
-        })
+let detailPage (clientId: string) : EndpointHandler = screen (Item clientId)
 
 let create: EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
@@ -1046,7 +1121,7 @@ let create: EndpointHandler =
             let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
 
             let fail notice =
-                WebForms.redirectWithNotice ctx "/admin/apps" notice
+                WebForms.redirectWithNotice ctx "/admin/apps/new" notice
 
             if name = "" then
                 return! fail "app-name-required"
@@ -1109,7 +1184,7 @@ let create: EndpointHandler =
             | Some s -> SecretReveal.stash ctx clientId s
             | None -> ()
 
-            return! WebForms.redirectWithNotice ctx "/admin/apps" "app-created"
+            return! WebForms.redirectWithNotice ctx (detailPath clientId) "app-created"
         })
 
 /// Change an existing app's connector choice (FR-005, FR-009). Warns, naming
@@ -1126,14 +1201,14 @@ let setConnectors (clientId: string) : EndpointHandler =
             let! application = applications.FindByClientIdAsync clientId
 
             match application with
-            | null -> return! WebForms.redirectWithNotice ctx "/admin/apps" "app-not-found"
+            | null -> return! WebForms.redirectWithNotice ctx listPath "app-not-found"
             | application ->
 
             let choice = choiceFromForm form
             let! connectors = ConnectorStore.listAll config
 
             if not (knownSlugs choice connectors) then
-                return! WebForms.redirectWithNotice ctx "/admin/apps" "app-connector-unknown"
+                return! WebForms.redirectWithNotice ctx (detailPath clientId) "app-connector-unknown"
             else
 
             let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
@@ -1149,10 +1224,9 @@ let setConnectors (clientId: string) : EndpointHandler =
                 return!
                     WebForms.redirectWithNoticeAbout
                         ctx
-                        "/admin/apps"
+                        (detailPath clientId)
                         "app-connectors-strand"
-                        [ "app", clientId
-                          "choice", choiceValue choice
+                        [ "choice", choiceValue choice
                           "connectors", String.Join(",", slugs) ]
             else
 
@@ -1172,18 +1246,14 @@ let setConnectors (clientId: string) : EndpointHandler =
             let! instanceList = EmailDomainRules.instanceList config
 
             if List.isEmpty (unrestrictedFor instanceList connectors choice) then
-                return! WebForms.redirectWithNotice ctx "/admin/apps" "app-connectors-saved"
+                return! WebForms.redirectWithNotice ctx (detailPath clientId) "app-connectors-saved"
             else
-                return!
-                    WebForms.redirectWithNoticeAbout
-                        ctx
-                        "/admin/apps"
-                        "app-connectors-unrestricted"
-                        [ "app", clientId ]
+                return! WebForms.redirectWithNotice ctx (detailPath clientId) "app-connectors-unrestricted"
         })
 
 let endpoint =
     [ GET [ route "/admin/apps" page ]
       GET [ route "/admin/apps/new" newPage ]
+      GET [ routef "/admin/apps/{%s}" detailPage ]
       POST [ route "/admin/apps" create ]
       POST [ routef "/admin/apps/{%s}/connectors" setConnectors ] ]
