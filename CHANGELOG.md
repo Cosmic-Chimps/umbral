@@ -10,6 +10,11 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+### Fixed
+- An app card's **Sign-in page branding** heading now reads as the title of its section rather than
+  a third field label beside **Logo** and **Accent colour**, and **Regenerate secret** and **Delete
+  app** sit behind a hairline that closes the card, instead of hanging under the accent form.
+
 ## 0.4.0 - 2026-10-22
 
 ### Fixed

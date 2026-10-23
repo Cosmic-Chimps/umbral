@@ -481,7 +481,7 @@ let private brandingSection (ctx: HttpContext) (t: Texts.Texts) (notice: (string
             .data("accent-picker", "")
 
     div(class' = "space-y-5 border-t border-outline-variant/40 pt-4").data("branding", row.ClientId) {
-        h3(class' = "um-label") { t.BrandingHeading }
+        h3(class' = "um-section-title") { t.BrandingHeading }
 
         match notice with
         | Some(code, text) ->
@@ -646,7 +646,10 @@ let private appRow
 
         brandingSection ctx t noticeHere row
 
-        div(class' = "flex flex-wrap items-center gap-2") {
+        // The card's own actions close it, behind the same hairline as the
+        // branding section, so they do not read as part of the accent form.
+        div(class' = "flex flex-wrap items-center gap-2 border-t border-outline-variant/40 pt-4")
+            .data("app-actions", "") {
             if not isPublic then
                 (form(method = "post", action = $"/admin/apps/{row.ClientId}/secret", class' = "inline") {
                     ctx.GetAntiforgeryInput()
