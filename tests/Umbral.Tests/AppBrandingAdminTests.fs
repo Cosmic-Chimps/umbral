@@ -317,6 +317,33 @@ let ``an app card has the branding section with its accent form, and an app with
     }
 
 [<Fact>]
+let ``the branding section has a section title, and the card's actions sit behind a hairline after it`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, idA, idB = prepare app
+
+        let! html = operator.GetHtml "/admin/apps"
+
+        // The heading is a step above the LOGO and ACCENT COLOUR labels it groups.
+        let headings =
+            Regex.Matches(html, $"<h3[^>]*class=\"um-section-title\"[^>]*>\\s*{Regex.Escape Texts.en.BrandingHeading}")
+
+        Assert.Equal(2, headings.Count)
+        Assert.DoesNotMatch("<h3[^>]*um-label", html)
+
+        // Regenerate secret / Delete app close the card: their row has its own
+        // hairline and comes after the accent form, not inside it.
+        Assert.Equal(2, Regex.Matches(html, "<div[^>]*border-t[^>]*data-app-actions").Count)
+
+        for id in [ idA; idB ] do
+            let card = html.IndexOf $"id=\"app-{id}\""
+            let accentForm = html.IndexOf($"action=\"/admin/apps/{id}/branding/accent\"", card)
+            let actions = html.IndexOf("data-app-actions", accentForm)
+            let delete = html.IndexOf($"action=\"/admin/apps/{id}/delete\"", card)
+            Assert.True(accentForm > card && actions > accentForm && delete > actions, $"the actions of {id} are not after its accent form")
+    }
+
+[<Fact>]
 let ``a colour that is hard to see on the light card only is saved and the notice says so`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore

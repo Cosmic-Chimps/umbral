@@ -77,6 +77,9 @@
   .um-btn-danger { @apply bg-error text-on-error; }
   .um-btn-sm { @apply h-9 px-3.5 text-label-md; }
   .um-label { @apply block text-label-sm uppercase text-on-surface-variant mb-1.5; }
+  /* The title of a section inside a card ("Sign-in page branding"): a step above
+     the field labels it groups, and below the card's own headline-md title. */
+  .um-section-title { @apply text-body-lg font-semibold text-on-surface; }
   .um-input { @apply w-full h-11 rounded-md bg-surface-container border border-outline px-3.5 text-body-md text-on-surface placeholder:text-on-surface-variant; }
   .um-input:focus { @apply border-primary outline-none; }
   .um-input[aria-invalid="true"] { @apply border-error; }

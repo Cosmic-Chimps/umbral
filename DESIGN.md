@@ -142,6 +142,9 @@ components:
   label:
     textColor: "{colors.bone-muted}"
     typography: "{typography.label-sm}"
+  section-title:
+    textColor: "{colors.bone}"
+    typography: "{typography.body-lg}"
   rail-entry-current:
     backgroundColor: "{colors.ink-high}"
     textColor: "{colors.corona-gold}"
@@ -280,13 +283,14 @@ load a font from anywhere else.
   use the display face.
 - **Headline medium** (600, 20px/28px, -0.01em): a card's title in the text
   face.
-- **Body large** (400, 16px/24px): the page's base size.
+- **Body large** (400, 16px/24px): the page's base size; at 600 in bone, the
+  title of a section inside a card, `.um-section-title`.
 - **Body medium** (400, 14px/20px): most interface text, buttons, inputs, leads.
   Leads keep to `max-w-prose`.
 - **Label medium** (600, 13px/18px, +0.01em): small buttons, hints (at 400),
   pills, field errors, the theme control's label.
-- **Label small** (700, 11px/14px, +0.06em, uppercase): the field and section
-  label, `.um-label`.
+- **Label small** (700, 11px/14px, +0.06em, uppercase): the field label,
+  `.um-label`.
 - **Mono** (`.um-mono`, 400 or 500): client IDs, URLs, secrets, tokens, hashes.
 
 ### Named Rules
@@ -404,7 +408,8 @@ one gold element on a surface is the one to use.
 - **Shadow Strategy:** none; a hairline (`--border-micro`).
 - **Internal Padding:** 24px, 32px from 768px.
 - **Sections inside a card** are separated by a 40% hairline top border with
-  16px above, headed by a `.um-label`.
+  16px above, headed by a `.um-section-title`. The card's closing action row
+  (Regenerate secret, Delete app) gets the same hairline and 16px above it.
 
 ### Dialog
 The Create app dialog: a native `<dialog>` opened with `showModal()`, 12px

@@ -34,7 +34,7 @@
       "body-lg": { "displayName": "Body large", "purpose": "The page's base size." },
       "body-md": { "displayName": "Body medium", "purpose": "Most interface text, buttons, inputs, leads." },
       "label-md": { "displayName": "Label medium", "purpose": "Small buttons, hints, pills, field errors." },
-      "label-sm": { "displayName": "Label small", "purpose": "Field and section labels, uppercase." },
+      "label-sm": { "displayName": "Label small", "purpose": "Field labels, uppercase." },
       "mono": { "displayName": "Mono", "purpose": "Client IDs, URLs, secrets, tokens, hashes: anything a machine reads." }
     },
     "shadows": [
@@ -95,9 +95,9 @@
       "name": "Card",
       "kind": "card",
       "refersTo": "card",
-      "description": "The low tonal step with a hairline; no shadow at rest. Sections inside separate with a 40% hairline and a label.",
-      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Family photos</h3><p class=\"ds-card-text\">Client ID <code class=\"ds-mono\">app_7f3c9a</code></p><div class=\"ds-card-section\"><p class=\"ds-label\">Sign-in page branding</p></div></div>",
-      "css": ".ds-card { font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); background: var(--color-surface-container-low, #14141f); border: 1px solid var(--color-outline-variant, #2e2e40); border-radius: 16px; padding: 24px; color: var(--color-on-surface, #ece8df); } .ds-card-title { margin: 0 0 8px; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; } .ds-card-text { margin: 0; font-size: 14px; line-height: 20px; color: var(--color-on-surface-variant, #a7a2b6); } .ds-mono { font-family: var(--font-mono, 'Spline Sans Mono', ui-monospace, monospace); color: var(--color-on-surface, #ece8df); } .ds-card-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgb(var(--color-outline-variant-rgb, 46 46 64) / 0.4); } .ds-label { margin: 0; font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant, #a7a2b6); }"
+      "description": "The low tonal step with a hairline; no shadow at rest. Sections inside separate with a 40% hairline and a section title.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Family photos</h3><p class=\"ds-card-text\">Client ID <code class=\"ds-mono\">app_7f3c9a</code></p><div class=\"ds-card-section\"><h4 class=\"ds-section-title\">Sign-in page branding</h4></div></div>",
+      "css": ".ds-card { font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); background: var(--color-surface-container-low, #14141f); border: 1px solid var(--color-outline-variant, #2e2e40); border-radius: 16px; padding: 24px; color: var(--color-on-surface, #ece8df); } .ds-card-title { margin: 0 0 8px; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; } .ds-card-text { margin: 0; font-size: 14px; line-height: 20px; color: var(--color-on-surface-variant, #a7a2b6); } .ds-mono { font-family: var(--font-mono, 'Spline Sans Mono', ui-monospace, monospace); color: var(--color-on-surface, #ece8df); } .ds-card-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgb(var(--color-outline-variant-rgb, 46 46 64) / 0.4); } .ds-section-title { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--color-on-surface, #ece8df); }"
     },
     {
       "name": "Rail",
