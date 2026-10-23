@@ -179,7 +179,9 @@ let registerApp (browser: Browser) (name: string) =
             let m = Regex.Match(revealHtml, "id=\"" + id + "\"[^>]*value=\"([^\"]+)\"")
             if m.Success then m.Groups[1].Value else failwith $"no {id} on the reveal page"
 
-        return field "revealed-client-id", field "revealed-secret"
+        // The secret from the once-only reveal, the client id from the pane's
+        // Connection section, where the reveal no longer repeats it.
+        return field "client-id-[^\"]+", field "revealed-secret"
     }
 
 /// One whole sign-in through the fake provider, ending with the authorization

@@ -141,3 +141,28 @@ app) in each app pane. At 360 and 768 the list hides on detail URLs and the pane
 After a click on an entry with htmx, the URL is pushed and the page has one `[data-frame]`. Focus lands on the
 pane's `h2`, and the accent sheet and the sample's colour follow the selected app (`rgb(255, 111, 97)` for Album
 Share). The accent picker is shown again after the swap.
+
+## Re-check: fixes for review.md
+
+All four items are fixed in the commit after `66dc102`, on the same branch.
+
+1. **Blocking, the title.** The page title is "<app name> · Apps | Umbral" on an app's URL, "Create app | Umbral" on
+   `/admin/apps/new`, and "Apps | Umbral" on the list URL and for an unknown app (`pageTitle` in `Apps.fs` `view`).
+   In Chrome, after an htmx click on an entry, `document.title` became "Recipe Box · Apps | Umbral", then "Album
+   Share · Apps | Umbral", with no extra script. "an app's own URL is a page with that app's pane" now asserts all
+   three titles.
+2. **Nit, the reveal.** It keeps the success notice, the once-only warning and the Client secret field, and drops its
+   Client ID (`revealed-client-id` is gone). The three test helpers that registered an app (`Flows.registerApp`,
+   `Journeys.createClientApp`, `OidcProtocolTests`) now read the client id from the pane's Connection field
+   `client-id-<id>`, as an operator would.
+3. **Nit, DESIGN.md.** The `dialog` token is gone from the frontmatter, and the three sentences no longer mention the
+   dialog: the tonal steps, the shadow paragraph, and the 12px radius list, which now names the list's entries
+   instead.
+4. **Nit, the refusal colour.** `noticeKind` in `Apps.fs` draws `app-name-required`, `app-redirect-uri-invalid`,
+   `app-type-invalid`, `app-connector-unknown`, `app-not-found` and `app-no-secret` as Warning, and the rest as
+   Success. It applies at all three places a non-branding notice is drawn. The test "creating an app lands on its
+   page…" asserts the warning. This also closes follow-up task `…-4853`.
+
+New and replaced captures: `detail-secret-*` (replaced) and `create-refused-*` (new: the create pane after posting
+with no name), at 1280 and 360 in dark and light, so the folder now has 38 PNGs. There is no overflow, and the create
+pane has no red fill. Tests: see the commit message for the full-suite result.

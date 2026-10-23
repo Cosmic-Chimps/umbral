@@ -366,6 +366,19 @@ let private brandingAlertKind (code: string) =
     | "app-accent-cleared" -> Components.Success
     | _ -> Components.Failure
 
+/// How any other notice on this screen is drawn: a create or a change that was
+/// refused is a warning, so it does not read as good news above the form it is
+/// about; the rest went through.
+let private noticeKind (code: string) =
+    match code with
+    | "app-name-required"
+    | "app-redirect-uri-invalid"
+    | "app-type-invalid"
+    | "app-connector-unknown"
+    | "app-not-found"
+    | "app-no-secret" -> Components.Warning
+    | _ -> Components.Success
+
 /// What a branding notice says. A refusal that measured something says it, from
 /// the single-use cookie the refusal wrote for this app; a link cannot make the
 /// screen name a size, and with no cookie the notice's fixed text is shown.
@@ -701,14 +714,13 @@ let private itemNotice (ctx: HttpContext) (t: Texts.Texts) (row: Row) (code: str
             Components.alert (brandingAlertKind code) (brandingNoticeText ctx t row.ClientId code)
         })
         :> HtmlElement
-    | code -> (div().data("notice", code) { Components.alert Components.Success (t.Notice code) }) :> HtmlElement
+    | code -> (div().data("notice", code) { Components.alert (noticeKind code) (t.Notice code) }) :> HtmlElement
 
 /// The shown-once secret. Not a card: it sits in a pane, and a pane has none.
+/// No client ID either: the Connection section right under it shows that.
 let private secretReveal (t: Texts.Texts) (revealed: RevealedSecret) =
     div(class' = "space-y-4").data("secret-once", "") {
         Components.alert Components.Warning t.AppSecretOnceWarning
-
-        Components.copyField t.Copy t.Copied t.AppClientIdLabel "revealed-client-id" revealed.ClientId ignore
 
         Components.copyField t.Copy t.Copied t.AppSecretLabel "revealed-secret" revealed.Secret ignore
     }
@@ -890,6 +902,13 @@ let private view
         | Item _, Some _ -> Components.DetailView
         | _ -> Components.ListView
 
+    // An app's own URL is named after the app; the list URL is the screen's.
+    let pageTitle =
+        match selection, selected with
+        | Create, _ -> t.AppCreateTitle
+        | Item _, Some row -> $"{row.DisplayName} · {t.AppsTitle}"
+        | _ -> t.AppsTitle
+
     // On the list URL, and for an unknown app, the notice is about the page; for
     // a known app and for create, it is about what the pane shows.
     let pageNotice =
@@ -956,7 +975,7 @@ let private view
 
                   (match notice with
                    | Some code ->
-                       (div(class' = "mt-6").data("notice", code) { Components.alert Components.Success (t.Notice code) })
+                       (div(class' = "mt-6").data("notice", code) { Components.alert (noticeKind code) (t.Notice code) })
                        :> HtmlElement
                    | None -> Fragment() :> HtmlElement)
 
@@ -980,7 +999,7 @@ let private view
 
         match pageNotice with
         | Some code ->
-            (div().data("notice", code) { Components.alert Components.Success (t.Notice code) }) :> HtmlElement
+            (div().data("notice", code) { Components.alert (noticeKind code) (t.Notice code) }) :> HtmlElement
         | None -> Fragment() :> HtmlElement
 
         if not hasEnabledConnector then needConnector t
@@ -990,7 +1009,10 @@ let private view
         if hasEnabledConnector || (selection <> Create && not rows.IsEmpty) then
             Components.frame frameView list pane
     }
-    |> Layout.operatorPage ctx t t.AppsTitle []
+    // The tab, history and a screen reader's page announcement name what the
+    // URL shows; htmx takes the title from the swapped page, so it follows the
+    // selection.
+    |> Layout.operatorPage ctx t pageTitle []
 
 /// F#'s `task { for x in ... }` binds `seq<'T>`, not `IAsyncEnumerable<'T>`, so
 /// OpenIddict's manager enumerables (backed by EF Core queries) are drained by

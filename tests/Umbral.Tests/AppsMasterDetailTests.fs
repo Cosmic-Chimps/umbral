@@ -94,6 +94,16 @@ let ``an app's own URL is a page with that app's pane`` () =
         Assert.DoesNotContain($"data-app=\"{idA}\"", html)
         Assert.Matches("<section[^>]*data-app=\"" + idB + "\"", html)
         Assert.Contains("id=\"app-heading\"", html)
+
+        // The address is named after the app; the list and the create form keep theirs.
+        let titleOf (page: string) =
+            WebUtility.HtmlDecode(Regex.Match(page, "<title>(.*?)</title>").Groups[1].Value)
+
+        Assert.Equal("App B · Apps | Umbral", titleOf html)
+        let! list = operator.GetHtml "/admin/apps"
+        Assert.Equal("Apps | Umbral", titleOf list)
+        let! create = operator.GetHtml "/admin/apps/new"
+        Assert.Equal("Create app | Umbral", titleOf create)
     }
 
 [<Fact>]
@@ -180,6 +190,13 @@ let ``creating an app lands on its page and a failed create lands on the create 
             )
 
         Assert.Equal("/admin/apps/new?msg=app-redirect-uri-invalid", noFragment refused)
+
+        // A refusal sits above the form it is about, as a warning, not as good news.
+        let! refusedPage = operator.GetHtml "/admin/apps/new?msg=app-name-required"
+        let notice = Regex.Match(refusedPage, "data-notice=\"app-name-required\".*?</div>", RegexOptions.Singleline)
+        Assert.True(notice.Success, "no notice")
+        Assert.Contains("warning", notice.Value)
+        Assert.DoesNotContain("success", notice.Value)
     }
 
 [<Fact>]
@@ -381,7 +398,7 @@ let ``the secret is shown once on the new app's page and another app's page does
 
         let! first = operator.GetHtml fresh
         Assert.Equal(1, Regex.Matches(first, "data-secret-once").Count)
-        Assert.Contains("id=\"revealed-client-id\"", first)
+        Assert.DoesNotContain("revealed-client-id", first)
         Assert.Contains("id=\"revealed-secret\"", first)
 
         let! second = operator.GetHtml fresh

@@ -130,11 +130,6 @@ components:
     backgroundColor: "{colors.ink-low}"
     rounded: "{rounded.lg}"
     padding: "24px"
-  dialog:
-    backgroundColor: "{colors.ink-low}"
-    textColor: "{colors.bone}"
-    rounded: "{rounded.md}"
-    padding: "24px"
   pill:
     typography: "{typography.label-md}"
     rounded: "{rounded.full}"
@@ -214,10 +209,10 @@ Ink and bone with a corona of gold; by day, paper and ink with a darker gold.
 - **Ink** (#0b0b14) / **Paper** (#f4f1ea): the page (`surface`).
 - **Five tonal steps** (`surface-container-lowest` to `-highest`): dark
   #07070e, #14141f, #181826, #1d1d2b, #26263a; light #ebe5d8, #fffdf8,
-  #faf7f0, #ebe5d8, #e3ddd0. Cards sit on `-low`, inputs and the dialog on
-  `-container` and `-low`, hovered and current things on `-high` and
-  `-highest`. In the light theme the lowest step is darker than the page, the
-  low step lighter, so a card on paper is a sheet of brighter paper.
+  #faf7f0, #ebe5d8, #e3ddd0. Cards sit on `-low`, inputs on `-container`,
+  hovered and current things on `-high` and `-highest`. In the light theme the
+  lowest step is darker than the page, the low step lighter, so a card on
+  paper is a sheet of brighter paper.
 - **Bone** (#ece8df dark, #17151f light): text (`on-surface`).
 - **Bone, muted** (#a7a2b6 dark, #5f5a6b light): secondary text, labels,
   hints, ghost buttons (`on-surface-variant`; also `secondary`).
@@ -339,8 +334,7 @@ shadow at rest: the card is the low step with a hairline, the input the
 container step with a full outline, a hovered rail entry or secondary button
 one step higher. Two shadow tokens exist (`--shadow-level-1`, `0 1px 2px 0
 rgb(0 0 0 / 0.4)`; `--shadow-level-2`, `0 10px 28px -8px rgb(0 0 0 / 0.55)`)
-and are reserved for things that float; today nothing uses them, and the modal
-dialog floats on a near-opaque backdrop (`rgb(5 5 10 / 0.74)`) instead. The
+and are reserved for things that float; today nothing uses them. The
 name bar on a rail-less page is the one translucent surface
 (`bg-surface/90` with `backdrop-blur-md`).
 
@@ -356,7 +350,7 @@ footer. Thicker lines appear only as the 2px focus ring and the 2px crop box.
 
 Softly rounded, with the pill as the signature. Buttons, pills, the theme
 control's track and its options, the radio and the crop handles are fully
-round (9999px). Inputs, choice cards, the rail's entries and the dialog are
+round (9999px). Inputs, choice cards, the rail's entries and the list's entries are
 12px (`rounded-md`, or Tailwind's default `rounded-xl`, the same value); cards
 are 16px (`rounded-lg`). Alerts are 8px, the focus ring and the check box 4px.
 Nothing is square. Borders are
