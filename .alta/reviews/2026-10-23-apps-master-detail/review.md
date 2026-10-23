@@ -8,6 +8,26 @@ the detector, a test run, and the 34 captures.
 
 ## Verdict
 
+**Re-check, 2026-10-23, at `3baf6b3`: clear to merge.**
+
+- Item 1 (blocking) fixed: `pageTitle` names the app on its URL ("<app> · Apps | Umbral"),
+  "Create app" on the create URL, "Apps" on the list; the "own URL" test asserts all three; the
+  implementer saw the tab title follow an htmx click in Chrome, which is htmx 4's default.
+- Item 2 fixed: the reveal keeps the success notice, the once-only warning and the Client
+  secret; the Client ID is gone from it (`detail-secret` captures replaced, checked).
+- Item 3 fixed: the dialog token is out of DESIGN.md's frontmatter and the three sentences are
+  reworded; the shapes line now names the list's entries.
+- Item 4 taken: `noticeKind` draws the six refusal codes as Warning in all three places a notice
+  is drawn, with a test; `create-refused` captures added and checked (a warning above the form
+  at 360 light).
+- Tests and stylesheet at `3baf6b3`: see the last section.
+
+For the Connectors task: nothing in the frame changed in the fix round.
+
+---
+
+First review, 2026-10-23, at `66dc102`:
+
 **Not yet clear: one blocking item, three nits.** The frame is right, and the eight decisions in
 `notes.md` all stand (two of them correct the contract, see the end). Fix item 1, apply the nits
 you agree with, replace the captures that change (`detail-secret`, `create` after a failed
@@ -101,9 +121,13 @@ for a change to them.
 
 ## Tests, stylesheet, detector
 
-Run by the reviewer on the branch's worktree at `66dc102`, 2026-10-23:
-`dotnet test` with the Apps, AppBranding, AppSecret, AppDelete and Csrf filters: 76 passed,
-0 failed (the implementer reports the full suite at 1404 passing).
+Run by the reviewer on the branch's worktree, 2026-10-23.
+
+At `3baf6b3` (re-check): `dotnet test` with the Apps, AppBranding, AppSecret, AppDelete, Csrf
+and Rail filters: 88 passed, 0 failed (the implementer reports the full suite at 1404 passing).
+`build-css.sh --check`: clean.
+
+At `66dc102` (first review): the same filters without Rail: 76 passed, 0 failed.
 `build-css.sh --check`: clean, `umbral.css` is current.
 Impeccable detector on `umbral.input.css`: one advisory, the pre-existing crop-shade colour;
 nothing from this change.
