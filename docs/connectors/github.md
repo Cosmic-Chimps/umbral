@@ -1,7 +1,7 @@
 # GitHub connector
 
 Lets people sign in to your apps with their GitHub account. GitHub is the
-easiest of the three providers to set up: no review, no consent screen to
+easiest provider to register an app with: no review, no consent screen to
 publish, and `http://localhost` callbacks are accepted for a laptop trial.
 
 Back to the [README](../../README.md). Other providers:

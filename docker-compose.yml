@@ -25,7 +25,7 @@
 
 services:
   umbral:
-    # No image is published yet, so compose builds it from this checkout.
+    # Compose builds the image from this checkout.
     build: .
     image: umbral
     restart: unless-stopped

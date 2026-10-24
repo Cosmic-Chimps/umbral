@@ -1,7 +1,7 @@
 # Google connector
 
 Lets people sign in to your apps with their Google account. Google is the most
-demanding of the three providers to set up, and it has one limit that decides
+demanding provider to set up, and it has one limit that decides
 whether you can use it at all. Read the next section first.
 
 Back to the [README](../../README.md). Other providers:
