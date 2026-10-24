@@ -2,8 +2,8 @@
   "workflow": "companion",
   "specName": "The Fediverse connector",
   "branch": "alta/earnest-cetus-9pd3",
-  "currentStep": "plan",
-  "status": "planned",
+  "currentStep": "tasks",
+  "status": "ready-to-implement",
   "history": [
     {
       "step": "specify",
@@ -53,84 +53,219 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T16:24:07.983Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-24T16:24:35.167Z"
+    },
+    {
+      "step": "tasks",
+      "substep": "generate",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:25:48.208Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:25:48.871Z"
     }
   ],
   "unattended": true,
   "coverage": {
     "FR-001": {
-      "title": "Built-in Fediverse connector kind, one per instance, slug fediverse"
+      "title": "Built-in Fediverse connector kind",
+      "tasks": [
+        "T002",
+        "T021",
+        "T022"
+      ]
     },
     "FR-002": {
-      "title": "Server scope: Any server (default) or Only these servers"
+      "title": "Server scope",
+      "tasks": [
+        "T002",
+        "T007",
+        "T021"
+      ]
     },
     "FR-003": {
-      "title": "Server list normalised; bad or wildcard entries refused by name"
+      "title": "Server list normalised and refused by entry",
+      "tasks": [
+        "T004",
+        "T005",
+        "T021",
+        "T020"
+      ]
     },
     "FR-004": {
-      "title": "Connectors list entry and detail pane per design contract"
+      "title": "Connectors list entry and pane",
+      "tasks": [
+        "T021",
+        "T022",
+        "T020"
+      ]
     },
     "FR-005": {
-      "title": "Sign in with Fediverse button on the picker"
+      "title": "Sign in with Fediverse button",
+      "tasks": [
+        "T002",
+        "T013"
+      ]
     },
     "FR-006": {
-      "title": "Account step page, handle or server, works without JS"
+      "title": "Account step page",
+      "tasks": [
+        "T019",
+        "T013"
+      ]
     },
     "FR-007": {
-      "title": "Handle resolved to its hosting server by account lookup"
+      "title": "Handle resolved by WebFinger",
+      "tasks": [
+        "T015",
+        "T013"
+      ]
     },
     "FR-008": {
-      "title": "Private/loopback addresses refused unless development setting"
+      "title": "Private addresses refused",
+      "tasks": [
+        "T004",
+        "T015",
+        "T024"
+      ]
     },
     "FR-009": {
-      "title": "Unlisted server refused before contact, neutral message"
+      "title": "Unlisted server refused before contact",
+      "tasks": [
+        "T019",
+        "T020"
+      ]
     },
     "FR-010": {
-      "title": "Unsupported server (no app API, no PKCE S256, Misskey/Sharkey) refused"
+      "title": "Unsupported servers refused",
+      "tasks": [
+        "T004",
+        "T015",
+        "T024"
+      ]
     },
     "FR-011": {
-      "title": "Register on first use with callback and read:accounts; secret encrypted"
+      "title": "Register on first use",
+      "tasks": [
+        "T014",
+        "T015",
+        "T019",
+        "T013"
+      ]
     },
     "FR-012": {
-      "title": "Reuse stored registration"
+      "title": "Reuse registration",
+      "tasks": [
+        "T014",
+        "T013"
+      ]
     },
     "FR-013": {
-      "title": "Re-register once when server forgets the client"
+      "title": "Re-register once",
+      "tasks": [
+        "T015",
+        "T019",
+        "T025"
+      ]
     },
     "FR-014": {
-      "title": "Time limit, no redirects on every server call"
+      "title": "Time limit, no redirects",
+      "tasks": [
+        "T015",
+        "T024"
+      ]
     },
     "FR-015": {
-      "title": "Fixable problems re-render the step with field error"
+      "title": "Fixable problems on the step",
+      "tasks": [
+        "T019",
+        "T024"
+      ]
     },
     "FR-016": {
-      "title": "Auth code + PKCE S256, single-use state bound to server, exact redirect"
+      "title": "PKCE, state bound to server, exact redirect",
+      "tasks": [
+        "T009",
+        "T019",
+        "T013"
+      ]
     },
     "FR-017": {
-      "title": "Subject is account id plus server"
+      "title": "Subject = id + server",
+      "tasks": [
+        "T004",
+        "T019",
+        "T013"
+      ]
     },
     "FR-018": {
-      "title": "Never linked by email; email domain rules do not apply"
+      "title": "No email linking or domain rules",
+      "tasks": [
+        "T002",
+        "T016",
+        "T013"
+      ]
     },
     "FR-019": {
-      "title": "Callback re-checks server scope"
+      "title": "Callback re-checks scope",
+      "tasks": [
+        "T019",
+        "T020"
+      ]
     },
     "FR-020": {
-      "title": "Profile refreshed on every sign-in"
+      "title": "Profile refreshed",
+      "tasks": [
+        "T008",
+        "T013"
+      ]
     },
     "FR-021": {
-      "title": "App gets name, preferred_username, picture, profile; no email"
+      "title": "Claims to apps",
+      "tasks": [
+        "T017",
+        "T013"
+      ]
     },
     "FR-022": {
-      "title": "Failures in security log with server named"
+      "title": "Failures in the security log",
+      "tasks": [
+        "T019",
+        "T024"
+      ]
     },
     "FR-023": {
-      "title": "New registration logged as credential change"
+      "title": "Registration logged",
+      "tasks": [
+        "T010",
+        "T019",
+        "T013"
+      ]
     },
     "FR-024": {
-      "title": "Rate limits and antiforgery on account step and callback"
+      "title": "Rate limits and antiforgery",
+      "tasks": [
+        "T019",
+        "T024"
+      ]
     },
     "FR-025": {
-      "title": "Docs: fediverse.md, README, CHANGELOG"
+      "title": "Docs",
+      "tasks": [
+        "T026",
+        "T027"
+      ]
     }
   },
   "size": "oversized",
@@ -190,6 +325,9 @@
     "plan": {
       "summary": "Plan, research R1-R14, data model (schema v7) and routes contract for the Fediverse connector",
       "key_finding": "Akkoma and Pleroma have no PKCE, GoToSocial has PKCE but no metadata"
+    },
+    "tasks": {
+      "summary": "30 tasks: setup, foundational (3 waves), US1 (3 waves), US2 (2 waves), US3/US4 tests, polish"
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns."
