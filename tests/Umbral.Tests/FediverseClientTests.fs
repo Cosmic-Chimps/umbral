@@ -325,6 +325,99 @@ let ``account maps to a profile`` () =
         | Error error -> failwith $"{error}"
     }
 
+/// What `account` answers for a server whose only account is `stubAccount`.
+let private accountOf (stubAccount: StubAccount) =
+    task {
+        let stub, server, client = serverOf Mastodon
+        server.AddAccount stubAccount
+        let! endpoints, id, secret = registered client
+        let url = authorizeUrl endpoints id callback "the-state" (challengeOf verifier)
+        let approval = stub.Authorize(url, stubAccount.Id)
+
+        match! exchange client endpoints id secret callback approval.Code verifier with
+        | Ok token -> return! account client false "mastodon.test" token
+        | Error error -> return failwith $"{error}"
+    }
+
+let private isMalformed result =
+    match result with
+    | Error(Malformed _) -> true
+    | _ -> false
+
+[<Fact>]
+let ``account refuses an id over 128 characters`` () =
+    task {
+        let! result = accountOf { ana with Id = String('1', 129) }
+        Assert.True(isMalformed result, $"{result}")
+    }
+
+[<Fact>]
+let ``account refuses a display name over 256 characters`` () =
+    task {
+        let! result = accountOf { ana with DisplayName = String('d', 257) }
+        Assert.True(isMalformed result, $"{result}")
+    }
+
+[<Fact>]
+let ``account refuses an avatar over 2048 characters`` () =
+    task {
+        let! result = accountOf { ana with Avatar = "https://files.test/" + String('a', 2030) }
+        Assert.True(isMalformed result, $"{result}")
+    }
+
+[<Fact>]
+let ``account refuses a url over 2048 characters`` () =
+    task {
+        let! result = accountOf { ana with Url = "https://mastodon.test/" + String('a', 2030) }
+        Assert.True(isMalformed result, $"{result}")
+    }
+
+[<Theory>]
+[<InlineData("alice@mastodon.social")>]
+[<InlineData("ana\u202Eevil")>]
+[<InlineData("ana\nevil")>]
+[<InlineData("ana evil")>]
+let ``account refuses a username outside Mastodon's pattern`` (username: string) =
+    task {
+        let! result = accountOf { ana with Username = username }
+        Assert.True(isMalformed result, $"{result}")
+    }
+
+[<Fact>]
+let ``account refuses a username over 64 characters`` () =
+    task {
+        let! result = accountOf { ana with Username = String('a', 65) }
+        Assert.True(isMalformed result, $"{result}")
+    }
+
+[<Fact>]
+let ``toProfile keeps a profile url on the server's host and drops another host's`` () =
+    let profileOf url =
+        (toProfile
+            "mastodon.test"
+            { Id = "7"; Username = "bo"; DisplayName = "Bo"; Avatar = None; Url = Some url })
+            .ProfileUrl
+
+    Assert.Equal(Some "https://mastodon.test/@bo", profileOf "https://mastodon.test/@bo")
+    Assert.Equal(None, profileOf "https://evil.example/@bo")
+
+[<Fact>]
+let ``register refuses a client id over 512 characters`` () =
+    task {
+        let _, server, client = serverOf Mastodon
+        server.ClientIdPadding <- 513
+        let! endpoints = endpointsOf client
+
+        match! register client endpoints callback "https://umbral.test" with
+        | Error(Malformed _) -> ()
+        | other -> failwith $"{other}"
+    }
+
+[<Fact>]
+let ``the guarded handler does not use a proxy`` () =
+    let handler = guardedHandler false
+    Assert.False((handler :?> System.Net.Http.SocketsHttpHandler).UseProxy)
+
 [<Fact>]
 let ``account with a bad token is unreadable`` () =
     task {

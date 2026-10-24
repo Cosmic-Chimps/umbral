@@ -62,7 +62,7 @@ The allowed-email-domains feature chose the opposite on purpose ("tightening a r
 
 ## Tests
 
-A full `dotnet test` on the branch, run by the reviewer, is in progress. The result will be added here. The implementer reports 1656/1656 at `67eced4`.
+A full `dotnet test` on the branch at `9e58a4b`, run by the reviewer: **1656 passed, 0 failed, 0 skipped** (6 min). It agrees with the implementer's 1656/1656 at `67eced4`. The suite has no test for B1–B4, which is why each fix needs one.
 
 ## What happens next
 

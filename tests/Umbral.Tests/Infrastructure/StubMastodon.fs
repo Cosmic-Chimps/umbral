@@ -137,6 +137,9 @@ type StubServer(host: string, mode: ServerMode) =
     member _.Root = root
     member val Mode = mode with get, set
 
+    /// Characters appended to every client id issued, to test the length bound.
+    member val ClientIdPadding = 0 with get, set
+
     /// An account this server knows.
     member _.AddAccount(account: StubAccount) = accounts[account.Id] <- account
 
@@ -211,9 +214,9 @@ type StubServer(host: string, mode: ServerMode) =
             json HttpStatusCode.OK (obj [ "subject", node resource; "links", (JsonArray(link) :> JsonNode) ])
         | _ -> oauthError HttpStatusCode.NotFound "not_found"
 
-    member private _.Register(form: Map<string, string>) =
+    member private this.Register(form: Map<string, string>) =
         let n = Interlocked.Increment &counter
-        let registration = { ClientId = $"client-{n}"; ClientSecret = $"secret-{n}"; Form = form }
+        let registration = { ClientId = $"client-{n}" + String('x', this.ClientIdPadding); ClientSecret = $"secret-{n}"; Form = form }
         registrations.Enqueue registration
 
         json

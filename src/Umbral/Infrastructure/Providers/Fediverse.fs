@@ -106,6 +106,9 @@ let private connect (allowDev: bool) (context: SocketsHttpConnectionContext) (ca
 /// registration POST, to an address of its choosing.
 let guardedHandler (allowDev: bool) : HttpMessageHandler =
     let handler = new SocketsHttpHandler(AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds 5.0)
+    // Through a proxy the connect callback would judge the proxy's address, not
+    // the server's (code review B1).
+    handler.UseProxy <- false
 
     handler.ConnectCallback <-
         Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<Stream>>(fun context cancellationToken ->
@@ -352,6 +355,20 @@ let private serverFailure (answer: Answer) =
 
 /// Registers Umbral as an app on the server. The answer must carry both a client
 /// id and a secret; a 4xx is the server's refusal.
+// Bounds on what a server answers: an anonymous person could otherwise grow the
+// database and app tokens without limit (code review B2).
+[<Literal>]
+let private MaxCredentialLength = 512
+
+[<Literal>]
+let private MaxIdLength = 128
+
+[<Literal>]
+let private MaxDisplayNameLength = 256
+
+[<Literal>]
+let private MaxUrlLength = 2048
+
 let register
     (client: HttpClient)
     (endpoints: ServerEndpoints)
@@ -379,7 +396,7 @@ let register
                     parseObject answer.Body
                     |> Option.bind (fun document ->
                         match optString document "client_id", optString document "client_secret" with
-                        | Some id, Some secret -> Some(id, Secrets.Protected.Of secret)
+                        | Some id, Some secret when id.Length <= MaxCredentialLength && secret.Length <= MaxCredentialLength -> Some(id, Secrets.Protected.Of secret)
                         | _ -> None)
 
                 match credentials with
@@ -521,7 +538,13 @@ let account
                     parseObject answer.Body
                     |> Option.bind (fun document ->
                         match id document, optString document "username" with
-                        | Some id, Some username ->
+                        | Some id, Some username when
+                            id.Length <= MaxIdLength
+                            && isUsername username
+                            && (optString document "display_name" |> Option.forall (fun v -> v.Length <= MaxDisplayNameLength))
+                            && (optString document "avatar" |> Option.forall (fun v -> v.Length <= MaxUrlLength))
+                            && (optString document "url" |> Option.forall (fun v -> v.Length <= MaxUrlLength))
+                            ->
                             Some
                                 { Id = id
                                   Username = username
@@ -532,7 +555,7 @@ let account
 
                 match read with
                 | Some value -> return Ok value
-                | None -> return Error(Malformed "the account had no id or username")
+                | None -> return Error(Malformed "the account had no valid id or username, or a field over its bound")
     }
 
 /// Only an absolute https address is kept: an `http` avatar or page would be
@@ -559,4 +582,8 @@ let toProfile (host: string) (account: Account) : ProviderProfile =
         )
       AvatarUrl = httpsOnly account.Avatar
       Username = Some(preferredUsername account.Username host)
-      ProfileUrl = httpsOnly account.Url }
+      // Only a page on the server's own host: another host would let a server
+      // point a profile claim anywhere (code review B3).
+      ProfileUrl =
+        httpsOnly account.Url
+        |> Option.filter (fun value -> Uri(value).Authority.ToLowerInvariant() = host) }

@@ -285,6 +285,11 @@ let ``scope values round trip`` () =
 [<InlineData("64:ff9b::7f00:1")>]
 [<InlineData("2002:a00:1::1")>]
 [<InlineData("2002:7f00:1::1")>]
+[<InlineData("64:ff9b:1::1")>]
+[<InlineData("100::1")>]
+[<InlineData("2001:10::1")>]
+[<InlineData("2001:20::1")>]
+[<InlineData("::ffff:0:8.8.8.8")>]
 let ``a non-public address is refused`` (text: string) =
     Assert.False(isPublicAddress (IPAddress.Parse text), text)
 
@@ -367,6 +372,34 @@ let ``a missing endpoint is refused`` () =
     Assert.Equal(None, fromMetadata false "mastodon.social" { mastodonMetadata with RegistrationEndpoint = None })
     Assert.Equal(None, fromMetadata false "mastodon.social" { mastodonMetadata with AuthorizationEndpoint = None })
     Assert.Equal(None, fromMetadata false "mastodon.social" { mastodonMetadata with TokenEndpoint = None })
+
+[<Fact>]
+let ``an endpoint over 2048 characters makes the server unsupported`` () =
+    let long = "https://mastodon.social/" + System.String('a', 2025)
+    Assert.Equal(None, fromMetadata false "mastodon.social" { mastodonMetadata with TokenEndpoint = Some long })
+
+[<Theory>]
+[<InlineData("ana", true)>]
+[<InlineData("a.b-c_d", true)>]
+[<InlineData("alice@mastodon.social", false)>]
+[<InlineData("ana\u202Eevil", false)>]
+[<InlineData("ana\nevil", false)>]
+[<InlineData("ana evil", false)>]
+[<InlineData("", false)>]
+[<InlineData(".ana", false)>]
+[<InlineData("ana.", false)>]
+let ``isUsername follows Mastodon's pattern`` (text: string, expected: bool) =
+    Assert.Equal(expected, isUsername text)
+
+[<Fact>]
+let ``isUsername refuses a trailing newline`` () =
+    // `$` would let this through: it also matches before a final newline.
+    Assert.False(isUsername "alice\n")
+
+[<Fact>]
+let ``isUsername bounds the length at 64`` () =
+    Assert.True(isUsername (System.String('a', 64)))
+    Assert.False(isUsername (System.String('a', 65)))
 
 [<Fact>]
 let ``an endpoint on another host is refused`` () =

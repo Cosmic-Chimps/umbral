@@ -259,6 +259,14 @@ let private publicV4 (b: byte[]) : bool =
 /// multicast, unspecified, benchmark and documentation ranges. An IPv4-mapped
 /// IPv6 address is judged as the IPv4 it wraps, and so are the embedded forms
 /// (NAT64 and 6to4), or `::ffff:10.0.0.1` would walk past the IPv4 rules.
+/// Mastodon's username pattern, for what a server answers (not typed input).
+/// `\z`, not `$`: in .NET `$` also matches before a final newline.
+let private usernamePattern =
+    Regex(@"\A[A-Za-z0-9_]+([.-]+[A-Za-z0-9_]+)*\z", RegexOptions.CultureInvariant)
+
+let isUsername (value: string) : bool =
+    value.Length <= 64 && usernamePattern.IsMatch value
+
 let isPublicAddress (address: IPAddress) : bool =
     let address = if address.IsIPv4MappedToIPv6 then address.MapToIPv4() else address
     let bytes = address.GetAddressBytes()
@@ -275,7 +283,16 @@ let isPublicAddress (address: IPAddress) : bool =
             // 64:ff9b::/96
             b0 = 0x00 && b1 = 0x64 && bytes[2] = 0xffuy && bytes[3] = 0x9buy && bytes[4..11] |> Array.forall ((=) 0uy)
 
-        if ipv4Compatible then false
+        // Local NAT64 (64:ff9b:1::/48), discard (100::/64), ORCHID
+        // (2001:10::/28, 2001:20::/28) and IPv4-translated (::ffff:0:0:0/96).
+        let refusedRange =
+            (b0 = 0x00 && b1 = 0x64 && bytes[2] = 0xffuy && bytes[3] = 0x9buy && bytes[4] = 0x00uy && bytes[5] = 0x01uy)
+            || (b0 = 0x01 && b1 = 0x00 && bytes[2..7] |> Array.forall ((=) 0uy))
+            || (b0 = 0x20 && b1 = 0x01 && bytes[2] = 0uy && (int bytes[3] &&& 0xF0) = 0x10)
+            || (b0 = 0x20 && b1 = 0x01 && bytes[2] = 0uy && (int bytes[3] &&& 0xF0) = 0x20)
+            || (bytes[0..7] |> Array.forall ((=) 0uy) && bytes[8] = 0xffuy && bytes[9] = 0xffuy && bytes[10] = 0uy && bytes[11] = 0uy)
+
+        if ipv4Compatible || refusedRange then false
         elif b0 = 0xfe && (b1 &&& 0xC0) = 0x80 then false
         elif b0 = 0xfe && (b1 &&& 0xC0) = 0xC0 then false
         elif (b0 &&& 0xFE) = 0xFC then false
@@ -314,6 +331,11 @@ type ServerMetadata =
 /// An endpoint is believed only when it is an absolute https address (http under
 /// `allowDev`) on the server's own host and port, so metadata cannot send the
 /// sign-in or the registration to another machine.
+/// Longest endpoint URL kept. An anonymous person could otherwise grow the
+/// database without limit through a hostile server (code review B2).
+[<Literal>]
+let private MaxEndpointLength = 2048
+
 let private ownEndpoint (allowDev: bool) (host: string) (endpoint: string option) : string option =
     endpoint
     |> Option.bind (fun text ->
@@ -324,7 +346,8 @@ let private ownEndpoint (allowDev: bool) (host: string) (endpoint: string option
 
         match parsed with
         | Some uri when
-            (uri.Scheme = Uri.UriSchemeHttps || (allowDev && uri.Scheme = Uri.UriSchemeHttp))
+            text.Length <= MaxEndpointLength
+            && (uri.Scheme = Uri.UriSchemeHttps || (allowDev && uri.Scheme = Uri.UriSchemeHttp))
             && uri.UserInfo = ""
             && uri.Authority.ToLowerInvariant() = host
             ->
