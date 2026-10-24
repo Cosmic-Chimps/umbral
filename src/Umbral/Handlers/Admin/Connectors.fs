@@ -28,6 +28,8 @@ open Umbral.Infrastructure
 open Umbral.Infrastructure.SecretStores.Registry
 open Umbral.Views
 
+module FediverseRules = Umbral.Domains.Fediverse
+
 module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
 
 // ---------------------------------------------------------------------------
@@ -949,6 +951,12 @@ let private view
                     revealedLink
                     frameView
                     paneNotice
+            | Fediverse ->
+                let draft =
+                    domains.CardDraft
+                    |> Option.bind (fun (slug, d) -> if slug = "fediverse" then Some(d.Typed, d.Problem) else None)
+
+                FediverseConnector.pane ctx t origin enabledCount chosenSlugs row.Existing draft frameView paneNotice
             | _ -> providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice row :> HtmlElement
         | _, None -> Fragment() :> HtmlElement
 
@@ -979,7 +987,7 @@ let private addableKinds (ctx: HttpContext) =
 /// ones in the order Discord, GitHub, Google (the two easy wins first, since
 /// Google is the one that can refuse a homelab address outright), OpenID Connect,
 /// the fake one, then by slug; the kinds not set up follow, in the order of
-/// `allKinds`, and Passkey closes the list.
+/// `allKinds`, and Fediverse then Passkey close the list.
 let private rowsFor (existing: Connector list) =
     let kindOrder kind =
         match kind with
@@ -993,7 +1001,7 @@ let private rowsFor (existing: Connector list) =
 
     let stored =
         existing
-        |> List.filter (fun c -> c.Kind <> Passkey)
+        |> List.filter (fun c -> c.Kind <> Passkey && c.Kind <> Fediverse)
         |> List.sortBy (fun c -> kindOrder c.Kind, c.Slug)
         |> List.map (fun c -> { Kind = c.Kind; Existing = Some c })
 
@@ -1008,7 +1016,11 @@ let private rowsFor (existing: Connector list) =
         { Kind = Passkey
           Existing = existing |> List.tryFind (fun c -> c.Kind = Passkey) }
 
-    stored @ empty @ [ passkey ]
+    let fediverse =
+        { Kind = Fediverse
+          Existing = existing |> List.tryFind (fun c -> c.Kind = Fediverse) }
+
+    stored @ empty @ [ fediverse; passkey ]
 
 /// A refused list at either level, to draw again with what was typed.
 type private Drafts =
@@ -1056,7 +1068,7 @@ let private render
             let removal =
                 match notice with
                 | Some "allowed-domains-removal" when not instanceList.IsEmpty ->
-                    match existing |> List.filter (fun c -> c.Kind <> Passkey && c.AllowedEmailDomains.IsEmpty) with
+                    match existing |> List.filter (fun c -> c.Kind <> Passkey && c.Kind <> Fediverse && c.AllowedEmailDomains.IsEmpty) with
                     | [] -> None
                     | open' -> Some(open' |> List.map (fun c -> c.Slug, c.DisplayName))
                 | _ -> None
@@ -1234,6 +1246,99 @@ let private recordDomainsChanged (ctx: HttpContext) (slug: string option) (list:
 let private refuseDomains (ctx: HttpContext) (selection: Selection) (drafts: Drafts) =
     ctx.SetStatusCode 422
     render ctx selection emptyAddForm drafts
+
+/// Create the Fediverse connector, or change whether it is shared and which
+/// servers may sign in. A refused server entry saves nothing and is drawn again.
+let saveFediverse: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let t = Texts.current ()
+            let allowDev = (ctx.GetService<Umbral.Infrastructure.Providers.Fediverse.Options>()).AllowDev
+            let! form = WebForms.readValidated ctx
+            let shared = WebForms.checkbox form "shared"
+            let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
+            let typed = WebForms.value form "servers"
+
+            match FediverseRules.parseScope (WebForms.value form "scope") with
+            | None -> return! WebForms.redirectWithNotice ctx (detailPath "fediverse") "fediverse-connector-invalid"
+            | Some listed ->
+                match FediverseRules.parseServers allowDev typed with
+                | Error refused ->
+                    let message =
+                        match refused with
+                        | FediverseRules.NotAServer entry -> t.FediverseServerNotAddress entry
+                        | FediverseRules.Wildcard entry -> t.FediverseServerWildcard entry
+
+                    return!
+                        refuseDomains
+                            ctx
+                            (Item "fediverse")
+                            { noDrafts with Card = Some("fediverse", { Typed = typed; Problem = message }) }
+                | Ok servers ->
+                    let access = { OnlyListed = listed; Servers = servers }
+                    let detail = Some $"onlyListed={listed}"
+                    let! existing = ConnectorStore.findBySlug config "fediverse"
+
+                    match existing with
+                    | None ->
+                        let now = clock.GetUtcNow()
+
+                        let! result =
+                            ConnectorStore.create
+                                config
+                                now
+                                { Slug = "fediverse"
+                                  Kind = Fediverse
+                                  DisplayName = "Fediverse"
+                                  ClientId = ""
+                                  ClientSecretRef = ""
+                                  ClientSecretHint = ""
+                                  IssuerUrl = None
+                                  AllowedEmailDomains = []
+                                  PasskeyEnrolment = InvitationsOnly
+                                  FediverseAccess = access
+                                  IsEnabled = true
+                                  IsShared = shared
+                                  CreatedUtc = now
+                                  UpdatedUtc = now }
+                                ("", "")
+
+                        ignore result
+                        do! recordEventWith ctx SecurityEvents.ConnectorCreated "fediverse" detail
+                        return! WebForms.redirectWithNotice ctx (detailPath "fediverse") "fediverse-connector-saved"
+                    | Some stored when stored.Kind <> Fediverse ->
+                        return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+                    | Some stored ->
+                        let! stranded =
+                            task {
+                                if stored.IsShared && not shared && not confirmed then
+                                    let! connectors = ConnectorStore.listAll config
+                                    let! apps = AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
+
+                                    let after =
+                                        connectors
+                                        |> List.map (fun c -> if c.Slug = "fediverse" then { c with IsShared = false } else c)
+
+                                    return AppConnectors.strandedByChange apps connectors after
+                                else
+                                    return []
+                            }
+
+                        if not stranded.IsEmpty then
+                            return!
+                                WebForms.redirectWithNoticeAbout
+                                    ctx
+                                    (detailPath "fediverse")
+                                    "connector-strands-apps"
+                                    [ "slug", "fediverse"; "change", "unshare" ]
+                        else
+                            let! _ = ConnectorStore.update config clock "fediverse" "Fediverse" "" shared None None
+                            let! _ = ConnectorStore.setFediverseAccess config clock "fediverse" access
+                            do! recordEventWith ctx SecurityEvents.ConnectorUpdated "fediverse" detail
+                            return! WebForms.redirectWithNotice ctx (detailPath "fediverse") "fediverse-connector-saved"
+        })
 
 let private prefixOf (ctx: HttpContext) =
     ctx.GetService<SecretStoreSettings.SecretStoreSettings>().Prefix
@@ -1921,4 +2026,5 @@ let endpoint =
       GET [ routef "/admin/connectors/{%s}" detailPage ]
       POST [ route "/admin/connectors" create ]
       POST [ route "/admin/allowed-domains" saveAllowedDomains ]
+      POST [ route "/admin/connectors/fediverse" saveFediverse ]
       POST [ routef "/admin/connectors/{%s}" save ] ]

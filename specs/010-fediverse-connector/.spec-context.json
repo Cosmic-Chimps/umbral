@@ -233,6 +233,30 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T17:27:48.055Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T021",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:45:34.820Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T022",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:45:35.004Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T023",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:45:35.143Z"
     }
   ],
   "unattended": true,
@@ -490,7 +514,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T013",
+  "currentTask": "T023",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -653,6 +677,28 @@
       "did": "8 end-to-end sign-in tests through the real endpoints with StubMastodon",
       "files": [
         "tests/Umbral.Tests/FediverseSignInTests.fs"
+      ]
+    },
+    "T021": {
+      "status": "DONE",
+      "did": "Fediverse pane: set-up facts, shared, scope radios, servers field with the refused draft, empty-list note, action row",
+      "files": [
+        "src/Umbral/Handlers/Admin/FediverseConnector.fs"
+      ]
+    },
+    "T022": {
+      "status": "DONE",
+      "did": "Connectors screen: Fediverse before Passkey, pane dispatch, removal warning skips it, saveFediverse with 422 redraw",
+      "files": [
+        "src/Umbral/Handlers/Admin/Connectors.fs",
+        "tests/Umbral.Tests/ConnectorsMasterDetailTests.fs"
+      ]
+    },
+    "T023": {
+      "status": "DONE",
+      "did": "Apps screen: Fediverse limited exactly when Only these servers",
+      "files": [
+        "src/Umbral/Handlers/Admin/Apps.fs"
       ]
     }
   }

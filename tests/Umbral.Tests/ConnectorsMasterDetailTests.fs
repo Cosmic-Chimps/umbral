@@ -258,7 +258,7 @@ let ``the list holds the configured connectors, then the kinds not set up, then 
         let! html = operator.GetHtml "/admin/connectors?msg=connector-saved&slug=fake"
         let order = entryOrder html
 
-        Assert.Equal<string list>([ "fake"; "fake-two"; "discord"; "github"; "google"; "passkey"; "domains" ], order)
+        Assert.Equal<string list>([ "fake"; "fake-two"; "discord"; "github"; "google"; "fediverse"; "passkey"; "domains" ], order)
 
         // The configured ones are not muted; the kinds not set up are, and so is passkey.
         for slug in [ "fake"; "fake-two" ] do
@@ -491,8 +491,8 @@ let ``entries, the pinned entry and the add button swap the frame with htmx, and
 
         let links = entryTags html @ [ addButton html ]
 
-        // Two entries, the three kinds not set up, passkey, the pinned entry, the add button.
-        Assert.Equal(8, links.Length)
+        // Two entries, the three kinds not set up, fediverse, passkey, the pinned entry, the add button.
+        Assert.Equal(9, links.Length)
 
         for link in links do
             let href = Regex.Match(link, "\\shref=\"([^\"]*)\"").Groups[1].Value

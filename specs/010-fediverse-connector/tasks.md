@@ -88,14 +88,14 @@ Files: src/Umbral/Handlers/Admin/FediverseConnector.fs, src/Umbral/Handlers/Admi
 
 **Wave 1:**
 
-- [ ] **T021** [US2] The pane and its save handler, mirroring `PasskeyConnector.fs` (design contract section 1, contract sections 1 and 4): heading with pills; Set-up section (lead, callback URL with copy, no-email note); Settings form (shared check, `scope` radios as `.um-choice` cards in `fieldset[data-instance-scope]`, the `servers` field with `data-instance-list`, the empty-list note, Save or Enable Fediverse); the action row (toggle, delete) when set up; POST `/admin/connectors/fediverse` with the 422 re-render for a refused entry. Add to `Umbral.fsproj` after `PasskeyConnector.fs` · src/Umbral/Handlers/Admin/FediverseConnector.fs. *Deviation (2026-10-24): this file holds the pane only; the save handler lives in `Connectors.fs` (T022), because a refused server list is drawn again through the screen's render and its `Drafts.Card`, which compile after this file.*
+- [x] **T021** [US2] The pane and its save handler, mirroring `PasskeyConnector.fs` (design contract section 1, contract sections 1 and 4): heading with pills; Set-up section (lead, callback URL with copy, no-email note); Settings form (shared check, `scope` radios as `.um-choice` cards in `fieldset[data-instance-scope]`, the `servers` field with `data-instance-list`, the empty-list note, Save or Enable Fediverse); the action row (toggle, delete) when set up; POST `/admin/connectors/fediverse` with the 422 re-render for a refused entry. Add to `Umbral.fsproj` after `PasskeyConnector.fs` · src/Umbral/Handlers/Admin/FediverseConnector.fs. *Deviation (2026-10-24): this file holds the pane only; the save handler lives in `Connectors.fs` (T022), because a refused server list is drawn again through the screen's render and its `Drafts.Card`, which compile after this file.*
 
 **⟶ Wait for Wave 1 to finish, then:**
 
 **Wave 2:**
 
-- [ ] **T022** [US2] The Connectors screen: `rowsFor` puts Fediverse after the not-set-up kinds and before Passkey and keeps it out of the generic stored list; the pane dispatch calls `FediverseConnector.pane`; the instance-domains removal warning skips Fediverse; the save handler `POST /admin/connectors/fediverse` (literal route in `Connectors.endpoint`), with the 422 re-render of a refused list through `refuseDomains` and a `Drafts.Card` for slug `fediverse` · src/Umbral/Handlers/Admin/Connectors.fs
-- [ ] **T023** [US2] [P] The Apps screen counts a Fediverse connector as limited exactly when `OnlyListed` (research R11) · src/Umbral/Handlers/Admin/Apps.fs
+- [x] **T022** [US2] The Connectors screen: `rowsFor` puts Fediverse after the not-set-up kinds and before Passkey and keeps it out of the generic stored list; the pane dispatch calls `FediverseConnector.pane`; the instance-domains removal warning skips Fediverse; the save handler `POST /admin/connectors/fediverse` (literal route in `Connectors.endpoint`), with the 422 re-render of a refused list through `refuseDomains` and a `Drafts.Card` for slug `fediverse` · src/Umbral/Handlers/Admin/Connectors.fs
+- [x] **T023** [US2] [P] The Apps screen counts a Fediverse connector as limited exactly when `OnlyListed` (research R11) · src/Umbral/Handlers/Admin/Apps.fs
 
 **Checkpoint**: the operator enables the connector from the screen and narrows it; T013 and T020 pass.
 
