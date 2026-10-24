@@ -157,3 +157,29 @@ Upgrading paragraph; this branch takes the schema to 7. Whichever merges second
 must change that one number. If 010 merges second, its implementer does it
 when merging `main` in (blocking item 1 above asks them to say so); if T1
 merges second, T1 needs a one-line follow-up. Merging T1 first is simpler.
+
+---
+
+## Re-check, 2026-10-24, at `91d7757` (after `main` merged in at `5489c6f`)
+
+**Clear to merge.**
+
+- Blocking item 1 fixed. `## Unreleased` has a `### Upgrade` block in the
+  0.2.0 wording ("The database becomes schema version 7. An older image refuses
+  to start on it: take a backup before you upgrade."), plus the idle-memory
+  line. The README's Upgrading paragraph (T1's, now on `main`) says schema
+  version 7. `changelog.sh released` against `main` at `95279c3`: every
+  released section unchanged.
+- Nits 1, 2, 4 and 5 taken as suggested: the Callback URL sentence; the rule
+  before the names, in the walkthrough and the CHANGELOG, with Misskey and
+  Sharkey refused for lacking app registration; "in the database, the secret
+  encrypted with the key ring in `keys/`"; the README claims bullet with
+  `preferred_username` and `profile` as what a fediverse sign-in adds.
+- Nit 3: the implementer was right and I was not. `isLiteralHost`
+  (`Domains/Fediverse.fs:35-38,132`) refuses every IP literal typed as the
+  server outside development, public or not; only the resolved-name rule is
+  about non-public addresses. The new wording ("to `localhost`, to an IP
+  address typed as the server, or to a name that resolves to a private,
+  loopback or link-local address") is what the code does.
+- Link check on the merged branch: 182 links in 14 files, all resolve.
+- `notes.md` has the answers under "Answers to the reviews".
