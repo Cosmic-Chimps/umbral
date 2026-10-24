@@ -10,6 +10,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-24
+
 ### Changed
 - The **Apps** screen is a list and a detail pane: the apps are listed by name on the left, and
   the selected one's connection details, sign-in methods, branding and actions are on the right
