@@ -374,6 +374,7 @@ let private seedPasskeyConnector (dataDirectory: string) =
                   IssuerUrl = None
                   AllowedEmailDomains = []
                   PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = now

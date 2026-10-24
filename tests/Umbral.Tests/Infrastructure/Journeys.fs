@@ -152,6 +152,7 @@ let addFakeConnector (app: Fixtures.TestApp) (secret: string) =
                   IssuerUrl = None
                   AllowedEmailDomains = []
                   PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

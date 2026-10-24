@@ -93,6 +93,7 @@ let private seedLocal (app: Fixtures.TestApp) (kind: ProviderKind) (slug: string
                       IssuerUrl = issuerUrl
                       AllowedEmailDomains = []
                       PasskeyEnrolment = InvitationsOnly
+                      FediverseAccess = FediverseAccess.Any
                       IsEnabled = true
                       IsShared = true
                       CreatedUtc = now
@@ -745,6 +746,7 @@ let private seedPasskey (app: Fixtures.TestApp) =
           IssuerUrl = None
           AllowedEmailDomains = []
           PasskeyEnrolment = InvitationsOnly
+          FediverseAccess = FediverseAccess.Any
           IsEnabled = true
           IsShared = true
           CreatedUtc = app.Clock.GetUtcNow()

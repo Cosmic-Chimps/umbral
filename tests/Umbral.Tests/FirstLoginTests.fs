@@ -136,6 +136,7 @@ let private claimAndConfigure (app: Fixtures.TestApp) (browser: Browser) : Task<
                   IssuerUrl = None
                   AllowedEmailDomains = []
                   PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

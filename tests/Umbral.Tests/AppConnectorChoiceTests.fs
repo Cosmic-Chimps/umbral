@@ -33,6 +33,7 @@ let private seedDiscord (app: Fixtures.TestApp) (enabled: bool) (shared: bool) =
                   IssuerUrl = None
                   AllowedEmailDomains = []
                   PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
                   IsEnabled = enabled
                   IsShared = shared
                   CreatedUtc = app.Clock.GetUtcNow()

@@ -414,6 +414,7 @@ let private connector (slug: string) (kind: ProviderKind) : Connector =
       IssuerUrl = None
       AllowedEmailDomains = []
       PasskeyEnrolment = InvitationsOnly
+      FediverseAccess = FediverseAccess.Any
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch

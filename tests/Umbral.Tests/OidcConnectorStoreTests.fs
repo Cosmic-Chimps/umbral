@@ -18,6 +18,7 @@ let private connector (slug: string) (kind: ProviderKind) (issuer: string option
       IssuerUrl = issuer
       AllowedEmailDomains = []
       PasskeyEnrolment = InvitationsOnly
+      FediverseAccess = FediverseAccess.Any
       IsEnabled = true
       IsShared = true
       CreatedUtc = System.DateTimeOffset.UnixEpoch

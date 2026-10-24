@@ -374,6 +374,7 @@ let save: EndpointHandler =
                               IssuerUrl = None
                               AllowedEmailDomains = []
                               PasskeyEnrolment = enrolment
+                              FediverseAccess = FediverseAccess.Any
                               IsEnabled = true
                               IsShared = shared
                               CreatedUtc = now

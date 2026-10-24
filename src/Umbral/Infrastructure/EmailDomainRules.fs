@@ -64,11 +64,13 @@ let setInstanceList (config: Database.DbConfig) (clock: TimeProvider) (list: str
 /// The passkey kind is never limited by a list, not even the instance's: a
 /// passkey carries no email, so there is no domain to judge, and the instance
 /// list is not read for it at all. Who may sign in through it is decided by its
-/// enrolment mode (specs/008 FR-010).
+/// enrolment mode (specs/008 FR-010). The Fediverse kind is the same: an account
+/// there has no email (specs/010 research R11).
 let ruleFor (config: Database.DbConfig) (connector: Connector) : Task<Rule> =
     task {
         match connector.Kind, connector.AllowedEmailDomains with
-        | Passkey, _ -> return NoRule
+        | Passkey, _
+        | Fediverse, _ -> return NoRule
         | _, [] ->
             let! instance = instanceList config
             return applying [] instance

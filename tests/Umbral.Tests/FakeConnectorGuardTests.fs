@@ -24,6 +24,7 @@ let private seedFakeConnector (config: Database.DbConfig) (clock: TimeProvider) 
           IssuerUrl = None
           AllowedEmailDomains = []
           PasskeyEnrolment = InvitationsOnly
+          FediverseAccess = FediverseAccess.Any
           IsEnabled = true
           IsShared = true
           CreatedUtc = clock.GetUtcNow()

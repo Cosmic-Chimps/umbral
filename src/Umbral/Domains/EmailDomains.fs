@@ -67,6 +67,14 @@ let private isDomain (name: string) =
     && Array.forall isLabel labels
     && not (labels[labels.Length - 1] |> Seq.forall Char.IsDigit)
 
+/// The ASCII, lower-case, validated form of a domain name, or None when it is
+/// not one. Shared with Domains/Fediverse.fs so a server address and an email
+/// domain follow one rule.
+let normaliseDomain (name: string) : string option =
+    match asciiOf name with
+    | Some ascii when isDomain ascii -> Some ascii
+    | _ -> None
+
 let private normaliseEntry (entry: string) : Result<string, ParseError> =
     if entry.Contains '*' then
         Error(Wildcard entry)

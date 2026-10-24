@@ -40,6 +40,7 @@ let private connector: Connector =
       IssuerUrl = Some issuer
       AllowedEmailDomains = []
       PasskeyEnrolment = InvitationsOnly
+      FediverseAccess = FediverseAccess.Any
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UtcNow

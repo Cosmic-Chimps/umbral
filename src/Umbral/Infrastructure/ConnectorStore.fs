@@ -44,6 +44,7 @@ let private read (reader: SqliteDataReader) =
         // A word this build does not know (a hand-edited row) reads as the safe
         // mode: nobody can enrol without an invitation.
         parseEnrolment (reader.GetString 12) |> Option.defaultValue InvitationsOnly
+      FediverseAccess = FediverseAccess.Any
       CreatedUtc = DateTimeOffset.Parse(reader.GetString 8, Globalization.CultureInfo.InvariantCulture)
       UpdatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture) }
 

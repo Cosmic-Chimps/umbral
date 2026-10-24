@@ -28,6 +28,7 @@ let private seedPasskey (app: Fixtures.TestApp) =
           IssuerUrl = None
           AllowedEmailDomains = []
           PasskeyEnrolment = InvitationsOnly
+          FediverseAccess = FediverseAccess.Any
           IsEnabled = true
           IsShared = true
           CreatedUtc = app.Clock.GetUtcNow()

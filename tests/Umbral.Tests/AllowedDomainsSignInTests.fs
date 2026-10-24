@@ -834,6 +834,7 @@ let private googleStartUrl (connectorList: string list) (instanceList: string li
                   IssuerUrl = None
                   AllowedEmailDomains = connectorList
                   PasskeyEnrolment = Connectors.InvitationsOnly
+                  FediverseAccess = Connectors.FediverseAccess.Any
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
@@ -921,6 +922,7 @@ let private addOpenConnector (app: Fixtures.TestApp) (slug: string) =
                   IssuerUrl = None
                   AllowedEmailDomains = []
                   PasskeyEnrolment = Connectors.InvitationsOnly
+                  FediverseAccess = Connectors.FediverseAccess.Any
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

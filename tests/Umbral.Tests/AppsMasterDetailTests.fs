@@ -41,6 +41,7 @@ let private seedLimitedDiscord (app: Fixtures.TestApp) =
                   IssuerUrl = None
                   AllowedEmailDomains = [ "acme.com" ]
                   PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

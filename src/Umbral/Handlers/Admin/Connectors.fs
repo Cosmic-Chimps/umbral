@@ -988,7 +988,8 @@ let private rowsFor (existing: Connector list) =
         | Google -> 2
         | Oidc -> 3
         | Fake -> 4
-        | Passkey -> 5
+        | Fediverse -> 5
+        | Passkey -> 6
 
     let stored =
         existing
@@ -1308,6 +1309,7 @@ let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
     match kind with
     | Fake -> (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed
     | Oidc
+    | Fediverse
     | Passkey -> false
     | Discord
     | GitHub
@@ -1440,6 +1442,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   IssuerUrl = Some issuer
                   AllowedEmailDomains = domains
                   PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
                   IsEnabled = enabled
                   IsShared = state.Shared
                   CreatedUtc = now
@@ -1572,6 +1575,7 @@ let create: EndpointHandler =
                       IssuerUrl = None
                       AllowedEmailDomains = domains
                       PasskeyEnrolment = InvitationsOnly
+                      FediverseAccess = FediverseAccess.Any
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
@@ -1680,6 +1684,7 @@ let save (slug: string) : EndpointHandler =
                           IssuerUrl = None
                           AllowedEmailDomains = defaultArg domains []
                           PasskeyEnrolment = InvitationsOnly
+                          FediverseAccess = FediverseAccess.Any
                           // A connector arrives enabled: the operator came here to
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true

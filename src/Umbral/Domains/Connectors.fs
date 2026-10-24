@@ -25,6 +25,12 @@ type ProviderKind =
     /// Its endpoints are not compiled in: `ProviderAdapters.IProviderAdapter.Resolve`
     /// reads them from the provider.
     | Oidc
+    /// The Fediverse: a built-in kind, at most one connector has the slug
+    /// `fediverse`. The person's server is the provider, and Umbral registers
+    /// itself on each server the first time someone from it signs in
+    /// (specs/010-fediverse-connector). No adapter and no client credentials on
+    /// the row: the credentials are per server, and the routes are Umbral's own.
+    | Fediverse
     /// Umbral as its own provider: the person proves who they are with a
     /// passkey Umbral verifies itself (specs/008-passkey-connector). No
     /// endpoints, no client credentials and no adapter: the ceremonies are
@@ -38,6 +44,7 @@ type ProviderKind =
         | Google -> "google"
         | Fake -> "fake"
         | Oidc -> "oidc"
+        | Fediverse -> "fediverse"
         | Passkey -> "passkey"
 
     member this.DisplayName =
@@ -47,6 +54,7 @@ type ProviderKind =
         | Google -> "Google"
         | Fake -> "Fake (development)"
         | Oidc -> "OpenID Connect"
+        | Fediverse -> "Fediverse"
         | Passkey -> "Passkey"
 
 /// The three providers with a card of their own. Deliberately not `Oidc`: an
@@ -61,6 +69,7 @@ let parseKind (value: string) =
     | "google" -> Some Google
     | "fake" -> Some Fake
     | "oidc" -> Some Oidc
+    | "fediverse" -> Some Fediverse
     | "passkey" -> Some Passkey
     | _ -> None
 
@@ -118,6 +127,16 @@ let endpointsFor (kind: ProviderKind) =
           SupportsPkce = false
           UsesNonce = false }
 
+    | Fediverse ->
+        // Every server has its own endpoints, read at registration (specs/010
+        // research R1), so there is nothing to say statically.
+        { AuthorizationUrl = ""
+          TokenUrl = ""
+          UserInfoUrl = ""
+          Scopes = []
+          SupportsPkce = false
+          UsesNonce = false }
+
     | Passkey ->
         // Like Fake, nothing to say: no authorization endpoint is ever built
         // for a passkey, and `/connect/passkey/start` is a route of Umbral's own.
@@ -157,6 +176,7 @@ let setupCaveat (kind: ProviderKind) =
     | GitHub
     | Fake
     | Oidc
+    | Fediverse
     | Passkey -> None
 
 /// Who may become a user through the passkey connector (specs/008 research R8).
@@ -174,6 +194,16 @@ type PasskeyEnrolment =
         match this with
         | InvitationsOnly -> "invitations"
         | OpenSignUp -> "open"
+
+/// Who may sign in through the Fediverse connector: any server, or only the
+/// listed ones (normalised hosts). Like `PasskeyEnrolment` it decides who can be
+/// a user and nothing else. The list is kept whichever way `OnlyListed` is set,
+/// so switching to "any server" and back loses nothing (specs/010 data-model).
+type FediverseAccess =
+    { OnlyListed: bool
+      Servers: string list }
+
+    static member Any = { OnlyListed = false; Servers = [] }
 
 /// A configured connector, as stored.
 type Connector =
@@ -202,6 +232,9 @@ type Connector =
       /// Only for `Passkey`: who may create an account through it. Every other
       /// kind keeps `InvitationsOnly` and ignores it, as they ignore `IssuerUrl`.
       PasskeyEnrolment: PasskeyEnrolment
+      /// Only for `Fediverse`: which servers may sign in. Every other kind keeps
+      /// `FediverseAccess.Any` and ignores it, as they ignore `PasskeyEnrolment`.
+      FediverseAccess: FediverseAccess
       CreatedUtc: DateTimeOffset
       UpdatedUtc: DateTimeOffset }
 
