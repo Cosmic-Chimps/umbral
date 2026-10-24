@@ -307,6 +307,7 @@ let addOpenIddict (options: Options) (services: IServiceCollection) =
                    Claims.EmailVerified
                    Claims.Name
                    Claims.PreferredUsername
+                   Claims.Profile
                    Claims.Picture
                    IdpClaim |]
             |> ignore

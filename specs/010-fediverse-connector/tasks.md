@@ -57,15 +57,15 @@ Files: src/Umbral/Infrastructure/FediverseServers.fs, src/Umbral/Infrastructure/
 
 **Wave 1:**
 
-- [ ] **T014** [US1] Registration store (data-model "Server registration"): `find`, `insertIfAbsent` (`ON CONFLICT(host) DO NOTHING` then read back), `replace`, `delete`, `markChecked`, `markUsed`; the secret protected with purpose `Umbral.FediverseServers.v1` and returned as `Secrets.Protected`. Add to `Umbral.fsproj` after `ConnectorStore.fs` · src/Umbral/Infrastructure/FediverseServers.fs
+- [x] **T014** [US1] Registration store (data-model "Server registration"): `find`, `insertIfAbsent` (`ON CONFLICT(host) DO NOTHING` then read back), `replace`, `delete`, `markChecked`, `markUsed`; the secret protected with purpose `Umbral.FediverseServers.v1` and returned as `Secrets.Protected`. Add to `Umbral.fsproj` after `ConnectorStore.fs` · src/Umbral/Infrastructure/FediverseServers.fs
 - [ ] **T015** [US1] The server client (research R2, R6, R8; contract section 2): named client `umbral-fediverse`; `PrimaryHandler` delegate with the default guarded `SocketsHttpHandler` (no redirects, 5 s connect, `ConnectCallback` keeping public addresses unless the development allowance); per-call 10 s; 64 KiB bounded reads; `lookup` (WebFinger), `discover` (metadata, then NodeInfo), `register`, `checkClient`, `authorizeUrl` (pure), `exchange`, `account`. Errors as a union the handler maps to the reasons of contract section 6 · src/Umbral/Infrastructure/Providers/Fediverse.fs
 
 **⟶ Wait for Wave 1 to finish, then:**
 
 **Wave 2:**
 
-- [ ] **T016** [US1] Factor the sign-in tail of `Callback.handler` (from "profile in hand" to the redirect) into a public `finishSignIn` taking an email-rule switch, with `Callback.handler` calling it unchanged in behaviour · src/Umbral/Handlers/Connect/Callback.fs
-- [ ] **T017** [US1] Claims: `preferred_username` and `profile` set (or removed) in `setProfileClaims` and in userinfo under the `profile` scope; `Claims.Profile` in the profile destinations and in `claims_supported` · src/Umbral/Handlers/Connect/Authorize.fs, src/Umbral/Handlers/Connect/UserInfo.fs, src/Umbral/Infrastructure/OpenIddictSetup.fs
+- [x] **T016** [US1] Factor the sign-in tail of `Callback.handler` (from "profile in hand" to the redirect) into a public `finishSignIn` taking an email-rule switch, with `Callback.handler` calling it unchanged in behaviour · src/Umbral/Handlers/Connect/Callback.fs
+- [x] **T017** [US1] Claims: `preferred_username` and `profile` set (or removed) in `setProfileClaims` and in userinfo under the `profile` scope; `Claims.Profile` in the profile destinations and in `claims_supported` · src/Umbral/Handlers/Connect/Authorize.fs, src/Umbral/Handlers/Connect/UserInfo.fs, src/Umbral/Infrastructure/OpenIddictSetup.fs
 - [ ] **T018** [US1] Register the `umbral-fediverse` client and the default `Fediverse.PrimaryHandler` in `configureServices` (development allowance from the existing `allowInsecureHttp`) · src/Umbral/Program.fs
 
 **⟶ Wait for Wave 2 to finish, then:**

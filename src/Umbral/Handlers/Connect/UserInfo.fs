@@ -55,6 +55,14 @@ let handler: EndpointHandler =
                     | Some url -> claims[Claims.Picture] <- url
                     | None -> ()
 
+                    match u.PreferredUsername with
+                    | Some username -> claims[Claims.PreferredUsername] <- username
+                    | None -> ()
+
+                    match u.ProfileUrl with
+                    | Some url -> claims[Claims.Profile] <- url
+                    | None -> ()
+
                 if principal.HasScope Scopes.Email then
                     match u.Email with
                     | Some email ->

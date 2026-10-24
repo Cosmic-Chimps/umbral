@@ -489,6 +489,75 @@ let ``user info returns the same identity as the id_token`` () =
         Assert.Equal(strOf payload "email", strOf info "email")
     }
 
+let private userInfo (app: Fixtures.TestApp) (accessToken: string) =
+    task {
+        let message = new HttpRequestMessage(HttpMethod.Get, "/connect/userinfo")
+        message.Headers.Add("Authorization", "Bearer " + accessToken)
+        let! response = app.Client.SendAsync message
+        return! json response
+    }
+
+[<Fact>]
+let ``user info carries preferred_username and profile under the profile scope when the user has them`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid email profile"
+        let! tokenResponse = exchange app clientId secret code
+        let! tokens = json tokenResponse
+        let subject = strOf (payloadOf (strOf tokens "id_token")) "sub"
+
+        do!
+            sql
+                app
+                "UPDATE users SET preferred_username = @username, profile_url = @profile WHERE id = @id"
+                [ "@username", "sam@social.example"; "@profile", "https://social.example/@sam"; "@id", subject ]
+
+        let! info = userInfo app (strOf tokens "access_token")
+
+        Assert.Equal("sam@social.example", strOf info "preferred_username")
+        Assert.Equal("https://social.example/@sam", strOf info "profile")
+    }
+
+[<Fact>]
+let ``user info has neither preferred_username nor profile for a user without them`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+        let! code = authorizationCode client clientId "openid email profile"
+        let! tokenResponse = exchange app clientId secret code
+        let! tokens = json tokenResponse
+
+        let! info = userInfo app (strOf tokens "access_token")
+
+        Assert.False(info.TryGetProperty("preferred_username") |> fst)
+        Assert.False(info.TryGetProperty("profile") |> fst)
+    }
+
+[<Fact>]
+let ``a refresh carries preferred_username and profile once the user has them`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret, first = loginWithRefresh app client
+        let subject = strOf (payloadOf (strOf first "id_token")) "sub"
+
+        do!
+            sql
+                app
+                "UPDATE users SET preferred_username = @username, profile_url = @profile WHERE id = @id"
+                [ "@username", "sam@social.example"; "@profile", "https://social.example/@sam"; "@id", subject ]
+
+        let! response = refresh app clientId secret (strOf first "refresh_token")
+        let! body = json response
+        let payload = payloadOf (strOf body "id_token")
+
+        Assert.Equal("sam@social.example", strOf payload "preferred_username")
+        Assert.Equal("https://social.example/@sam", strOf payload "profile")
+    }
+
 [<Fact>]
 let ``user info refuses an unknown token`` () =
     task {

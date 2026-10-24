@@ -169,6 +169,30 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T16:49:33.581Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T014",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:02:33.025Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T016",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:02:33.149Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T017",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:02:33.284Z"
     }
   ],
   "unattended": true,
@@ -426,7 +450,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T012",
+  "currentTask": "T017",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -527,6 +551,31 @@
         "DatabaseTests.fs",
         "OidcConnectorStoreTests.fs",
         "OAuthRoundTripTests.fs"
+      ]
+    },
+    "T014": {
+      "status": "DONE",
+      "did": "Registration store for fediverse_servers: find, insertIfAbsent, replace, delete, markChecked, markUsed; secret protected with Umbral.FediverseServers.v1",
+      "files": [
+        "src/Umbral/Infrastructure/FediverseServers.fs",
+        "src/Umbral/Umbral.fsproj"
+      ]
+    },
+    "T016": {
+      "status": "DONE",
+      "did": "Callback.finishSignIn factored out of handler with an applyEmailRule switch; handler passes true",
+      "files": [
+        "src/Umbral/Handlers/Connect/Callback.fs"
+      ]
+    },
+    "T017": {
+      "status": "DONE",
+      "did": "preferred_username and profile claims in setProfileClaims, destinations, userinfo and claims_supported; three OidcProtocolTests",
+      "files": [
+        "src/Umbral/Handlers/Connect/Authorize.fs",
+        "src/Umbral/Handlers/Connect/UserInfo.fs",
+        "src/Umbral/Infrastructure/OpenIddictSetup.fs",
+        "tests/Umbral.Tests/OidcProtocolTests.fs"
       ]
     }
   }

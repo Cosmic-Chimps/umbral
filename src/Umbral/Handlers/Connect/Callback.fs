@@ -6,6 +6,8 @@
 module Umbral.Handlers.Connect.Callback
 
 open System
+open System.Threading.Tasks
+open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.DataProtection
 open Microsoft.AspNetCore.Builder
 open Oxpecker
@@ -16,6 +18,99 @@ open Umbral.Infrastructure.SecretStores.Registry
 open Umbral.Infrastructure.SecurityEvents
 
 let private fail = Picker.redirectWithFailure
+
+/// Everything after a provider has said who the person is: the allowed email
+/// domains, resolving the user, the session, and the redirect back to the
+/// authorization request. `connector` is the one the person signed in through.
+///
+/// `applyEmailRule` is false for a provider with no email at all (the fediverse,
+/// specs/010 FR-018), where there is nothing for a domain rule to judge.
+let finishSignIn
+    (ctx: HttpContext)
+    (connector: Connectors.Connector)
+    (profile: ProviderProfile)
+    (returnUrl: string)
+    (applyEmailRule: bool)
+    : Task<unit> =
+    task {
+        let config = ctx.GetService<Database.DbConfig>()
+        let clock = ctx.GetService<TimeProvider>()
+        let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+
+        let recordFor userId outcome eventType detail =
+            record
+                config
+                clock
+                { event eventType outcome Actor.User with
+                    UserId = userId
+                    ConnectorSlug = Some connector.Slug
+                    RemoteIp = remoteIp
+                    Detail = detail }
+
+        let record = recordFor None
+
+        let fail ctx code = fail ctx (Some returnUrl) code
+
+        // The allowed email domains (specs/006), judged on what the provider
+        // has just said about THIS sign-in and before anything is written: a
+        // person who is refused leaves no user, link or update behind.
+        let! verdict =
+            task {
+                if applyEmailRule then
+                    let! rule = EmailDomainRules.ruleFor config connector
+                    return EmailDomains.check rule profile.Email profile.EmailVerified
+                else
+                    return EmailDomains.Admitted
+            }
+
+        match verdict with
+        | EmailDomains.Refused(level, reason) ->
+            // The event names the reason, the level and the normalised
+            // domain; never the address, and no user (there is none yet).
+            do!
+                record
+                    Failure
+                    SignInFailed
+                    (Some(refusalDetail reason level Callback (EmailDomains.domainOf profile.Email)))
+
+            return fail ctx "account-not-allowed"
+
+        | EmailDomains.Admitted ->
+
+        let! resolution = UserStore.resolve config clock connector.Kind profile
+
+        let userId = Some resolution.User.Id
+
+        // A first sign-in or a new link is a change in its own right and is
+        // recorded as one. An ordinary return visit is not: it is only the
+        // sign-in, recorded below once it has actually succeeded — never
+        // here, where a disabled user would still be logged as a success.
+        match resolution.Decision with
+        | Umbral.Domains.Linking.CreateNew -> do! recordFor userId Success UserCreated None
+        | Umbral.Domains.Linking.LinkToExisting _ -> do! recordFor userId Success UserLinked None
+        | Umbral.Domains.Linking.ExistingLink _ -> ()
+
+        if not resolution.User.IsEnabled then
+            // FR-022. Checked here as well as at the authorize endpoint, so
+            // a disabled user cannot even establish the session.
+            do! recordFor userId Failure SignInFailed (Some "user_disabled")
+
+            return fail ctx "account-disabled"
+        else
+
+        // The session remembers the domain it was admitted on, but only when
+        // the email was verified: that is what a later re-check may rely on.
+        let admittedDomain =
+            if profile.EmailVerified then EmailDomains.domainOf profile.Email else None
+
+        do! Sessions.signIn ctx resolution.User.Id connector.Kind.Value connector.Slug admittedDomain
+        do! recordFor userId Success SignInSucceeded None
+
+        // Back to the authorization request this all started for, replayed
+        // byte for byte so OpenIddict sees exactly what the app sent.
+        ctx.Response.Redirect returnUrl
+        return ()
+    }
 
 let handler (slug: string) : EndpointHandler =
     fun ctx ->
@@ -159,57 +254,7 @@ let handler (slug: string) : EndpointHandler =
 
             | Ok profile ->
 
-            // The allowed email domains (specs/006), judged on what the provider
-            // has just said about THIS sign-in and before anything is written: a
-            // person who is refused leaves no user, link or update behind.
-            let! rule = EmailDomainRules.ruleFor config connector
-
-            match EmailDomains.check rule profile.Email profile.EmailVerified with
-            | EmailDomains.Refused(level, reason) ->
-                // The event names the reason, the level and the normalised
-                // domain; never the address, and no user (there is none yet).
-                do!
-                    record
-                        Failure
-                        SignInFailed
-                        (Some(refusalDetail reason level Callback (EmailDomains.domainOf profile.Email)))
-
-                return fail ctx "account-not-allowed"
-
-            | EmailDomains.Admitted ->
-
-            let! resolution = UserStore.resolve config clock connector.Kind profile
-
-            let userId = Some resolution.User.Id
-
-            // A first sign-in or a new link is a change in its own right and is
-            // recorded as one. An ordinary return visit is not: it is only the
-            // sign-in, recorded below once it has actually succeeded — never
-            // here, where a disabled user would still be logged as a success.
-            match resolution.Decision with
-            | Umbral.Domains.Linking.CreateNew -> do! recordFor userId Success UserCreated None
-            | Umbral.Domains.Linking.LinkToExisting _ -> do! recordFor userId Success UserLinked None
-            | Umbral.Domains.Linking.ExistingLink _ -> ()
-
-            if not resolution.User.IsEnabled then
-                // FR-022. Checked here as well as at the authorize endpoint, so
-                // a disabled user cannot even establish the session.
-                do! recordFor userId Failure SignInFailed (Some "user_disabled")
-
-                return fail ctx "account-disabled"
-            else
-
-            // The session remembers the domain it was admitted on, but only when
-            // the email was verified: that is what a later re-check may rely on.
-            let admittedDomain =
-                if profile.EmailVerified then EmailDomains.domainOf profile.Email else None
-
-            do! Sessions.signIn ctx resolution.User.Id connector.Kind.Value connector.Slug admittedDomain
-            do! recordFor userId Success SignInSucceeded None
-
-            // Back to the authorization request this all started for, replayed
-            // byte for byte so OpenIddict sees exactly what the app sent.
-            ctx.Response.Redirect correlation.ReturnUrl
+            do! finishSignIn ctx connector profile correlation.ReturnUrl true
             return ()
         }
 

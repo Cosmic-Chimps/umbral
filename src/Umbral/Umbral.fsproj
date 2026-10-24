@@ -79,6 +79,7 @@
     <Compile Include="Infrastructure/Providers/Oidc.fs" />
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />
+    <Compile Include="Infrastructure/FediverseServers.fs" />
     <Compile Include="Infrastructure/EmailDomainRules.fs" />
     <Compile Include="Infrastructure/AppConnectors.fs" />
     <Compile Include="Infrastructure/BrandingStore.fs" />

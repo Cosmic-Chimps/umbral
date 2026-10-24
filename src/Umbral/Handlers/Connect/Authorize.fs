@@ -52,7 +52,7 @@ let destinationsFor (claim: Claim) : string seq =
             Destinations.IdentityToken
         }
 
-    | t when t = Claims.Name || t = Claims.PreferredUsername || t = Claims.Picture ->
+    | t when t = Claims.Name || t = Claims.PreferredUsername || t = Claims.Profile || t = Claims.Picture ->
         seq {
             Destinations.AccessToken
             if hasScope Scopes.Profile then Destinations.IdentityToken
@@ -101,6 +101,8 @@ let setProfileClaims (identity: ClaimsIdentity) (user: Users.User) (idp: string)
     identity.RemoveClaims Claims.Email |> ignore
     identity.RemoveClaims Claims.EmailVerified |> ignore
     identity.RemoveClaims Claims.Picture |> ignore
+    identity.RemoveClaims Claims.PreferredUsername |> ignore
+    identity.RemoveClaims Claims.Profile |> ignore
 
     match user.Email with
     | Some email ->
@@ -114,6 +116,14 @@ let setProfileClaims (identity: ClaimsIdentity) (user: Users.User) (idp: string)
 
     match user.AvatarUrl with
     | Some url -> identity.SetClaim(Claims.Picture, url) |> ignore
+    | None -> ()
+
+    match user.PreferredUsername with
+    | Some username -> identity.SetClaim(Claims.PreferredUsername, username) |> ignore
+    | None -> ()
+
+    match user.ProfileUrl with
+    | Some url -> identity.SetClaim(Claims.Profile, url) |> ignore
     | None -> ()
 
 let private buildIdentity (user: Users.User) (idp: string) (connector: string) (emailDomain: string option) (scopes: string seq) =
