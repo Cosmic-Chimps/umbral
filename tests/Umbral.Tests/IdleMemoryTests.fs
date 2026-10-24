@@ -503,3 +503,68 @@ let ``an idle instance with the passkey connector in use stays under 160 MB resi
                     })
                 (fun port -> performCeremonies secret port)
     }
+
+/// The Fediverse connector, enabled for any server, written to the data directory
+/// before the child opens it (specs/010 SC-007). Like the passkey seed, the pools
+/// are cleared so the child is the only process that touches the database.
+let private seedFediverseConnector (dataDirectory: string) =
+    task {
+        let config: Database.DbConfig = { DataSource = Path.Combine(dataDirectory, "umbral.db") }
+        do! Database.initializeSchema config
+        let now = DateTimeOffset.UtcNow
+
+        do!
+            ConnectorStore.save
+                config
+                TimeProvider.System
+                { Slug = "fediverse"
+                  Kind = Fediverse
+                  DisplayName = "Fediverse"
+                  ClientId = ""
+                  ClientSecretRef = ""
+                  ClientSecretHint = ""
+                  IssuerUrl = None
+                  AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = now
+                  UpdatedUtc = now }
+                None
+
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
+    }
+
+/// The account step drawn, and two refusals through it: one the parser makes and
+/// one the address pre-check makes (a `.invalid` name never resolves). No server
+/// is contacted: the run measures the connector enabled and its page in use, not
+/// a network the test does not have.
+let private useAccountStep (port: int) =
+    task {
+        use visitor = new Visitor(port)
+        let! token = visitor.TokenFrom "/connect/fediverse/start?returnUrl=%2F"
+
+        for account in [ "not a handle"; "@idle@idle-memory.invalid" ] do
+            let request = new HttpRequestMessage(HttpMethod.Post, "/connect/fediverse/start")
+
+            request.Content <-
+                new FormUrlEncodedContent(
+                    [ Collections.Generic.KeyValuePair("__RequestVerificationToken", token)
+                      Collections.Generic.KeyValuePair("account", account)
+                      Collections.Generic.KeyValuePair("returnUrl", "/") ]
+                )
+
+            use! response = visitor.Send request
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode)
+    }
+
+[<Fact>]
+let ``an idle instance with the fediverse connector enabled stays under 150 MB resident`` () =
+    assertIdleUnderCeilingWith
+        "fediverse connector"
+        "SC-007 (spec 010)"
+        LocalStoreCeilingBytes
+        []
+        seedFediverseConnector
+        useAccountStep
