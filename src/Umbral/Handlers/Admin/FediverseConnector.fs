@@ -125,13 +125,17 @@ let pane
                   (div(class' = "space-y-5") {
                       p(class' = "text-body-md text-on-surface-variant") { t.FediverseCardLead }
 
-                      Components.copyField
-                          t.Copy
-                          t.Copied
-                          t.CallbackUrlLabel
-                          $"callback-{Slug}"
-                          ((PublicOrigin.callbackUri origin Slug).ToString())
-                          (fun input -> input.data("callback-url", "") |> ignore)
+                      div(class' = "space-y-1") {
+                          Components.copyField
+                              t.Copy
+                              t.Copied
+                              t.FediverseCallbackLabel
+                              $"callback-{Slug}"
+                              ((PublicOrigin.callbackUri origin Slug).ToString())
+                              (fun input -> input.data("callback-url", "") |> ignore)
+
+                          p(class' = "um-hint") { t.FediverseCallbackHint }
+                      }
 
                       (div(class' = "um-alert um-alert-info").attr("role", "note").data("no-email-note", "") {
                           Components.icon Theme.Info

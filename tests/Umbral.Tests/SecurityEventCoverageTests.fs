@@ -280,7 +280,13 @@ let private refuseAnAssertionForAnotherOrigin (app: Fixtures.TestApp) (enrolled:
 let ``every event type in the data model is emitted by the real product`` () =
     task {
         let store = InMemorySecretStore "aws"
-        use! app = startOnAws store
+        // A fake fediverse server behind the Fediverse connector's client, so its
+        // first sign-in can store a registration (spec 010).
+        use mastodon = new StubMastodon.StubMastodon()
+        mastodon.AddServer("mastodon.test", StubMastodon.Mastodon) |> ignore
+
+        use! app =
+            Fixtures.createAppWithFediverseHandler mastodon (fakeSettings @ awsSettings) (Fixtures.withSecretStores [ store ] "aws")
 
         // -- Operator: claim (credential set), sign out, sign in, a wrong credential
         let operator = Browser(app.Client)
@@ -393,6 +399,37 @@ let ``every event type in the data model is emitted by the real product`` () =
         let! anaPasskey = scalar app "SELECT id FROM passkeys WHERE user_id = @u" [ "@u", ana.UserId ]
         let! removed = operator.PostForm("/admin/users", $"/admin/users/{ana.UserId}/passkeys/{anaPasskey}/remove", [])
         Assert.Contains("passkey-removed", location removed)
+
+        // -- Fediverse (spec 010): the first sign-in from a server stores the
+        //    client Umbral registered there (fediverse_server_registered)
+        do!
+            ConnectorStore.save
+                app.DbConfig
+                app.Clock
+                { Slug = "fediverse"
+                  Kind = Fediverse
+                  DisplayName = "Fediverse"
+                  ClientId = ""
+                  ClientSecretRef = ""
+                  ClientSecretHint = ""
+                  IssuerUrl = None
+                  AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = app.Clock.GetUtcNow()
+                  UpdatedUtc = app.Clock.GetUtcNow() }
+                None
+
+        let! toServer =
+            (Browser app.Client).PostForm(
+                "/connect/fediverse/start?returnUrl=%2F",
+                "/connect/fediverse/start",
+                [ "account", "@ana@mastodon.test"; "returnUrl", "/" ]
+            )
+
+        Assert.StartsWith("https://mastodon.test/oauth/authorize", location toServer)
 
         // -- The offline command: the instance goes back to `local`, so every
         //    connector's secret moves (connector_secret_moved)

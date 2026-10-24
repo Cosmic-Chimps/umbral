@@ -471,6 +471,9 @@ type Texts =
       // Fediverse connector (specs/010)
       FediverseCardLead: string
       FediverseNoEmailNote: string
+      /// Not the providers' label: the operator registers nothing anywhere.
+      FediverseCallbackLabel: string
+      FediverseCallbackHint: string
       FediverseScopeAnyLabel: string
       FediverseScopeAnyHint: string
       FediverseScopeListedLabel: string
@@ -1210,6 +1213,9 @@ let en: Texts =
         "People sign in with an account on a Mastodon-compatible server. Umbral registers itself with each server the first time someone from it signs in."
       FediverseNoEmailNote =
         "A fediverse account has no verified email, so allowed email domains do not apply to it and it never joins another account by email."
+      FediverseCallbackLabel = "Callback URL"
+      FediverseCallbackHint =
+        "Umbral registers this address on each server. There is nothing to paste anywhere; a server's admin sees it in their list of apps."
       FediverseScopeAnyLabel = "Any server"
       FediverseScopeAnyHint = "Anyone with an account on a server that works like Mastodon."
       FediverseScopeListedLabel = "Only these servers"

@@ -161,8 +161,9 @@ let createAppWithProviderHandler
 ///
 /// The same seam as above for the Fediverse connector's own client
 /// (`Fediverse.PrimaryHandler`, specs/010 research R6): the real client code, the
-/// server store and the screens, with only the network replaced. It also lifts
-/// the connect guard, which a stub does not reach anyway.
+/// server store and the screens, with only the network replaced. The connect
+/// guard lives in the handler the stub replaces, so it is not in the way here;
+/// FediverseClientTests drives the real one.
 let createAppWithFediverseHandlerAndResolver
     (handler: HttpMessageHandler)
     (resolver: Umbral.Infrastructure.Providers.Fediverse.HostResolver)
