@@ -217,6 +217,22 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T17:13:43.352Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T019",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:27:47.886Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T013",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:27:48.055Z"
     }
   ],
   "unattended": true,
@@ -474,7 +490,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T018",
+  "currentTask": "T013",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -623,6 +639,20 @@
       "did": "Program registers Fediverse.Options, PrimaryHandler and the umbral-fediverse client",
       "files": [
         "src/Umbral/Program.fs"
+      ]
+    },
+    "T019": {
+      "status": "DONE",
+      "did": "Account step GET/POST (checks, WebFinger, registration with one re-registration) and callback at the correlation's server",
+      "files": [
+        "src/Umbral/Handlers/Connect/Fediverse.fs"
+      ]
+    },
+    "T013": {
+      "status": "DONE",
+      "did": "8 end-to-end sign-in tests through the real endpoints with StubMastodon",
+      "files": [
+        "tests/Umbral.Tests/FediverseSignInTests.fs"
       ]
     }
   }

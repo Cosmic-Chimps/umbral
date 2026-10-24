@@ -82,6 +82,7 @@
     <Compile Include="EmailDomainsTests.fs" />
     <Compile Include="FediverseDomainTests.fs" />
     <Compile Include="FediverseClientTests.fs" />
+    <Compile Include="FediverseSignInTests.fs" />
     <Compile Include="AllowedDomainsSignInTests.fs" />
     <Compile Include="AllowedDomainsAdminTests.fs" />
     <Compile Include="AppsMasterDetailTests.fs" />
