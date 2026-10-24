@@ -15,8 +15,10 @@ new image. Add to "Unreleased" as you work; a release renames it.
   GoToSocial server, typing a handle such as `@ana@mastodon.social` or just the server. Enable it from
   the **Fediverse** entry of the Connectors screen; there is nothing to create at any provider, because
   Umbral registers itself on each server the first time someone from it signs in. Choose **Any
-  server** or **Only these servers** and list them. Akkoma, Pleroma, Misskey, Sharkey and Mastodon
-  before 4.3 cannot do the PKCE check Umbral requires and are refused with a message.
+  server** or **Only these servers** and list them. A server works when its OAuth metadata
+  advertises PKCE (`S256`) and app registration, or when it is GoToSocial; Akkoma and Pleroma do no
+  PKCE, Misskey and Sharkey have no app registration Umbral can use, and Mastodon before 4.3
+  publishes no metadata, so those are refused with a message.
 - Apps receive an ordinary sign-in with `idp` set to `fediverse`, and `name`, `preferred_username`
   (as `user@server`), `picture` and `profile` under the `profile` scope. A fediverse user has no
   `email`, and allowed email domains do not apply to them.
@@ -42,6 +44,12 @@ new image. Add to "Unreleased" as you work; a release renames it.
 - An app card's **Sign-in page branding** heading now reads as the title of its section rather than
   a third field label beside **Logo** and **Accent colour**, and **Regenerate secret** and **Delete
   app** sit behind a hairline that closes the card, instead of hanging under the accent form.
+
+### Upgrade
+- The database becomes schema version 7. An older image refuses to start on it: take a backup
+  before you upgrade.
+- An instance with the Fediverse connector enabled idles under 150 MB, the ceiling the idle-memory
+  test asserts on Linux.
 
 ## 0.4.0 - 2026-10-22
 

@@ -5,15 +5,17 @@ such as mastodon.social or fosstodon.org. There is no account for you to create
 at any provider: Umbral registers itself with each server the first time someone
 from that server signs in.
 
-These servers work:
+A server works when its OAuth metadata advertises PKCE (`S256`) and app
+registration, or when it is GoToSocial, which enforces PKCE without publishing
+metadata. So these servers work:
 
 - **Mastodon 4.3 and later.** Umbral reads the server's OAuth metadata, which
   these versions publish.
 - **GoToSocial.**
 
-These servers do not, because they cannot do the PKCE check Umbral requires on
-every sign-in: **Akkoma**, **Pleroma**, **Misskey**, **Sharkey** and **Mastodon
-before 4.3**. A person who tries one of them stays on the account step and sees:
+These do not: **Akkoma** and **Pleroma** do no PKCE, **Misskey** and
+**Sharkey** have no app registration Umbral can use, and **Mastodon before 4.3**
+publishes no metadata. A person who tries one of them stays on the account step and sees:
 *{server} does not offer the sign-in Umbral uses. Mastodon and GoToSocial servers
 do; Akkoma, Pleroma, Misskey and Sharkey do not yet. Use another account, or
 another way to sign in.* (with the server's own name in place of `{server}`). The
@@ -48,8 +50,8 @@ server, the first time someone from it signs in:
    `read:accounts` permission, with the callback address above and your public
    origin as the app's website.
 3. It keeps the client ID and secret the server gives back, one pair per server,
-   in the data directory. The secret is encrypted with the local key ring, in
-   `keys/`. This is so even when you keep connector secrets in an external store
+   in the database in the data directory, the secret encrypted with the key ring
+   in `keys/`. This is so even when you keep connector secrets in an external store
    with `UMBRAL__SECRET_STORE`: these secrets are created by Umbral for each
    server, so they stay beside the database and are covered by your backup of the
    data directory.
@@ -59,7 +61,9 @@ You paste nothing and copy nothing.
 ## 2. Enable the connector
 
 Open **Connectors** in the admin area and choose **Fediverse** in the list. It
-needs no client ID, secret or callback URL. Choose who can sign in:
+needs no client ID or secret. The **Callback URL** it shows is the one Umbral
+registers on each server itself; there is nothing to paste anywhere. Choose who
+can sign in:
 
 - **Any server**: *Anyone with an account on a server that works like Mastodon.*
 - **Only these servers**: *Only accounts on the servers listed below.*
@@ -241,8 +245,8 @@ then save again.* appears if the choice is missing; choose one and save.
   to a server it cannot be sure checks the code, so there is no setting that lets
   them in.
 - **Private and loopback addresses are refused.** Umbral will not send a
-  registration to `localhost`, an IP address or a name that resolves to a private
-  address. The check happens again when Umbral connects, so a name that is
+  registration to `localhost`, to an IP address typed as the server, or to a name
+  that resolves to a private, loopback or link-local address. The check happens again when Umbral connects, so a name that is
   changed after the first check is refused too. For a laptop trial against a
   server of your own, run with `ASPNETCORE_ENVIRONMENT=Development` and
   `UMBRAL__INSECURE_ALLOW_HTTP=true`: both are needed, and then plain `http` and

@@ -340,9 +340,9 @@ What an app can count on:
 - **`email` and `email_verified` may be missing.** A GitHub user can keep their
   email private, a Discord account can be unverified, and a passkey-only user has
   none. Handle all three.
-- **`name`, `preferred_username`, `picture`** come with the `profile` scope when
-  the provider supplied them, and **`profile`** (the person's page) for a
-  fediverse sign-in. **`idp`** is Umbral's one extra claim: the
+- **`name` and `picture`** come with the `profile` scope when the provider
+  supplied them; a fediverse sign-in adds **`preferred_username`**
+  (`user@server`) and **`profile`** (the person's page). **`idp`** is Umbral's one extra claim: the
   provider the person used (`github`, `discord`, `google`, `oidc` for any
   OpenID Connect provider you added, `passkey`, or `fediverse`). It is the provider's
   kind, never a connector's identifier: with several Discord connectors it is
@@ -1140,7 +1140,7 @@ second one its own prefix.
 
 ### Upgrading
 
-The database is at **schema version 6**. Umbral upgrades an older database by
+The database is at **schema version 7**. Umbral upgrades an older database by
 itself when it starts, and nothing changes until you use what the upgrade
 added: for example, every app starts with no branding, and nobody can use a
 passkey until you enable the passkey connector. It does not work the other way: an older

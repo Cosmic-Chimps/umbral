@@ -168,3 +168,50 @@ enabled and its account step used (GET and two refused POSTs), held to the
 150 MiB local-store ceiling on Linux. On this Mac (arm64, sanity ceiling only):
 fediverse 120.7 MiB, local store 115.9 MiB, passkey in use 134.5 MiB, aws store
 130.3 MiB. The Linux figure comes from CI.
+
+---
+
+## Answers to the reviews (2026-10-24)
+
+### Design (`review.md`): clear at 67eced4
+
+The optional nit is taken: `.um-field-error` is `items-start` and its icon has
+`mt-0.5 shrink-0`, so the icon sits on the first line of a message that wraps
+(`umbral.input.css`, `umbral.css` regenerated; `build-css.sh --check` clean).
+Commit `39f8012`.
+
+### Documentation (`review-docs.md`)
+
+**Merge state.** `main` now has the Connectors master-detail task (merged at
+`fb2156e`) and T1 and T9. This branch merged `main` in at `5489c6f`, so T1's
+README Upgrading paragraph is here, and this branch is the second to merge.
+
+**Blocking 1, schema 7.** Done here:
+- `CHANGELOG.md`, `## Unreleased`: a `### Upgrade` block, "The database becomes
+  schema version 7. An older image refuses to start on it: take a backup before
+  you upgrade.", and the idle-memory line (the Fediverse run is held to the
+  150 MiB local-store ceiling on Linux, `IdleMemoryTests`).
+- `README.md`, Upgrading: "The database is at **schema version 7**."
+
+**Nits, all taken:**
+1. Section 2: "It needs no client ID or secret. The **Callback URL** it shows is
+   the one Umbral registers on each server itself; there is nothing to paste
+   anywhere."
+2. The opening states the rule first (metadata with `S256` and app registration,
+   or GoToSocial), then the names with each one's reason (Akkoma and Pleroma: no
+   PKCE; Misskey and Sharkey: no app registration; Mastodon before 4.3: no
+   metadata). Same in the CHANGELOG bullet.
+3. Gotchas: "to `localhost`, to an IP address typed as the server, or to a name
+   that resolves to a private, loopback or link-local address". Kept "an IP
+   address" on purpose: outside development `normaliseServer` refuses every IP
+   literal, public or not (`Domains/Fediverse.fs:79`, the `isLiteralHost` branch;
+   `FediverseDomainTests` "IP literals ... refused"), so a public literal is
+   refused too. Only the resolved-name rule is about non-public addresses.
+4. Section 1: "in the database in the data directory, the secret encrypted with
+   the key ring in `keys/`".
+5. README claims bullet: "`name` and `picture` come with the `profile` scope when
+   the provider supplied them; a fediverse sign-in adds `preferred_username`
+   (`user@server`) and `profile` (the person's page)."
+
+Checks after the changes: `check-links.py` 182 links in 14 files, all resolve;
+`changelog.sh released` against `main`, every released section unchanged.
