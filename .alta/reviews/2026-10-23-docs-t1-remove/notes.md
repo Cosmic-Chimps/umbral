@@ -128,3 +128,14 @@ With the step no longer marked `continue-on-error`, that exit 1 fails the
 **Not done: a CI run on the branch.** The branch is local; pushing it is the
 maintainer's call. The job is one `run:` of the script verified above, so the
 first push or PR run shows it green.
+
+## After the review (bafa55f: clear, three nits)
+
+All three nits taken, no re-check asked for:
+
+- oidc.md:49-51: `fake` is now "which Umbral's own tests use".
+- README:531: the branding heading is now `### Where it is kept`. No link
+  pointed at its old anchor (`check-links.py`: 155 links in 12 files, all
+  resolve).
+- README:1131: the Upgrading paragraph's two cases read "for example", so the
+  sentence still holds after the next schema step.

@@ -528,7 +528,7 @@ dark theme, and some mid-tones such as `#f26b1d` just miss on the light one;
 `#d9480f` and `#c2410c` are safe on both. The card's sample button shows what
 people will see.
 
-### Where it is kept, and upgrading
+### Where it is kept
 
 Logos and colours live in `umbral.db`, so the [backup](#your-data-back-it-up)
 you already take covers them. Deleting an app deletes its branding with it.
@@ -1129,8 +1129,8 @@ second one its own prefix.
 
 The database is at **schema version 6**. Umbral upgrades an older database by
 itself when it starts, and nothing changes until you use what the upgrade
-added: every app starts with no branding, and nobody can use a passkey until
-you enable the passkey connector. It does not work the other way: an older
+added: for example, every app starts with no branding, and nobody can use a
+passkey until you enable the passkey connector. It does not work the other way: an older
 image refuses to start on a newer database, and says so in `docker logs umbral`
 (*...written by a newer Umbral. Run the newer image, or restore the backup of
 the data directory taken before the upgrade.*). Take a

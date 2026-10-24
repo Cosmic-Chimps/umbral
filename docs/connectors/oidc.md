@@ -47,7 +47,8 @@ For example, with the identifier `home` and the origin `https://auth.example.com
 `https://auth.example.com/connect/home/callback`. Use lower-case letters, digits
 and hyphens, up to 32 characters, such as `home` or `club-keycloak`. It cannot
 be the name of a kind of connector (`discord`, `github`, `google`, `passkey`,
-`oidc`, or `fake`, the test connector), and it cannot be changed later.
+`oidc`, or `fake`, which Umbral's own tests use), and it cannot be changed
+later.
 
 Because you choose it, you can type the callback URL into your provider's
 console before you add the provider in Umbral. After you add it, the new card
