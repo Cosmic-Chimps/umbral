@@ -107,7 +107,7 @@ Files: none beyond its tests.
 
 ### Tests
 
-- [ ] **T024** [US3] Each fixable problem re-renders 422 with the typed value, `aria-invalid`, `autofocus` and the exact `Texts.fs` line: not a handle; Akkoma, Pleroma, Misskey, Mastodon without S256 and without a registration endpoint (unsupported, server named); a down server and a timeout ("did not answer"); `127.0.0.1`, `localhost`, `10.0.0.5`, a name resolving to a private address (not a handle; no request reaches the stub); an endpoint in the metadata on another host (unsupported); the access denial at the server lands on `/signin?msg=access-denied`; a missing or bad antiforgery token is refused. A unit test drives the real guarded handler against a loopback listener and shows the connection refused, and allowed with the development allowance · tests/Umbral.Tests/FediverseStepErrorsTests.fs
+- [x] **T024** [US3] Each fixable problem re-renders 422 with the typed value, `aria-invalid`, `autofocus` and the exact `Texts.fs` line: not a handle; Akkoma, Pleroma, Misskey, Mastodon without S256 and without a registration endpoint (unsupported, server named); a down server and a timeout ("did not answer"); `127.0.0.1`, `localhost`, `10.0.0.5`, a name resolving to a private address (not a handle; no request reaches the stub); an endpoint in the metadata on another host (unsupported); the access denial at the server lands on `/signin?msg=access-denied`; a missing or bad antiforgery token is refused. A unit test drives the real guarded handler against a loopback listener and shows the connection refused, and allowed with the development allowance · tests/Umbral.Tests/FediverseStepErrorsTests.fs
 
 **Checkpoint**: every message of contract section 5 is reached by a test.
 
@@ -119,7 +119,7 @@ Files: none beyond its tests.
 
 ### Tests
 
-- [ ] **T025** [US4] With a stored registration checked more than 24 hours ago (fake clock) that the stub no longer knows: the check gets `invalid_client`, Umbral registers once, replaces the row, records the event, and the sign-in completes; when the new registration is refused too, the step says "did not answer" and only one re-registration was attempted; a registration checked within 24 hours is not checked; a registration stored with another callback address (public origin changed) is replaced without a check; `invalid_client` at the code exchange deletes the row and the next attempt registers again · tests/Umbral.Tests/FediverseReRegistrationTests.fs
+- [x] **T025** [US4] With a stored registration checked more than 24 hours ago (fake clock) that the stub no longer knows: the check gets `invalid_client`, Umbral registers once, replaces the row, records the event, and the sign-in completes; when the new registration is refused too, the step says "did not answer" and only one re-registration was attempted; a registration checked within 24 hours is not checked; a registration stored with another callback address (public origin changed) is replaced without a check; `invalid_client` at the code exchange deletes the row and the next attempt registers again · tests/Umbral.Tests/FediverseReRegistrationTests.fs
 
 **Checkpoint**: FR-013 holds.
 

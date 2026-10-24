@@ -265,6 +265,22 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T17:50:35.001Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T024",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:54:37.809Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T025",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:54:37.911Z"
     }
   ],
   "unattended": true,
@@ -522,7 +538,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T020",
+  "currentTask": "T025",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -714,6 +730,20 @@
       "did": "9 admin tests: list order, pane states, save, refused entries, empty list, toggle/delete, allowlist before contact, FR-019 at callback",
       "files": [
         "tests/Umbral.Tests/FediverseAdminTests.fs"
+      ]
+    },
+    "T024": {
+      "status": "DONE",
+      "did": "14 step-error tests: not a handle, unsupported software, down/slow, private literals and resolution, access denied, antiforgery",
+      "files": [
+        "tests/Umbral.Tests/FediverseStepErrorsTests.fs"
+      ]
+    },
+    "T025": {
+      "status": "DONE",
+      "did": "5 re-registration tests: forgotten after 24h, still down, within 24h no check, moved callback, invalid_client at exchange",
+      "files": [
+        "tests/Umbral.Tests/FediverseReRegistrationTests.fs"
       ]
     }
   }
