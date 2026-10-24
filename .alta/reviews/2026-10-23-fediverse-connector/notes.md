@@ -215,3 +215,52 @@ README Upgrading paragraph is here, and this branch is the second to merge.
 
 Checks after the changes: `check-links.py` 182 links in 14 files, all resolve;
 `changelog.sh released` against `main`, every released section unchanged.
+
+### Code (`code-review.md`, the `umbral` session)
+
+Blocking, all fixed, each with tests:
+
+- **B1, proxy.** `guardedHandler` sets `UseProxy <- false`
+  (`Infrastructure/Providers/Fediverse.fs`), so the connect callback always
+  judges the server's own address. Test: `FediverseClientTests` "the guarded
+  handler does not use a proxy" (the handler is a `SocketsHttpHandler` with
+  `UseProxy` false); the loopback test still holds. Commit `5780ef5`.
+- **B2, bounds.** Refused as `Malformed` (never truncated): `client_id` and
+  `client_secret` over 512, account `id` over 128, `display_name` over 256,
+  `avatar` and `url` over 2048 (`Providers/Fediverse.fs`, named literals); a
+  metadata endpoint over 2048 makes the server unsupported
+  (`Domains/Fediverse.fs`, `ownEndpoint`). Tests: one per bound in
+  `FediverseClientTests`, and the endpoint bound in `FediverseDomainTests`.
+  Pruning never-used registrations is **not** taken in 010: with the bounds a
+  row is under ~3 KB, the sign-in rate limit caps the rate, and the spec
+  decided no clean-up in 010; it is worth a task of its own if it ever binds.
+  Commit `5780ef5`.
+- **B3, username and profile.** A `username` outside Mastodon's pattern
+  (`isUsername`, `\A[A-Za-z0-9_]+([.-]+[A-Za-z0-9_]+)*\z`, at most 64; `\z`
+  because `$` lets a final newline through) is `Malformed`. `profile` is kept
+  only when https and on the server's own host. Tests: `alice@mastodon.social`,
+  U+202E, a newline, a space, 65 characters refused; profile on another host
+  dropped, on the same host kept. Commit `5780ef5`.
+- **B4, the list at session reuse and refresh.**
+  `FediverseServers.recheckServer` reads the person's server from the
+  fediverse subject (`host#id`) and refuses it when "Only these servers" no
+  longer lists it; `Authorize.fs` (session reuse: signed out, sent to sign in)
+  and `Token.fs` (refresh and code: `invalid_grant`) call it right after the
+  email-domain recheck, recording `sign_in_failed` with
+  `fediverse:server_not_allowed;server=<host>`. Tests:
+  `FediverseSessionRecheckTests` (reused session refused and logged; refresh
+  `invalid_grant`; still-listed server honoured). Docs: one sentence in the
+  README's "Who can sign in" and in the walkthrough's server list, sent to
+  `umbral-documentation`. Commit `92b1177`.
+
+Nits:
+
+- **N1** taken: `OAuthRoundTrip.peek` reads the correlation without consuming
+  it (`returnUrlOf` uses it), and a failed round trip's detail ends with
+  `;server=<host>`.
+- **N2** taken: on `invalid_client` at the exchange, the stored registration is
+  deleted only when it predates the round trip
+  (`RegisteredUtc <= correlation.IssuedAtUtc`).
+- **N3** taken: `isPublicAddress` also refuses `64:ff9b:1::/48`, `100::/64`,
+  `2001:10::/28`, `2001:20::/28`, `::ffff:0:0:0/96`; one test case each.
+- **N4** noted, unchanged: 302 matches the rest of the app.
