@@ -2,8 +2,8 @@
   "workflow": "companion",
   "specName": "The Fediverse connector",
   "branch": "alta/earnest-cetus-9pd3",
-  "currentStep": "specify",
-  "status": "specified",
+  "currentStep": "plan",
+  "status": "planned",
   "history": [
     {
       "step": "specify",
@@ -25,6 +25,34 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T16:18:08.996Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-24T16:18:13.016Z"
+    },
+    {
+      "step": "plan",
+      "substep": "research",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:22:05.622Z"
+    },
+    {
+      "step": "plan",
+      "substep": "design",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:24:07.653Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:24:07.983Z"
     }
   ],
   "unattended": true,
@@ -125,5 +153,44 @@
     "constraint: design/contracts/fediverse-connector-ui.md normative for UI",
     "constraint: constitution 3.0.0 Principles I, II, IV, VII"
   ],
-  "intent": "Sign in to Umbral with a Mastodon-compatible fediverse account through a built-in Fediverse connector"
+  "intent": "Sign in to Umbral with a Mastodon-compatible fediverse account through a built-in Fediverse connector",
+  "decisions": [
+    {
+      "decision": "Support = OAuth metadata with S256 and app_registration_endpoint, or NodeInfo software gotosocial",
+      "why": "PKCE is required; GoToSocial enforces S256 without metadata",
+      "rejected": "Send PKCE to every server (Akkoma/Pleroma ignore it silently)"
+    },
+    {
+      "decision": "Fediverse beside the adapters, not an IProviderAdapter",
+      "why": "per-server client chosen at run time",
+      "rejected": "Extend AuthorizeRequest/ExchangeRequest for one kind"
+    },
+    {
+      "decision": "Second HttpClient umbral-fediverse with connect-time public-address guard",
+      "why": "only check DNS cannot dodge; keeps LAN OIDC providers working",
+      "rejected": "Guard on the shared umbral-provider client"
+    },
+    {
+      "decision": "Per-server secrets always in the local Data Protection key ring",
+      "why": "created by Umbral, one per server",
+      "rejected": "The configured external secret store"
+    },
+    {
+      "decision": "Client-credentials check before redirect when not checked in 24h; re-register once on invalid_client",
+      "why": "Mastodon shows its own error for an unknown client and never redirects back",
+      "rejected": "Detect only at token exchange"
+    },
+    {
+      "decision": "Allowlist checks typed domain before contact and the WebFinger-resolved server after",
+      "why": "FR-009 no contact with unlisted servers",
+      "rejected": "Match only the resolved server"
+    }
+  ],
+  "step_summaries": {
+    "plan": {
+      "summary": "Plan, research R1-R14, data model (schema v7) and routes contract for the Fediverse connector",
+      "key_finding": "Akkoma and Pleroma have no PKCE, GoToSocial has PKCE but no metadata"
+    }
+  },
+  "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns."
 }

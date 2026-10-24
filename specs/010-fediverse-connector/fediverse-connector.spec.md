@@ -41,8 +41,10 @@ Decided in the task before this spec; not open:
   verified email, so a fediverse account never joins another user by email, and
   allowed email domain rules do not apply to it.
 - **Which servers.** Mastodon and servers that offer Mastodon's app registration
-  and sign-in (GoToSocial, Pleroma, Akkoma). Misskey and Sharkey are out of scope
-  for 010 and are refused with a message that names the next action.
+  and sign-in. Misskey and Sharkey are out of scope for 010 and are refused with
+  a message that names the next action. The task also named Pleroma and Akkoma;
+  research R1 found they do not implement PKCE, so the PKCE rule refuses them
+  too (Clarifications).
 - **Security (Principle IV).** Single-use `state`, PKCE, the exact redirect
   address, the server address normalised and checked (no private or loopback
   addresses unless a development setting allows them), a time limit on every
@@ -77,6 +79,12 @@ The task proposed a default for each question; they are recorded as the answers
   `@ana@example.com` hosted on `social.example.com`)? → A: Umbral asks the
   handle's domain where the account lives (the standard account lookup every
   fediverse server answers) and signs in at the server it names.
+- Q: Akkoma and Pleroma offer Mastodon's app registration but no PKCE. Are they
+  supported? → A: No. PKCE is required, so 010 supports Mastodon 4.3+ and
+  GoToSocial and refuses Akkoma, Pleroma, Misskey and Sharkey with the
+  unsupported-server message. The copy was approved by `umbral-designer` on
+  2026-10-24: "Mastodon and GoToSocial servers do; Akkoma, Pleroma, Misskey and
+  Sharkey do not yet."
 - Q: What happens to the server registrations when the operator deletes the
   Fediverse connector? → A: They are kept, like the users who signed in through
   it, so turning it on again reuses them.
@@ -268,7 +276,7 @@ longer accepts, a sign-in from that server re-registers once and completes.
 - **FR-007**: For a handle, Umbral MUST find the server that hosts the account by asking the handle's domain (the standard account lookup); for a server, it MUST use that server.
 - **FR-008**: Before contacting a server, Umbral MUST refuse an address that resolves to a private, loopback, link-local or otherwise non-public network address, unless the instance runs with the development setting that allows it; the refusal shows the "not a handle or a server" message.
 - **FR-009**: When the server scope is Only these servers, Umbral MUST refuse a server not on the list before contacting it, with the message "Accounts on {server} cannot sign in here. Use another way to sign in."
-- **FR-010**: Umbral MUST refuse a server that does not offer Mastodon's app registration, does not support PKCE with S256, or runs Misskey or Sharkey, with the unsupported-server message naming the server.
+- **FR-010**: Umbral MUST refuse a server that does not offer Mastodon's app registration or does not support PKCE with S256 (Mastodon before 4.3, Akkoma, Pleroma, Misskey, Sharkey), with the unsupported-server message naming the server.
 - **FR-011**: The first time anyone signs in from a server, Umbral MUST register itself there with its callback address and the `read:accounts` scope only, and MUST store that registration in the data directory with its client secret encrypted at rest.
 - **FR-012**: Later sign-ins from the same server MUST reuse the stored registration.
 - **FR-013**: When a server no longer accepts the stored registration, Umbral MUST register again once and replace it; a second refusal MUST end the attempt with the "did not answer" message, without further retries.
@@ -313,8 +321,7 @@ longer accepts, a sign-in from that server re-registers once and completes.
 ## Assumptions
 
 - The registration's client name is "Umbral" and its website is the instance's public origin, so a server admin can tell which Umbral it is.
-- PKCE support is read from the server's published OAuth server metadata (Mastodon 4.3 and later publish it); a server that publishes none is unsupported. If that excludes a GoToSocial or Akkoma version that otherwise works, the docs say which versions are known to work.
-- The server's software name is read from its public NodeInfo to refuse Misskey-family servers with the specific message; a server with no NodeInfo is judged on its OAuth metadata alone.
+- PKCE support is read from the server's published OAuth server metadata (Mastodon 4.3 and later publish it). GoToSocial publishes none but enforces PKCE, so a server whose public NodeInfo names GoToSocial is supported too (research R1).
 - Server registrations always use Umbral's local encrypted store, even when connector secrets are configured to go to an external secret store: they are created by Umbral itself, one per server, and an operator would not want one secret per server in a cloud manager.
 - The account step remembers nothing in the browser beyond the existing Last used hint, which names the connector, not the server.
 - Disabling the connector does not delete registrations; deleting it keeps them too (Clarifications).
