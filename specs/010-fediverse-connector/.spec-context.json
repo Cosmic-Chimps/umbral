@@ -297,6 +297,22 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T17:54:38.162Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T028",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:54:52.098Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T029",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T18:12:03.732Z"
     }
   ],
   "unattended": true,
@@ -542,6 +558,21 @@
       "decision": "Allowlist checks typed domain before contact and the WebFinger-resolved server after",
       "why": "FR-009 no contact with unlisted servers",
       "rejected": "Match only the resolved server"
+    },
+    {
+      "decision": "Built on the Connectors master-detail branch (fast-forward) as a pane",
+      "why": "that task is review-clear; avoids building a card to be cut later",
+      "rejected": "card per the task fallback"
+    },
+    {
+      "decision": "Save handler in Connectors.fs, pane-only FediverseConnector.fs",
+      "why": "a refused list is redrawn through the screen render and Drafts.Card, which compile after the pane",
+      "rejected": "redirect with a notice and lose the typed text"
+    },
+    {
+      "decision": "HostResolver seam for the DNS pre-check",
+      "why": "tests need made-up hosts without the development setting",
+      "rejected": "turning the development setting on in tests"
     }
   ],
   "step_summaries": {
@@ -551,10 +582,13 @@
     },
     "tasks": {
       "summary": "30 tasks: setup, foundational (3 waves), US1 (3 waves), US2 (2 waves), US3/US4 tests, polish"
+    },
+    "implement": {
+      "summary": "Fediverse connector: domain, schema 7, guarded client, account step and callback, Connectors pane, docs; 221 new test cases"
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T027",
+  "currentTask": "T029",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -777,6 +811,57 @@
         "CHANGELOG.md",
         "docs/connectors/*.md"
       ]
+    },
+    "T028": {
+      "status": "DONE",
+      "did": "build-css.sh regenerated umbral.css with no change: no view gained a class",
+      "files": [
+        "src/Umbral/Assets/umbral.css"
+      ]
+    },
+    "T029": {
+      "status": "DONE",
+      "did": "Full suite 1656/1656, link check (no new finding), changelog check, idle memory 4 runs, browser walk via capture script",
+      "files": [
+        ".alta/reviews/2026-10-23-fediverse-connector/notes.md"
+      ]
     }
-  }
+  },
+  "verified": [
+    {
+      "what": "full test suite",
+      "command": "dotnet test Umbral.slnx --no-build",
+      "result": "1656 passed, 0 failed"
+    },
+    {
+      "what": "docs links",
+      "command": ".github/scripts/check-links.py",
+      "result": "only the known oidc.md#configuration-as-code anchor (W15, allowed by CI)"
+    },
+    {
+      "what": "released changelog unchanged",
+      "command": ".github/scripts/changelog.sh released base-from-main",
+      "result": "every released section unchanged"
+    },
+    {
+      "what": "idle memory macOS (sanity)",
+      "command": "IdleMemoryTests",
+      "result": "fediverse 120.7 MiB, local 115.9, passkey 134.5, aws 130.3; Linux 150 MiB asserted in CI"
+    },
+    {
+      "what": "browser walk",
+      "command": "node /tmp/umcap/capture-fediverse.mjs",
+      "result": "39 captures, no overflow, real akko.wtf refused as unsupported"
+    }
+  ],
+  "concerns": [
+    {
+      "note": "FR-013 second refusal: the test covers a server that goes down after forgetting; a registration endpoint that refuses outright is not stubbed. The code path is a single re-registration call with no loop.",
+      "step": "implement"
+    },
+    {
+      "note": "Picker and step captures need UMBRAL__INSECURE_ALLOW_HTTP=true locally because OpenIddict refuses http; that setting also lifts the private-address rule, which none of the captured states depend on.",
+      "step": "implement"
+    }
+  ]
 }
