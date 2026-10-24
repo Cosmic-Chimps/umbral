@@ -304,6 +304,126 @@ let emptyState (i: Icon) (title: string) (body: string) (action: HtmlElement opt
         | None -> Fragment() :> HtmlElement
     }
 
+/// Which column a frame shows below 1024px: the list URL shows the list, an item's
+/// URL (or a create URL) shows the pane with a back link.
+type FrameView =
+    | ListView
+    | DetailView
+
+/// htmx on a frame link: fetch the full page, keep only the frame, push the URL.
+/// Without script it is a plain link. `data-frame-nav` is what umbral.js looks for
+/// to move focus once the swap is done.
+let frameNav (element: 'T when 'T :> HtmlTag) (href: string) =
+    element
+        .attr("hx-get", href)
+        .attr("hx-target", "[data-frame]")
+        .attr("hx-select", "[data-frame]")
+        .attr("hx-swap", "outerHTML")
+        .attr("hx-push-url", "true")
+        .data("frame-nav", "")
+
+/// The list and detail frame, shared by the screens whose items are not cards one
+/// under another. Below 1024px it shows one column, named by `view`.
+let frame (view: FrameView) (list: HtmlElement) (pane: HtmlElement) =
+    div(class' = "um-frame").data("frame", "").data("frame-view", (if view = ListView then "list" else "detail")) {
+        list
+        pane
+    }
+
+/// The list column: a `nav` with the count and the screen's one create action,
+/// then the entries or the empty state. Hidden below 1024px while a detail shows.
+let frameList (view: FrameView) (label': string) (count: string) (create: HtmlElement option) (body: HtmlElement) =
+    nav(class' = "um-frame-list" + (if view = DetailView then " hidden lg:block" else ""))
+        .attr("aria-label", label')
+        .data("frame-list", "") {
+        div(class' = "um-frame-list-head") {
+            span(class' = "text-label-md text-on-surface-variant") { count }
+
+            match create with
+            | Some c -> c
+            | None -> Fragment() :> HtmlElement
+        }
+
+        body
+    }
+
+/// The entries of a list, 4px apart.
+let frameEntries (entries: HtmlElement list) =
+    div(class' = "flex flex-col gap-1") {
+        for entry in entries do
+            entry
+    }
+
+/// One entry: a link to the item's own URL, the selected one `aria-current`.
+/// Two lines and, at the right, at most one status marker.
+let frameEntry (href: string) (isSelected: bool) (title: string) (subtitle: HtmlElement) (marker: HtmlElement option) =
+    let link = a(href = href, class' = "um-entry")
+    frameNav link href |> ignore
+
+    if isSelected then
+        link.attr("aria-current", "page") |> ignore
+
+    link {
+        span(class' = "min-w-0 flex-1") {
+            span(class' = "um-entry-title") { title }
+            span(class' = "um-entry-sub") { subtitle }
+        }
+
+        match marker with
+        | Some m -> m
+        | None -> Fragment() :> HtmlElement
+    }
+
+/// The detail pane: a `section` on the page surface, labelled by its heading. The
+/// back link comes first and shows below 1024px only, where the list is hidden.
+let framePane (view: FrameView) (headingId: string) (backHref: string, backLabel: string) (content: HtmlElement list) =
+    let back = a(href = backHref, class' = btnSm Ghost + " lg:hidden -ml-2 mb-4")
+    frameNav back backHref |> ignore
+
+    section(class' = "um-frame-pane min-w-0" + (if view = ListView then " hidden lg:block" else ""))
+        .attr("aria-labelledby", headingId) {
+        back {
+            icon ChevronLeft
+            backLabel
+        }
+
+        for c in content do
+            c
+    }
+
+/// The item's name as the pane's `h2`, with its pills beside it. `tabindex="-1"`
+/// lets umbral.js put focus here after a swap.
+let paneHeading (headingId: string) (title: string) (pills: HtmlElement list) =
+    div(class' = "flex flex-wrap items-center gap-3") {
+        h2(id = headingId, class' = "text-headline-lg text-on-surface [overflow-wrap:anywhere]")
+            .attr("tabindex", "-1")
+            .data("pane-heading", "") {
+            title
+        }
+
+        for p in pills do
+            p
+    }
+
+/// A section of a pane: a hairline, a title, and its groups 20px apart.
+let paneSection (title: string) (body: HtmlElement) =
+    div(class' = "um-pane-section") {
+        h3(class' = "um-section-title") { title }
+        div(class' = "space-y-5") { body }
+    }
+
+/// The pane's closing row; the caller adds its own `data-*`.
+let paneActions (body: HtmlElement list) =
+    div(class' = "um-pane-actions") {
+        for b in body do
+            b
+    }
+
+/// A status marker for a list entry that is an icon: it carries its name, since
+/// an icon alone says nothing to a screen reader.
+let markerIcon (i: Icon) (name: string) =
+    span(class' = "text-warning").attr("role", "img").attr("aria-label", name) { icon i }
+
 /// Marks a destructive form to be confirmed before it is sent, naming what
 /// breaks (contract: "destructive actions confirm, and the confirmation names
 /// what breaks"). The message travels as `data-confirm` and Assets/umbral.js

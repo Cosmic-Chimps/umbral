@@ -3,7 +3,7 @@
 ///
 /// Every route goes through `requireOperator` and `WebForms.readValidated`, looks
 /// the app up by client id, changes nothing when it refuses, and ends in a
-/// redirect back to that app's card (`/admin/apps?msg=…&app=…#app-…`), so the
+/// redirect back to that app's own page (`/admin/apps/{id}?msg=…`), so the
 /// operator lands where they were. A refused form is a notice, not a security
 /// event: only a change is logged (research R9).
 module Umbral.Handlers.Admin.AppBranding
@@ -19,12 +19,11 @@ open Umbral.Domains
 open Umbral.Domains.Branding
 open Umbral.Infrastructure
 
-/// Back to the card of `clientId`, with the notice. The client id is an
-/// OpenIddict id and the app was found by it, but it travels in a URL, so it is
-/// escaped like any value.
-let private redirectToCard (ctx: HttpContext) (notice: string) (clientId: string) =
-    let id = Uri.EscapeDataString clientId
-    ctx.Response.Redirect $"/admin/apps?msg={Uri.EscapeDataString notice}&app={id}#app-{id}"
+/// Back to the page of `clientId`, with the notice. The client id is an
+/// OpenIddict id and the app was found by it, but it travels in a URL, so
+/// `detailPath` escapes it like any value.
+let private redirectToApp (ctx: HttpContext) (notice: string) (clientId: string) =
+    ctx.Response.Redirect $"{Apps.detailPath clientId}?msg={Uri.EscapeDataString notice}"
     System.Threading.Tasks.Task.CompletedTask
 
 /// A branding change in the security log: an app was updated, by the operator,
@@ -72,11 +71,11 @@ let setAccent (clientId: string) : EndpointHandler =
                 if cleared then
                     do! recordChange ctx clientId "branding_accent_cleared"
 
-                return! redirectToCard ctx "app-accent-cleared" clientId
+                return! redirectToApp ctx "app-accent-cleared" clientId
             | text ->
 
             match Accent.parse text with
-            | Error NotHexColour -> return! redirectToCard ctx "app-accent-invalid" clientId
+            | Error NotHexColour -> return! redirectToApp ctx "app-accent-invalid" clientId
             | Ok accent ->
 
             do! BrandingStore.setAccent config (clock.GetUtcNow()) clientId (Some accent)
@@ -88,7 +87,7 @@ let setAccent (clientId: string) : EndpointHandler =
                 else
                     "app-accent-saved"
 
-            return! redirectToCard ctx notice clientId
+            return! redirectToApp ctx notice clientId
         })
 
 // ---------------------------------------------------------------------------
@@ -104,19 +103,19 @@ let setAccent (clientId: string) : EndpointHandler =
 let private RequestLimitBytes = 3145728L
 
 /// Where a refusal that carries a measured value goes: the value in the
-/// single-use cookie (never the query), the notice and the app in the redirect.
+/// single-use cookie (never the query), the notice in the redirect to the app's page.
 let private refuseWith (ctx: HttpContext) (clientId: string) (notice: string) (values: (string * string) list) =
     WebForms.NoticeReason.stash ctx notice "app" clientId (WebForms.NoticeReason.encodePairs values)
-    redirectToCard ctx notice clientId
+    redirectToApp ctx notice clientId
 
 /// What each way a logo can be wrong says, and what it carries.
 let private refusal (ctx: HttpContext) (clientId: string) (uploadedBytes: int64) (error: LogoError) =
     match error with
-    | Empty -> redirectToCard ctx "app-logo-missing" clientId
-    | NotPng -> redirectToCard ctx "app-logo-not-png" clientId
+    | Empty -> redirectToApp ctx "app-logo-missing" clientId
+    | NotPng -> redirectToApp ctx "app-logo-not-png" clientId
     | Corrupt
-    | UnsupportedChunk _ -> redirectToCard ctx "app-logo-corrupt" clientId
-    | Interlaced -> redirectToCard ctx "app-logo-interlaced" clientId
+    | UnsupportedChunk _ -> redirectToApp ctx "app-logo-corrupt" clientId
+    | Interlaced -> redirectToApp ctx "app-logo-interlaced" clientId
     | TooSmall(width, height) ->
         refuseWith ctx clientId "app-logo-too-small" [ "width", string width; "height", string height ]
     | TooBig(width, height) ->
@@ -178,7 +177,7 @@ let setLogo (clientId: string) : EndpointHandler =
                 }
 
             match formRead with
-            | Error() -> return! redirectToCard ctx "app-logo-too-large" clientId
+            | Error() -> return! redirectToApp ctx "app-logo-too-large" clientId
             | Ok form ->
 
             let applications = ctx.GetService<IOpenIddictApplicationManager>()
@@ -189,8 +188,8 @@ let setLogo (clientId: string) : EndpointHandler =
             | _ ->
 
             match form.Files.GetFile "logo" with
-            | null -> return! redirectToCard ctx "app-logo-missing" clientId
-            | file when file.Length = 0L -> return! redirectToCard ctx "app-logo-missing" clientId
+            | null -> return! redirectToApp ctx "app-logo-missing" clientId
+            | file when file.Length = 0L -> return! redirectToApp ctx "app-logo-missing" clientId
             | file ->
 
             // One byte over the limit, so a file over it is seen to be over
@@ -203,7 +202,7 @@ let setLogo (clientId: string) : EndpointHandler =
 
             do! BrandingStore.setLogo config (clock.GetUtcNow()) clientId logo
             do! recordChange ctx clientId "branding_logo_set"
-            return! redirectToCard ctx "app-logo-saved" clientId
+            return! redirectToApp ctx "app-logo-saved" clientId
         })
 
 /// Remove an app's logo. The row stays while an accent is set and goes
@@ -233,7 +232,7 @@ let removeLogo (clientId: string) : EndpointHandler =
             if removed then
                 do! recordChange ctx clientId "branding_logo_removed"
 
-            return! redirectToCard ctx "app-logo-removed" clientId
+            return! redirectToApp ctx "app-logo-removed" clientId
         })
 
 let endpoint =

@@ -33,7 +33,7 @@ let handler (clientId: string) : EndpointHandler =
                 // rotate. The screen does not offer this button for one, but
                 // the route is reachable directly, so refuse rather than mint
                 // a secret OpenIddict would then ignore.
-                return! WebForms.redirectWithNotice ctx "/admin/apps" "app-no-secret"
+                return! WebForms.redirectWithNotice ctx (Apps.detailPath clientId) "app-no-secret"
             else
 
             let newSecret = Umbral.Domains.Ids.newClientSecret ()
@@ -53,11 +53,11 @@ let handler (clientId: string) : EndpointHandler =
                         RemoteIp = remoteIp }
 
             // Same single-use reveal mechanism as creation: stashed in memory,
-            // consumed by the very next GET /admin/apps, through the cookie.
+            // consumed by the next GET of this app's page, through the cookie.
             Apps.SecretReveal.stash ctx clientId newSecret
 
             return!
-                WebForms.redirectWithNotice ctx "/admin/apps" "app-secret-regenerated"
+                WebForms.redirectWithNotice ctx (Apps.detailPath clientId) "app-secret-regenerated"
         })
 
 let endpoint = POST [ routef "/admin/apps/{%s}/secret" handler ]

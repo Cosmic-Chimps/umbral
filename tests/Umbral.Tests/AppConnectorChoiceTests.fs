@@ -62,12 +62,14 @@ let private pickerFor (clientId: string) =
 
 let private authorize (clientId: string) = Journeys.authorizeUrl clientId "openid"
 
-/// The part of the Apps screen that belongs to one app: from its row to the next.
+/// The part of an app's page that belongs to it: its pane, which is all a detail page shows.
 let private rowOf (html: string) (clientId: string) =
     let start = html.IndexOf($"data-app=\"{clientId}\"")
-    Assert.True(start >= 0, $"no row for app {clientId}")
-    let next = html.IndexOf("<article", start)
-    if next < 0 then html.Substring start else html.Substring(start, next - start)
+    Assert.True(start >= 0, $"no pane for app {clientId}")
+    html.Substring start
+
+/// An app's page: the choice is read where the operator sees it, in that app's pane.
+let private paneOf (operator: Browser) (clientId: string) = operator.GetHtml $"/admin/apps/{clientId}"
 
 let private choiceOf (html: string) (clientId: string) =
     Regex.Match(rowOf html clientId, "data-app-choice=\"([^\"]*)\"").Groups[1].Value
@@ -173,25 +175,26 @@ let ``a session through a connector the app offers is honoured`` () =
     }
 
 [<Fact>]
-let ``the Apps screen saves both choices and shows them`` () =
+let ``an app's pane saves both choices and shows them`` () =
     task {
         let! app, operator, idA, idB = twoAppsTwoConnectors ()
         use _ = app
 
-        let! initial = operator.GetHtml "/admin/apps"
+        let! initial = paneOf operator idA
         Assert.Equal("all-shared", choiceOf initial idA)
         Assert.Empty(membersOf initial idA)
 
         let! _ = setChoice operator idA "" (chosen [ "discord"; "fake" ])
-        let! limited = operator.GetHtml "/admin/apps"
+        let! limited = paneOf operator idA
+        let! limitedB = paneOf operator idB
         Assert.Equal("chosen", choiceOf limited idA)
         Assert.Equal<string list>([ "discord"; "fake" ], membersOf limited idA)
-        Assert.Equal("all-shared", choiceOf limited idB)
+        Assert.Equal("all-shared", choiceOf limitedB idB)
 
         // Back to all shared: `connectorChoice` absent means the default.
         let! back = setChoice operator idA "" []
         Assert.Contains("app-connectors-saved", location back)
-        let! widened = operator.GetHtml "/admin/apps"
+        let! widened = paneOf operator idA
         Assert.Equal("all-shared", choiceOf widened idA)
         Assert.Empty(membersOf widened idA)
 
@@ -205,7 +208,7 @@ let ``the create form carries the choice fields and the app is created with its 
         let! app, operator, _, _ = twoAppsTwoConnectors ()
         use _ = app
 
-        let! html = operator.GetHtml "/admin/apps"
+        let! html = operator.GetHtml "/admin/apps/new"
         Assert.Contains("name=\"connectorChoice\"", html)
         Assert.Contains("value=\"all-shared\"", html)
         Assert.Contains("value=\"chosen\"", html)
@@ -226,13 +229,13 @@ let ``the create form carries the choice fields and the app is created with its 
         let! clientId = scalar app "SELECT client_id FROM app_connector_choices" []
         Assert.NotEqual<string>("", clientId)
 
-        let! screen = operator.GetHtml "/admin/apps"
+        let! screen = paneOf operator clientId
         Assert.Equal("chosen", choiceOf screen clientId)
         Assert.Equal<string list>([ "discord" ], membersOf screen clientId)
 
         // A plain create, with no choice field posted, is "all shared".
         let! plain, _ = registerApp operator "Plain"
-        let! all = operator.GetHtml "/admin/apps"
+        let! all = paneOf operator plain
         Assert.Equal("all-shared", choiceOf all plain)
     }
 
@@ -275,7 +278,7 @@ let ``an empty chosen set warns, naming the app, and saves only once confirmed``
         let! warned = setChoice operator idA "" (chosen [])
         let back = location warned
         Assert.Contains("app-connectors-strand", back)
-        Assert.Contains("app=" + idA, back)
+        Assert.StartsWith($"/admin/apps/{idA}?", back)
 
         // Nothing changed, and the screen names the app and offers the way on.
         let! rows = scalar app "SELECT count(*) FROM app_connector_choices" []
@@ -290,7 +293,7 @@ let ``an empty chosen set warns, naming the app, and saves only once confirmed``
         let! confirmed = setChoice operator idA "?confirm=yes" (chosen [])
         Assert.Contains("app-connectors-saved", location confirmed)
 
-        let! after = operator.GetHtml "/admin/apps"
+        let! after = paneOf operator idA
         Assert.Equal("chosen", choiceOf after idA)
         Assert.Empty(membersOf after idA)
 

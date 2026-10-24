@@ -77,6 +77,26 @@
   .um-btn-danger { @apply bg-error text-on-error; }
   .um-btn-sm { @apply h-9 px-3.5 text-label-md; }
   .um-label { @apply block text-label-sm uppercase text-on-surface-variant mb-1.5; }
+  /* The title of a section inside a card ("Sign-in page branding"): a step above
+     the field labels it groups, and below the card's own headline-md title. */
+  .um-section-title { @apply mb-3 text-body-lg font-semibold text-on-surface; }
+  /* The list and detail frame (Apps, Connectors): one column below 1024px, where the
+     rail already takes a column; a 320px list and the pane from lg. */
+  .um-frame { @apply grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start; }
+  .um-frame-list-head { @apply mb-3 flex min-h-11 items-center justify-between gap-3; }
+  /* A list entry is drawn like a rail entry, so the two columns read as one navigation. */
+  .um-entry { @apply flex min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-on-surface-variant; }
+  .um-entry:hover { @apply bg-surface-container text-on-surface; }
+  .um-entry[aria-current="page"], .um-entry[aria-current="page"]:hover { @apply bg-surface-container-high; }
+  .um-entry-title { @apply block text-body-md font-medium text-on-surface [overflow-wrap:anywhere]; }
+  .um-entry[aria-current="page"] .um-entry-title { @apply font-semibold text-primary; }
+  .um-entry-sub { @apply block text-label-md text-on-surface-variant [overflow-wrap:anywhere]; }
+  /* A pane's sections: a 40% hairline, 24px above, 20px below. */
+  .um-pane-section { @apply mt-6 border-t border-outline-variant/40 pt-5; }
+  /* The pane's closing action row: the item's state and lifetime actions. */
+  .um-pane-actions { @apply mt-6 flex flex-wrap items-center gap-2 border-t border-outline-variant/40 pt-5; }
+  /* The create button while its form is the pane: pressed, so drawn as selected. */
+  .um-btn-primary[aria-current="page"] { @apply bg-surface-container-high text-primary; }
   .um-input { @apply w-full h-11 rounded-md bg-surface-container border border-outline px-3.5 text-body-md text-on-surface placeholder:text-on-surface-variant; }
   .um-input:focus { @apply border-primary outline-none; }
   .um-input[aria-invalid="true"] { @apply border-error; }
@@ -119,18 +139,10 @@
   .um-or { @apply flex items-center gap-3 text-label-md text-on-surface-variant; }
   .um-or::before, .um-or::after { content: ""; flex: 1 1 0%; border-top: 1px solid var(--color-outline-variant); }
   .um-link { @apply text-primary underline decoration-primary/40 hover:decoration-primary; }
-  /* The Create app dialog (`<dialog>`, opened by umbral.js with showModal()). The
-     browser centres a modal dialog and traps focus in it; this only dresses it. */
-  .um-dialog { @apply w-[calc(100%-2rem)] max-w-2xl rounded-xl bg-surface-container-low p-6 text-on-surface md:p-8; border: var(--border-micro); max-height: calc(100dvh - 2rem); overflow-y: auto; }
-  .um-dialog::backdrop { background: rgb(5 5 10 / 0.74); }
   .um-icon { display: inline-block; flex: none; width: 1.25em; height: 1.25em; vertical-align: -0.25em; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .um-btn, .um-input, .um-link, .um-choice, .um-check { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .um-dialog[open] { animation: um-dialog-in 160ms ease-out; }
-  @keyframes um-dialog-in { from { opacity: 0; transform: translateY(8px); } }
 }
 @supports selector(:has(*)) {
   .um-choice-radio:focus-visible { outline: none; }

@@ -10,6 +10,19 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+### Changed
+- The **Apps** screen is a list and a detail pane: the apps are listed by name on the left, and
+  the selected one's connection details, sign-in methods, branding and actions are on the right
+  (one column below 1024px, with a link back to the list). Each app has its own address,
+  `/admin/apps/<client id>`, where every change to it lands, its notice and a new secret included;
+  **Create app** opens its form in the pane at `/admin/apps/new` instead of a dialog. Long redirect
+  URIs now wrap instead of running past the screen on a phone.
+
+### Fixed
+- An app card's **Sign-in page branding** heading now reads as the title of its section rather than
+  a third field label beside **Logo** and **Accent colour**, and **Regenerate secret** and **Delete
+  app** sit behind a hairline that closes the card, instead of hanging under the accent form.
+
 ## 0.4.0 - 2026-10-22
 
 ### Fixed

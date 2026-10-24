@@ -130,11 +130,6 @@ components:
     backgroundColor: "{colors.ink-low}"
     rounded: "{rounded.lg}"
     padding: "24px"
-  dialog:
-    backgroundColor: "{colors.ink-low}"
-    textColor: "{colors.bone}"
-    rounded: "{rounded.md}"
-    padding: "24px"
   pill:
     typography: "{typography.label-md}"
     rounded: "{rounded.full}"
@@ -142,6 +137,9 @@ components:
   label:
     textColor: "{colors.bone-muted}"
     typography: "{typography.label-sm}"
+  section-title:
+    textColor: "{colors.bone}"
+    typography: "{typography.body-lg}"
   rail-entry-current:
     backgroundColor: "{colors.ink-high}"
     textColor: "{colors.corona-gold}"
@@ -211,10 +209,10 @@ Ink and bone with a corona of gold; by day, paper and ink with a darker gold.
 - **Ink** (#0b0b14) / **Paper** (#f4f1ea): the page (`surface`).
 - **Five tonal steps** (`surface-container-lowest` to `-highest`): dark
   #07070e, #14141f, #181826, #1d1d2b, #26263a; light #ebe5d8, #fffdf8,
-  #faf7f0, #ebe5d8, #e3ddd0. Cards sit on `-low`, inputs and the dialog on
-  `-container` and `-low`, hovered and current things on `-high` and
-  `-highest`. In the light theme the lowest step is darker than the page, the
-  low step lighter, so a card on paper is a sheet of brighter paper.
+  #faf7f0, #ebe5d8, #e3ddd0. Cards sit on `-low`, inputs on `-container`,
+  hovered and current things on `-high` and `-highest`. In the light theme the
+  lowest step is darker than the page, the low step lighter, so a card on
+  paper is a sheet of brighter paper.
 - **Bone** (#ece8df dark, #17151f light): text (`on-surface`).
 - **Bone, muted** (#a7a2b6 dark, #5f5a6b light): secondary text, labels,
   hints, ghost buttons (`on-surface-variant`; also `secondary`).
@@ -280,13 +278,14 @@ load a font from anywhere else.
   use the display face.
 - **Headline medium** (600, 20px/28px, -0.01em): a card's title in the text
   face.
-- **Body large** (400, 16px/24px): the page's base size.
+- **Body large** (400, 16px/24px): the page's base size; at 600 in bone, the
+  title of a section inside a card, `.um-section-title`.
 - **Body medium** (400, 14px/20px): most interface text, buttons, inputs, leads.
   Leads keep to `max-w-prose`.
 - **Label medium** (600, 13px/18px, +0.01em): small buttons, hints (at 400),
   pills, field errors, the theme control's label.
-- **Label small** (700, 11px/14px, +0.06em, uppercase): the field and section
-  label, `.um-label`.
+- **Label small** (700, 11px/14px, +0.06em, uppercase): the field label,
+  `.um-label`.
 - **Mono** (`.um-mono`, 400 or 500): client IDs, URLs, secrets, tokens, hashes.
 
 ### Named Rules
@@ -335,8 +334,7 @@ shadow at rest: the card is the low step with a hairline, the input the
 container step with a full outline, a hovered rail entry or secondary button
 one step higher. Two shadow tokens exist (`--shadow-level-1`, `0 1px 2px 0
 rgb(0 0 0 / 0.4)`; `--shadow-level-2`, `0 10px 28px -8px rgb(0 0 0 / 0.55)`)
-and are reserved for things that float; today nothing uses them, and the modal
-dialog floats on a near-opaque backdrop (`rgb(5 5 10 / 0.74)`) instead. The
+and are reserved for things that float; today nothing uses them. The
 name bar on a rail-less page is the one translucent surface
 (`bg-surface/90` with `backdrop-blur-md`).
 
@@ -352,7 +350,7 @@ footer. Thicker lines appear only as the 2px focus ring and the 2px crop box.
 
 Softly rounded, with the pill as the signature. Buttons, pills, the theme
 control's track and its options, the radio and the crop handles are fully
-round (9999px). Inputs, choice cards, the rail's entries and the dialog are
+round (9999px). Inputs, choice cards, the rail's entries and the list's entries are
 12px (`rounded-md`, or Tailwind's default `rounded-xl`, the same value); cards
 are 16px (`rounded-lg`). Alerts are 8px, the focus ring and the check box 4px.
 Nothing is square. Borders are
@@ -403,14 +401,25 @@ one gold element on a surface is the one to use.
 - **Background:** the low tonal step.
 - **Shadow Strategy:** none; a hairline (`--border-micro`).
 - **Internal Padding:** 24px, 32px from 768px.
-- **Sections inside a card** are separated by a 40% hairline top border with
-  16px above, headed by a `.um-label`.
+- **Sections inside a card or a pane** are separated by a 40% hairline top
+  border with 24px above and 20px below, headed by a `.um-section-title`
+  (body large at 600, 12px below). A pane's closing action row (Regenerate
+  secret, Delete app) gets the same hairline and 24px above it.
 
-### Dialog
-The Create app dialog: a native `<dialog>` opened with `showModal()`, 12px
-radius, the low step with a hairline, 24px padding (32px from 768px), at most
-672px wide, scrolling inside past the viewport, over a near-opaque ink
-backdrop, entering with a 160ms fade and 8px rise unless motion is reduced.
+### List and detail
+The frame for the screens whose items are not cards one under another (Apps,
+later Connectors). From 1024px, a 320px list and the pane fill the page
+column, 32px apart; below it, one column: the list URL shows the list, an
+item's URL shows the pane with a ghost back link (chevron and screen name).
+The list is a `nav` of entries drawn like the rail's: 44px tall, 12px radius,
+14px by 10px padding, 4px apart, the name in body medium at 500 over a muted
+label-medium line, at most one status marker at the right. Hover takes the
+container step; the selected entry the high step with its name in gold at 600
+and `aria-current="page"`. The create button sits in the list's heading row
+beside the count, and is drawn as selected while its form is the pane. The
+pane is a `section` on the page surface, not a card: the item's name as
+headline large with its pills, then notices, then sections, then the closing
+action row. Focus goes to the pane's heading after an htmx swap.
 
 ### Alerts
 An 8px rounded block, 16px padding, body medium, icon and text 12px

@@ -84,6 +84,10 @@ type Texts =
       AppsNeedConnectorBody: string
       AppsEmptyTitle: string
       AppsEmptyBody: string
+      AppsListLabel: string
+      AppsCount: int -> string
+      AppsUnrestrictedMarker: string
+      AppConnectionTitle: string
       AppNameLabel: string
       AppRedirectUriLabel: string
       AppRedirectUriHint: string
@@ -604,7 +608,7 @@ let private noticeEn (code: string) : string option =
     | "app-redirect-uri-invalid" ->
         Some "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
     | "app-type-invalid" -> Some "Choose an app type, then save again."
-    | "app-not-found" -> Some "That app no longer exists. Choose one from the list below, or register it again."
+    | "app-not-found" -> Some "That app no longer exists. Choose one from the list, or register it again."
     | "app-no-secret" ->
         Some "Single-page and native apps have no secret to replace — they use PKCE instead. If sign-in fails for this app, check that it sends a PKCE challenge."
     | "user-not-found" -> Some "That user no longer exists. Choose one from the list below."
@@ -809,6 +813,10 @@ let en: Texts =
       AppsNeedConnectorBody = "An app needs at least one enabled connector so people have a way to sign in. Go to Connectors and set one up."
       AppsEmptyTitle = "No apps yet"
       AppsEmptyBody = "Register your first app to get an issuer URL, a client ID and a client secret."
+      AppsListLabel = "Apps list"
+      AppsCount = fun n -> if n = 1 then "1 app" else $"{n} apps"
+      AppsUnrestrictedMarker = "Check sign-in methods"
+      AppConnectionTitle = "Connection"
       AppNameLabel = "Name"
       AppRedirectUriLabel = "Redirect URI"
       AppRedirectUriHint = "The exact, absolute callback URL the app expects — no wildcards."

@@ -28,33 +28,6 @@ document.addEventListener('click', function (event) {
   });
 });
 
-// Dialogs. An `a[data-dialog="<id>"]` is a link first (the Create app link goes to
-// its own page) and opens the `<dialog id="<id>">` on the same page when the
-// browser can (`showModal`), instead of following the link. A click with a
-// modifier key, or not the primary button, is left alone: that is someone opening
-// the link in a new tab. `[data-dialog-close]` closes the dialog it sits in; the
-// Escape key already does, natively. Without this script the link is followed.
-document.addEventListener('click', function (event) {
-  if (!(event.target instanceof Element)) return;
-
-  var opener = event.target.closest('a[data-dialog]');
-  if (opener) {
-    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    var dialog = document.getElementById(opener.getAttribute('data-dialog'));
-    if (dialog && typeof dialog.showModal === 'function') {
-      event.preventDefault();
-      if (!dialog.open) dialog.showModal();
-    }
-    return;
-  }
-
-  var closer = event.target.closest('[data-dialog-close]');
-  if (closer) {
-    var open = closer.closest('dialog');
-    if (open && typeof open.close === 'function') open.close();
-  }
-});
-
 // A native confirm() on every form carrying `data-confirm`, so a destructive
 // action names what breaks before it goes through. Both listeners use the
 // capture phase on the document, which runs before any listener htmx attaches
@@ -143,6 +116,31 @@ if (document.readyState === 'loading') {
 } else {
   startAccentForms();
 }
+
+// The list and detail frame (`Components.frame`). A frame link swaps the frame in
+// place with htmx; the new pane has accent forms the first load never saw, so they
+// start again, and keyboard focus goes to the pane's heading (the item the person
+// chose), or to the list on a narrow screen where the pane is hidden. The click is
+// recorded rather than read from the event's detail, so a swap that something else
+// started (a form, a poll) leaves focus where it is.
+var frameClick = false;
+
+document.addEventListener('click', function (event) {
+  frameClick = event.target instanceof Element && event.target.closest('[data-frame-nav]') !== null;
+});
+
+document.addEventListener('htmx:after:swap', function () {
+  startAccentForms();
+  if (!frameClick) return;
+  frameClick = false;
+  var heading = document.querySelector('[data-frame] [data-pane-heading]');
+  if (heading && heading.offsetParent !== null) {
+    heading.focus({ preventScroll: false });
+    return;
+  }
+  var first = document.querySelector('[data-frame] .um-entry');
+  if (first) first.focus();
+});
 
 document.addEventListener('input', function (event) {
   if (!(event.target instanceof Element)) return;
