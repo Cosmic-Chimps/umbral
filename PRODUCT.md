@@ -11,9 +11,9 @@ web
 **Primary: the operator.** An indie developer, homelabber or maintainer of a
 small community who runs Umbral on modest hardware (a Raspberry Pi is enough)
 to sign people into several of their own apps. They meet Umbral in the
-first-run setup, the operator sign-in, and the four operator screens: Apps,
-Connectors, Users and Credential. Design work puts their experience first
-(confirmed 2026-10-22).
+first-run setup, the operator sign-in, the three operator screens, Apps,
+Connectors and Users, and the Credential page. Design work puts their
+experience first (confirmed 2026-10-22).
 
 **Secondary: the people who sign in.** Members of the operator's apps, often
 non-technical friends, family or community members. They see the end-user
@@ -100,11 +100,11 @@ product that offers those cannot truthfully claim this simplicity.
 - Pages: first-run setup, operator sign-in, Apps (with app detail and
   branding), Connectors, Users, Credential, the end-user sign-in page, the
   home page, `/account/passkeys`, and message or error pages. The operator
-  screens have a side rail with the four screens and Sign out; the end-user
-  pages have a name bar and a footer instead.
+  screens have a side rail with the three screens, Apps, Connectors and
+  Users, the Credential page, and Sign out; the end-user pages have a name
+  bar and a footer instead.
 - The sign-in page remembers the way in, not the person: the last connector
-  used in that browser comes first with a "Last used" badge (unreleased, on
-  `main` as of 2026-10-22).
+  used in that browser comes first with a "Last used" badge (since 0.3.0).
 - Theme follows the system by default; a person can choose System, Light or
   Dark, remembered by a cookie in that browser only.
 
