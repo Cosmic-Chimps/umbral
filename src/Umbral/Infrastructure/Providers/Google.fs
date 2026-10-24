@@ -253,7 +253,9 @@ type GoogleAdapter(httpClient: HttpClient) =
                                                       Email = info.Email
                                                       EmailVerified = info.EmailVerified
                                                       DisplayName = info.Name
-                                                      AvatarUrl = info.Picture }
+                                                      AvatarUrl = info.Picture
+                                                      Username = None
+                                                      ProfileUrl = None }
                 with
                 | :? OperationCanceledException -> return Error(ProviderUnreachable "timed out")
                 | :? HttpRequestException as ex -> return Error(ProviderUnreachable ex.Message)

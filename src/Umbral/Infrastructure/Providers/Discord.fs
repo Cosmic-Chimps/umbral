@@ -154,7 +154,9 @@ let private fetchProfile (http: HttpClient) (accessToken: string) : Task<Result<
                           Email = email
                           EmailVerified = email.IsSome && verified
                           DisplayName = globalName |> Option.orElse username
-                          AvatarUrl = Some(avatarUrl subject discriminator avatar) }
+                          AvatarUrl = Some(avatarUrl subject discriminator avatar)
+                          Username = None
+                          ProfileUrl = None }
     }
 
 type DiscordAdapter(httpClient: HttpClient) =

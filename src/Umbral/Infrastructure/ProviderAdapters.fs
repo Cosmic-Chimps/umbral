@@ -30,7 +30,13 @@ type ProviderProfile =
       DisplayName: string option
       /// Fully composed, never a raw hash — Discord returns an avatar hash that
       /// has to be assembled into a CDN URL.
-      AvatarUrl: string option }
+      AvatarUrl: string option
+      /// The `user@server` handle. Only the fediverse sets it; it becomes the
+      /// `preferred_username` claim.
+      Username: string option
+      /// The account's https page. Only the fediverse sets it; it becomes the
+      /// `profile` claim.
+      ProfileUrl: string option }
 
 type ConnectorError =
     /// The person pressed cancel. Not an error worth alarming anyone about.

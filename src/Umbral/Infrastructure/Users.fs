@@ -20,6 +20,8 @@ type User =
       Email: string option
       EmailVerified: bool
       AvatarUrl: string option
+      PreferredUsername: string option
+      ProfileUrl: string option
       IsEnabled: bool
       FirstSeenUtc: DateTimeOffset
       LastSeenUtc: DateTimeOffset }
@@ -35,11 +37,14 @@ let private readUser (reader: SqliteDataReader) =
       AvatarUrl = readOptionalString reader 4
       IsEnabled = reader.GetInt32 5 = 1
       FirstSeenUtc = DateTimeOffset.Parse(reader.GetString 6, Globalization.CultureInfo.InvariantCulture)
-      LastSeenUtc = DateTimeOffset.Parse(reader.GetString 7, Globalization.CultureInfo.InvariantCulture) }
+      LastSeenUtc = DateTimeOffset.Parse(reader.GetString 7, Globalization.CultureInfo.InvariantCulture)
+      PreferredUsername = readOptionalString reader 8
+      ProfileUrl = readOptionalString reader 9 }
 
 [<Literal>]
 let private SelectColumns =
-    "SELECT id, display_name, email, email_verified, avatar_url, is_enabled, first_seen_utc, last_seen_utc FROM users"
+    "SELECT id, display_name, email, email_verified, avatar_url, is_enabled, first_seen_utc, last_seen_utc,
+            preferred_username, profile_url FROM users"
 
 let findById (config: Database.DbConfig) (id: string) : Task<User option> =
     task {
@@ -62,8 +67,9 @@ let insertForTesting (config: Database.DbConfig) (clock: TimeProvider) (user: Us
         use command = connection.CreateCommand()
 
         command.CommandText <-
-            "INSERT INTO users (id, display_name, email, email_verified, avatar_url, is_enabled, first_seen_utc, last_seen_utc)
-             VALUES (@id, @name, @email, @verified, @avatar, @enabled, @first, @last)"
+            "INSERT INTO users (id, display_name, email, email_verified, avatar_url, is_enabled, first_seen_utc, last_seen_utc,
+                                preferred_username, profile_url)
+             VALUES (@id, @name, @email, @verified, @avatar, @enabled, @first, @last, @username, @profile)"
 
         let now = clock.GetUtcNow().ToString "o"
         let optional (v: string option) : obj = match v with Some s -> s :> obj | None -> DBNull.Value :> obj
@@ -73,6 +79,8 @@ let insertForTesting (config: Database.DbConfig) (clock: TimeProvider) (user: Us
         command.Parameters.AddWithValue("@email", optional user.Email) |> ignore
         command.Parameters.AddWithValue("@verified", (if user.EmailVerified then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@avatar", optional user.AvatarUrl) |> ignore
+        command.Parameters.AddWithValue("@username", optional user.PreferredUsername) |> ignore
+        command.Parameters.AddWithValue("@profile", optional user.ProfileUrl) |> ignore
         command.Parameters.AddWithValue("@enabled", (if user.IsEnabled then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@first", now) |> ignore
         command.Parameters.AddWithValue("@last", now) |> ignore

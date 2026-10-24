@@ -113,6 +113,30 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T16:39:14.524Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T006",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:45:28.995Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T007",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:45:29.087Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T008",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:45:29.176Z"
     }
   ],
   "unattended": true,
@@ -370,7 +394,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T005",
+  "currentTask": "T008",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -414,6 +438,32 @@
       "files": [
         "tests/Umbral.Tests/FediverseDomainTests.fs",
         "tests/Umbral.Tests/Umbral.Tests.fsproj"
+      ]
+    },
+    "T006": {
+      "status": "DONE",
+      "did": "Schema version 7: fediverse columns on connectors, profile columns on users, fediverse_servers table, UpgradeToVersion7",
+      "files": [
+        "src/Umbral/Infrastructure/Database.fs",
+        "tests/Umbral.Tests/DatabaseTests.fs"
+      ]
+    },
+    "T007": {
+      "status": "DONE",
+      "did": "ConnectorStore reads and writes fediverse scope and servers; setFediverseAccess",
+      "files": [
+        "src/Umbral/Infrastructure/ConnectorStore.fs"
+      ]
+    },
+    "T008": {
+      "status": "DONE",
+      "did": "ProviderProfile Username and ProfileUrl, User PreferredUsername and ProfileUrl, UserStore writes and refreshes them",
+      "files": [
+        "src/Umbral/Infrastructure/ProviderAdapters.fs",
+        "src/Umbral/Infrastructure/Users.fs",
+        "src/Umbral/Infrastructure/UserStore.fs",
+        "src/Umbral/Handlers/Admin/Users.fs",
+        "src/Umbral/Infrastructure/Providers/*.fs"
       ]
     }
   }

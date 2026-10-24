@@ -454,7 +454,9 @@ type OidcAdapter(httpClient: HttpClient, discovery: OidcDiscovery, time: TimePro
                                   Email = identity.Email
                                   EmailVerified = identity.EmailVerified
                                   DisplayName = identity.Name
-                                  AvatarUrl = identity.Picture }
+                                  AvatarUrl = identity.Picture
+                                  Username = None
+                                  ProfileUrl = None }
                 with
                 | :? OperationCanceledException -> return Error(ProviderUnreachable "timed out")
                 | :? HttpRequestException as ex -> return Error(ProviderUnreachable ex.Message)

@@ -31,7 +31,9 @@ let private profile subject email verified =
       Email = email
       EmailVerified = verified
       DisplayName = Some "Sam Rivera"
-      AvatarUrl = None }
+      AvatarUrl = None
+      Username = None
+      ProfileUrl = None }
 
 [<Fact>]
 let ``a first sign-in creates a user and a link`` () =

@@ -262,6 +262,8 @@ let ``every admin screen is self-contained, and its confirmations are data attri
                   Email = Some "alex@example.com"
                   EmailVerified = true
                   AvatarUrl = None
+                  PreferredUsername = None
+                  ProfileUrl = None
                   IsEnabled = true
                   FirstSeenUtc = app.Clock.GetUtcNow()
                   LastSeenUtc = app.Clock.GetUtcNow() }

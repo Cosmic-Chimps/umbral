@@ -16,7 +16,8 @@ open Umbral.Domains.Passkeys
 [<Literal>]
 let private Columns =
     "SELECT slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
-            is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains, passkey_enrolment FROM connectors"
+            is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains, passkey_enrolment,
+            fediverse_scope, fediverse_servers FROM connectors"
 
 let private readOptional (reader: SqliteDataReader) (ordinal: int) =
     if reader.IsDBNull ordinal then None else Some(reader.GetString ordinal)
@@ -44,7 +45,11 @@ let private read (reader: SqliteDataReader) =
         // A word this build does not know (a hand-edited row) reads as the safe
         // mode: nobody can enrol without an invitation.
         parseEnrolment (reader.GetString 12) |> Option.defaultValue InvitationsOnly
-      FediverseAccess = FediverseAccess.Any
+      FediverseAccess =
+        { // A word this build does not know (a hand-edited row) reads as the
+          // safe mode: only the listed servers can sign in.
+          OnlyListed = Fediverse.parseScope (reader.GetString 13) |> Option.defaultValue true
+          Servers = Fediverse.deserialiseServers (reader.GetString 14) }
       CreatedUtc = DateTimeOffset.Parse(reader.GetString 8, Globalization.CultureInfo.InvariantCulture)
       UpdatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture) }
 
@@ -123,9 +128,9 @@ let save
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
                   is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains,
-                  passkey_enrolment)
+                  passkey_enrolment, fediverse_scope, fediverse_servers)
              VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains,
-                     @enrolment)
+                     @enrolment, @fediScope, @fediServers)
              ON CONFLICT (slug) DO UPDATE SET
                  display_name      = @name,
                  client_id         = @clientId,
@@ -135,6 +140,8 @@ let save
                  is_shared         = @shared,
                  allowed_email_domains = @domains,
                  passkey_enrolment = @enrolment,
+                 fediverse_scope   = @fediScope,
+                 fediverse_servers = @fediServers,
                  updated_utc       = @now"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -148,6 +155,8 @@ let save
         command.Parameters.AddWithValue("@issuer", issuerParameter connector) |> ignore
         command.Parameters.AddWithValue("@domains", EmailDomains.serialise connector.AllowedEmailDomains) |> ignore
         command.Parameters.AddWithValue("@enrolment", connector.PasskeyEnrolment.Value) |> ignore
+        command.Parameters.AddWithValue("@fediScope", Fediverse.scopeValue connector.FediverseAccess) |> ignore
+        command.Parameters.AddWithValue("@fediServers", Fediverse.serialiseServers connector.FediverseAccess.Servers) |> ignore
         command.Parameters.AddWithValue("@now", now) |> ignore
 
         let! _ = command.ExecuteNonQueryAsync()
@@ -193,9 +202,9 @@ let create
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
                   is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains,
-                  passkey_enrolment)
+                  passkey_enrolment, fediverse_scope, fediverse_servers)
              VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains,
-                     @enrolment)
+                     @enrolment, @fediScope, @fediServers)
              ON CONFLICT (slug) DO NOTHING"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -209,6 +218,8 @@ let create
         command.Parameters.AddWithValue("@issuer", issuerParameter connector) |> ignore
         command.Parameters.AddWithValue("@domains", EmailDomains.serialise connector.AllowedEmailDomains) |> ignore
         command.Parameters.AddWithValue("@enrolment", connector.PasskeyEnrolment.Value) |> ignore
+        command.Parameters.AddWithValue("@fediScope", Fediverse.scopeValue connector.FediverseAccess) |> ignore
+        command.Parameters.AddWithValue("@fediServers", Fediverse.serialiseServers connector.FediverseAccess.Servers) |> ignore
         command.Parameters.AddWithValue("@now", now.ToUniversalTime().ToString "o") |> ignore
 
         try
@@ -368,6 +379,32 @@ let setEnrolment
         command.Parameters.AddWithValue("@slug", slug) |> ignore
         let! changed = command.ExecuteNonQueryAsync()
         return changed > 0
+    }
+
+/// Changes who may sign in through the Fediverse connector (specs/010). Its own
+/// statement, as `setEnrolment` is, so the card's save cannot touch a secret the
+/// fediverse kind does not have.
+let setFediverseAccess
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (slug: string)
+    (access: FediverseAccess)
+    : Task<unit> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+
+        command.CommandText <-
+            "UPDATE connectors
+             SET fediverse_scope = @scope, fediverse_servers = @servers, updated_utc = @now
+             WHERE slug = @slug"
+
+        command.Parameters.AddWithValue("@scope", Fediverse.scopeValue access) |> ignore
+        command.Parameters.AddWithValue("@servers", Fediverse.serialiseServers access.Servers) |> ignore
+        command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+        command.Parameters.AddWithValue("@slug", slug) |> ignore
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
     }
 
 /// Deletes the row and hands back the secret reference it held, read by the

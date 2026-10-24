@@ -196,7 +196,9 @@ let private fetchProfile (http: HttpClient) (accessToken: string) : Task<Result<
                           // `login` is mutable and reusable — a display hint
                           // only, never the identity.
                           DisplayName = summary.Name |> Option.orElse summary.Login
-                          AvatarUrl = summary.AvatarUrl }
+                          AvatarUrl = summary.AvatarUrl
+                          Username = None
+                          ProfileUrl = None }
     }
 
 type GitHubAdapter(httpClient: HttpClient) =

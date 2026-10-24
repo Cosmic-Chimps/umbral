@@ -121,8 +121,8 @@ let resolve
 
             insert.CommandText <-
                 "INSERT INTO users (id, display_name, email, email_verified, avatar_url, is_enabled,
-                                    first_seen_utc, last_seen_utc)
-                 VALUES (@id, @name, @email, @verified, @avatar, 1, @now, @now)"
+                                    first_seen_utc, last_seen_utc, preferred_username, profile_url)
+                 VALUES (@id, @name, @email, @verified, @avatar, 1, @now, @now, @username, @profile)"
 
             insert.Parameters.AddWithValue("@id", userId) |> ignore
 
@@ -135,6 +135,8 @@ let resolve
             insert.Parameters.AddWithValue("@email", optional profile.Email) |> ignore
             insert.Parameters.AddWithValue("@verified", (if profile.EmailVerified then 1 else 0)) |> ignore
             insert.Parameters.AddWithValue("@avatar", optional profile.AvatarUrl) |> ignore
+            insert.Parameters.AddWithValue("@username", optional profile.Username) |> ignore
+            insert.Parameters.AddWithValue("@profile", optional profile.ProfileUrl) |> ignore
             insert.Parameters.AddWithValue("@now", nowText) |> ignore
             let! _ = insert.ExecuteNonQueryAsync()
             ()
@@ -151,6 +153,8 @@ let resolve
                 "UPDATE users
                  SET display_name  = COALESCE(@name, display_name),
                      avatar_url    = COALESCE(@avatar, avatar_url),
+                     preferred_username = COALESCE(@username, preferred_username),
+                     profile_url   = COALESCE(@profile, profile_url),
                      email         = COALESCE(email, @email),
                      email_verified= CASE WHEN @verified = 1 THEN 1 ELSE email_verified END,
                      last_seen_utc = @now
@@ -158,6 +162,8 @@ let resolve
 
             update.Parameters.AddWithValue("@name", optional profile.DisplayName) |> ignore
             update.Parameters.AddWithValue("@avatar", optional profile.AvatarUrl) |> ignore
+            update.Parameters.AddWithValue("@username", optional profile.Username) |> ignore
+            update.Parameters.AddWithValue("@profile", optional profile.ProfileUrl) |> ignore
             update.Parameters.AddWithValue("@email", optional profile.Email) |> ignore
             update.Parameters.AddWithValue("@verified", (if profile.EmailVerified then 1 else 0)) |> ignore
             update.Parameters.AddWithValue("@now", nowText) |> ignore

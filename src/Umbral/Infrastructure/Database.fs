@@ -51,7 +51,12 @@ let private schema =
         avatar_url       TEXT        NULL,
         is_enabled       INTEGER NOT NULL DEFAULT 1,
         first_seen_utc   TEXT    NOT NULL,
-        last_seen_utc    TEXT    NOT NULL
+        last_seen_utc    TEXT    NOT NULL,
+        -- Set only for people who sign in through the fediverse (specs/010):
+        -- the `user@server` handle and the account's https page. A database from
+        -- before schema version 7 gets these columns from `upgradeSteps`.
+        preferred_username TEXT      NULL,
+        profile_url        TEXT      NULL
     );
 
     -- The lookup FR-012 performs on every first sign-in from a new provider
@@ -107,7 +112,13 @@ let private schema =
         -- it, `invitations` or `open`. Every other kind keeps the default and
         -- ignores it. A database from before schema version 6 gets this column
         -- from `upgradeSteps`.
-        passkey_enrolment       TEXT    NOT NULL DEFAULT 'invitations'
+        passkey_enrolment       TEXT    NOT NULL DEFAULT 'invitations',
+        -- Only for kind `fediverse` (specs/010): `any` or `listed`, and the
+        -- normalised server hosts joined by one space. Every other kind keeps
+        -- the defaults and ignores them. A database from before schema version
+        -- 7 gets these columns from `upgradeSteps`.
+        fediverse_scope         TEXT    NOT NULL DEFAULT 'any',
+        fediverse_servers       TEXT    NOT NULL DEFAULT ''
     );
 
     -- A marker: one row per app limited to a chosen set. No row means "all
@@ -150,6 +161,21 @@ let private schema =
         updated_at    TEXT NOT NULL,
         CHECK ((logo_png IS NULL) = (logo_sha256 IS NULL)),
         CHECK ((logo_png IS NULL) = (logo_width IS NULL) AND (logo_png IS NULL) = (logo_height IS NULL))
+    );
+
+    -- The OAuth client Umbral registered by itself at each fediverse server
+    -- (specs/010). Belongs to Umbral, not to the connector: deleting the
+    -- connector leaves the rows, and a later set-up reuses them.
+    CREATE TABLE IF NOT EXISTS fediverse_servers (
+        host           TEXT NOT NULL PRIMARY KEY,   -- normalised host, with a port only under the development setting
+        client_id      TEXT NOT NULL,
+        client_secret  TEXT NOT NULL,               -- Data Protection ciphertext, purpose Umbral.FediverseServers.v1
+        authorize_url  TEXT NOT NULL,               -- as the server's metadata says, https
+        token_url      TEXT NOT NULL,               -- as the server's metadata says, https
+        redirect_uri   TEXT NOT NULL,               -- the callback address this registration was made with
+        registered_utc TEXT NOT NULL,
+        checked_utc    TEXT     NULL,               -- last time the registration was proved to still work
+        last_used_utc  TEXT     NULL                -- last sign-in through this server
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -243,7 +269,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 6
+let SchemaVersion = 7
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -333,6 +359,31 @@ let private UpgradeToVersion6 =
          expires_utc    TEXT NOT NULL
      );"
 
+/// Spec 010. Every connector that exists today gets `any` and an empty list
+/// through the column defaults, which only the fediverse kind reads, so nothing
+/// about who can sign in changes on upgrade. Existing users keep NULL for the two
+/// profile columns. The table is the statement `schema` runs (a database from
+/// version 6 already got it from there, because `schema` runs first and the
+/// statement is IF NOT EXISTS); repeating it here keeps the step complete on its
+/// own, as version 4's is. No data is rewritten.
+[<Literal>]
+let private UpgradeToVersion7 =
+    "ALTER TABLE connectors ADD COLUMN fediverse_scope TEXT NOT NULL DEFAULT 'any';
+     ALTER TABLE connectors ADD COLUMN fediverse_servers TEXT NOT NULL DEFAULT '';
+     ALTER TABLE users ADD COLUMN preferred_username TEXT NULL;
+     ALTER TABLE users ADD COLUMN profile_url TEXT NULL;
+     CREATE TABLE IF NOT EXISTS fediverse_servers (
+         host           TEXT NOT NULL PRIMARY KEY,
+         client_id      TEXT NOT NULL,
+         client_secret  TEXT NOT NULL,
+         authorize_url  TEXT NOT NULL,
+         token_url      TEXT NOT NULL,
+         redirect_uri   TEXT NOT NULL,
+         registered_utc TEXT NOT NULL,
+         checked_utc    TEXT     NULL,
+         last_used_utc  TEXT     NULL
+     );"
+
 /// What takes a database from the version before to the version named. Applied
 /// in order, inside `initializeSchema`'s transaction, to a database stamped
 /// lower than `SchemaVersion`; a fresh database skips them, because `schema`
@@ -350,7 +401,8 @@ let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
       3, (fun command -> command.CommandText <- UpgradeToVersion3)
       4, (fun command -> command.CommandText <- UpgradeToVersion4)
       5, (fun command -> command.CommandText <- UpgradeToVersion5)
-      6, (fun command -> command.CommandText <- UpgradeToVersion6) ]
+      6, (fun command -> command.CommandText <- UpgradeToVersion6)
+      7, (fun command -> command.CommandText <- UpgradeToVersion7) ]
 
 let initializeSchema (config: DbConfig) : Task<unit> =
     task {

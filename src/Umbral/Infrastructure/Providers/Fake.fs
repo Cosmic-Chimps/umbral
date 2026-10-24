@@ -97,7 +97,9 @@ type FakeAdapter(protectorProvider: IDataProtectionProvider, gate: FakeGate) =
                                       Email = (if email = "" then None else Some email)
                                       EmailVerified = verified = "True"
                                       DisplayName = (if displayName = "" then None else Some displayName)
-                                      AvatarUrl = None }
+                                      AvatarUrl = None
+                                      Username = None
+                                      ProfileUrl = None }
                         | _ -> return Error(MalformedResponse "the fake code did not decode")
                     with _ ->
                         return Error(MalformedResponse "the fake code could not be decrypted")

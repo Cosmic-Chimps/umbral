@@ -1195,7 +1195,9 @@ let private githubProfile : ProviderAdapters.ProviderProfile =
       Email = Some "jane@example.com"
       EmailVerified = true
       DisplayName = Some "Jane From GitHub"
-      AvatarUrl = None }
+      AvatarUrl = None
+      Username = None
+      ProfileUrl = None }
 
 /// A person who first signed in through GitHub with a verified email.
 let private seedGitHubUser (app: Fixtures.TestApp) =

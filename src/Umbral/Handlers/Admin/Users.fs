@@ -37,7 +37,10 @@ let private readUser (reader: SqliteDataReader) : Umbral.Infrastructure.Users.Us
       AvatarUrl = readOptionalString reader 4
       IsEnabled = reader.GetInt32 5 = 1
       FirstSeenUtc = DateTimeOffset.Parse(reader.GetString 6, Globalization.CultureInfo.InvariantCulture)
-      LastSeenUtc = DateTimeOffset.Parse(reader.GetString 7, Globalization.CultureInfo.InvariantCulture) }
+      LastSeenUtc = DateTimeOffset.Parse(reader.GetString 7, Globalization.CultureInfo.InvariantCulture)
+      // The admin list does not show them, so it does not select them.
+      PreferredUsername = None
+      ProfileUrl = None }
 
 /// Users matching a display-name-or-email search, most recent sign-in first.
 let private search
