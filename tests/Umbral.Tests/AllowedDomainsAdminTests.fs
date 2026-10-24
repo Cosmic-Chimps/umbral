@@ -97,12 +97,12 @@ let private instanceCard (html: string) =
     Assert.True(start >= 0, "the Connectors screen has no instance card")
     html.Substring(start, html.IndexOf("</section>", start) - start)
 
-/// One connector's card: from its marker to the next card or the end of the page.
+/// One connector's pane: from its marker to the end of its section. `html` is
+/// that connector's own page (`/admin/connectors/<slug>`).
 let private cardOf (html: string) (slug: string) =
     let start = html.IndexOf $"data-connector=\"{slug}\""
-    Assert.True(start >= 0, $"no card for {slug}")
-    let next = html.IndexOf("<article", start)
-    let finish = if next < 0 then html.IndexOf("<section", start) else next
+    Assert.True(start >= 0, $"no pane for {slug}")
+    let finish = html.IndexOf("</section>", start)
     if finish < 0 then html.Substring start else html.Substring(start, finish - start)
 
 /// What the first `allowedDomains` input of a fragment holds, decoded.
@@ -151,17 +151,17 @@ let private addFields (slug: string) (typed: string) =
 // ---------------------------------------------------------------------------
 
 [<Fact>]
-let ``the instance card shows the stored list in its Unicode form`` () =
+let ``the instance pane shows the stored list in its Unicode form`` () =
     task {
         let! app, operator = operatorApp ()
         use _ = app
 
-        let! empty = operator.GetHtml "/admin/connectors"
+        let! empty = operator.GetHtml "/admin/connectors/domains"
         Assert.Equal("", fieldValue (instanceCard empty))
 
         do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "xn--mnchen-3ya.de"; "acme.com" ]
 
-        let! screen = operator.GetHtml "/admin/connectors"
+        let! screen = operator.GetHtml "/admin/connectors/domains"
         Assert.Equal("münchen.de, acme.com", fieldValue (instanceCard screen))
         Assert.Contains("name=\"allowedDomains\"", instanceCard screen)
         Assert.Contains("action=\"/admin/allowed-domains\"", instanceCard screen)
@@ -344,35 +344,36 @@ let ``the instance list needs an antiforgery token and the operator`` () =
 // ---------------------------------------------------------------------------
 
 [<Fact>]
-let ``the add form and every card carry the field, the help and the one-app note`` () =
+let ``the add form and every pane carry the field, the help and the one-app note`` () =
     task {
         let! app, operator = operatorApp ()
         use _ = app
 
-        let! none = operator.GetHtml "/admin/connectors"
+        let! adding = operator.GetHtml "/admin/connectors/new"
 
         // The add form, which serves every kind (OpenID Connect included).
-        let addForm = none.Substring(none.IndexOf "data-add-connector-section")
+        let addForm = adding.Substring(adding.IndexOf "data-add-connector-section")
         Assert.Contains("name=\"allowedDomains\"", addForm)
         Assert.Contains("data-note=\"limit-one-app\"", addForm)
 
         // Each card: the field, the help saying there is no instance list, the note.
         for slug in [ "discord"; "github"; "google"; "fake" ] do
-            let card = cardOf none slug
+            let! page = operator.GetHtml $"/admin/connectors/{slug}"
+            let card = cardOf page slug
             Assert.Contains("name=\"allowedDomains\"", card)
             Assert.Contains("data-note=\"limit-one-app\"", card)
             Assert.Contains("none: anyone can sign in", card)
 
         // With an instance list the help names it, in Unicode.
         do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "xn--mnchen-3ya.de" ]
-        let! named = operator.GetHtml "/admin/connectors"
+        let! named = operator.GetHtml "/admin/connectors/github"
         let card = WebUtility.HtmlDecode(cardOf named "github")
         Assert.Contains("münchen.de", card)
         Assert.DoesNotContain("none: anyone can sign in", card)
     }
 
 [<Fact>]
-let ``an OpenID Connect card carries the one-connector-per-issuer note instead`` () =
+let ``an OpenID Connect pane carries the one-connector-per-issuer note instead`` () =
     task {
         let issuer = "https://auth.example.test/application/o/umbral"
         let stub = StubOidcProvider.create issuer
@@ -401,13 +402,14 @@ let ``an OpenID Connect card carries the one-connector-per-issuer note instead``
         let! events = domainEvents app
         Assert.Equal<(string * string * string) list>([ "operator", "home", "count=1" ], events)
 
-        let! screen = operator.GetHtml "/admin/connectors"
+        let! screen = operator.GetHtml "/admin/connectors/home"
         let card = cardOf screen "home"
         Assert.Contains("data-note=\"limit-one-app\"", card)
         Assert.Contains("one connector per issuer", card)
 
         // Built-in kinds keep the general recipe.
-        Assert.DoesNotContain("one connector per issuer", cardOf screen "github")
+        let! github = operator.GetHtml "/admin/connectors/github"
+        Assert.DoesNotContain("one connector per issuer", cardOf github "github")
         Assert.Equal("acme.com", fieldValue card)
     }
 
@@ -533,25 +535,34 @@ let ``a card post without the field keeps the list and an empty field clears it`
     }
 
 [<Fact>]
-let ``each card says which rule applies to it`` () =
+let ``each pane says which rule applies to it`` () =
     task {
         let! app, operator = operatorApp ()
         use _ = app
         do! seedDiscord app true [ "acme.com" ]
 
-        let! open' = operator.GetHtml "/admin/connectors"
-        Assert.Equal("connector", ruleOf (cardOf open' "discord"))
-        Assert.Equal("anyone", ruleOf (cardOf open' "fake"))
-        Assert.Contains("data-rule=\"anyone\"", cardOf open' "github")
+        let paneOf slug =
+            task {
+                let! page = operator.GetHtml $"/admin/connectors/{slug}"
+                return cardOf page slug
+            }
+
+        let! discord = paneOf "discord"
+        let! fake = paneOf "fake"
+        let! github = paneOf "github"
+        Assert.Equal("connector", ruleOf discord)
+        Assert.Equal("anyone", ruleOf fake)
+        Assert.Contains("data-rule=\"anyone\"", github)
 
         do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "example.org" ]
-        let! limited = operator.GetHtml "/admin/connectors"
+        let! discord = paneOf "discord"
+        let! fake = paneOf "fake"
 
         // Its own list replaces the instance's; the others fall back to it.
-        Assert.Equal("connector", ruleOf (cardOf limited "discord"))
-        Assert.Equal("instance", ruleOf (cardOf limited "fake"))
-        Assert.Contains("acme.com", cardOf limited "discord")
-        Assert.Contains("example.org", cardOf limited "fake")
+        Assert.Equal("connector", ruleOf discord)
+        Assert.Equal("instance", ruleOf fake)
+        Assert.Contains("acme.com", discord)
+        Assert.Contains("example.org", fake)
     }
 
 // ---------------------------------------------------------------------------

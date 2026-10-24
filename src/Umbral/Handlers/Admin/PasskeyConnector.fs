@@ -1,7 +1,7 @@
-/// The Passkey card on the Connectors screen and its three routes (specs/008).
+/// The Passkey pane of the Connectors screen and its three routes (specs/008).
 ///
 /// The passkey kind has no client id, no secret and no callback URL, so it has
-/// a card and a save of its own rather than bending the generic ones: the card
+/// a pane and a save of its own rather than bending the generic ones: the pane
 /// chooses who may enrol, and the operator invites people from it.
 module Umbral.Handlers.Admin.PasskeyConnector
 
@@ -15,6 +15,7 @@ open Umbral.Domains
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 open Umbral.Views
+open Umbral.Handlers.Admin.ConnectorPaths
 
 [<Literal>]
 let private Slug = "passkey"
@@ -82,9 +83,10 @@ let private enrolmentRadio (t: Texts.Texts) (checkedValue: string) (value: strin
         p(class' = "um-hint") { hint }
     }
 
-/// The Passkey card. `existing` None is the unconfigured card, whose form
-/// creates the connector with the defaults shown.
-let card
+/// The Passkey pane. `existing` None is the unconfigured kind, whose form
+/// creates the connector with the defaults shown. `notice` is the notice block
+/// the screen builds (it is compiled after this file); it may be empty.
+let pane
     (ctx: HttpContext)
     (t: Texts.Texts)
     (origin: PublicOrigin.PublicOrigin)
@@ -93,6 +95,8 @@ let card
     (existing: Connector option)
     (invitations: PasskeyInvitations.Invitation list)
     (revealedLink: string option)
+    (view: Components.FrameView)
+    (notice: HtmlElement option)
     : HtmlElement =
     let isConfigured = existing.IsSome
     let isEnabled = existing |> Option.exists (fun c -> c.IsEnabled)
@@ -103,175 +107,214 @@ let card
     let confirmed (path: string) = if isLastEnabled then path + "?confirm=yes" else path
 
     let element =
-        article(class' = "um-card space-y-4")
-            .data("connector", Slug)
-            .data("connector-kind", Slug)
-            .data("connector-shared", (if isShared then "shared" else "not-shared"))
+        Components.framePane
+            view
+            "connector-heading"
+            (listPath, t.NavConnectors)
+            [ Components.paneHeading
+                  "connector-heading"
+                  ProviderKind.Passkey.DisplayName
+                  [ if isConfigured then
+                        Components.pill
+                            Components.MutedTone
+                            (if isShared then t.ConnectorSharedBadge else t.ConnectorNotSharedBadge)
 
-    if isConfigured then
-        element.data("connector-state", (if isEnabled then "enabled" else "disabled")) |> ignore
-
-    if offeredNowhere then
-        element.data("offered-nowhere", "") |> ignore
-
-    element {
-        div(class' = "flex items-center justify-between gap-3") {
-            h2(class' = "text-headline-md text-on-surface") { ProviderKind.Passkey.DisplayName }
-
-            div(class' = "flex flex-wrap items-center gap-2") {
-                if isConfigured then
-                    Components.pill
-                        Components.MutedTone
-                        (if isShared then t.ConnectorSharedBadge else t.ConnectorNotSharedBadge)
-
-                    Components.stateBadge isEnabled t.Enabled t.Disabled
-                else
-                    Components.pill Components.MutedTone t.NotConfigured
-            }
-        }
-
-        p(class' = "text-body-md text-on-surface-variant") { t.PasskeyCardLead }
-
-        form(method = "post", action = "/admin/connectors/passkey", class' = "space-y-4") {
-            ctx.GetAntiforgeryInput()
-
-            div(class' = "space-y-1") {
-                label(class' = "um-check-row") {
-                    let box = input(type' = "checkbox", name = "shared", value = "true", class' = "um-check")
-
-                    if isShared then
-                        box.attr("checked", "checked") |> ignore
-
-                    box
-                    span() { t.ConnectorSharedLabel }
-                }
-
-                p(class' = "um-hint") { t.ConnectorSharedHint }
-            }
-
-            fieldset(class' = "space-y-2").data("enrolment", "") {
-                enrolmentRadio t enrolment "invitations" t.PasskeyEnrolmentInvitationsLabel t.PasskeyEnrolmentInvitationsHint
-                enrolmentRadio t enrolment "open" t.PasskeyEnrolmentOpenLabel t.PasskeyEnrolmentOpenHint
-            }
-
-            p(class' = "um-hint").data("rule", "enrolment") { t.PasskeyEnrolmentRule }
-            p(class' = "um-hint").data("origin-bound", "") { t.PasskeyOriginBound origin.Text }
-
-            div(class' = "flex flex-wrap items-center gap-2") {
-                button(type' = "submit", class' = Components.btn Components.Primary) {
-                    Components.icon Theme.CheckCircle
-                    if isConfigured then t.SaveConnector else t.PasskeyEnableButton
-                }
-            }
-        }
-
-        if isConfigured then
-            div(class' = "flex flex-wrap items-center gap-2") {
-                (form(method = "post", action = confirmed "/admin/connectors/passkey/toggle", class' = "inline") {
-                    ctx.GetAntiforgeryInput()
-
-                    button(type' = "submit", class' = Components.btnSm Components.Ghost)
-                        .attr("hx-post", confirmed "/admin/connectors/passkey/toggle")
-                        .attr("hx-target", "closest article")
-                        .attr("hx-swap", "outerHTML") {
-                        Components.icon Theme.Power
-                        if isEnabled then t.Disable else t.Enable
-                    }
-                })
-                |> (if isLastEnabled then Components.confirmSubmit t.ConnectorDisableLastWarning else id)
-
-                (form(method = "post", action = confirmed "/admin/connectors/passkey/delete", class' = "inline") {
-                    ctx.GetAntiforgeryInput()
-
-                    button(type' = "submit", class' = Components.btnSm Components.Danger) {
-                        Components.icon Theme.DeleteForever
-                        t.ConnectorDeleteButton
-                    }
-                })
-                |> Components.confirmSubmit (
-                    if isLastEnabled then
-                        t.ConnectorDeleteLastWarning
+                        Components.stateBadge isEnabled t.Enabled t.Disabled
                     else
-                        t.ConnectorDeleteConfirm ProviderKind.Passkey.DisplayName
-                )
-            }
+                        Components.pill Components.MutedTone t.NotConfigured ]
 
-            form(method = "post", action = "/admin/connectors/passkey/invitations", class' = "space-y-3") {
-                ctx.GetAntiforgeryInput()
+              if isConfigured then
+                  (p(class' = "um-hint um-mono mt-1") { Slug }) :> HtmlElement
 
-                Components.fieldWith
-                    "text"
-                    []
-                    (fun i -> i.attr("maxlength", "64") |> ignore)
-                    t.PasskeyInviteNoteLabel
-                    "note"
-                    ""
-                    (Some t.PasskeyInviteNoteHint)
-                    None
+              // What the screen has to say: the notice, the invitation link
+              // shown once, and why nobody is offered this connector.
+              (if notice.IsSome || revealedLink.IsSome || offeredNowhere then
+                   (div(class' = "mt-6 space-y-3") {
+                       match notice with
+                       | Some block -> block
+                       | None -> Fragment() :> HtmlElement
 
-                button(type' = "submit", class' = Components.btn Components.Secondary) { t.PasskeyInviteButton }
-            }
+                       match revealedLink with
+                       | Some link ->
+                           div(class' = "space-y-1") {
+                               Components.copyField
+                                   t.Copy
+                                   t.Copied
+                                   t.PasskeyInviteButton
+                                   "invitation-link"
+                                   link
+                                   (fun i -> i.data("invitation-link", "") |> ignore)
 
-            match revealedLink with
-            | Some link ->
-                div(class' = "space-y-1") {
-                    Components.copyField
-                        t.Copy
-                        t.Copied
-                        t.PasskeyInviteButton
-                        "invitation-link"
-                        link
-                        (fun i -> i.data("invitation-link", "") |> ignore)
+                               p(class' = "um-hint") { t.PasskeyInvitationLinkNote }
+                           }
+                           :> HtmlElement
+                       | None -> Fragment() :> HtmlElement
 
-                    p(class' = "um-hint") { t.PasskeyInvitationLinkNote }
-                }
-                :> HtmlElement
-            | None -> Fragment() :> HtmlElement
+                       if offeredNowhere then
+                           (div(class' = "um-alert um-alert-warning").attr("role", "note") {
+                               Components.icon Theme.Warning
+                               span() { t.ConnectorOfferedNowhere }
+                           })
+                           :> HtmlElement
+                   })
+                   :> HtmlElement
+               else
+                   Fragment() :> HtmlElement)
 
-            h3(class' = "text-title-md text-on-surface") { t.PasskeyOpenInvitationsHeading }
+              Components.paneSection
+                  t.ConnectorSetupTitle
+                  (div(class' = "space-y-5") {
+                      p(class' = "text-body-md text-on-surface-variant") { t.PasskeyCardLead }
+                      p(class' = "um-hint").data("origin-bound", "") { t.PasskeyOriginBound origin.Text }
+                  })
 
-            if invitations.IsEmpty then
-                p(class' = "um-hint") { t.PasskeyNoOpenInvitations }
-            else
-                ul(class' = "space-y-3") {
-                    for invitation in invitations do
-                        li(class' = "space-y-1").data("invitation", invitation.Id) {
-                            p(class' = "text-body-md text-on-surface") {
-                                if invitation.Note = "" then t.PasskeyInvitationNoNote else invitation.Note
+              Components.paneSection
+                  t.ConnectorSettingsTitle
+                  (form(method = "post", action = "/admin/connectors/passkey", class' = "space-y-3") {
+                      ctx.GetAntiforgeryInput()
+
+                      div(class' = "space-y-1") {
+                          label(class' = "um-check-row") {
+                              let box = input(type' = "checkbox", name = "shared", value = "true", class' = "um-check")
+
+                              if isShared then
+                                  box.attr("checked", "checked") |> ignore
+
+                              box
+                              span() { t.ConnectorSharedLabel }
+                          }
+
+                          p(class' = "um-hint") { t.ConnectorSharedHint }
+                      }
+
+                      fieldset(class' = "space-y-2").data("enrolment", "") {
+                          enrolmentRadio t enrolment "invitations" t.PasskeyEnrolmentInvitationsLabel t.PasskeyEnrolmentInvitationsHint
+                          enrolmentRadio t enrolment "open" t.PasskeyEnrolmentOpenLabel t.PasskeyEnrolmentOpenHint
+                      }
+
+                      p(class' = "um-hint").data("rule", "enrolment") { t.PasskeyEnrolmentRule }
+
+                      div(class' = "flex flex-wrap items-center gap-2") {
+                          button(type' = "submit", class' = Components.btn Components.Primary) {
+                              Components.icon Theme.CheckCircle
+                              if isConfigured then t.SaveConnector else t.PasskeyEnableButton
+                          }
+                      }
+                  })
+
+              if isConfigured then
+                  Components.paneSection
+                      t.PasskeyInvitationsTitle
+                      (div(class' = "space-y-5") {
+                          form(method = "post", action = "/admin/connectors/passkey/invitations", class' = "space-y-3") {
+                              ctx.GetAntiforgeryInput()
+
+                              Components.fieldWith
+                                  "text"
+                                  []
+                                  (fun i -> i.attr("maxlength", "64") |> ignore)
+                                  t.PasskeyInviteNoteLabel
+                                  "note"
+                                  ""
+                                  (Some t.PasskeyInviteNoteHint)
+                                  None
+
+                              button(type' = "submit", class' = Components.btnSm Components.Secondary) {
+                                  t.PasskeyInviteButton
+                              }
+                          }
+
+                          p(class' = "um-label") { t.PasskeyOpenInvitationsHeading }
+
+                          if invitations.IsEmpty then
+                              p(class' = "um-hint") { t.PasskeyNoOpenInvitations }
+                          else
+                              ul(class' = "space-y-3") {
+                                  for invitation in invitations do
+                                      li(class' = "space-y-1").data("invitation", invitation.Id) {
+                                          p(class' = "text-body-md text-on-surface") {
+                                              if invitation.Note = "" then t.PasskeyInvitationNoNote else invitation.Note
+                                          }
+
+                                          p(class' = "um-hint") {
+                                              $"{t.PasskeyInvitationForLabel} "
+
+                                              match invitation.UserId with
+                                              | Some userId ->
+                                                  (span().data("invitation-user", userId) {
+                                                      invitation.UserDisplayName |> Option.defaultValue userId
+                                                  })
+                                                  :> HtmlElement
+                                              | None -> (span() { t.PasskeyInvitationForNew }) :> HtmlElement
+                                          }
+
+                                          p(class' = "um-hint") {
+                                              $"{t.PasskeyInvitationCreatedLabel} {formatTime invitation.CreatedUtc} · {t.PasskeyInvitationExpiresLabel} {formatTime invitation.ExpiresUtc}"
+                                          }
+
+                                          (form(
+                                              method = "post",
+                                              action = $"/admin/connectors/passkey/invitations/{invitation.Id}/revoke",
+                                              class' = "inline"
+                                          ) {
+                                              ctx.GetAntiforgeryInput()
+
+                                              button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                                                  t.PasskeyInvitationRevokeButton
+                                              }
+                                          })
+                                          |> Components.confirmSubmit t.PasskeyInvitationRevokeConfirm
+                                      }
+                              }
+                      })
+
+              if isConfigured then
+                  (Components.paneActions
+                      [ (form(method = "post", action = confirmed "/admin/connectors/passkey/toggle", class' = "inline") {
+                            ctx.GetAntiforgeryInput()
+
+                            button(type' = "submit", class' = Components.btnSm Components.Ghost)
+                                .attr("hx-post", confirmed "/admin/connectors/passkey/toggle")
+                                .attr("hx-target", "[data-frame]")
+                                .attr("hx-select", "[data-frame]")
+                                .attr("hx-swap", "outerHTML") {
+                                Components.icon Theme.Power
+                                if isEnabled then t.Disable else t.Enable
                             }
+                        })
+                        |> (if isLastEnabled then Components.confirmSubmit t.ConnectorDisableLastWarning else id)
+                        :> HtmlElement
 
-                            p(class' = "um-hint") {
-                                $"{t.PasskeyInvitationForLabel} "
+                        (form(method = "post", action = confirmed "/admin/connectors/passkey/delete", class' = "inline") {
+                            ctx.GetAntiforgeryInput()
 
-                                match invitation.UserId with
-                                | Some userId ->
-                                    (span().data("invitation-user", userId) {
-                                        invitation.UserDisplayName |> Option.defaultValue userId
-                                    })
-                                    :> HtmlElement
-                                | None -> (span() { t.PasskeyInvitationForNew }) :> HtmlElement
+                            button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                                Components.icon Theme.DeleteForever
+                                t.ConnectorDeleteButton
                             }
+                        })
+                        |> Components.confirmSubmit (
+                            if isLastEnabled then
+                                t.ConnectorDeleteLastWarning
+                            else
+                                t.ConnectorDeleteConfirm ProviderKind.Passkey.DisplayName
+                        )
+                        :> HtmlElement ])
+                      .data("connector-actions", "")
+                  :> HtmlElement ]
 
-                            p(class' = "um-hint") {
-                                $"{t.PasskeyInvitationCreatedLabel} {formatTime invitation.CreatedUtc} · {t.PasskeyInvitationExpiresLabel} {formatTime invitation.ExpiresUtc}"
-                            }
+    element
+        .data("connector", Slug)
+        .data("connector-kind", Slug)
+        .data("connector-shared", (if isShared then "shared" else "not-shared"))
+    |> fun e ->
+        if isConfigured then
+            e.data("connector-state", (if isEnabled then "enabled" else "disabled")) |> ignore
 
-                            (form(
-                                method = "post",
-                                action = $"/admin/connectors/passkey/invitations/{invitation.Id}/revoke",
-                                class' = "inline"
-                            ) {
-                                ctx.GetAntiforgeryInput()
+        if offeredNowhere then
+            e.data("offered-nowhere", "") |> ignore
 
-                                button(type' = "submit", class' = Components.btnSm Components.Danger) {
-                                    t.PasskeyInvitationRevokeButton
-                                }
-                            })
-                            |> Components.confirmSubmit t.PasskeyInvitationRevokeConfirm
-                        }
-                }
-    }
-    :> HtmlElement
+        e :> HtmlElement
 
 let private record
     (ctx: HttpContext)
@@ -300,7 +343,7 @@ let save: EndpointHandler =
             let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
 
             match Passkeys.parseEnrolment (WebForms.value form "enrolment") with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "passkey-connector-invalid"
+            | None -> return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-connector-invalid"
             | Some enrolment ->
                 let detail = Some $"enrolment={enrolment.Value}"
                 let! existing = ConnectorStore.findBySlug config Slug
@@ -330,9 +373,9 @@ let save: EndpointHandler =
 
                     ignore result
                     do! record ctx SecurityEvents.ConnectorCreated None detail
-                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "passkey-connector-saved"
+                    return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-connector-saved"
                 | Some stored when stored.Kind <> Passkey ->
-                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+                    return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
                 | Some stored ->
                     let! stranded =
                         task {
@@ -353,14 +396,14 @@ let save: EndpointHandler =
                         return!
                             WebForms.redirectWithNoticeAbout
                                 ctx
-                                "/admin/connectors"
+                                (detailPath Slug)
                                 "connector-strands-apps"
                                 [ "slug", Slug; "change", "unshare" ]
                     else
                         let! _ = ConnectorStore.update config clock Slug "Passkey" "" shared None None
                         let! _ = ConnectorStore.setEnrolment config clock Slug enrolment
                         do! record ctx SecurityEvents.ConnectorUpdated None detail
-                        return! WebForms.redirectWithNotice ctx "/admin/connectors" "passkey-connector-saved"
+                        return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-connector-saved"
         })
 
 /// An invitation for a new person. The link goes to the single-use cookie; it
@@ -374,15 +417,15 @@ let invite: EndpointHandler =
             let note = (WebForms.value form "note").Trim()
 
             match! ConnectorStore.findBySlug config Slug with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "passkey-not-enabled"
+            | None -> return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-not-enabled"
             | Some _ when note.Length > 64 ->
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "passkey-invitation-invalid"
+                return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-invitation-invalid"
             | Some _ ->
                 let! _, secret = PasskeyInvitations.create config clock Slug None note
                 let origin = ctx.GetService<PublicOrigin.PublicOrigin>()
                 InviteReveal.stash ctx "connector" (Passkeys.invitationLink origin.Text secret)
                 do! record ctx SecurityEvents.PasskeyInvitationCreated None (Some "for=new")
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "passkey-invitation-created"
+                return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-invitation-created"
         })
 
 /// Revoke an open invitation; one that is not open changes nothing.
@@ -401,9 +444,9 @@ let revoke (id: string) : EndpointHandler =
 
             if revoked then
                 do! record ctx SecurityEvents.PasskeyInvitationRevoked userId None
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "passkey-invitation-revoked"
+                return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-invitation-revoked"
             else
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "passkey-invitation-not-open"
+                return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-invitation-not-open"
         })
 
 let endpoint: Endpoint list =

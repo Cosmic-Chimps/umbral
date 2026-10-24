@@ -15,7 +15,7 @@ change the origin later, update Discord too.
 
 ## 1. Get the redirect URI from Umbral
 
-Open **Connectors** in the admin area and look at the **Discord** card. The
+Open **Connectors** in the admin area and choose **Discord** in the list. The
 field **Redirect URI to register with the provider** holds the exact URL, with a
 Copy button:
 
@@ -27,7 +27,7 @@ for example `https://auth.example.com/connect/discord/callback`. The part before
 `/callback` is the connector's **slug**, its identifier. The first Discord
 connector always has the provider's name (`discord`) as its slug. A second one
 has the slug you choose (see [Giving one app its own name](#giving-one-app-its-own-name)),
-and its card shows its own callback URL. Do not type it by hand: Discord
+and its page shows its own callback URL. Do not type it by hand: Discord
 compares it exactly, down to a trailing slash and upper/lower case.
 
 ## 2. Create the application in Discord
@@ -83,7 +83,7 @@ it a connector of its own:
    (lower-case letters, digits and hyphens; it cannot be changed later), a
    **Button label**, and the new application's **Client ID** and **Client
    secret**. Untick **Shared with every app**, then click **Add connector**.
-3. The new card shows its own **Redirect URI to register with the provider**,
+3. The new page shows its own **Redirect URI to register with the provider**,
    `<UMBRAL__PUBLIC_ORIGIN>/connect/discord-frunchy/callback`. Register
    that URL in the new Discord application, not the first one.
 4. Open **Apps**, set that app's **Sign-in methods** to **Only the connectors I

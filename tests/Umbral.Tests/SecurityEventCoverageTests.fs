@@ -246,7 +246,7 @@ let private enrollWithPasskey (app: Fixtures.TestApp) (operator: Browser) (name:
 /// Revokes the one invitation the passkey card still lists as open.
 let private revokeOpenInvitation (operator: Browser) =
     task {
-        let! card = operator.GetHtml "/admin/connectors"
+        let! card = operator.GetHtml "/admin/connectors/passkey"
         let m = System.Text.RegularExpressions.Regex.Match(card, "data-invitation=\"([^\"]+)\"")
         Assert.True(m.Success, "the card lists the open invitation")
         return! operator.PostForm("/admin/connectors", $"/admin/connectors/passkey/invitations/{m.Groups[1].Value}/revoke", [])

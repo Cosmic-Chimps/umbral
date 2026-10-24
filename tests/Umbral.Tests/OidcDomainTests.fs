@@ -253,12 +253,12 @@ let ``the oidc name is not an empty card that saves an issuer-less connector`` (
     }
 
 [<Fact>]
-let ``the add form offers oidc as a kind but the screen has no empty oidc card`` () =
+let ``the add form offers oidc as a kind but the screen has no empty oidc pane`` () =
     task {
         let! app, operator = instance ()
         use _ = app
 
-        let! screen = operator.GetHtml "/admin/connectors"
+        let! screen = operator.GetHtml "/admin/connectors/new"
         Assert.Contains("value=\"oidc\"", screen)
         Assert.Contains("name=\"issuer\"", screen)
         Assert.DoesNotContain("data-connector-kind=\"oidc\"", screen)

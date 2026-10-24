@@ -42,15 +42,24 @@ let private add (operator: Browser) (slug: string) (shared: bool) =
 let private connectorsOn (html: string) =
     [ for m in Regex.Matches(html, "data-connector=\"([^\"]*)\"") -> m.Groups[1].Value ] |> List.sort
 
-/// The part of the Connectors screen that belongs to one card: from its
-/// `<article` to the next one.
+/// The slugs of the entries of the list column of the Connectors screen.
+let private entriesOn (html: string) =
+    [ for m in Regex.Matches(html, "data-connector-entry=\"([^\"]*)\"") -> m.Groups[1].Value ] |> List.sort
+
+/// The pane of one connector: from its `<section` to the end of it.
 let private cardOf (html: string) (slug: string) =
     let marker = $"data-connector=\"{slug}\""
     let at = html.IndexOf marker
-    Assert.True(at >= 0, $"no card for connector {slug}")
-    let start = html.LastIndexOf("<article", at)
-    let next = html.IndexOf("<article", at)
-    if next < 0 then html.Substring start else html.Substring(start, next - start)
+    Assert.True(at >= 0, $"no pane for connector {slug}")
+    let start = html.LastIndexOf("<section", at)
+    html.Substring(start, html.IndexOf("</section>", at) - start)
+
+/// A connector's own page, read as its pane.
+let private paneOf (operator: Browser) (slug: string) =
+    task {
+        let! html = operator.GetHtml $"/admin/connectors/{slug}"
+        return cardOf html slug
+    }
 
 let private pickerFor (clientId: string) =
     "/signin?returnUrl=" + Uri.EscapeDataString(Journeys.authorizeUrl clientId "openid")
@@ -64,12 +73,12 @@ let private cardFields (displayName: string) (clientId: string) (shared: bool) =
     @ (if shared then [ "shared", "true" ] else [])
 
 [<Fact>]
-let ``a second connector of one kind is added through the add form and shows its own card`` () =
+let ``a second connector of one kind is added through the add form and shows its own pane`` () =
     task {
         let! app, operator, _, _ = instance ()
         use _ = app
 
-        let! screen = operator.GetHtml "/admin/connectors"
+        let! screen = operator.GetHtml "/admin/connectors/new"
         Assert.Contains("data-add-connector", screen)
 
         let! added = add operator "fake-two" true
@@ -87,16 +96,16 @@ let ``a second connector of one kind is added through the add form and shows its
         let! first = ConnectorStore.findBySlug app.DbConfig "fake"
         Assert.Equal("fake", first.Value.ClientId)
 
-        let! html = operator.GetHtml "/admin/connectors"
-        let card = cardOf html "fake-two"
+        let! card = paneOf operator "fake-two"
         Assert.Contains("data-connector-kind=\"fake\"", card)
         Assert.Contains("data-connector-shared=\"shared\"", card)
         // Its own callback address, built from its own slug.
         Assert.Contains("/connect/fake-two/callback", card)
         Assert.DoesNotContain("/connect/fake/callback", card)
 
-        // The first card keeps its own.
-        Assert.Contains("/connect/fake/callback", cardOf html "fake")
+        // The first pane keeps its own.
+        let! first' = paneOf operator "fake"
+        Assert.Contains("/connect/fake/callback", first')
 
         let! events =
             scalar
@@ -224,7 +233,7 @@ let ``the fake kind cannot be added where the fake connector is not allowed`` ()
     }
 
 [<Fact>]
-let ``every card carries the naming advice and the kind and shared markers`` () =
+let ``every pane carries the naming advice and the kind and shared markers`` () =
     task {
         let! app, operator, _, _ = instance ()
         use _ = app
@@ -232,35 +241,42 @@ let ``every card carries the naming advice and the kind and shared markers`` () 
 
         let! html = operator.GetHtml "/admin/connectors"
 
-        // Every stored connector (the fake one has a card now) and an empty
-        // card for each kind with none, the passkey kind's included (spec 008).
-        Assert.Equal<string list>([ "discord"; "fake"; "fake-two"; "github"; "google"; "passkey" ], connectorsOn html)
+        // Every stored connector (the fake one has an entry now) and an empty
+        // entry for each kind with none, the passkey kind's included (spec 008).
+        let slugs = entriesOn html
+        Assert.Equal<string list>([ "discord"; "fake"; "fake-two"; "github"; "google"; "passkey" ], slugs)
 
-        for slug in connectorsOn html do
-            // The passkey card has no provider to name an application at, so
+        for slug in slugs do
+            let! pane = paneOf operator slug
+            // The passkey pane has no provider to name an application at, so
             // it alone carries no naming advice (spec 008, contracts/admin-surface.md).
             if slug <> "passkey" then
-                Assert.Contains("data-naming-advice", cardOf html slug)
+                Assert.Contains("data-naming-advice", pane)
 
-            Assert.Contains("data-connector-kind=", cardOf html slug)
-            Assert.Contains("data-connector-shared=", cardOf html slug)
+            Assert.Contains("data-connector-kind=", pane)
+            Assert.Contains("data-connector-shared=", pane)
 
-        Assert.DoesNotContain("data-naming-advice", cardOf html "passkey")
+        let! passkey = paneOf operator "passkey"
+        Assert.DoesNotContain("data-naming-advice", passkey)
 
-        Assert.Contains("data-connector-shared=\"shared\"", cardOf html "fake")
-        Assert.Contains("data-connector-shared=\"not-shared\"", cardOf html "fake-two")
-        Assert.Contains("data-connector-kind=\"github\"", cardOf html "github")
+        let! fake = paneOf operator "fake"
+        let! fakeTwo = paneOf operator "fake-two"
+        let! github = paneOf operator "github"
+        Assert.Contains("data-connector-shared=\"shared\"", fake)
+        Assert.Contains("data-connector-shared=\"not-shared\"", fakeTwo)
+        Assert.Contains("data-connector-kind=\"github\"", github)
     }
 
 [<Fact>]
-let ``an empty card for a kind with no connector still posts to its kind and creates the first one`` () =
+let ``an empty pane for a kind with no connector still posts to its kind and creates the first one`` () =
     task {
         let! app, operator, _, _ = instance ()
         use _ = app
 
-        let! html = operator.GetHtml "/admin/connectors"
-        Assert.Contains("action=\"/admin/connectors/discord\"", cardOf html "discord")
-        Assert.Contains("action=\"/admin/connectors/github\"", cardOf html "github")
+        let! discord = paneOf operator "discord"
+        let! github = paneOf operator "github"
+        Assert.Contains("action=\"/admin/connectors/discord\"", discord)
+        Assert.Contains("action=\"/admin/connectors/github\"", github)
 
         // The first-run path: no add step, the slug is the kind's name.
         let! saved =
@@ -346,17 +362,18 @@ let ``a connector that is not shared is not offered to an all-shared app and is 
         let! picker = visitor.GetHtml(pickerFor clientId)
         Assert.Equal<string list>([ "fake" ], connectorsOn picker)
 
-        let! screen = operator.GetHtml "/admin/connectors"
-        Assert.Contains("data-offered-nowhere", cardOf screen "fake-two")
-        Assert.DoesNotContain("data-offered-nowhere", cardOf screen "fake")
+        let! fakeTwo = paneOf operator "fake-two"
+        let! fake = paneOf operator "fake"
+        Assert.Contains("data-offered-nowhere", fakeTwo)
+        Assert.DoesNotContain("data-offered-nowhere", fake)
 
         // The app chooses it: now it is offered there, and no longer nowhere.
         let! _ = operator.PostForm("/admin/apps", $"/admin/apps/{clientId}/connectors", chosen [ "fake-two" ])
         let! chosenPicker = visitor.GetHtml(pickerFor clientId)
         Assert.Equal<string list>([ "fake-two" ], connectorsOn chosenPicker)
 
-        let! after = operator.GetHtml "/admin/connectors"
-        Assert.DoesNotContain("data-offered-nowhere", cardOf after "fake-two")
+        let! after = paneOf operator "fake-two"
+        Assert.DoesNotContain("data-offered-nowhere", after)
     }
 
 [<Fact>]

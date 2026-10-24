@@ -36,13 +36,13 @@ let private unusableWith (app: Fixtures.TestApp) (secret: string) (reason: strin
     }
 
 [<Fact>]
-let ``enabling the connector shows an enabled shared card and records the event`` () =
+let ``enabling the connector shows an enabled shared pane and records the event`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
         let operator = Browser(app.Client)
         do! claimOperator app operator
         do! enablePasskeyConnector operator "invitations"
-        let! html = operator.GetHtml "/admin/connectors"
+        let! html = operator.GetHtml "/admin/connectors/passkey"
         Assert.Contains("data-connector=\"passkey\"", html)
         Assert.Contains("data-connector-state=\"enabled\"", html)
         Assert.Contains("data-connector-shared=\"shared\"", html)
@@ -58,7 +58,7 @@ let ``an invitation link is shown once and listed as open`` () =
         do! claimOperator app operator
         do! enablePasskeyConnector operator "invitations"
         let! _ = inviteNewPerson operator "Ana"
-        let! again = operator.GetHtml "/admin/connectors"
+        let! again = operator.GetHtml "/admin/connectors/passkey"
         Assert.DoesNotContain("data-invitation-link", again)
         Assert.Equal(1, Regex.Matches(again, "<li[^>]*data-invitation=").Count)
         let! created = events app "passkey_invitation_created"
@@ -121,7 +121,7 @@ let ``a used, expired, revoked or unknown invitation is refused with its reason`
         do! unusableWith app "no-such-secret" "invitation_unknown"
 
         let! revoked = inviteNewPerson operator "revoked"
-        let! html = operator.GetHtml "/admin/connectors"
+        let! html = operator.GetHtml "/admin/connectors/passkey"
         let id = Regex.Match(html, "data-invitation=\"([^\"]+)\"").Groups[1].Value
         let! revoke = operator.PostForm("/admin/connectors", $"/admin/connectors/passkey/invitations/{id}/revoke", [])
         Assert.Equal(HttpStatusCode.Redirect, revoke.StatusCode)

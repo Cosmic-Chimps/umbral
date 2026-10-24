@@ -108,6 +108,7 @@
     <Compile Include="Handlers/Admin/SignIn.fs" />
     <Compile Include="Handlers/Admin/SignOut.fs" />
     <Compile Include="Handlers/Admin/Credential.fs" />
+    <Compile Include="Handlers/Admin/ConnectorPaths.fs" />
     <Compile Include="Handlers/Admin/PasskeyConnector.fs" />
     <Compile Include="Handlers/Admin/Connectors.fs" />
     <Compile Include="Handlers/Admin/ConnectorToggle.fs" />

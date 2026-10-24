@@ -6,12 +6,14 @@
 /// the two things that otherwise fail an hour later with an error naming
 /// neither cause.
 ///
-/// One card per stored connector, so a second Discord application is a second
-/// card (FR-012), plus today's empty card for each kind with none, which creates
-/// the first connector of its kind with the kind's name as its slug: the
-/// first-run path has no "add" step. The add form is for the second and later
-/// ones, where the operator picks the slug. Every card says to name the provider's
-/// application after the Umbral instance (FR-003).
+/// A list and a detail pane, on the frame the Apps screen uses. One entry per
+/// stored connector, so a second Discord application is a second entry (FR-012),
+/// plus a muted entry for each kind with none, whose pane creates the first
+/// connector of its kind with the kind's name as its slug: the first-run path has
+/// no "add" step. The add form (`/new`) is for the second and later ones, where
+/// the operator picks the slug. The list ends, behind a hairline, with the entry
+/// for the allowed email domains of the whole instance. Every connector's pane
+/// says to name the provider's application after the Umbral instance (FR-003).
 module Umbral.Handlers.Admin.Connectors
 
 open System
@@ -21,6 +23,7 @@ open Oxpecker
 open Oxpecker.ViewEngine
 open Umbral.Domains
 open Umbral.Domains.Connectors
+open Umbral.Handlers.Admin.ConnectorPaths
 open Umbral.Infrastructure
 open Umbral.Infrastructure.SecretStores.Registry
 open Umbral.Views
@@ -65,7 +68,7 @@ let private secretStoreBanner (ctx: HttpContext) (t: Texts.Texts) =
     | Healthy -> Fragment() :> HtmlElement
 
 // ---------------------------------------------------------------------------
-// One connector card
+// One connector's pane
 // ---------------------------------------------------------------------------
 
 /// The shared setting as a tick box with its hint. A ticked box posts
@@ -86,7 +89,7 @@ let private sharedBox (t: Texts.Texts) (isShared: bool) =
         p(class' = "um-hint") { t.ConnectorSharedHint }
     }
 
-/// A list the operator typed that was refused, and what to tell them. The card
+/// A list the operator typed that was refused, and what to tell them. The pane
 /// it belongs to is drawn with the text as typed and the reason under the field.
 type private DomainsDraft = { Typed: string; Problem: string }
 
@@ -107,7 +110,7 @@ let private parseDomains (t: Texts.Texts) (typed: string) : Result<string list, 
     | Error(EmailDomains.Wildcard entry) -> Error(t.AllowedDomainsWildcard entry)
     | Error(EmailDomains.NotADomain entry) -> Error(t.AllowedDomainsNotADomain entry)
 
-/// The `allowedDomains` field of a connector (add form and card): the help names
+/// The `allowedDomains` field of a connector (add form and pane): the help names
 /// the instance list, which is what an empty field falls back to.
 let private connectorDomainsField (t: Texts.Texts) (instance: string list) (typed: string) (problem: string option) =
     let help =
@@ -139,21 +142,17 @@ type private Row =
         | Some c -> c.Slug
         | None -> this.Kind.Value
 
-let private card
+let private providerPane
     (ctx: HttpContext)
     (t: Texts.Texts)
     (origin: PublicOrigin.PublicOrigin)
     (enabledCount: int)
     (chosenSlugs: Set<string>)
     (domains: Domains)
-    (invitations: PasskeyInvitations.Invitation list)
-    (revealedLink: string option)
+    (view: Components.FrameView)
+    (notice: HtmlElement option)
     (row: Row)
     =
-    match row.Kind with
-    | Passkey ->
-        PasskeyConnector.card ctx t origin enabledCount chosenSlugs row.Existing invitations revealedLink
-    | _ ->
     let slug = row.Slug
     let callbackUrl = (PublicOrigin.callbackUri origin slug).ToString()
     let isConfigured = row.Existing.IsSome
@@ -168,7 +167,7 @@ let private card
     let isEnabled = row.Existing |> Option.map (fun c -> c.IsEnabled) |> Option.defaultValue false
 
     // Where the secret is kept, from the reference the row carries. A row whose
-    // reference cannot be read as one (an unclaimed card, a connector with no
+    // reference cannot be read as one (a kind not set up, a connector with no
     // secret) has no store to name.
     let secretStore =
         row.Existing
@@ -177,7 +176,7 @@ let private card
             | Ok reference -> Some reference.Store
             | Error _ -> None)
 
-    // An empty card is offered as shared, like the add form (FR-014).
+    // A kind not set up is offered as shared, like the add form (FR-014).
     let isShared = row.Existing |> Option.map (fun c -> c.IsShared) |> Option.defaultValue true
 
     // FR-014: not shared and in no app's chosen set means nobody sees it, which
@@ -191,7 +190,7 @@ let private card
     let isLastEnabled = isEnabled && enabledCount = 1
     let confirmed (path: string) = if isLastEnabled then path + "?confirm=yes" else path
 
-    // FR-018: which list applies to this card, as the operator reads it. The
+    // FR-018: which list applies to this connector, as the operator reads it. The
     // stored list decides, not what a refused save typed.
     let storedList = row.Existing |> Option.map (fun c -> c.AllowedEmailDomains) |> Option.defaultValue []
 
@@ -206,220 +205,245 @@ let private card
         | Some(draftSlug, draft) when draftSlug = slug -> draft.Typed, Some draft.Problem
         | _ -> EmailDomains.display storedList, None
 
-    let element =
-        article(class' = "um-card space-y-4")
-            .data("connector", slug)
-            .data("connector-kind", row.Kind.Value)
-            .data("connector-shared", (if isShared then "shared" else "not-shared"))
-            .data("connector-state", (if isEnabled then "enabled" else "disabled"))
-
-    if offeredNowhere then
-        element.data("offered-nowhere", "") |> ignore
-
-    element {
-
-        div(class' = "flex items-center justify-between gap-3") {
-            div() {
-                h2(class' = "text-headline-md text-on-surface") {
-                    match row.Existing with
-                    | Some c -> c.DisplayName
-                    | None -> row.Kind.DisplayName
-                }
-
-                if isConfigured then
-                    p(class' = "um-hint um-mono") { slug }
-            }
-
-            div(class' = "flex flex-wrap items-center gap-2") {
-                if isConfigured then
-                    Components.pill
-                        Components.MutedTone
-                        (if isShared then t.ConnectorSharedBadge else t.ConnectorNotSharedBadge)
-
-                match secretStore with
-                | Some store ->
-                    (Components.pill Components.MutedTone (t.SecretStoreLabel store)).data("secret-store", store)
-                | None -> Fragment() :> HtmlElement
-
-                if isConfigured then
-                    Components.stateBadge isEnabled t.Enabled t.Disabled
-                else
-                    Components.pill Components.MutedTone t.NotConfigured
-            }
-        }
-
-        if offeredNowhere then
-            (div(class' = "um-alert um-alert-warning").attr("role", "note") {
-                Components.icon Theme.Warning
-                span() { t.ConnectorOfferedNowhere }
-            })
-            :> HtmlElement
-
-        (p(class' = "text-body-md text-on-surface").data("rule", ruleMarker) { ruleText }) :> HtmlElement
-
-        // FR-021: known without a network call, so an operator who lost a
-        // store's credentials sees it here rather than as a failed sign-in.
+    let unreadableStore =
         match secretStore with
-        | Some store when not ((ctx.GetService<SecretStores>()).CanRead store) ->
-            (div(class' = "um-alert um-alert-warning").attr("role", "note").data("secret-unreadable", slug) {
-                Components.icon Theme.Warning
-                span() { t.SecretUnreadable store }
-            })
-            :> HtmlElement
-        | _ -> Fragment() :> HtmlElement
+        | Some store when not ((ctx.GetService<SecretStores>()).CanRead store) -> Some store
+        | _ -> None
 
-        // FR-003: said on every card, because the first time an operator
-        // learns what the name matters for should not be a person asking
-        // "what is this app?" on a consent screen.
-        (div(class' = "um-alert um-alert-info").attr("role", "note").data("naming-advice", "") {
-            Components.icon Theme.Info
-            span() { t.ConnectorNamingAdvice providerName }
-        })
-        :> HtmlElement
+    let pillsOf () =
+        [ if isConfigured then
+              Components.pill
+                  Components.MutedTone
+                  (if isShared then t.ConnectorSharedBadge else t.ConnectorNotSharedBadge)
+              :> HtmlElement
 
-        // THE field. Without it the operator invents a URL, the provider
-        // rejects the callback, and the error names neither the URL nor Umbral.
-        Components.copyField
-            t.Copy
-            t.Copied
-            t.CallbackUrlLabel
-            $"callback-{slug}"
-            callbackUrl
-            (fun input -> input.data("callback-url", "") |> ignore)
+          match secretStore with
+          | Some store ->
+              (Components.pill Components.MutedTone (t.SecretStoreLabel store)).data("secret-store", store)
+              :> HtmlElement
+          | None -> ()
 
-        // The issuer is part of everyone's identity (FR-016), so it is shown and
-        // never edited: delete and add again is the only way to change it.
-        match row.Existing |> Option.bind (fun c -> c.IssuerUrl) with
-        | Some issuer ->
-            Components.copyField
-                t.Copy
-                t.Copied
-                t.ConnectorIssuerLabel
-                $"issuer-{slug}"
-                issuer
-                (fun input -> input.data("issuer", "") |> ignore)
+          if isConfigured then
+              Components.stateBadge isEnabled t.Enabled t.Disabled :> HtmlElement
+          else
+              Components.pill Components.MutedTone t.NotConfigured :> HtmlElement ]
 
-            (p(class' = "um-hint").data("issuer-fixed", "") { t.ConnectorIssuerFixedNote }) :> HtmlElement
-        | None -> Fragment() :> HtmlElement
-
-        // Shown at the moment the provider is chosen, not buried in a document.
-        // Google refuses an IP address or a non-https host outright, which is
-        // the natural homelab address — unfixable in code, so it must be said
-        // before the operator spends ten minutes in Google's console.
-        match setupCaveat row.Kind with
-        | Some caveat ->
-            (div(class' = "um-alert um-alert-warning").attr("role", "note").data("setup-caveat", slug) {
-                Components.icon Theme.Info
-                span() { caveat }
-            })
-            :> HtmlElement
-        | None -> Fragment() :> HtmlElement
-
-        form(method = "post", action = $"/admin/connectors/{slug}", class' = "space-y-4") {
+    let toggleForm =
+        // htmx intercepts this; it is a real form either way (D11).
+        (form(method = "post", action = confirmed $"/admin/connectors/{slug}/toggle", class' = "inline") {
             ctx.GetAntiforgeryInput()
 
-            // FR-013: the slug and the kind are not fields. Neither ever
-            // changes, so the form has nothing to edit them with.
-            Components.fieldWith
-                "text"
-                []
-                (fun i -> i.attr("required", "required") |> ignore)
-                t.ConnectorDisplayNameLabel
-                "displayName"
-                (row.Existing |> Option.map (fun c -> c.DisplayName) |> Option.defaultValue row.Kind.DisplayName)
-                (Some t.ConnectorDisplayNameHint)
-                None
-
-            Components.field
-                t.ClientIdLabel
-                "clientId"
-                (row.Existing |> Option.map (fun c -> c.ClientId) |> Option.defaultValue "")
-                (Some(
-                    match row.Kind with
-                    | Oidc -> t.ConnectorOidcClientIdHint
-                    | kind -> t.ProviderConsoleHint kind.DisplayName
-                ))
-                None
-
-            match row.Existing with
-            | Some existing ->
-                // Never Edit: for a saved secret there is nothing to edit from,
-                // because the screen cannot read it back.
-                (Components.maskedSecretField
-                    t.ClientSecretLabel
-                    (Secrets.masked existing.ClientSecretHint)
-                    (Fragment() :> HtmlElement))
-                :> HtmlElement
-            | None -> Fragment() :> HtmlElement
-
-            Components.passwordField
-                (if isConfigured then t.ReplaceSecretLabel else t.ClientSecretLabel)
-                "clientSecret"
-                (Some (if isConfigured then t.ReplaceSecretHint else t.ClientSecretHint))
-                None
-
-            sharedBox t isShared
-
-            connectorDomainsField t domains.Instance typedDomains domainsProblem
-
-            limitOneAppNote (
-                match row.Kind with
-                | Oidc -> t.ConnectorLimitOneAppNoteOidc
-                | _ -> t.ConnectorLimitOneAppNote
-            )
-
-            div(class' = "flex flex-wrap items-center gap-2") {
-                button(type' = "submit", class' = Components.btn Components.Primary) {
-                    Components.icon Theme.CheckCircle
-                    t.SaveConnector
-                }
-
-                if isConfigured then
-                    // htmx intercepts this; it is a real form either way (D11).
-                    (form(method = "post", action = confirmed $"/admin/connectors/{slug}/toggle", class' = "inline") {
-                        ctx.GetAntiforgeryInput()
-
-                        button(type' = "submit", class' = Components.btnSm Components.Ghost)
-                            .attr("hx-post", confirmed $"/admin/connectors/{slug}/toggle")
-                            .attr("hx-target", "closest article")
-                            .attr("hx-swap", "outerHTML") {
-                            Components.icon Theme.Power
-                            if isEnabled then t.Disable else t.Enable
-                        }
-                    })
-                    |> (if isLastEnabled then
-                            Components.confirmSubmit t.ConnectorDisableLastWarning
-                        else
-                            id)
-                    :> HtmlElement
-                else
-                    Fragment() :> HtmlElement
-
-                if isConfigured then
-                    (form(method = "post", action = confirmed $"/admin/connectors/{slug}/delete", class' = "inline") {
-                        ctx.GetAntiforgeryInput()
-
-                        button(type' = "submit", class' = Components.btnSm Components.Danger) {
-                            Components.icon Theme.DeleteForever
-                            t.ConnectorDeleteButton
-                        }
-                    })
-                    |> Components.confirmSubmit (
-                        if isLastEnabled then
-                            t.ConnectorDeleteLastWarning
-                        else
-                            match row.Kind, row.Existing with
-                            | Oidc, Some({ IssuerUrl = Some issuer } as existing) ->
-                                t.ConnectorDeleteConfirmOidc existing.DisplayName issuer
-                            | Oidc, Some existing -> t.ConnectorDeleteConfirm existing.DisplayName
-                            | kind, _ -> t.ConnectorDeleteConfirm kind.DisplayName
-                    )
-                    :> HtmlElement
-                else
-                    Fragment() :> HtmlElement
+            button(type' = "submit", class' = Components.btnSm Components.Ghost)
+                .attr("hx-post", confirmed $"/admin/connectors/{slug}/toggle")
+                .attr("hx-target", "[data-frame]")
+                .attr("hx-select", "[data-frame]")
+                .attr("hx-swap", "outerHTML") {
+                Components.icon Theme.Power
+                if isEnabled then t.Disable else t.Enable
             }
-        }
-    }
+        })
+        |> (if isLastEnabled then
+                Components.confirmSubmit t.ConnectorDisableLastWarning
+            else
+                id)
+        :> HtmlElement
+
+    let deleteForm =
+        (form(method = "post", action = confirmed $"/admin/connectors/{slug}/delete", class' = "inline") {
+            ctx.GetAntiforgeryInput()
+
+            button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                Components.icon Theme.DeleteForever
+                t.ConnectorDeleteButton
+            }
+        })
+        |> Components.confirmSubmit (
+            if isLastEnabled then
+                t.ConnectorDeleteLastWarning
+            else
+                match row.Kind, row.Existing with
+                | Oidc, Some({ IssuerUrl = Some issuer } as existing) ->
+                    t.ConnectorDeleteConfirmOidc existing.DisplayName issuer
+                | Oidc, Some existing -> t.ConnectorDeleteConfirm existing.DisplayName
+                | kind, _ -> t.ConnectorDeleteConfirm kind.DisplayName
+        )
+        :> HtmlElement
+
+    let pane =
+        Components.framePane
+            view
+            "connector-heading"
+            (listPath, t.NavConnectors)
+            [ Components.paneHeading
+                  "connector-heading"
+                  (match row.Existing with
+                   | Some c -> c.DisplayName
+                   | None -> row.Kind.DisplayName)
+                  (pillsOf ())
+
+              if isConfigured then
+                  (p(class' = "um-hint um-mono mt-1") { slug }) :> HtmlElement
+
+              if notice.IsSome || offeredNowhere || unreadableStore.IsSome then
+                  (div(class' = "mt-6 space-y-3") {
+                      match notice with
+                      | Some block -> block
+                      | None -> Fragment() :> HtmlElement
+
+                      if offeredNowhere then
+                          (div(class' = "um-alert um-alert-warning").attr("role", "note") {
+                              Components.icon Theme.Warning
+                              span() { t.ConnectorOfferedNowhere }
+                          })
+                          :> HtmlElement
+
+                      // FR-021: known without a network call, so an operator who lost a
+                      // store's credentials sees it here rather than as a failed sign-in.
+                      match unreadableStore with
+                      | Some store ->
+                          (div(class' = "um-alert um-alert-warning").attr("role", "note").data("secret-unreadable", slug) {
+                              Components.icon Theme.Warning
+                              span() { t.SecretUnreadable store }
+                          })
+                          :> HtmlElement
+                      | None -> Fragment() :> HtmlElement
+                  })
+                  :> HtmlElement
+
+              Components.paneSection
+                  t.ConnectorSetupTitle
+                  (div(class' = "space-y-5") {
+                      // FR-003: said on every connector, because the first time an
+                      // operator learns what the name matters for should not be a
+                      // person asking "what is this app?" on a consent screen.
+                      (div(class' = "um-alert um-alert-info").attr("role", "note").data("naming-advice", "") {
+                          Components.icon Theme.Info
+                          span() { t.ConnectorNamingAdvice providerName }
+                      })
+                      :> HtmlElement
+
+                      // THE field. Without it the operator invents a URL, the provider
+                      // rejects the callback, and the error names neither the URL nor Umbral.
+                      Components.copyField
+                          t.Copy
+                          t.Copied
+                          t.CallbackUrlLabel
+                          $"callback-{slug}"
+                          callbackUrl
+                          (fun input -> input.data("callback-url", "") |> ignore)
+
+                      // The issuer is part of everyone's identity (FR-016), so it is shown and
+                      // never edited: delete and add again is the only way to change it.
+                      match row.Existing |> Option.bind (fun c -> c.IssuerUrl) with
+                      | Some issuer ->
+                          Components.copyField
+                              t.Copy
+                              t.Copied
+                              t.ConnectorIssuerLabel
+                              $"issuer-{slug}"
+                              issuer
+                              (fun input -> input.data("issuer", "") |> ignore)
+
+                          (p(class' = "um-hint").data("issuer-fixed", "") { t.ConnectorIssuerFixedNote })
+                          :> HtmlElement
+                      | None -> Fragment() :> HtmlElement
+
+                      // Shown at the moment the provider is chosen, not buried in a document.
+                      // Google refuses an IP address or a non-https host outright, which is
+                      // the natural homelab address — unfixable in code, so it must be said
+                      // before the operator spends ten minutes in Google's console.
+                      match setupCaveat row.Kind with
+                      | Some caveat ->
+                          (div(class' = "um-alert um-alert-warning").attr("role", "note").data("setup-caveat", slug) {
+                              Components.icon Theme.Info
+                              span() { caveat }
+                          })
+                          :> HtmlElement
+                      | None -> Fragment() :> HtmlElement
+
+                      (p(class' = "text-body-md text-on-surface").data("rule", ruleMarker) { ruleText })
+                      :> HtmlElement
+                  })
+
+              Components.paneSection
+                  t.ConnectorSettingsTitle
+                  (form(method = "post", action = $"/admin/connectors/{slug}", class' = "space-y-3") {
+                      ctx.GetAntiforgeryInput()
+
+                      // FR-013: the slug and the kind are not fields. Neither ever
+                      // changes, so the form has nothing to edit them with.
+                      Components.fieldWith
+                          "text"
+                          []
+                          (fun i -> i.attr("required", "required") |> ignore)
+                          t.ConnectorDisplayNameLabel
+                          "displayName"
+                          (row.Existing |> Option.map (fun c -> c.DisplayName) |> Option.defaultValue row.Kind.DisplayName)
+                          (Some t.ConnectorDisplayNameHint)
+                          None
+
+                      Components.field
+                          t.ClientIdLabel
+                          "clientId"
+                          (row.Existing |> Option.map (fun c -> c.ClientId) |> Option.defaultValue "")
+                          (Some(
+                              match row.Kind with
+                              | Oidc -> t.ConnectorOidcClientIdHint
+                              | kind -> t.ProviderConsoleHint kind.DisplayName
+                          ))
+                          None
+
+                      match row.Existing with
+                      | Some existing ->
+                          // Never Edit: for a saved secret there is nothing to edit from,
+                          // because the screen cannot read it back.
+                          (Components.maskedSecretField
+                              t.ClientSecretLabel
+                              (Secrets.masked existing.ClientSecretHint)
+                              (Fragment() :> HtmlElement))
+                          :> HtmlElement
+                      | None -> Fragment() :> HtmlElement
+
+                      Components.passwordField
+                          (if isConfigured then t.ReplaceSecretLabel else t.ClientSecretLabel)
+                          "clientSecret"
+                          (Some(if isConfigured then t.ReplaceSecretHint else t.ClientSecretHint))
+                          None
+
+                      sharedBox t isShared
+
+                      connectorDomainsField t domains.Instance typedDomains domainsProblem
+
+                      limitOneAppNote (
+                          match row.Kind with
+                          | Oidc -> t.ConnectorLimitOneAppNoteOidc
+                          | _ -> t.ConnectorLimitOneAppNote
+                      )
+
+                      div(class' = "flex flex-wrap items-center gap-2") {
+                          button(type' = "submit", class' = Components.btn Components.Primary) {
+                              Components.icon Theme.CheckCircle
+                              t.SaveConnector
+                          }
+                      }
+                  })
+
+              // An unconfigured kind has nothing to switch off or delete.
+              if isConfigured then
+                  (Components.paneActions [ toggleForm; deleteForm ]).data("connector-actions", "")
+                  :> HtmlElement ]
+
+    pane
+        .data("connector", slug)
+        .data("connector-kind", row.Kind.Value)
+        .data("connector-shared", (if isShared then "shared" else "not-shared"))
+        .data("connector-state", (if isEnabled then "enabled" else "disabled"))
+    |> ignore
+
+    if offeredNowhere then
+        pane.data("offered-nowhere", "") |> ignore
+
+    pane
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -429,7 +453,7 @@ let private card
 type private StrandAction =
     | Disabling
     | Deleting
-    /// Saving a card that turns a shared connector to not shared (FR-014).
+    /// Saving a connector that turns a shared connector to not shared (FR-014).
     | Unsharing
 
 /// The apps a disable, a delete or an unshare would leave with no way to sign
@@ -440,7 +464,7 @@ type private StrandWarning =
       Action: StrandAction
       /// What the stored connector holds, which the unshare confirmation posts
       /// back: the warning said nothing was changed, so what was typed on the
-      /// card is not carried through it.
+      /// pane is not carried through it.
       Stored: Connector option
       Apps: (string * string) list }
 
@@ -455,8 +479,8 @@ let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWa
 
         match warning.Action, warning.Stored with
         | Unsharing, Some stored ->
-            // The card's own save, with the stored values and the box
-            // unticked: the card form cannot be re-posted from here.
+            // The pane's own save, with the stored values and the box
+            // unticked: the pane's form cannot be re-posted from here.
             form(method = "post", action = $"/admin/connectors/{warning.Slug}?confirm=yes", class' = "inline") {
                 ctx.GetAntiforgeryInput()
                 input(type' = "hidden", name = "displayName", value = stored.DisplayName)
@@ -519,7 +543,9 @@ let private addForm
     (t: Texts.Texts)
     (instance: string list)
     (kinds: ProviderKind list)
+    (view: Components.FrameView)
     (state: AddFormState)
+    (notice: HtmlElement option)
     =
     let problemAt field =
         match state.Problem with
@@ -527,124 +553,152 @@ let private addForm
         | _ -> None
 
     let form' =
-        form(method = "post", action = "/admin/connectors", class' = "space-y-4").data("add-connector", "")
+        form(method = "post", action = listPath, class' = "space-y-4").data("add-connector", "")
 
     match state.Problem with
     | Some(field, _) -> form'.data("add-error", field) |> ignore
     | None -> ()
 
-    section(class' = "um-card space-y-4").data("add-connector-section", "") {
-        h2(class' = "text-headline-md text-on-surface") { t.ConnectorAddTitle }
-        p(class' = "max-w-prose text-body-md text-on-surface-variant") { t.ConnectorAddLead }
+    Components.framePane
+        view
+        "connector-heading"
+        (listPath, t.NavConnectors)
+        [ Components.paneHeading "connector-heading" t.ConnectorAddTitle []
 
-        form' {
-            ctx.GetAntiforgeryInput()
+          match notice with
+          | Some block -> (div(class' = "mt-6") { block }) :> HtmlElement
+          | None -> Fragment() :> HtmlElement
 
-            div() {
-                label(for' = "add-kind", class' = "um-label") { t.ConnectorAddKindLabel }
+          (div(class' = "mt-6 space-y-4").data("add-connector-section", "") {
+              p(class' = "max-w-prose text-body-md text-on-surface-variant") { t.ConnectorAddLead }
 
-                select(id = "add-kind", name = "kind", class' = "um-input") {
-                    for kind in kinds do
-                        let entry =
-                            option(value = kind.Value) {
-                                match kind with
-                                | Oidc -> t.ConnectorAddOidcOption
-                                | kind -> kind.DisplayName
-                            }
+              form' {
+                  ctx.GetAntiforgeryInput()
 
-                        if kind.Value = state.Kind then
-                            entry.attr("selected", "selected") |> ignore
+                  div() {
+                      label(for' = "add-kind", class' = "um-label") { t.ConnectorAddKindLabel }
 
-                        entry
-                }
-            }
+                      select(id = "add-kind", name = "kind", class' = "um-input") {
+                          for kind in kinds do
+                              let entry =
+                                  option(value = kind.Value) {
+                                      match kind with
+                                      | Oidc -> t.ConnectorAddOidcOption
+                                      | kind -> kind.DisplayName
+                                  }
 
-            Components.fieldWith
-                "text"
-                []
-                (fun i -> i.attr("required", "required").attr("maxlength", "32").attr("pattern", "[a-z0-9\\-]+") |> ignore)
-                t.ConnectorAddSlugLabel
-                "slug"
-                state.Slug
-                (Some t.ConnectorAddSlugHint)
-                (problemAt "slug")
+                              if kind.Value = state.Kind then
+                                  entry.attr("selected", "selected") |> ignore
 
-            Components.fieldWith
-                "text"
-                []
-                (fun i -> i.attr("required", "required").attr("maxlength", "64") |> ignore)
-                t.ConnectorDisplayNameLabel
-                "displayName"
-                state.DisplayName
-                (Some t.ConnectorDisplayNameHint)
-                (problemAt "displayName")
+                              entry
+                      }
+                  }
 
-            Components.field
-                t.ConnectorIssuerLabel
-                "issuer"
-                state.Issuer
-                (Some t.ConnectorIssuerHint)
-                (problemAt "issuer")
+                  Components.fieldWith
+                      "text"
+                      []
+                      (fun i -> i.attr("required", "required").attr("maxlength", "32").attr("pattern", "[a-z0-9\\-]+") |> ignore)
+                      t.ConnectorAddSlugLabel
+                      "slug"
+                      state.Slug
+                      (Some t.ConnectorAddSlugHint)
+                      (problemAt "slug")
 
-            Components.field t.ClientIdLabel "clientId" state.ClientId None (problemAt "clientId")
+                  Components.fieldWith
+                      "text"
+                      []
+                      (fun i -> i.attr("required", "required").attr("maxlength", "64") |> ignore)
+                      t.ConnectorDisplayNameLabel
+                      "displayName"
+                      state.DisplayName
+                      (Some t.ConnectorDisplayNameHint)
+                      (problemAt "displayName")
 
-            Components.passwordField
-                t.ClientSecretLabel
-                "clientSecret"
-                (Some(if state.Problem.IsSome then t.ConnectorOidcSecretAgainHint else t.ClientSecretHint))
-                (problemAt "clientSecret")
+                  Components.field
+                      t.ConnectorIssuerLabel
+                      "issuer"
+                      state.Issuer
+                      (Some t.ConnectorIssuerHint)
+                      (problemAt "issuer")
 
-            sharedBox t state.Shared
+                  Components.field t.ClientIdLabel "clientId" state.ClientId None (problemAt "clientId")
 
-            connectorDomainsField t instance state.AllowedDomains (problemAt "allowedDomains")
-            limitOneAppNote t.ConnectorLimitOneAppNote
+                  Components.passwordField
+                      t.ClientSecretLabel
+                      "clientSecret"
+                      (Some(if state.Problem.IsSome then t.ConnectorOidcSecretAgainHint else t.ClientSecretHint))
+                      (problemAt "clientSecret")
 
-            // FR-009, before the operator submits and not after: what they are
-            // agreeing to by adding a provider.
-            (div(class' = "um-alert um-alert-warning").attr("role", "note").data("email-trust-warning", "") {
-                Components.icon Theme.Warning
-                span() { t.ConnectorEmailTrustWarning }
-            })
-            :> HtmlElement
+                  sharedBox t state.Shared
 
-            button(type' = "submit", class' = Components.btn Components.Primary) {
-                Components.icon Theme.CheckCircle
-                t.ConnectorAddButton
-            }
-        }
-    }
+                  connectorDomainsField t instance state.AllowedDomains (problemAt "allowedDomains")
+                  limitOneAppNote t.ConnectorLimitOneAppNote
 
-/// FR-016: the instance list, at the top of the screen. It posts to its own
-/// route, never under a connector's slug.
-let private instanceCard (ctx: HttpContext) (t: Texts.Texts) (domains: Domains) =
+                  // FR-009, before the operator submits and not after: what they are
+                  // agreeing to by adding a provider.
+                  (div(class' = "um-alert um-alert-warning").attr("role", "note").data("email-trust-warning", "") {
+                      Components.icon Theme.Warning
+                      span() { t.ConnectorEmailTrustWarning }
+                  })
+                  :> HtmlElement
+
+                  button(type' = "submit", class' = Components.btn Components.Primary) {
+                      Components.icon Theme.CheckCircle
+                      t.ConnectorAddButton
+                  }
+              }
+          })
+          :> HtmlElement ]
+
+
+/// FR-016: the instance list, a pane of its own at the end of the list. It posts
+/// to its own route, never under a connector's slug.
+let private domainsPane
+    (ctx: HttpContext)
+    (t: Texts.Texts)
+    (domains: Domains)
+    (view: Components.FrameView)
+    (notice: HtmlElement option)
+    =
     let typed, problem =
         match domains.InstanceDraft with
         | Some draft -> draft.Typed, Some draft.Problem
         | None -> EmailDomains.display domains.Instance, None
 
-    section(class' = "um-card space-y-4").data("card", "allowed-domains") {
-        h2(class' = "text-headline-md text-on-surface") { t.AllowedDomainsTitle }
-        p(class' = "max-w-prose text-body-md text-on-surface-variant") { t.AllowedDomainsLead }
+    (Components.framePane
+        view
+        "connector-heading"
+        (listPath, t.NavConnectors)
+        [ Components.paneHeading "connector-heading" t.AllowedDomainsTitle []
 
-        form(method = "post", action = "/admin/allowed-domains", class' = "space-y-4") {
-            ctx.GetAntiforgeryInput()
+          match notice with
+          | Some block -> (div(class' = "mt-6") { block }) :> HtmlElement
+          | None -> Fragment() :> HtmlElement
 
-            Components.fieldWith
-                "text"
-                []
-                (fun i -> i.attr("placeholder", t.AllowedDomainsPlaceholder) |> ignore)
-                t.AllowedDomainsLabel
-                "allowedDomains"
-                typed
-                None
-                problem
+          (div(class' = "mt-6 space-y-5") {
+              p(class' = "max-w-prose text-body-md text-on-surface-variant") { t.AllowedDomainsLead }
 
-            button(type' = "submit", class' = Components.btn Components.Primary) {
-                Components.icon Theme.CheckCircle
-                t.AllowedDomainsSaveButton
-            }
-        }
-    }
+              form(method = "post", action = "/admin/allowed-domains", class' = "space-y-4") {
+                  ctx.GetAntiforgeryInput()
+
+                  Components.fieldWith
+                      "text"
+                      []
+                      (fun i -> i.attr("placeholder", t.AllowedDomainsPlaceholder) |> ignore)
+                      t.AllowedDomainsLabel
+                      "allowedDomains"
+                      typed
+                      None
+                      problem
+
+                  button(type' = "submit", class' = Components.btn Components.Primary) {
+                      Components.icon Theme.CheckCircle
+                      t.AllowedDomainsSaveButton
+                  }
+              }
+          })
+          :> HtmlElement ])
+        .data("card", "allowed-domains")
 
 /// FR-019: emptying the instance list opens every connector that has no list of
 /// its own to anyone with an account. Names them, with the button that goes
@@ -668,6 +722,65 @@ let private removalWarning (ctx: HttpContext) (t: Texts.Texts) (code: string) (n
         }
     }
 
+/// What the URL asked for: the list, one connector, the add form, or the
+/// instance's allowed domains.
+type private Selection =
+    | ListUrl
+    | Item of string
+    | Create
+    | DomainsPane
+
+/// The notices that refuse something, drawn as a warning; every other is a success.
+let private noticeKind (code: string) =
+    match code with
+    | "connector-unknown"
+    | "connector-not-found"
+    | "connector-client-id-required"
+    | "connector-secret-required"
+    | "connector-slug-invalid"
+    | "connector-slug-taken"
+    | "connector-display-name-required"
+    | "connector-last-enabled"
+    | "connector-delete-last-enabled"
+    | "passkey-connector-invalid"
+    | "passkey-invitation-invalid"
+    | "passkey-invitation-not-open"
+    | "passkey-not-enabled" -> Components.Warning
+    | _ -> Components.Success
+
+/// One notice block: the removal warning, what the provider said, the apps a
+/// change would strand, or the plain text of the code. Drawn at the top of the
+/// page or inside the pane it is about.
+let private noticeBlock
+    (ctx: HttpContext)
+    (t: Texts.Texts)
+    (domains: Domains)
+    (strand: StrandWarning option)
+    (explained: string option)
+    (code: string)
+    : HtmlElement =
+    match code, strand with
+    | "allowed-domains-removal", _ ->
+        match domains.Removal with
+        | Some names -> (removalWarning ctx t code names) :> HtmlElement
+        // A link that outlived the list it was about: nothing to warn of.
+        | None -> Fragment() :> HtmlElement
+    // A notice that carries what the provider said (`explained`) is a
+    // warning, not a success: the provider was saved disabled, or would not
+    // be enabled.
+    | _, None when explained.IsSome ->
+        (div().data("notice", code) { Components.alert Components.Warning explained.Value })
+        :> HtmlElement
+    | _, Some warning ->
+        (div().data("notice", code) {
+            Components.alert Components.Warning (t.Notice code)
+            strandWarning ctx t warning
+        })
+        :> HtmlElement
+    | _, None ->
+        (div().data("notice", code) { Components.alert (noticeKind code) (t.Notice code) })
+        :> HtmlElement
+
 let private view
     ctx
     (t: Texts.Texts)
@@ -677,6 +790,8 @@ let private view
     (chosenSlugs: Set<string>)
     (domains: Domains)
     (addableKinds: ProviderKind list)
+    (selection: Selection)
+    (selected: Row option)
     (add: AddFormState)
     (notice: string option)
     (strand: StrandWarning option)
@@ -684,42 +799,171 @@ let private view
     (invitations: PasskeyInvitations.Invitation list)
     (revealedLink: string option)
     =
+    let block code = noticeBlock ctx t domains strand explained code
+
+    let frameView =
+        match selection, selected with
+        | Create, _
+        | DomainsPane, _ -> Components.DetailView
+        | Item _, Some _ -> Components.DetailView
+        | _ -> Components.ListView
+
+    let pageTitle =
+        match selection, selected with
+        | Create, _ -> t.ConnectorAddTitle
+        | DomainsPane, _ -> $"{t.AllowedDomainsTitle} · {t.ConnectorsTitle}"
+        | Item _, Some row ->
+            let name =
+                match row.Existing with
+                | Some c -> c.DisplayName
+                | None -> row.Kind.DisplayName
+
+            $"{name} · {t.ConnectorsTitle}"
+        | _ -> t.ConnectorsTitle
+
+    // On the list URL, and for a connector that is not there, the notice is about
+    // the page; for a known connector, the add form and the domains, it is about
+    // what the pane shows.
+    let pageNotice =
+        match selection with
+        | Item _ when selected.IsSome -> None
+        | Item _ -> Some "connector-not-found"
+        | ListUrl -> notice
+        | Create
+        | DomainsPane -> None
+
+    let paneNotice =
+        match selection, selected with
+        | Item _, Some _
+        | Create, _
+        | DomainsPane, _ -> notice |> Option.map block
+        | _ -> None
+
+    let storedCount = rows |> List.filter (fun row -> row.Existing.IsSome) |> List.length
+
+    let addButton =
+        let button = a(href = newPath, class' = Components.btnSm Components.Primary)
+        Components.frameNav button newPath |> ignore
+
+        if selection = Create then
+            button.attr("aria-current", "page") |> ignore
+
+        (button {
+            Components.icon Theme.Add
+            t.ConnectorAddButton
+        })
+        :> HtmlElement
+
+    let isSelected (row: Row) =
+        selected |> Option.exists (fun s -> s.Slug = row.Slug)
+
+    let entry (row: Row) =
+        let attention =
+            row.Existing.IsSome
+            && (let slug = row.Slug
+                let isShared = row.Existing |> Option.exists (fun c -> c.IsShared)
+                let offeredNowhere = not isShared && not (Set.contains slug chosenSlugs)
+
+                let unreadable =
+                    row.Existing
+                    |> Option.bind (fun c ->
+                        match Secrets.SecretRef.Decode c.ClientSecretRef with
+                        | Ok reference -> Some reference.Store
+                        | Error _ -> None)
+                    |> Option.exists (fun store -> not ((ctx.GetService<SecretStores>()).CanRead store))
+
+                offeredNowhere || unreadable)
+
+        let marker =
+            match row.Existing with
+            | Some c ->
+                if attention then
+                    Components.markerIcon Theme.Warning t.ConnectorsAttentionMarker :> HtmlElement
+                else
+                    Components.stateBadge c.IsEnabled t.Enabled t.Disabled :> HtmlElement
+                |> Some
+            | None -> None
+
+        let title =
+            match row.Existing with
+            | Some c -> c.DisplayName
+            | None -> row.Kind.DisplayName
+
+        let subtitle =
+            match row.Existing with
+            | Some c -> (span(class' = "um-mono") { c.Slug }) :> HtmlElement
+            | None -> (span() { t.NotConfigured }) :> HtmlElement
+
+        let link =
+            Components.frameEntry (detailPath row.Slug) (isSelected row) title subtitle marker
+
+        link.data ("connector-entry", row.Slug) |> ignore
+
+        if attention then
+            link.data ("attention", "") |> ignore
+
+        if row.Existing.IsNone then
+            link.data ("entry-muted", "") |> ignore
+
+        link :> HtmlElement
+
+    let domainsEntry =
+        (Components.frameEntry
+            domainsPath
+            (selection = DomainsPane)
+            t.AllowedDomainsTitle
+            (span() { t.ConnectorsDomainsEntryLine })
+            None)
+            .data("domains-entry", "")
+        :> HtmlElement
+
+    let list =
+        Components.frameList
+            frameView
+            t.ConnectorsListLabel
+            (t.ConnectorsCount storedCount)
+            (Some addButton)
+            (div() {
+                Components.frameEntries (rows |> List.map entry)
+
+                div(class' = "my-3 border-t border-outline-variant/40").attr("role", "presentation")
+
+                Components.frameEntries [ domainsEntry ]
+            })
+
+    let pane =
+        match selection, selected with
+        | Create, _ -> addForm ctx t domains.Instance addableKinds frameView add paneNotice :> HtmlElement
+        | DomainsPane, _ -> domainsPane ctx t domains frameView paneNotice :> HtmlElement
+        | _, Some row ->
+            match row.Kind with
+            | Passkey ->
+                PasskeyConnector.pane
+                    ctx
+                    t
+                    origin
+                    enabledCount
+                    chosenSlugs
+                    row.Existing
+                    invitations
+                    revealedLink
+                    frameView
+                    paneNotice
+            | _ -> providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice row :> HtmlElement
+        | _, None -> Fragment() :> HtmlElement
+
     div(class' = "space-y-6").data("screen", "connectors") {
         Components.pageHeading t.ConnectorsTitle (Some t.ConnectorsLead)
         originBanner ctx t origin
         secretStoreBanner ctx t
 
-        match notice, strand with
-        | Some("allowed-domains-removal" as code), _ ->
-            match domains.Removal with
-            | Some names -> (removalWarning ctx t code names) :> HtmlElement
-            // A link that outlived the list it was about: nothing to warn of.
-            | None -> Fragment() :> HtmlElement
-        // A notice that carries what the provider said (`explained`) is a
-        // warning, not a success: the provider was saved disabled, or would not
-        // be enabled.
-        | Some code, None when explained.IsSome ->
-            (div().data("notice", code) { Components.alert Components.Warning explained.Value })
-            :> HtmlElement
-        | Some code, Some warning ->
-            (div().data("notice", code) {
-                Components.alert Components.Warning (t.Notice code)
-                strandWarning ctx t warning
-            })
-            :> HtmlElement
-        | Some code, None ->
-            (div().data("notice", code) { Components.alert Components.Success (t.Notice code) })
-            :> HtmlElement
-        | None, _ -> Fragment() :> HtmlElement
+        match pageNotice with
+        | Some code -> block code
+        | None -> Fragment() :> HtmlElement
 
-        instanceCard ctx t domains
-
-        for row in rows do
-            card ctx t origin enabledCount chosenSlugs domains invitations revealedLink row
-
-        addForm ctx t domains.Instance addableKinds add
+        Components.frame frameView list pane
     }
-    |> Layout.operatorPage ctx t t.ConnectorsTitle []
+    |> Layout.operatorPage ctx t pageTitle []
 
 /// The kinds the add form offers: the three real providers, OpenID Connect (which
 /// has no empty card, it is only ever added here), and the fake one
@@ -731,16 +975,24 @@ let private addableKinds (ctx: HttpContext) =
     else
         allKinds @ [ Oidc ]
 
-/// Every stored connector gets a card, then an empty card for each kind with
-/// none. Stored ones in the order Discord, GitHub, Google (the two easy wins
-/// first, since Google is the one that can refuse a homelab address outright),
-/// then by slug; a stored fake one last.
+/// Every stored connector gets an entry, then one for each kind with none. Stored
+/// ones in the order Discord, GitHub, Google (the two easy wins first, since
+/// Google is the one that can refuse a homelab address outright), OpenID Connect,
+/// the fake one, then by slug; the kinds not set up follow, in the order of
+/// `allKinds`, and Passkey closes the list.
 let private rowsFor (existing: Connector list) =
     let kindOrder kind =
-        allKinds |> List.tryFindIndex ((=) kind) |> Option.defaultValue allKinds.Length
+        match kind with
+        | Discord -> 0
+        | GitHub -> 1
+        | Google -> 2
+        | Oidc -> 3
+        | Fake -> 4
+        | Passkey -> 5
 
     let stored =
         existing
+        |> List.filter (fun c -> c.Kind <> Passkey)
         |> List.sortBy (fun c -> kindOrder c.Kind, c.Slug)
         |> List.map (fun c -> { Kind = c.Kind; Existing = Some c })
 
@@ -749,14 +1001,13 @@ let private rowsFor (existing: Connector list) =
         |> List.filter (fun kind -> not (existing |> List.exists (fun c -> c.Kind = kind)))
         |> List.map (fun kind -> { Kind = kind; Existing = None })
 
-    // The passkey card comes after the provider rows and is never in the add
-    // form: it is the stored connector of that kind, or the empty card.
+    // The passkey row is never in the add form: it is the stored connector of
+    // that kind, or the kind not set up.
     let passkey =
         { Kind = Passkey
           Existing = existing |> List.tryFind (fun c -> c.Kind = Passkey) }
 
-    (stored @ empty |> List.filter (fun row -> row.Kind <> Passkey) |> List.sortBy (fun row -> kindOrder row.Kind, row.Slug))
-    @ [ passkey ]
+    stored @ empty @ [ passkey ]
 
 /// A refused list at either level, to draw again with what was typed.
 type private Drafts =
@@ -765,9 +1016,14 @@ type private Drafts =
 
 let private noDrafts = { Instance = None; Card = None }
 
-/// The screen, with the add form as given. `page` draws it empty; a refused add
-/// draws it again with the operator's input, and so does a refused list.
-let private render (ctx: HttpContext) (add: AddFormState) (drafts: Drafts) : System.Threading.Tasks.Task =
+/// The screen, with the add form as given. The GET routes draw it empty; a refused
+/// add draws it again with the operator's input, and so does a refused list.
+let private render
+    (ctx: HttpContext)
+    (selection: Selection)
+    (add: AddFormState)
+    (drafts: Drafts)
+    : System.Threading.Tasks.Task =
         task {
             let t = Texts.current ()
             let config = ctx.GetService<Database.DbConfig>()
@@ -779,7 +1035,6 @@ let private render (ctx: HttpContext) (add: AddFormState) (drafts: Drafts) : Sys
             // as the handlers count it.
             let clock = ctx.GetService<TimeProvider>()
             let! invitations = PasskeyInvitations.listOpen config clock "passkey"
-            let revealedLink = PasskeyConnector.InviteReveal.consume ctx "connector"
             let enabledCount = existing |> List.filter (fun c -> c.IsEnabled) |> List.length
 
             // Every slug some app's chosen set names, for `data-offered-nowhere`.
@@ -887,17 +1142,43 @@ let private render (ctx: HttpContext) (add: AddFormState) (drafts: Drafts) : Sys
                 | Some("connector-secret-busy" as code) -> Some(t.Notice code)
                 | _ -> None
 
+            let rows = rowsFor existing
+
+            // The first connector is the one a list URL shows on a wide screen.
+            let selected =
+                match selection with
+                | ListUrl -> List.tryHead rows
+                | Item slug -> rows |> List.tryFind (fun row -> row.Slug = slug)
+                | Create
+                | DomainsPane -> None
+
+            // A connector that is not here is a 404 with the list around it, unless
+            // a refusal already set a status.
+            match selection, selected with
+            | Item _, None when ctx.Response.StatusCode = 200 -> ctx.SetStatusCode 404
+            | _ -> ()
+
+            // Only the Passkey pane takes the invitation link off the cookie, so
+            // another page does not use it up.
+            let revealedLink =
+                match selected with
+                | Some { Kind = Passkey } when selection <> Create && selection <> DomainsPane ->
+                    PasskeyConnector.InviteReveal.consume ctx "connector"
+                | _ -> None
+
             return!
                 ctx.WriteHtmlView(
                     view
                         ctx
                         t
                         (ctx.GetService<PublicOrigin.PublicOrigin>())
-                        (rowsFor existing)
+                        rows
                         enabledCount
                         chosenSlugs
                         domains
                         (addableKinds ctx)
+                        selection
+                        selected
                         add
                         notice
                         strand
@@ -908,8 +1189,16 @@ let private render (ctx: HttpContext) (add: AddFormState) (drafts: Drafts) : Sys
         }
 
 
-let page: EndpointHandler =
-    AdminAuth.requireOperator (fun ctx -> render ctx emptyAddForm noDrafts)
+let private screen (selection: Selection) : EndpointHandler =
+    AdminAuth.requireOperator (fun ctx -> render ctx selection emptyAddForm noDrafts)
+
+let page: EndpointHandler = screen ListUrl
+
+let newPage: EndpointHandler = screen Create
+
+let domainsPage: EndpointHandler = screen DomainsPane
+
+let detailPage (slug: string) : EndpointHandler = screen (Item slug)
 
 let private recordEventWith
     (ctx: HttpContext)
@@ -939,11 +1228,11 @@ let private recordDomainsChanged (ctx: HttpContext) (slug: string option) (list:
             Detail = Some $"count={List.length list}"
             RemoteIp = remoteIpOf ctx }
 
-/// A refused list on a card or the instance card is drawn again with what was
+/// A refused list on a connector's pane or the domains pane is drawn again with what was
 /// typed (the secret is the one thing never redrawn), as an unprocessable form.
-let private refuseDomains (ctx: HttpContext) (drafts: Drafts) =
+let private refuseDomains (ctx: HttpContext) (selection: Selection) (drafts: Drafts) =
     ctx.SetStatusCode 422
-    render ctx emptyAddForm drafts
+    render ctx selection emptyAddForm drafts
 
 let private prefixOf (ctx: HttpContext) =
     ctx.GetService<SecretStoreSettings.SecretStoreSettings>().Prefix
@@ -994,10 +1283,10 @@ let private discard (ctx: HttpContext) (reference: Secrets.SecretRef) =
 /// The refusal of the redirecting paths. The store and the cause word travel in
 /// the single-use notice cookie, not in the URL, so the screen can name the
 /// store without a link being able to make it say anything (`NoticeReason`).
-let private refuseStoreFailed (ctx: HttpContext) (slug: string) (failure: Secrets.StoreFailure) =
+let private refuseStoreFailed (ctx: HttpContext) (path: string) (slug: string) (failure: Secrets.StoreFailure) =
     WebForms.NoticeReason.redirect
         ctx
-        "/admin/connectors"
+        path
         "connector-secret-store-failed"
         "slug"
         slug
@@ -1069,7 +1358,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
 
         let refuse (field: string) (message: string) =
             ctx.SetStatusCode 422
-            render ctx { state with Problem = Some(field, message) } noDrafts
+            render ctx Create { state with Problem = Some(field, message) } noDrafts
 
         let domainsParsed = parseDomains t state.AllowedDomains
 
@@ -1078,7 +1367,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
         // A kind's own name is where its empty card posts, so a connector of
         // another kind under it would be edited as the wrong provider; `oidc`
         // itself is a kind's name too.
-        let reserved = (parseKind state.Slug).IsSome
+        let reserved = (parseKind state.Slug).IsSome || reservedSlugs.Contains state.Slug
 
         if not (Ids.isValidSlug state.Slug) then
             return! refuse "slug" t.ConnectorAddOidcSlugInvalid
@@ -1178,12 +1467,12 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                 do! recordDomainsChanged ctx (Some state.Slug) domains
 
             match reasonShort with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added-oidc"
+            | None -> return! WebForms.redirectWithNotice ctx (detailPath state.Slug) "connector-added-oidc"
             | Some reason ->
                 return!
                     WebForms.NoticeReason.redirect
                         ctx
-                        "/admin/connectors"
+                        (detailPath state.Slug)
                         "connector-added-oidc-unreachable"
                         "slug"
                         state.Slug
@@ -1213,10 +1502,10 @@ let create: EndpointHandler =
             let! taken = ConnectorStore.findBySlug config slug
 
             match parseKind (WebForms.value form "kind") with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+            | None -> return! WebForms.redirectWithNotice ctx newPath "connector-unknown"
             | Some Oidc -> return! createOidc ctx form
             | Some kind when not (mayCreate ctx kind) ->
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+                return! WebForms.redirectWithNotice ctx newPath "connector-unknown"
             | Some kind ->
 
             // A kind's own name is where its empty card posts, so a connector
@@ -1227,17 +1516,17 @@ let create: EndpointHandler =
                 | None -> false
 
             if not (Ids.isValidSlug slug) then
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-invalid"
-            elif taken.IsSome || reservedForOtherKind then
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
+                return! WebForms.redirectWithNotice ctx newPath "connector-slug-invalid"
+            elif taken.IsSome || reservedForOtherKind || reservedSlugs.Contains slug then
+                return! WebForms.redirectWithNotice ctx newPath "connector-slug-taken"
             elif displayName = "" then
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-display-name-required"
+                return! WebForms.redirectWithNotice ctx newPath "connector-display-name-required"
             elif clientId = "" then
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-client-id-required"
+                return! WebForms.redirectWithNotice ctx newPath "connector-client-id-required"
             else
 
             match newSecret with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-required"
+            | None -> return! WebForms.redirectWithNotice ctx newPath "connector-secret-required"
             | Some plaintext ->
 
             // Before the secret is written: a refused list leaves nothing behind.
@@ -1250,6 +1539,7 @@ let create: EndpointHandler =
                 return!
                     render
                         ctx
+                        Create
                         { emptyAddForm with
                             Kind = kind.Value
                             Slug = slug
@@ -1266,7 +1556,7 @@ let create: EndpointHandler =
             let now = clock.GetUtcNow()
 
             match! putNew ctx slug now plaintext with
-            | Error failure -> return! refuseStoreFailed ctx slug failure
+            | Error failure -> return! refuseStoreFailed ctx newPath slug failure
             | Ok(reference, secret) ->
 
             let! added =
@@ -1291,7 +1581,7 @@ let create: EndpointHandler =
 
             if added <> ConnectorStore.Created then
                 do! discard ctx reference
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
+                return! WebForms.redirectWithNotice ctx newPath "connector-slug-taken"
             else
 
             do! recordEventWith ctx SecurityEvents.ConnectorCreated slug (Some $"store={reference.Store}")
@@ -1299,12 +1589,12 @@ let create: EndpointHandler =
             if not domains.IsEmpty then
                 do! recordDomainsChanged ctx (Some slug) domains
 
-            return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-added"
+            return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-added"
         })
 
-/// Save a card. The kind comes from the stored row, never from the slug
+/// Save a connector. The kind comes from the stored row, never from the slug
 /// (FR-012); a slug with no row is the first connector of the kind it names,
-/// which is the empty card's path.
+/// which is the path of a kind not set up.
 let save (slug: string) : EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
         task {
@@ -1331,11 +1621,11 @@ let save (slug: string) : EndpointHandler =
                 | None -> parseKind slug |> Option.filter (mayCreate ctx)
 
             match kind with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+            | None -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
             | Some _ when clientId = "" ->
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-client-id-required"
+                return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-client-id-required"
             | Some _ when fullForm && displayName = "" ->
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-display-name-required"
+                return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-display-name-required"
             | Some kind ->
 
             // A card posts `allowedDomains` every time, an empty field meaning
@@ -1355,6 +1645,7 @@ let save (slug: string) : EndpointHandler =
                 return!
                     refuseDomains
                         ctx
+                        (Item slug)
                         { noDrafts with
                             Card =
                                 Some(
@@ -1367,13 +1658,13 @@ let save (slug: string) : EndpointHandler =
             match existing, newSecret with
             // A new connector needs a secret; an existing one does not, because
             // the screen cannot show the saved value back for retyping.
-            | None, None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-required"
+            | None, None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-secret-required"
 
             | None, Some plaintext ->
                 let now = clock.GetUtcNow()
 
                 match! putNew ctx slug now plaintext with
-                | Error failure -> return! refuseStoreFailed ctx slug failure
+                | Error failure -> return! refuseStoreFailed ctx (detailPath slug) slug failure
                 | Ok(reference, secret) ->
 
                 let! added =
@@ -1399,7 +1690,7 @@ let save (slug: string) : EndpointHandler =
 
                 if added <> ConnectorStore.Created then
                     do! discard ctx reference
-                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-slug-taken"
+                    return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-slug-taken"
                 else
                     do! recordEventWith ctx SecurityEvents.ConnectorCreated slug (Some $"store={reference.Store}")
 
@@ -1407,7 +1698,7 @@ let save (slug: string) : EndpointHandler =
                     | Some(_ :: _ as list) -> do! recordDomainsChanged ctx (Some slug) list
                     | _ -> ()
 
-                    return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
+                    return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-saved"
 
             | Some stored, _ ->
                 let newName = if fullForm then displayName else stored.DisplayName
@@ -1434,7 +1725,7 @@ let save (slug: string) : EndpointHandler =
                     return!
                         WebForms.redirectWithNoticeAbout
                             ctx
-                            "/admin/connectors"
+                            (detailPath slug)
                             "connector-strands-apps"
                             [ "slug", slug; "change", "unshare" ]
                 else
@@ -1450,7 +1741,7 @@ let save (slug: string) : EndpointHandler =
                         // finished since the first read may have changed which
                         // store holds the old copy.
                         match! ConnectorStore.findBySlug config slug with
-                        | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+                        | None -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
                         | Some stored ->
 
                         // The name is derived again from what never changes about the
@@ -1472,7 +1763,7 @@ let save (slug: string) : EndpointHandler =
                             | None -> System.Threading.Tasks.Task.FromResult(Ok None)
 
                         match secretUpdate with
-                        | Error failure -> return! refuseStoreFailed ctx slug failure
+                        | Error failure -> return! refuseStoreFailed ctx (detailPath slug) slug failure
                         | Ok written ->
 
                         let! updated =
@@ -1486,7 +1777,7 @@ let save (slug: string) : EndpointHandler =
                         | _ -> ()
 
                         if not updated then
-                            return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+                            return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
                         else
                             // FR-022: a changed secret names the store that now holds it.
                             do!
@@ -1533,7 +1824,7 @@ let save (slug: string) : EndpointHandler =
                                 | None, _ -> System.Threading.Tasks.Task.FromResult None
 
                             match leftBehind with
-                            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-saved"
+                            | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-saved"
                             | Some(store, failure) ->
                                 do!
                                     SecurityEvents.recordStoreFailure
@@ -1551,7 +1842,7 @@ let save (slug: string) : EndpointHandler =
                                 return!
                                     WebForms.NoticeReason.redirect
                                         ctx
-                                        "/admin/connectors"
+                                        (detailPath slug)
                                         "connector-secret-replaced-left-behind"
                                         "slug"
                                         slug
@@ -1564,7 +1855,7 @@ let save (slug: string) : EndpointHandler =
                 | Some _ ->
                     match! ConnectorStore.withLease config clock slug apply with
                     | Some() -> ()
-                    | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-busy"
+                    | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-secret-busy"
         })
 
 /// Save the instance list (FR-016, FR-019). Emptying a list that is not empty
@@ -1582,7 +1873,7 @@ let saveAllowedDomains: EndpointHandler =
             let typed = WebForms.value form "allowedDomains"
 
             if not (form.ContainsKey "allowedDomains") then
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "allowed-domains-saved"
+                return! WebForms.redirectWithNotice ctx domainsPath "allowed-domains-saved"
             else
 
             match parseDomains t typed with
@@ -1590,6 +1881,7 @@ let saveAllowedDomains: EndpointHandler =
                 return!
                     refuseDomains
                         ctx
+                        DomainsPane
                         { noDrafts with
                             Instance =
                                 Some
@@ -1607,18 +1899,21 @@ let saveAllowedDomains: EndpointHandler =
                 && connectors |> List.exists (fun c -> c.AllowedEmailDomains.IsEmpty)
 
             if opens && not confirmed then
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "allowed-domains-removal"
+                return! WebForms.redirectWithNotice ctx domainsPath "allowed-domains-removal"
             else
 
             if list <> stored then
                 do! EmailDomainRules.setInstanceList config clock list
                 do! recordDomainsChanged ctx None list
 
-            return! WebForms.redirectWithNotice ctx "/admin/connectors" "allowed-domains-saved"
+            return! WebForms.redirectWithNotice ctx domainsPath "allowed-domains-saved"
         })
 
 let endpoint =
     [ GET [ route "/admin/connectors" page ]
+      GET [ route "/admin/connectors/new" newPage ]
+      GET [ route "/admin/connectors/domains" domainsPage ]
+      GET [ routef "/admin/connectors/{%s}" detailPage ]
       POST [ route "/admin/connectors" create ]
       POST [ route "/admin/allowed-domains" saveAllowedDomains ]
       POST [ routef "/admin/connectors/{%s}" save ] ]

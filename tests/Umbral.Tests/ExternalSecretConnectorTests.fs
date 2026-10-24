@@ -831,12 +831,19 @@ let ``a new app host over the same data directory starts with an empty cache`` (
 // User Story 4: knowing where secrets are, and why something fails
 // ---------------------------------------------------------------------------
 
-/// The markup of one connector card, so an assertion about a card cannot be
-/// satisfied by another card's marker.
+/// The markup of one connector's pane, so an assertion about a pane cannot be
+/// satisfied by another connector's marker.
 let private cardOf (html: string) (slug: string) =
-    let m = Regex.Match(html, $"<article[^>]*data-connector=\"{Regex.Escape slug}\"[^>]*>.*?</article>", RegexOptions.Singleline)
-    Assert.True(m.Success, $"no card for '{slug}'")
+    let m = Regex.Match(html, $"<section[^>]*data-connector=\"{Regex.Escape slug}\"[^>]*>.*?</section>", RegexOptions.Singleline)
+    Assert.True(m.Success, $"no pane for '{slug}'")
     m.Value
+
+/// A connector's own page, read as its pane.
+let private paneOf (operator: Browser) (slug: string) =
+    task {
+        let! html = operator.GetHtml $"/admin/connectors/{slug}"
+        return cardOf html slug
+    }
 
 /// The app with `store` failing (or answering) as given BEFORE it starts, so the
 /// startup probe meets it, and no fake connector: seeding one would write to the
@@ -862,7 +869,7 @@ let private startProbed (store: InMemorySecretStore) =
 let private problemMarker = "data-secret-store-problem"
 
 [<Fact>]
-let ``each card says which store keeps its secret, with the Texts label`` () =
+let ``each pane says which store keeps its secret, with the Texts label`` () =
     task {
         let store = InMemorySecretStore "aws"
         let! app, operator = start store (create issuer) awsSettings
@@ -879,23 +886,22 @@ let ``each card says which store keeps its secret, with the Texts label`` () =
         let reference = match put with | Ok r -> r | Error _ -> failwith "local put"
         do! ConnectorStore.save app.DbConfig app.Clock { stored.Value with ClientSecretRef = reference.Encoded } None
 
-        let! html = operator.GetHtml "/admin/connectors"
         let texts = Umbral.Views.Texts.current ()
 
-        let home = cardOf html "home"
+        let! home = paneOf operator "home"
         Assert.Contains("data-secret-store=\"aws\"", home)
         Assert.Contains(texts.SecretStoreLabel "aws", home)
         Assert.Contains("Kept in AWS Secrets Manager", home)
         Assert.DoesNotContain("data-secret-unreadable", home)
 
-        let fake = cardOf html "fake"
+        let! fake = paneOf operator "fake"
         Assert.Contains("data-secret-store=\"local\"", fake)
         Assert.Contains("Kept in this instance (encrypted)", fake)
         Assert.DoesNotContain("data-secret-unreadable", fake)
     }
 
 [<Fact>]
-let ``a card whose reference names a store this instance cannot build warns, with what to do`` () =
+let ``a pane whose reference names a store this instance cannot build warns, with what to do`` () =
     task {
         let store = InMemorySecretStore "aws"
         let! app, operator = start store (create issuer) awsSettings
@@ -924,9 +930,7 @@ let ``a card whose reference names a store this instance cannot build warns, wit
                   UpdatedUtc = app.Clock.GetUtcNow() }
                 None
 
-        let! html = operator.GetHtml "/admin/connectors"
-
-        let github = cardOf html "github"
+        let! github = paneOf operator "github"
         Assert.Contains("data-secret-store=\"azure\"", github)
         Assert.Contains("data-secret-unreadable", github)
         Assert.Contains("Azure Key Vault", github)
@@ -934,12 +938,13 @@ let ``a card whose reference names a store this instance cannot build warns, wit
         Assert.Contains("docs/secret-stores", github)
         Assert.Contains("role=\"note\"", github)
 
-        // The warning is the unreadable card's, not every card's.
-        Assert.DoesNotContain("data-secret-unreadable", cardOf html "home")
+        // The warning is the unreadable pane's, not every pane's.
+        let! home = paneOf operator "home"
+        Assert.DoesNotContain("data-secret-unreadable", home)
     }
 
 [<Fact>]
-let ``a card whose store has credentials in the environment that cannot be used warns that it is unreadable`` () =
+let ``a pane whose store has credentials in the environment that cannot be used warns that it is unreadable`` () =
     task {
         // A Bella key is present (so a reader is registered) but does not parse:
         // the store cannot be built, so the card must not claim it can be read.
@@ -972,8 +977,8 @@ let ``a card whose store has credentials in the environment that cannot be used 
                   UpdatedUtc = app.Clock.GetUtcNow() }
                 None
 
-        let! html = operator.GetHtml "/admin/connectors"
-        Assert.Contains("data-secret-unreadable", cardOf html "github")
+        let! github = paneOf operator "github"
+        Assert.Contains("data-secret-unreadable", github)
     }
 
 [<Theory>]
