@@ -8,8 +8,16 @@ the diff, the detector, a test run, and the 37 captures.
 
 ## Verdict
 
-**Clear to merge. No blocking items; two nits, both pre-existing, that may land on this branch
-before the merge or go to a queued task.** All nine decisions in `notes.md` stand.
+**Clear to merge at `804bcf9`.** Both nits taken: an open invitation reads "For a new person",
+and the enrolment modes are `.um-choice` radio cards, the same component the Apps pane uses for
+its sign-in methods, side by side from 768px. That is a better fix than the `accent-color` line
+I suggested: one component for one kind of choice, no new rule, and the two modes now read as a
+decision with its consequences rather than a form row. Checked in the recaptured
+`detail-passkey` at 1280 light and 360 dark; the implementer reports 403 passing in the
+connector, passkey and allowed-domains filters at that commit.
+
+First pass at `c027173`: **clear to merge, no blocking items; two nits, both pre-existing.**
+All nine decisions in `notes.md` stand.
 
 ## What was checked
 
