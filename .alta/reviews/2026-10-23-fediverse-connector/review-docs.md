@@ -183,3 +183,14 @@ merges second, T1 needs a one-line follow-up. Merging T1 first is simpler.
   loopback or link-local address") is what the code does.
 - Link check on the merged branch: 182 links in 14 files, all resolve.
 - `notes.md` has the answers under "Answers to the reviews".
+
+**Addendum, 2026-10-24, at `92b1177` (code review B4).** The two new sentences,
+in the README's "Who can sign in" and in the walkthrough's "The server list",
+say the server list reaches people already signed in: at the next sign-in, the
+next authorize with an existing session, and the next token refresh. Checked:
+`FediverseServers.recheckServer` (`Infrastructure/FediverseServers.fs:204-232`)
+is called after the email-domain decision admits in both `Authorize.fs:254` and
+`Token.fs:109`, and signs out or refuses with a `sign_in_failed` event; "within
+an hour" for issued access tokens is the README's existing statement for domain
+rules (no explicit lifetime is set, so OpenIddict's default applies). Both
+sentences are right. Still clear.
