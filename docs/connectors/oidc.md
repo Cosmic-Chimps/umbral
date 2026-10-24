@@ -35,8 +35,8 @@ Back to the [README](../../README.md). Other providers:
 
 ## 1. Choose the identifier, and so the callback URL
 
-An OpenID Connect provider has no card of its own to fill in: you add it with
-the form **Add another connector** on the **Connectors** screen, and you choose
+An OpenID Connect provider has no entry of its own in the list until you add it:
+**Add connector** opens the form **Add another connector**, and you choose
 its **Identifier** (its slug) there. The identifier is part of the callback URL:
 
 ```
@@ -51,9 +51,9 @@ be the name of a kind of connector (`discord`, `github`, `google`, `passkey`,
 later.
 
 Because you choose it, you can type the callback URL into your provider's
-console before you add the provider in Umbral. After you add it, the new card
+console before you add the provider in Umbral. After you add it, the new page
 shows the same URL in **Redirect URI to register with the provider**, with a Copy
-button. If the two differ by a character, copy the card's: your provider
+button. If the two differ by a character, copy the page's: your provider
 compares it exactly.
 
 ## 2. Find the issuer URL
@@ -151,14 +151,14 @@ connector**.
 Umbral then asks your provider about itself (that is the check of the issuer)
 before it saves anything, so the click can take a few seconds. When the provider
 answers and describes itself correctly, the connector is saved and **enabled**,
-and a card for it appears on the screen with its **Redirect URI to register with
-the provider**. Register that URL in your provider if you have not already. No
-restart is needed: people see **Sign in with** your label on Umbral's sign-in
-page from the next page load.
+and its page opens with its **Redirect URI to register with the provider**.
+Register that URL in your provider if you have not already. No restart is
+needed: people see **Sign in with** your label on Umbral's sign-in page from the
+next page load.
 
 The secret is stored encrypted and shown masked afterwards (its last four
 characters). It is never shown again: to change it, type a new one into
-**Replace client secret** on the card.
+**Replace client secret** on its page.
 
 ### If the provider cannot be reached
 
@@ -167,7 +167,7 @@ the address does not resolve, it times out, or the answer is not a discovery
 document), the connector is saved **disabled**, with a warning that names the
 reason. It is not offered to anyone. Once your provider is up and
 `<issuer>/.well-known/openid-configuration` opens in a browser, press **Enable**
-on its card: Umbral runs the check again, and enables the connector only if it
+on its page: Umbral runs the check again, and enables the connector only if it
 passes.
 
 A provider that **answers wrongly** is never saved: a different issuer in its
@@ -177,7 +177,7 @@ message says what to change.
 
 ### The issuer and the identifier cannot be changed
 
-Both are shown on the card and are read-only. The issuer is part of how Umbral
+Both are shown on the page and are read-only. The issuer is part of how Umbral
 recognises every person who signs in through this provider (see
 [What Umbral takes from your provider](#what-umbral-takes-from-your-provider)),
 and the identifier is in the callback URL registered with your provider. To
@@ -289,7 +289,7 @@ something that is not one). From the machine running Umbral, check
 `curl -i <issuer>/.well-known/openid-configuration`: it should return JSON. If it
 does not, the problem is the network, DNS, the certificate (Umbral's container
 must trust it) or the provider being down. When it works, press **Enable** on the
-card.
+page.
 
 **"This provider only signs with a shared secret"**
 The provider's discovery page lists only `HS256`-family signing. Switch the
@@ -314,20 +314,20 @@ look at the `detail` of the latest `sign_in_failed` row for this connector:
 | `id_token_invalid: signature` | The identity token is not signed by a key your provider publishes. After a key rotation Umbral fetches the new keys by itself (once every five minutes at most), so if it persists: the client belongs to a different provider than the issuer you typed, or something between Umbral and the provider changes the token. |
 | `id_token_invalid: algorithm` | Signed with `HS256`, `none`, or an algorithm Umbral does not accept. See "only signs with a shared secret" above. |
 | `id_token_invalid: issuer` | The token's `iss` is not the issuer you configured. Same causes as "describes itself as …". |
-| `id_token_invalid: audience` | The token was issued to a different client ID than the one in Umbral. Check the **Client ID** on the card matches the client in your provider. |
+| `id_token_invalid: audience` | The token was issued to a different client ID than the one in Umbral. Check the **Client ID** on the page matches the client in your provider. |
 | `id_token_invalid: expired` (or `not_yet_valid`) | The clocks of Umbral's host and your provider's host disagree by more than two minutes. Fix the time on both: run NTP, `timedatectl`, or on a Raspberry Pi check that it has a clock source. |
 | `id_token_invalid: nonce` | The token is not for this sign-in. Rare: usually a stale tab opened from an old attempt. Try again from the start. |
 | `id_token_missing` | The provider's answer had no identity token. The client must request the `openid` scope and the provider must be able to issue ID tokens. |
 | `userinfo_subject_mismatch` | The provider's userinfo endpoint described a different person than the identity token did. This is a provider or proxy problem: Umbral refuses on purpose. |
 
 A token endpoint that answers with an error is recorded as a failed sign-in
-too: check the client secret (use **Replace client secret** on the card), the
+too: check the client secret (use **Replace client secret** on the page), the
 redirect URI registered in the provider, and that the client is confidential
 with the authorization-code flow on.
 
 **The provider says the redirect URI is invalid or does not match**
 The URL registered in the provider is not byte-identical to the one on Umbral's
-card. Copy it again from **Redirect URI to register with the provider**, and
+page. Copy it again from **Redirect URI to register with the provider**, and
 check `http` against `https`, the port, a trailing slash and upper/lower case.
 Also check `UMBRAL__PUBLIC_ORIGIN`. See
 [Troubleshooting](../../README.md#troubleshooting).
@@ -371,7 +371,7 @@ See [Who can sign in](../../README.md#who-can-sign-in).
 - **One client per Umbral connector.** Create a client per connector; the
   redirect URI is different for each identifier.
 - **The secret is shown once** by most providers. If you lose it, generate a new
-  one in the provider and paste it into **Replace client secret** on the card.
+  one in the provider and paste it into **Replace client secret** on its page.
 - **Disabling or deleting** a provider warns you first if an app would be left
   with no way to sign in, as for any connector. Deleting keeps everyone's
   account.

@@ -186,8 +186,9 @@ same command replaces the credential (see
 
 ### 4. Add a connector (GitHub)
 
-1. On the **GitHub** card, find **Redirect URI to register with the provider**
-   and copy it. It is `<origin>/connect/github/callback`, here
+1. On **Connectors**, choose **GitHub** in the list. Under **Set-up**, find
+   **Redirect URI to register with the provider** and copy it. It is
+   `<origin>/connect/github/callback`, here
    `http://localhost:8080/connect/github/callback`. Umbral builds it for you:
    do not type it by hand.
 2. In GitHub: your profile picture → **Settings** → **Developer settings**
@@ -205,15 +206,15 @@ same command replaces the credential (see
 4. Click **Register application**, copy the **Client ID**, then click
    **Generate a new client secret** and copy it right away. GitHub shows it only
    once.
-5. Back in Umbral, paste both into the GitHub card and click
+5. Back in Umbral, paste both into GitHub's **Settings** and click
    **Save connector**. It is enabled immediately. No restart is needed, now or
    whenever you change a connector later.
 
 (Menu names are as of writing; GitHub moves things around occasionally. More
 detail and the gotchas are in the [GitHub walkthrough](docs/connectors/github.md).)
 
-GitHub is one way to get a first login. The other is the **Passkey** card on the
-same screen, which needs no account anywhere: see [Passkeys](#passkeys).
+GitHub is one way to get a first login. The other is the **Passkey** entry in the
+same list, which needs no account anywhere: see [Passkeys](#passkeys).
 
 ### 5. Register an app
 
@@ -377,7 +378,7 @@ consent screen, give it its own connector:
    label**, paste the **Client ID** and **Client secret**, untick **Shared with
    every app**, and click **Add connector**. The identifier is fixed once saved.
    It is part of the callback URL, `<origin>/connect/discord-frunchy/callback`,
-   which the new card shows: register that URL at the provider. The first
+   which the new page shows: register that URL at the provider. The first
    connector of a provider keeps the provider's name as its identifier (`discord`);
    only additional ones need one.
 3. On **Apps**, set the app's **Sign-in methods** to **Only the connectors I
@@ -544,10 +545,10 @@ By default, anyone with an account at an enabled provider can sign in and
 become a user. To let in only some people, list the email domains you allow.
 You can do it in two places:
 
-- **For the whole instance:** on the **Connectors** screen, in the **Who can
-  sign in** card at the top, fill in **Allowed email domains**, for example
+- **For the whole instance:** on the **Connectors** screen, open **Allowed email
+  domains** (the last entry of the list), fill in the field, for example
   `acme.com, example.org`, and click **Save**.
-- **For one connector:** open the connector's card (or the add form) and fill in
+- **For one connector:** open the connector's page (or the add form) and fill in
   its own **Allowed email domains** field.
 
 Separate domains with commas, spaces or new lines. Umbral takes care of a
@@ -557,7 +558,7 @@ its own: `*.acme.com` is refused.
 
 **Which list applies.** A connector's own list replaces the instance list for
 that connector. A connector with an empty list uses the instance list. If
-neither has a list, anyone can sign in, as before. Each connector's card shows
+neither has a list, anyone can sign in, as before. Each connector's page shows
 which rule applies to it.
 
 **What counts.**
@@ -619,7 +620,7 @@ an **Allowed email domains** section:
 These rules do not govern the passkey connector: passkeys carry no email, so
 there is nothing to judge. Who can create an account through it is its
 **enrolment mode** (invitations only, or anyone can sign up), chosen on its
-card. The Apps screen warns about an app that offers a passkey connector open to
+page. The Apps screen warns about an app that offers a passkey connector open to
 anyone, the way it warns about a connector without a rule.
 
 ## Passkeys
@@ -631,7 +632,7 @@ half, which is not a secret. In Umbral a passkey is a connector (Umbral itself
 is the provider), and a person's passkeys belong to their user. Details and
 gotchas are in the [Passkeys walkthrough](docs/connectors/passkey.md).
 
-**Enable the connector.** Open **Connectors**, find the **Passkey** card and
+**Enable the connector.** Open **Connectors**, choose **Passkey** in the list and
 click **Enable passkeys**. Choose who can create an account:
 
 - **Invitations only** (the default): only people you send an invitation link to.
@@ -640,13 +641,13 @@ click **Enable passkeys**. Choose who can create an account:
 
 Apps offer it like any other connector (shared, or chosen on the Apps screen).
 
-**Invite someone.** On the card, type an optional note (for you; people never
+**Invite someone.** On its page, type an optional note (for you; people never
 see it) and click **Invite someone**. Umbral shows a link once. Send it to the
 person over a channel you trust: it works once, for 7 days, and it is not shown
 again. Anyone who holds the link can use it, so treat it like a password. Umbral
 sends no email. The person opens the link, types the name apps will see, and
 their device asks for a fingerprint, face or PIN. Then they are signed in and see
-**Your passkeys**. Open invitations are listed on the card, where you can
+**Your passkeys**. Open invitations are listed on its page, where you can
 **Revoke** one.
 
 **Signing in.** On the sign-in page the person presses **Sign in with a
@@ -1222,8 +1223,8 @@ disabled or deleted. Ask for a new one. The cause is in `security_events` as
 
 **I added a connector and nobody sees it.**
 A connector that is **not shared** and that **no app has chosen** is offered
-nowhere. The connector's card says so. Either tick **Shared with every app** on
-the card, or open **Apps**, set an app's **Sign-in methods** to **Only the
+nowhere. The connector's page says so. Either tick **Shared with every app** on
+its page, or open **Apps**, set an app's **Sign-in methods** to **Only the
 connectors I choose**, tick the connector and click **Save sign-in methods**. A
 disabled connector is not offered either.
 
@@ -1247,7 +1248,7 @@ If the credential is already set, use `/admin/signin`, or
 
 **The provider says `redirect_uri_mismatch` (or "redirect URI is not valid").**
 The URL registered in the provider's console is not byte-identical to the one
-Umbral sends. Copy it again from the connector card
+Umbral sends. Copy it again from the connector page
 (`<origin>/connect/<slug>/callback`), check `http` vs `https`, the port, a
 trailing slash and upper/lower case, and check that `UMBRAL__PUBLIC_ORIGIN` is
 the address you actually use. If the Connectors screen shows an origin-mismatch

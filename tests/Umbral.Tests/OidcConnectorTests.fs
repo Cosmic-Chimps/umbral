@@ -157,13 +157,14 @@ let ``the add form offers OpenID Connect, with the issuer field and the email-tr
         let! app, operator = start [ create issuer ] ignore []
         use _ = app
 
-        let! screen = operator.GetHtml "/admin/connectors"
+        let! screen = operator.GetHtml "/admin/connectors/new"
         Assert.Contains("value=\"oidc\"", screen)
         Assert.Contains("name=\"issuer\"", screen)
         Assert.Contains("data-email-trust-warning", screen)
-        // `oidc` has no empty card: it is only ever added by issuer.
+        // `oidc` has no empty pane or entry: it is only ever added by issuer.
         Assert.DoesNotContain("data-connector-kind=\"oidc\"", screen)
         Assert.DoesNotContain("data-connector=\"oidc\"", screen)
+        Assert.DoesNotContain("data-connector-entry=\"oidc\"", screen)
     }
 
 [<Fact>]
@@ -1267,7 +1268,7 @@ let ``the add form carries the email-trust warning in full`` () =
         let! app, operator = start [ create issuer ] ignore []
         use _ = app
 
-        let! screen = operator.GetHtml "/admin/connectors"
+        let! screen = operator.GetHtml "/admin/connectors/new"
         Assert.Contains("Umbral trusts an email address that an OpenID Connect provider marks as verified", screen)
         Assert.Contains("Add only a provider you run or trust.", screen)
     }

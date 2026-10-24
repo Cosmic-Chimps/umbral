@@ -20,7 +20,7 @@ http://192.168.1.50:8080/connect/google/callback        # cannot be registered
 ```
 
 **cannot be registered with Google at all.** Umbral shows this warning on the
-Google card before you start. It cannot be fixed in Umbral, because the rule is
+Google page before you start. It cannot be fixed in Umbral, because the rule is
 Google's.
 
 What to do, best first:
@@ -46,7 +46,7 @@ Whatever name you use, it must be the **same address** you set as
 
 ## 1. Get the redirect URI from Umbral
 
-Open **Connectors** in the admin area and look at the **Google** card. The field
+Open **Connectors** in the admin area and choose **Google** in the list. The field
 **Redirect URI to register with the provider** holds the exact URL, with a Copy
 button:
 
@@ -58,7 +58,7 @@ for example `https://auth.example.com/connect/google/callback`. The part before
 `/callback` is the connector's **slug**, its identifier. The first Google
 connector always has the provider's name (`google`) as its slug. A second one
 has the slug you choose (see [Giving one app its own name](#giving-one-app-its-own-name)),
-and its card shows its own callback URL. Do not type it by hand: Google
+and its page shows its own callback URL. Do not type it by hand: Google
 compares it exactly.
 
 ## 2. Create the OAuth client in Google
@@ -128,7 +128,7 @@ it a connector of its own:
    (lower-case letters, digits and hyphens; it cannot be changed later), a
    **Button label**, and the new application's **Client ID** and **Client
    secret**. Untick **Shared with every app**, then click **Add connector**.
-3. The new card shows its own **Redirect URI to register with the provider**,
+3. The new page shows its own **Redirect URI to register with the provider**,
    `<UMBRAL__PUBLIC_ORIGIN>/connect/google-frunchy/callback`. Register
    that URL in the new project's OAuth client, not the first one.
 4. Open **Apps**, set that app's **Sign-in methods** to **Only the connectors I

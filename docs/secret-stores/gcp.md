@@ -112,7 +112,7 @@ docker compose logs umbral
 ```
 
 A healthy start has **no warning about the secret store** in the log, and the
-Connectors screen shows no notice about it. Then save a connector. The card says
+Connectors screen shows no notice about it. Then save a connector. The page says
 **Kept in Google Cloud Secret Manager**, and `gcloud secrets list --project
 PROJECT_ID` shows `umbral-<slug>-<8 chars>`. If saving fails with a refusal, the
 role is not applied yet or does not allow create (see Troubleshooting).
@@ -192,5 +192,5 @@ grace to `0` to refuse at once.
 | The Connectors screen shows a warning that starts **Google Cloud Secret Manager could not be reached.** (or **Google Cloud Secret Manager refused Umbral's credentials or permissions.**), and the log has a warning that starts **Secret store check at startup:** followed by the same words | Umbral started but Google did not answer. Check the API is enabled, the key file is mounted, readable and the right project's, billing is on, and the role is bound to the service account. The first sentence of the warning says which: could not be reached, or refused the credentials or permissions. Sign-ins keep working from the cache and grace period meanwhile. A refused save raises the same notice. It clears once a secret is next saved to the store successfully; no restart is needed. |
 | Saving a connector says **Google Cloud Secret Manager refused Umbral's credentials or permissions.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. The usual cause is `secretmanager.secrets.create` bound **with** a prefix condition: bind it without one, as in step 2. Then enter the secret again. |
 | … **Google Cloud Secret Manager could not be reached.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the network from the container to Google, and that `GOOGLE_APPLICATION_CREDENTIALS` points at a file that exists inside the container. |
-| A connector card shows the warning **This connector's secret is kept in Google Cloud Secret Manager, which this instance cannot read** | Restore the variables of that store, or set the store back, or use **Replace client secret** to save a new secret into the active store. |
+| A connector page shows the warning **This connector's secret is kept in Google Cloud Secret Manager, which this instance cannot read** | Restore the variables of that store, or set the store back, or use **Replace client secret** to save a new secret into the active store. |
 | A `move-secrets` line starts with `failed` | That connector was not changed. Read the cause on the line, fix it and run the command again. |

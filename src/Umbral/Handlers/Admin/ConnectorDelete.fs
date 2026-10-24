@@ -23,6 +23,7 @@ module Umbral.Handlers.Admin.ConnectorDelete
 open OpenIddict.Abstractions
 open Oxpecker
 open Umbral.Infrastructure
+open Umbral.Handlers.Admin.ConnectorPaths
 open Umbral.Infrastructure.SecretStores.Registry
 
 module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
@@ -36,7 +37,7 @@ let handler (slug: string) : EndpointHandler =
             let! existing = ConnectorStore.findBySlug config slug
 
             match existing with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+            | None -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
             | Some connector ->
 
             // FR-023, the same shape as the toggle: warn before the action that
@@ -58,11 +59,11 @@ let handler (slug: string) : EndpointHandler =
                 return!
                     WebForms.redirectWithNoticeAbout
                         ctx
-                        "/admin/connectors"
+                        (detailPath slug)
                         "connector-delete-strands-apps"
                         [ "slug", slug ]
             elif connector.IsEnabled && remaining = 0 && not confirmed then
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-delete-last-enabled"
+                return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-delete-last-enabled"
             else
 
             let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
@@ -122,9 +123,9 @@ let handler (slug: string) : EndpointHandler =
                     })
 
             match deleted with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-secret-busy"
-            | Some None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
-            | Some(Some None) -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-deleted"
+            | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-secret-busy"
+            | Some None -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+            | Some(Some None) -> return! WebForms.redirectWithNotice ctx listPath "connector-deleted"
             | Some(Some(Some(store, failure))) ->
                 do! SecurityEvents.recordStoreFailure config clock SecurityEvents.Actor.Operator slug remoteIp store "delete" failure
 
@@ -143,7 +144,7 @@ let handler (slug: string) : EndpointHandler =
                 return!
                     WebForms.NoticeReason.redirect
                         ctx
-                        "/admin/connectors"
+                        listPath
                         "connector-secret-left-behind"
                         "slug"
                         slug

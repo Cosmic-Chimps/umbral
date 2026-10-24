@@ -9,6 +9,7 @@ open OpenIddict.Abstractions
 open Oxpecker
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
+open Umbral.Handlers.Admin.ConnectorPaths
 
 let handler (slug: string) : EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
@@ -19,7 +20,7 @@ let handler (slug: string) : EndpointHandler =
             let! existing = ConnectorStore.findBySlug config slug
 
             match existing with
-            | None -> return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-unknown"
+            | None -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
             | Some connector ->
 
             let turningOff = connector.IsEnabled
@@ -47,11 +48,11 @@ let handler (slug: string) : EndpointHandler =
                 return!
                     WebForms.redirectWithNoticeAbout
                         ctx
-                        "/admin/connectors"
+                        (detailPath slug)
                         "connector-strands-apps"
                         [ "slug", slug ]
             elif turningOff && remaining = 0 && not confirmed then
-                return! WebForms.redirectWithNotice ctx "/admin/connectors" "connector-last-enabled"
+                return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-last-enabled"
             else
 
             // Clarification Q2: an OpenID Connect provider is asked about itself
@@ -72,7 +73,7 @@ let handler (slug: string) : EndpointHandler =
                 return!
                     WebForms.NoticeReason.redirect
                         ctx
-                        "/admin/connectors"
+                        (detailPath slug)
                         "connector-enable-oidc-unreachable"
                         "slug"
                         slug
@@ -81,7 +82,7 @@ let handler (slug: string) : EndpointHandler =
                 return!
                     WebForms.NoticeReason.redirect
                         ctx
-                        "/admin/connectors"
+                        (detailPath slug)
                         "connector-enable-oidc-wrong"
                         "slug"
                         slug
@@ -108,7 +109,7 @@ let handler (slug: string) : EndpointHandler =
             return!
                 WebForms.redirectWithNotice
                     ctx
-                    "/admin/connectors"
+                    (detailPath slug)
                     (if turningOff then "connector-disabled" else "connector-enabled")
         })
 

@@ -91,6 +91,8 @@
   .um-entry-title { @apply block text-body-md font-medium text-on-surface [overflow-wrap:anywhere]; }
   .um-entry[aria-current="page"] .um-entry-title { @apply font-semibold text-primary; }
   .um-entry-sub { @apply block text-label-md text-on-surface-variant [overflow-wrap:anywhere]; }
+  /* A connector kind not set up yet: its name muted at rest; hover and selection draw it as any entry. */
+  .um-entry[data-entry-muted]:not([aria-current="page"]):not(:hover) .um-entry-title { @apply text-on-surface-variant; }
   /* A pane's sections: a 40% hairline, 24px above, 20px below. */
   .um-pane-section { @apply mt-6 border-t border-outline-variant/40 pt-5; }
   /* The pane's closing action row: the item's state and lifetime actions. */

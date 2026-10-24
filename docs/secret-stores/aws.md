@@ -97,7 +97,7 @@ Connectors screen shows no notice about it. A setting that is wrong stops the
 start with a message naming the variable; a store that cannot be reached starts
 anyway, with a warning, so a brief outage never locks you out.
 
-Then add or open a connector and save it. The card says **Kept in AWS Secrets
+Then add or open a connector and save it. The page says **Kept in AWS Secrets
 Manager**, and the AWS console shows a secret named `umbral-<slug>-<8 chars>`.
 
 ## 4. Move an instance in, or out
@@ -185,6 +185,6 @@ sign-in on this instance.
 | Saving a connector says **AWS Secrets Manager refused Umbral's credentials or permissions.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the policy has `CreateSecret` and `PutSecretValue` on `umbral-*`, then enter the secret again. |
 | … **AWS Secrets Manager could not be reached.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the network from the container to AWS, and `AWS_REGION`. If you are off AWS and it is slow, set `AWS_EC2_METADATA_DISABLED=true`. |
 | Saving a connector says **AWS Secrets Manager holds a deleted secret under this connector's name. Restore it (or purge it) in the console, then save again.** | Someone deleted that connector's secret in the AWS console and it is still inside its recovery window, so its name cannot be written to. Restore it (or delete it with no recovery window), then save again. |
-| A connector card shows the warning **This connector's secret is kept in AWS Secrets Manager, which this instance cannot read** | The connector's secret is in a store this instance is not set up for (you changed or removed the variables). Restore them, or set the store back, or use **Replace client secret** to save a new secret into the active store. |
+| A connector page shows the warning **This connector's secret is kept in AWS Secrets Manager, which this instance cannot read** | The connector's secret is in a store this instance is not set up for (you changed or removed the variables). Restore them, or set the store back, or use **Replace client secret** to save a new secret into the active store. |
 | Someone signs in and sees "Sign-in didn't complete" after the AWS outage | The cache and the grace period ran out. Fix AWS access; the next sign-in works. The security log has a `secret_store_failed` event. |
 | A `move-secrets` line starts with `failed` | That connector was not changed. Read the cause on the line, fix it and run the command again. |

@@ -90,7 +90,7 @@ docker compose logs umbral
 ```
 
 A healthy start has **no warning about the secret store** in the log, and the
-Connectors screen shows no notice about it. Then save a connector. The card says
+Connectors screen shows no notice about it. Then save a connector. The page says
 **Kept in Azure Key Vault**, and `az keyvault secret list --vault-name umbral-kv`
 shows `umbral-<slug>-<8 chars>`.
 
@@ -180,5 +180,5 @@ grace to `0` to refuse at once.
 | Saving a connector says **Azure Key Vault refused Umbral's credentials or permissions.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the **Key Vault Secrets Officer** assignment, then enter the secret again. |
 | … **Azure Key Vault could not be reached.** and ends **The client secret was not saved and nothing was changed** | Nothing was saved. Check the network from the container to the vault. |
 | Saving a connector says **Azure Key Vault holds a deleted secret under this connector's name. Restore it (or purge it) in the console, then save again.** | Someone deleted that connector's secret in the vault, and it is still soft-deleted, so its name cannot be written to. Recover or purge it (step 6), then save again. |
-| A connector card shows the warning **This connector's secret is kept in Azure Key Vault, which this instance cannot read** | Restore the variables of that store, or set the store back, or use **Replace client secret** to save a new secret into the active store. |
+| A connector page shows the warning **This connector's secret is kept in Azure Key Vault, which this instance cannot read** | Restore the variables of that store, or set the store back, or use **Replace client secret** to save a new secret into the active store. |
 | A `move-secrets` line starts with `failed` | That connector was not changed. Read the cause on the line, fix it and run the command again. |

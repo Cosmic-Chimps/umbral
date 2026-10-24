@@ -221,7 +221,7 @@ let ``the operator invites an existing user; the link is shown once on that row`
         let! again = operator.GetHtml $"/admin/users?msg=passkey-user-invited&user={anaId}"
         Assert.DoesNotContain("data-invitation-link", again)
 
-        let! card = operator.GetHtml "/admin/connectors"
+        let! card = operator.GetHtml "/admin/connectors/passkey"
         Assert.Contains($"data-invitation-user=\"{anaId}\"", card)
 
         let! created = events app "passkey_invitation_created"

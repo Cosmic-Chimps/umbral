@@ -17,6 +17,14 @@ new image. Add to "Unreleased" as you work; a release renames it.
   `/admin/apps/<client id>`, where every change to it lands, its notice and a new secret included;
   **Create app** opens its form in the pane at `/admin/apps/new` instead of a dialog. Long redirect
   URIs now wrap instead of running past the screen on a phone.
+- The **Connectors** screen is a list and a detail pane too: the connectors on the left (those
+  set up, then the providers not set up yet, then **Passkey**, then **Allowed email domains**, the
+  instance-wide list), those set up marked Enabled, Disabled, or with a warning sign when they
+  need attention, and the selected one's set-up details, settings and actions on the right. Each
+  connector has its own address, `/admin/connectors/<identifier>`, where every change to it lands;
+  **Add connector** opens its form at `/admin/connectors/new`, and the allowed email domains are at
+  `/admin/connectors/domains`. `new` and `domains` can no longer be used as a connector's
+  identifier.
 
 ### Fixed
 - An app card's **Sign-in page branding** heading now reads as the title of its section rather than

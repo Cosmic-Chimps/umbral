@@ -206,11 +206,19 @@ type Texts =
       ConnectorSharedHint: string
       ConnectorSharedBadge: string
       ConnectorNotSharedBadge: string
+      // The Connectors screen's list and pane (contract §3).
+      ConnectorsListLabel: string
+      /// "No connector set up yet", "1 connector", "n connectors": stored connectors only.
+      ConnectorsCount: int -> string
+      ConnectorsAttentionMarker: string
+      ConnectorsDomainsEntryLine: string
+      ConnectorSetupTitle: string
+      ConnectorSettingsTitle: string
       /// Shown on a connector that is not shared and that no app has chosen.
       ConnectorOfferedNowhere: string
 
-      // Who can sign in (specs/006): the instance card, a connector's own list,
-      // each card's rule label and the Apps warning. Entries in the messages
+      // Who can sign in (specs/006): the instance list, a connector's own list,
+      // each pane's rule label and the Apps warning. Entries in the messages
       // are the operator's own words, so the views draw them as text.
       AllowedDomainsTitle: string
       AllowedDomainsLead: string
@@ -230,7 +238,7 @@ type Texts =
       ConnectorDomainsHelp: string -> string
       ConnectorLimitOneAppNote: string
       ConnectorLimitOneAppNoteOidc: string
-      /// The rule label of a card: the list, as the operator reads it.
+      /// The rule label of a connector: the list, as the operator reads it.
       ConnectorRuleConnector: string -> string
       ConnectorRuleInstance: string -> string
       ConnectorRuleAnyone: string
@@ -380,9 +388,9 @@ type Texts =
       // 005, User Story 4). All take store ids as a `SecretRef` carries them
       // and say what to do next; none can carry a value, a locator or a
       // credential.
-      /// The card pill: "Kept in <store name>" (store id).
+      /// The pane pill: "Kept in <store name>" (store id).
       SecretStoreLabel: string -> string
-      /// The card warning for a secret kept in a store this instance cannot
+      /// The pane warning for a secret kept in a store this instance cannot
       /// build (store id).
       SecretUnreadable: string -> string
       /// The Connectors page notice when the active store failed its startup
@@ -430,7 +438,7 @@ type Texts =
       PasskeysNotEnabled: string
       PasskeysLimitReached: string
       HomePasskeysLink: string
-      // The Passkey card on the Connectors screen
+      // The Passkey pane on the Connectors screen
       PasskeyCardLead: string
       PasskeyEnableButton: string
       PasskeyEnrolmentInvitationsLabel: string
@@ -445,6 +453,7 @@ type Texts =
       PasskeyInviteButton: string
       PasskeyInvitationLinkNote: string
       PasskeyOpenInvitationsHeading: string
+      PasskeyInvitationsTitle: string
       PasskeyNoOpenInvitations: string
       PasskeyInvitationNoNote: string
       PasskeyInvitationForLabel: string
@@ -544,7 +553,7 @@ let private secretStoreLabelEn (storeId: string) : string =
     $"Kept in {secretStoreNameEn storeId}"
 
 let private secretUnreadableEn (storeId: string) : string =
-    $"This connector's secret is kept in {secretStoreNameEn storeId}, which this instance cannot read, so signing in with it will fail. Enter the secret again on this card to keep it in the active store, or set up {secretStoreNameEn storeId} on this instance again as described in docs/secret-stores/."
+    $"This connector's secret is kept in {secretStoreNameEn storeId}, which this instance cannot read, so signing in with it will fail. Enter the secret again under Settings to keep it in the active store, or set up {secretStoreNameEn storeId} on this instance again as described in docs/secret-stores/."
 
 /// A report line: the word the line is matched on, padded so that the slugs
 /// line up in a terminal, then what it says.
@@ -609,6 +618,8 @@ let private noticeEn (code: string) : string option =
         Some "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
     | "app-type-invalid" -> Some "Choose an app type, then save again."
     | "app-not-found" -> Some "That app no longer exists. Choose one from the list, or register it again."
+    | "connector-not-found" ->
+        Some "That connector no longer exists. Choose one from the list, or add it again."
     | "app-no-secret" ->
         Some "Single-page and native apps have no secret to replace — they use PKCE instead. If sign-in fails for this app, check that it sends a PKCE challenge."
     | "user-not-found" -> Some "That user no longer exists. Choose one from the list below."
@@ -635,7 +646,7 @@ let private noticeEn (code: string) : string option =
         Some "This is the only enabled connector. Nothing was deleted. Deleting it means nobody can sign in to any app — use Delete and confirm to go ahead."
 
     | "connector-added-oidc" ->
-        Some "OpenID Connect provider added and enabled. Copy its callback URL from its card into your provider's admin area, then people can sign in with it."
+        Some "OpenID Connect provider added and enabled. Copy its callback URL below into your provider's admin area, then people can sign in with it."
     | "connector-added" ->
         Some "Connector added. Copy its callback URL into the provider's console, then enable it to offer it."
     | "connector-added-oidc-unreachable" ->
@@ -927,9 +938,22 @@ let en: Texts =
       ConnectorSharedHint = "Shared connectors are offered to every app set to \"all shared connectors\". Untick it to offer this one only to the apps that choose it."
       ConnectorSharedBadge = "Shared"
       ConnectorNotSharedBadge = "Not shared"
+      ConnectorsListLabel = "Connectors list"
+
+      ConnectorsCount =
+        fun n ->
+            match n with
+            | 0 -> "No connector set up yet"
+            | 1 -> "1 connector"
+            | n -> $"{n} connectors"
+
+      ConnectorsAttentionMarker = "Needs attention"
+      ConnectorsDomainsEntryLine = "Who may sign in, for every connector"
+      ConnectorSetupTitle = "Set-up"
+      ConnectorSettingsTitle = "Settings"
       ConnectorOfferedNowhere = "Not shared, and no app has chosen it, so nobody sees it yet. Choose it on an app's Sign-in methods, or tick Shared."
 
-      AllowedDomainsTitle = "Who can sign in"
+      AllowedDomainsTitle = "Allowed email domains"
       AllowedDomainsLead =
         "Allowed email domains for every connector that has no list of its own. Only an email the provider has verified counts, and a subdomain must be listed on its own. Leave empty to let anyone with an account at an enabled provider sign in."
       AllowedDomainsLabel = "Allowed email domains"
@@ -958,7 +982,7 @@ let en: Texts =
 
             $"{joined} {has} no domain rule and {lets} anyone with an account sign in to this app. To keep this app limited, offer only connectors with a domain rule."
       ConnectorAddTitle = "Add another connector"
-      ConnectorAddLead = "A second Discord, GitHub or Google application, for example one with its own name for a single app, or an OpenID Connect provider such as Authentik, Keycloak or Pocket ID. The first connector of Discord, GitHub and Google needs no form here: use its card below."
+      ConnectorAddLead = "A second Discord, GitHub or Google application, for example one with its own name for a single app, or an OpenID Connect provider such as Authentik, Keycloak or Pocket ID. The first connector of Discord, GitHub and Google needs no form here: choose it in the list."
       ConnectorAddKindLabel = "Provider"
       ConnectorAddSlugLabel = "Identifier"
       ConnectorAddSlugHint = "Lower-case letters, digits and hyphens, up to 32. It becomes part of the callback URL you register with the provider, so it can't be changed once saved."
@@ -1132,10 +1156,11 @@ let en: Texts =
       PasskeyInvitationLinkNote =
         "Send this link to the person over a channel you trust. It works once and for 7 days; it is not shown again."
       PasskeyOpenInvitationsHeading = "Open invitations"
+      PasskeyInvitationsTitle = "Invitations"
       PasskeyNoOpenInvitations = "No open invitations."
       PasskeyInvitationNoNote = "No note"
       PasskeyInvitationForLabel = "For"
-      PasskeyInvitationForNew = "A new person"
+      PasskeyInvitationForNew = "a new person"
       PasskeyInvitationCreatedLabel = "Created"
       PasskeyInvitationExpiresLabel = "Expires"
       PasskeyInvitationRevokeButton = "Revoke"

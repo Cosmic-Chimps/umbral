@@ -82,6 +82,7 @@
     <Compile Include="AllowedDomainsSignInTests.fs" />
     <Compile Include="AllowedDomainsAdminTests.fs" />
     <Compile Include="AppsMasterDetailTests.fs" />
+    <Compile Include="ConnectorsMasterDetailTests.fs" />
     <Compile Include="RailTests.fs" />
     <Compile Include="ThemeTests.fs" />
     <Compile Include="PasskeyDomainTests.fs" />

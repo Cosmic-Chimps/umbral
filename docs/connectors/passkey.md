@@ -25,8 +25,8 @@ every passkey stops working and Umbral cannot move them. See
 
 ## 1. Enable the connector
 
-Open **Connectors** in the admin area and find the **Passkey** card. It needs no
-client ID, secret or callback URL. Choose who can create an account:
+Open **Connectors** in the admin area and choose **Passkey** in the list. It
+needs no client ID, secret or callback URL. Choose who can create an account:
 
 - **Invitations only**: *Only people you send an invitation link to can create
   an account. The safe default.*
@@ -41,7 +41,7 @@ change the mode later; it takes effect at once and nobody's passkeys change.
 
 ## 2. Invite someone
 
-On the card, type a **Note (optional)**: *For you: who the link is for. People
+On its page, type a **Note (optional)**: *For you: who the link is for. People
 never see it.* (up to 64 characters), and click **Invite someone**. Umbral shows
 the link once:
 
@@ -49,7 +49,7 @@ the link once:
 > days; it is not shown again.
 
 Umbral sends no email. The link is a bearer link: whoever holds it can use it, so
-treat it like a password. The card lists **Open invitations** (the note, who it is
+treat it like a password. The page lists **Open invitations** (the note, who it is
 for, when it was created and when it expires). To withdraw one, click **Revoke**
 and confirm.
 
@@ -141,7 +141,7 @@ passkey connector (on the **Apps** screen, choose its sign-in methods).
 ## Allowed email domains
 
 They do not apply: passkeys carry no email, so there is nothing to judge. Who can
-create an account is the enrolment mode, set on the card. The **Apps** screen
+create an account is the enrolment mode, set on its page. The **Apps** screen
 warns about an app that offers a passkey connector set to **Anyone can sign up**,
 the way it warns about a connector without a domain rule, and does not warn when
 it is invitations only. See [Who can sign in](../../README.md#who-can-sign-in).
@@ -149,7 +149,7 @@ it is invitations only. See [Who can sign in](../../README.md#who-can-sign-in).
 ## Gotchas
 
 - **Changing the domain stops every passkey.** A passkey is bound to the address in
-  `UMBRAL__PUBLIC_ORIGIN`. The Connectors card says so: *Passkeys are bound to
+  `UMBRAL__PUBLIC_ORIGIN`. The Passkey page says so: *Passkeys are bound to
   this address. If it changes, every passkey stops working and people need a new
   invitation.* Recovery is a new invitation per person.
 - **JavaScript is needed** on the sign-in, invitation and passkeys pages: *Passkeys

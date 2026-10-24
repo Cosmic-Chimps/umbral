@@ -62,13 +62,13 @@ let ``deleting a passkey connector, which has no secret, deletes the row and not
     }
 
 [<Fact>]
-let ``the passkey card enables the connector, invites someone once and revokes the invitation`` () =
+let ``the passkey pane enables the connector, invites someone once and revokes the invitation`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
         let operator = Browser(app.Client)
         do! claimOperator app operator
 
-        let! html = operator.GetHtml "/admin/connectors"
+        let! html = operator.GetHtml "/admin/connectors/passkey"
         Assert.Contains("data-connector-kind=\"passkey\"", html)
         Assert.DoesNotContain("data-invitation-link", html)
 
@@ -86,19 +86,19 @@ let ``the passkey card enables the connector, invites someone once and revokes t
         Assert.Equal(HttpStatusCode.Redirect, invited.StatusCode)
         Assert.Contains("passkey-invitation-created", location invited)
 
-        let! shown = operator.GetHtml "/admin/connectors"
+        let! shown = operator.GetHtml "/admin/connectors/passkey"
         Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(shown, "data-invitation-link").Count)
         let m = System.Text.RegularExpressions.Regex.Match(shown, "data-invitation=\"([^\"]+)\"")
         Assert.True m.Success
 
-        let! again = operator.GetHtml "/admin/connectors"
+        let! again = operator.GetHtml "/admin/connectors/passkey"
         Assert.DoesNotContain("data-invitation-link", again)
 
         let! revoked = operator.PostForm("/admin/connectors", $"/admin/connectors/passkey/invitations/{m.Groups[1].Value}/revoke", [])
         Assert.Equal(HttpStatusCode.Redirect, revoked.StatusCode)
         Assert.Contains("passkey-invitation-revoked", location revoked)
 
-        let! after = operator.GetHtml "/admin/connectors"
+        let! after = operator.GetHtml "/admin/connectors/passkey"
         Assert.DoesNotContain("data-invitation=\"", after)
     }
 
@@ -254,7 +254,7 @@ let ``revoking an invitation for a user, and one that is used`` () =
         let! link = w.Operator.GetHtml(location r)
         let secret =
             secretOf (string (WebUtility.HtmlDecode (Regex.Match(Regex.Match(link, "<input[^>]*data-invitation-link[^>]*>").Value, "value=\"([^\"]+)\"").Groups[1].Value)))
-        let! card = w.Operator.GetHtml "/admin/connectors"
+        let! card = w.Operator.GetHtml "/admin/connectors/passkey"
         let id = Regex.Match(card, "data-invitation=\"([^\"]+)\"").Groups[1].Value
         Assert.True(id <> "")
 
@@ -264,7 +264,7 @@ let ``revoking an invitation for a user, and one that is used`` () =
         Assert.Equal(Some w.SamId, (let u, _, _ = List.last evs in u))
         let! page = Browser(app.Client).GetHtml $"/invite/{secret}"
         Assert.Contains("invitation-unusable", page)
-        let! after = w.Operator.GetHtml "/admin/connectors"
+        let! after = w.Operator.GetHtml "/admin/connectors/passkey"
         Assert.DoesNotContain($"data-invitation=\"{id}\"", after)
 
         let! usedId = scalar app "SELECT id FROM passkey_invitations WHERE used_utc IS NOT NULL LIMIT 1" []
