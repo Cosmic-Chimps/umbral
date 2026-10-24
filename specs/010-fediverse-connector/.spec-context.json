@@ -1,0 +1,129 @@
+{
+  "workflow": "companion",
+  "specName": "The Fediverse connector",
+  "branch": "alta/earnest-cetus-9pd3",
+  "currentStep": "specify",
+  "status": "specified",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-24T16:15:42.352Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-10-24T16:18:04.690Z"
+    },
+    {
+      "step": "clarify",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:18:08.996Z"
+    }
+  ],
+  "unattended": true,
+  "coverage": {
+    "FR-001": {
+      "title": "Built-in Fediverse connector kind, one per instance, slug fediverse"
+    },
+    "FR-002": {
+      "title": "Server scope: Any server (default) or Only these servers"
+    },
+    "FR-003": {
+      "title": "Server list normalised; bad or wildcard entries refused by name"
+    },
+    "FR-004": {
+      "title": "Connectors list entry and detail pane per design contract"
+    },
+    "FR-005": {
+      "title": "Sign in with Fediverse button on the picker"
+    },
+    "FR-006": {
+      "title": "Account step page, handle or server, works without JS"
+    },
+    "FR-007": {
+      "title": "Handle resolved to its hosting server by account lookup"
+    },
+    "FR-008": {
+      "title": "Private/loopback addresses refused unless development setting"
+    },
+    "FR-009": {
+      "title": "Unlisted server refused before contact, neutral message"
+    },
+    "FR-010": {
+      "title": "Unsupported server (no app API, no PKCE S256, Misskey/Sharkey) refused"
+    },
+    "FR-011": {
+      "title": "Register on first use with callback and read:accounts; secret encrypted"
+    },
+    "FR-012": {
+      "title": "Reuse stored registration"
+    },
+    "FR-013": {
+      "title": "Re-register once when server forgets the client"
+    },
+    "FR-014": {
+      "title": "Time limit, no redirects on every server call"
+    },
+    "FR-015": {
+      "title": "Fixable problems re-render the step with field error"
+    },
+    "FR-016": {
+      "title": "Auth code + PKCE S256, single-use state bound to server, exact redirect"
+    },
+    "FR-017": {
+      "title": "Subject is account id plus server"
+    },
+    "FR-018": {
+      "title": "Never linked by email; email domain rules do not apply"
+    },
+    "FR-019": {
+      "title": "Callback re-checks server scope"
+    },
+    "FR-020": {
+      "title": "Profile refreshed on every sign-in"
+    },
+    "FR-021": {
+      "title": "App gets name, preferred_username, picture, profile; no email"
+    },
+    "FR-022": {
+      "title": "Failures in security log with server named"
+    },
+    "FR-023": {
+      "title": "New registration logged as credential change"
+    },
+    "FR-024": {
+      "title": "Rate limits and antiforgery on account step and callback"
+    },
+    "FR-025": {
+      "title": "Docs: fediverse.md, README, CHANGELOG"
+    }
+  },
+  "size": "oversized",
+  "classification": {
+    "projectedFiles": 30,
+    "projectedTasks": 30,
+    "scopeSignal": "larger",
+    "verdict": "oversized"
+  },
+  "expectations": [
+    "Misskey/Sharkey (MiAuth) support",
+    "an operator screen listing servers",
+    "clean-up of unused server registrations",
+    "remembering the person server in the browser"
+  ],
+  "context": [
+    "area: src/Umbral/Infrastructure/Providers (adapter seam, OAuthRoundTrip)",
+    "area: src/Umbral/Handlers/Connect (start, callback, picker)",
+    "area: src/Umbral/Handlers/Admin/Connectors.fs master-detail frame",
+    "constraint: design/contracts/fediverse-connector-ui.md normative for UI",
+    "constraint: constitution 3.0.0 Principles I, II, IV, VII"
+  ],
+  "intent": "Sign in to Umbral with a Mastodon-compatible fediverse account through a built-in Fediverse connector"
+}
