@@ -103,8 +103,10 @@ deleted --next attempt--> none --> registered
   credential-change security event naming the host (FR-011, FR-023).
 - **registered to checked.** Before redirecting, if `checked_utc` is null or
   older than 24 hours, Umbral asks the token endpoint for a client-credentials
-  token with scope `read:accounts` (R8). Success stamps `checked_utc`. A failure
-  other than `invalid_client` is "did not answer" and changes nothing.
+  token with scope `read:accounts` (R8). Any well-formed answer other than
+  `invalid_client` (a token, `unsupported_grant_type`, `invalid_scope`) stamps
+  `checked_utc`. A timeout or network failure is "did not answer" and changes
+  nothing.
 - **Forgotten.** `invalid_client` at the check means the server dropped the app.
   Umbral registers again once and replaces the row in the same transaction as
   the new values. A second refusal ends the attempt with the "did not answer"

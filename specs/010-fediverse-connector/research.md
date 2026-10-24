@@ -162,6 +162,9 @@ a cloud secret manager would surprise the operator.
 last 24 hours, Umbral asks the token endpoint for a client-credentials token
 (scope `read:accounts`). `invalid_client` (401/400 with that error) means the
 registration is gone: register again once and replace the row. Any other
+well-formed OAuth answer (a token, `unsupported_grant_type`, `invalid_scope`)
+proves the client still exists and counts as a pass, so a server that limits
+the client-credentials grant is not locked out; only a timeout or a network
 failure is "did not answer". A successful check stamps `checked_utc`. At the
 callback, an `invalid_client` from the code exchange deletes the row so the
 next attempt registers again; the person sees the generic sign-in failure.
