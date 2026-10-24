@@ -75,8 +75,8 @@ in), fight the Last used ordering, and need a form inside a list of links. So:
   1. `h1` in headline large: *Where is your account?*
   2. One field, `Components.fieldWith`, label *Your account or server*,
      placeholder `@you@mastodon.social`, hint *A handle like
-     @you@mastodon.social, or a server like mastodon.social. Mastodon,
-     GoToSocial and Akkoma servers work.* `autocomplete="username"`,
+     @you@mastodon.social, or a server like mastodon.social. Mastodon and
+     GoToSocial servers work.* `autocomplete="username"`,
      `autocapitalize="none"`, `spellcheck="false"`, `inputmode="email"` (the
      keyboard with @ and .), autofocus.
   3. The primary button, full width like the picker's: *Continue*.
@@ -101,8 +101,8 @@ Under the field, on the step (fixable, so form errors):
 - Not a handle or a server: *Enter a handle like @you@mastodon.social, or a
   server address.*
 - Unsupported server (no Mastodon apps API, no PKCE, a Misskey-family
-  server): *{server} does not offer the sign-in Umbral uses. Mastodon,
-  GoToSocial and Akkoma servers do; Misskey and Sharkey do not yet. Use another
+  server): *{server} does not offer the sign-in Umbral uses. Mastodon and
+  GoToSocial servers do; Akkoma, Pleroma, Misskey and Sharkey do not yet. Use another
   account, or another way to sign in.*
 - Refused server (not on the operator's list), one neutral line: *Accounts on
   {server} cannot sign in here. Use another way to sign in.*
