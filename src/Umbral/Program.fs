@@ -230,6 +230,27 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
             sp.GetRequiredService<ProviderAdapters.PrimaryHandler>().Invoke())
     |> ignore
 
+    // The Fediverse connector's own client (spec 010, research R6). Not the one
+    // above: that one reaches an operator's own OpenID Connect server, which may
+    // sit on a LAN, while this one talks to servers a stranger typed. Its default
+    // handler refuses non-public addresses at connect time and follows no
+    // redirects; the development allowance is the `allowInsecureHttp` above, so a
+    // local fake server works.
+    //
+    // A factory again, so a test registers its own first and puts a stub server
+    // behind the real client; `TryAdd` leaves that registration alone.
+    services.AddSingleton<Providers.Fediverse.Options>(({ AllowDev = allowInsecureHttp }: Providers.Fediverse.Options))
+    |> ignore
+
+    services.TryAddSingleton<Providers.Fediverse.PrimaryHandler>(
+        Providers.Fediverse.PrimaryHandler(fun () -> Providers.Fediverse.guardedHandler allowInsecureHttp))
+
+    services
+        .AddHttpClient(Providers.Fediverse.HttpClientName)
+        .ConfigurePrimaryHttpMessageHandler(fun (sp: IServiceProvider) ->
+            sp.GetRequiredService<Providers.Fediverse.PrimaryHandler>().Invoke())
+    |> ignore
+
     // Development only, and refused at startup if a fake connector exists
     // without both gate conditions — see `initialize`.
     services.AddSingleton<Providers.Fake.FakeGate>() |> ignore

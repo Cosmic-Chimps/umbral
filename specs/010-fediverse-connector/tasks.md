@@ -15,7 +15,7 @@ with or before the code they cover and must fail without it.
 
 ## Phase 1: Setup
 
-- [ ] **T001** Create `tests/Umbral.Tests/Infrastructure/StubMastodon.fs`: an `HttpMessageHandler` that plays one or more fake servers by host (Mastodon 4.3 mode with OAuth metadata; GoToSocial mode with NodeInfo only; Akkoma mode, NodeInfo `akkoma`, no metadata; Misskey mode; down mode that times out or returns 500; WebFinger answers per handle; `POST /api/v1/apps`; `/oauth/token` for `authorization_code` and `client_credentials`, checking `code_verifier` against the challenge it saw; `verify_credentials`; a switch that makes the current client unknown (`invalid_client`)); request log and counts. Add it to `tests/Umbral.Tests/Umbral.Tests.fsproj` after `StubOidcProvider.fs` · tests/Umbral.Tests/Infrastructure/StubMastodon.fs
+- [x] **T001** Create `tests/Umbral.Tests/Infrastructure/StubMastodon.fs`: an `HttpMessageHandler` that plays one or more fake servers by host (Mastodon 4.3 mode with OAuth metadata; GoToSocial mode with NodeInfo only; Akkoma mode, NodeInfo `akkoma`, no metadata; Misskey mode; down mode that times out or returns 500; WebFinger answers per handle; `POST /api/v1/apps`; `/oauth/token` for `authorization_code` and `client_credentials`, checking `code_verifier` against the challenge it saw; `verify_credentials`; a switch that makes the current client unknown (`invalid_client`)); request log and counts. Add it to `tests/Umbral.Tests/Umbral.Tests.fsproj` after `StubOidcProvider.fs` · tests/Umbral.Tests/Infrastructure/StubMastodon.fs
 
 ## Phase 2: Foundational (blocks every story)
 
@@ -58,7 +58,7 @@ Files: src/Umbral/Infrastructure/FediverseServers.fs, src/Umbral/Infrastructure/
 **Wave 1:**
 
 - [x] **T014** [US1] Registration store (data-model "Server registration"): `find`, `insertIfAbsent` (`ON CONFLICT(host) DO NOTHING` then read back), `replace`, `delete`, `markChecked`, `markUsed`; the secret protected with purpose `Umbral.FediverseServers.v1` and returned as `Secrets.Protected`. Add to `Umbral.fsproj` after `ConnectorStore.fs` · src/Umbral/Infrastructure/FediverseServers.fs
-- [ ] **T015** [US1] The server client (research R2, R6, R8; contract section 2): named client `umbral-fediverse`; `PrimaryHandler` delegate with the default guarded `SocketsHttpHandler` (no redirects, 5 s connect, `ConnectCallback` keeping public addresses unless the development allowance); per-call 10 s; 64 KiB bounded reads; `lookup` (WebFinger), `discover` (metadata, then NodeInfo), `register`, `checkClient`, `authorizeUrl` (pure), `exchange`, `account`. Errors as a union the handler maps to the reasons of contract section 6 · src/Umbral/Infrastructure/Providers/Fediverse.fs
+- [x] **T015** [US1] The server client (research R2, R6, R8; contract section 2): named client `umbral-fediverse`; `PrimaryHandler` delegate with the default guarded `SocketsHttpHandler` (no redirects, 5 s connect, `ConnectCallback` keeping public addresses unless the development allowance); per-call 10 s; 64 KiB bounded reads; `lookup` (WebFinger), `discover` (metadata, then NodeInfo), `register`, `checkClient`, `authorizeUrl` (pure), `exchange`, `account`. Errors as a union the handler maps to the reasons of contract section 6 · src/Umbral/Infrastructure/Providers/Fediverse.fs
 
 **⟶ Wait for Wave 1 to finish, then:**
 
@@ -66,7 +66,7 @@ Files: src/Umbral/Infrastructure/FediverseServers.fs, src/Umbral/Infrastructure/
 
 - [x] **T016** [US1] Factor the sign-in tail of `Callback.handler` (from "profile in hand" to the redirect) into a public `finishSignIn` taking an email-rule switch, with `Callback.handler` calling it unchanged in behaviour · src/Umbral/Handlers/Connect/Callback.fs
 - [x] **T017** [US1] Claims: `preferred_username` and `profile` set (or removed) in `setProfileClaims` and in userinfo under the `profile` scope; `Claims.Profile` in the profile destinations and in `claims_supported` · src/Umbral/Handlers/Connect/Authorize.fs, src/Umbral/Handlers/Connect/UserInfo.fs, src/Umbral/Infrastructure/OpenIddictSetup.fs
-- [ ] **T018** [US1] Register the `umbral-fediverse` client and the default `Fediverse.PrimaryHandler` in `configureServices` (development allowance from the existing `allowInsecureHttp`) · src/Umbral/Program.fs
+- [x] **T018** [US1] Register the `umbral-fediverse` client and the default `Fediverse.PrimaryHandler` in `configureServices` (development allowance from the existing `allowInsecureHttp`) · src/Umbral/Program.fs
 
 **⟶ Wait for Wave 2 to finish, then:**
 

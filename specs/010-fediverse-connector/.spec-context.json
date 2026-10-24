@@ -193,6 +193,30 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T17:02:33.284Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T001",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:13:42.826Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T015",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:13:43.080Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T018",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:13:43.352Z"
     }
   ],
   "unattended": true,
@@ -450,7 +474,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T017",
+  "currentTask": "T018",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -576,6 +600,29 @@
         "src/Umbral/Handlers/Connect/UserInfo.fs",
         "src/Umbral/Infrastructure/OpenIddictSetup.fs",
         "tests/Umbral.Tests/OidcProtocolTests.fs"
+      ]
+    },
+    "T001": {
+      "status": "DONE",
+      "did": "StubMastodon fake servers (modes, WebFinger, apps, token with PKCE check, Forget) and Fixtures.createAppWithFediverseHandler",
+      "files": [
+        "tests/Umbral.Tests/Infrastructure/StubMastodon.fs",
+        "tests/Umbral.Tests/Infrastructure/Fixtures.fs"
+      ]
+    },
+    "T015": {
+      "status": "DONE",
+      "did": "Guarded umbral-fediverse client: lookup, discover, register, checkClient, authorizeUrl, exchange, account, toProfile; 25 client tests",
+      "files": [
+        "src/Umbral/Infrastructure/Providers/Fediverse.fs",
+        "tests/Umbral.Tests/FediverseClientTests.fs"
+      ]
+    },
+    "T018": {
+      "status": "DONE",
+      "did": "Program registers Fediverse.Options, PrimaryHandler and the umbral-fediverse client",
+      "files": [
+        "src/Umbral/Program.fs"
       ]
     }
   }

@@ -157,6 +157,24 @@ let createAppWithProviderHandler
 
         customize builder)
 
+/// Start the real app with `handler` behind every call to a Fediverse server.
+///
+/// The same seam as above for the Fediverse connector's own client
+/// (`Fediverse.PrimaryHandler`, specs/010 research R6): the real client code, the
+/// server store and the screens, with only the network replaced. It also lifts
+/// the connect guard, which a stub does not reach anyway.
+let createAppWithFediverseHandler
+    (handler: HttpMessageHandler)
+    (settings: (string * string) list)
+    (customize: WebApplicationBuilder -> unit)
+    : Task<TestApp> =
+    createAppWith settings (fun builder ->
+        builder.Services.AddSingleton<Umbral.Infrastructure.Providers.Fediverse.PrimaryHandler>(
+            Umbral.Infrastructure.Providers.Fediverse.PrimaryHandler(fun () -> new Borrowed(handler) :> HttpMessageHandler))
+        |> ignore
+
+        customize builder)
+
 /// Replaces the registry with one holding `stores` (each under its own `Id`)
 /// and writing new secrets to the store named `activeId`, for `customize`.
 ///
