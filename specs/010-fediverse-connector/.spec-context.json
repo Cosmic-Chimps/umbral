@@ -281,6 +281,22 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T17:54:37.911Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T026",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:54:38.063Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T027",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:54:38.162Z"
     }
   ],
   "unattended": true,
@@ -538,7 +554,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T025",
+  "currentTask": "T027",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -744,6 +760,22 @@
       "did": "5 re-registration tests: forgotten after 24h, still down, within 24h no check, moved callback, invalid_client at exchange",
       "files": [
         "tests/Umbral.Tests/FediverseReRegistrationTests.fs"
+      ]
+    },
+    "T026": {
+      "status": "DONE",
+      "did": "docs/connectors/fediverse.md walkthrough per audit T10, servers list corrected (Akkoma/Pleroma refused)",
+      "files": [
+        "docs/connectors/fediverse.md"
+      ]
+    },
+    "T027": {
+      "status": "DONE",
+      "did": "README connector mentions, idp and profile claims, Who can sign in; CHANGELOG Unreleased; Fediverse in other walkthroughs' links",
+      "files": [
+        "README.md",
+        "CHANGELOG.md",
+        "docs/connectors/*.md"
       ]
     }
   }

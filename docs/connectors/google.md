@@ -6,7 +6,7 @@ whether you can use it at all. Read the next section first.
 
 Back to the [README](../../README.md). Other providers:
 [Discord](discord.md) · [GitHub](github.md) ·
-[OpenID Connect](oidc.md) · [Passkeys](passkey.md).
+[OpenID Connect](oidc.md) · [Passkeys](passkey.md) · [Fediverse](fediverse.md).
 
 ## Read this first: Google will not accept a raw IP address
 

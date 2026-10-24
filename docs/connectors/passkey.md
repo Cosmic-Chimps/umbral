@@ -11,7 +11,7 @@ password manager syncs them), and so do hardware security keys such as a YubiKey
 
 Back to the [README](../../README.md). Other providers:
 [Discord](discord.md) · [GitHub](github.md) · [Google](google.md) ·
-[OpenID Connect](oidc.md).
+[OpenID Connect](oidc.md) · [Fediverse](fediverse.md).
 
 ## Before you start
 

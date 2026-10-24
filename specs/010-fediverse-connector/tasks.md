@@ -127,8 +127,8 @@ Files: none beyond its tests.
 
 **Wave 1 — independent (different files):**
 
-- [ ] **T026** [P] Walkthrough per T10 of `docs/audit-2026-10.md` (on branch `worktree-docs-audit-2026-10`): what it is and which servers work (Mastodon 4.3+, GoToSocial; Akkoma, Pleroma, Misskey, Sharkey refused and why), Before you start, the steps (nothing to create at a provider; what Umbral registers and stores where), how a person signs in, the server list and its refusal, What people see, What Umbral takes, What the server learns, Allowed email domains, Troubleshooting, Gotchas; every quoted UI string verbatim from `Texts.fs` · docs/connectors/fediverse.md
-- [ ] **T027** [P] README (opening, connector table, contents link, "Who can sign in", the `idp` value) and the CHANGELOG entry under `## Unreleased` · README.md, CHANGELOG.md
+- [x] **T026** [P] Walkthrough per T10 of `docs/audit-2026-10.md` (on branch `worktree-docs-audit-2026-10`): what it is and which servers work (Mastodon 4.3+, GoToSocial; Akkoma, Pleroma, Misskey, Sharkey refused and why), Before you start, the steps (nothing to create at a provider; what Umbral registers and stores where), how a person signs in, the server list and its refusal, What people see, What Umbral takes, What the server learns, Allowed email domains, Troubleshooting, Gotchas; every quoted UI string verbatim from `Texts.fs` · docs/connectors/fediverse.md
+- [x] **T027** [P] README (opening, connector table, contents link, "Who can sign in", the `idp` value) and the CHANGELOG entry under `## Unreleased` · README.md, CHANGELOG.md
 
 **⟶ Wait for Wave 1 to finish, then:**
 

@@ -10,7 +10,8 @@ You do not need this if you only want Discord, GitHub or Google. Those have
 walkthroughs of their own, and no provider of your own to run.
 
 Back to the [README](../../README.md). Other providers:
-[Discord](discord.md) · [GitHub](github.md) · [Google](google.md) · [Passkeys](passkey.md).
+[Discord](discord.md) · [GitHub](github.md) · [Google](google.md) · [Passkeys](passkey.md) ·
+[Fediverse](fediverse.md).
 
 ## Before you start
 

@@ -10,6 +10,18 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+### Added
+- The Fediverse connector: people can sign in with an account on a Mastodon (4.3 and later) or
+  GoToSocial server, typing a handle such as `@ana@mastodon.social` or just the server. Enable it from
+  the **Fediverse** entry of the Connectors screen; there is nothing to create at any provider, because
+  Umbral registers itself on each server the first time someone from it signs in. Choose **Any
+  server** or **Only these servers** and list them. Akkoma, Pleroma, Misskey, Sharkey and Mastodon
+  before 4.3 cannot do the PKCE check Umbral requires and are refused with a message.
+- Apps receive an ordinary sign-in with `idp` set to `fediverse`, and `name`, `preferred_username`
+  (as `user@server`), `picture` and `profile` under the `profile` scope. A fediverse user has no
+  `email`, and allowed email domains do not apply to them.
+- A walkthrough, `docs/connectors/fediverse.md`, and Fediverse in the README.
+
 ### Changed
 - The **Apps** screen is a list and a detail pane: the apps are listed by name on the left, and
   the selected one's connection details, sign-in methods, branding and actions are on the right

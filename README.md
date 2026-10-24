@@ -3,10 +3,10 @@
 A self-hosted OpenID Connect provider whose only job is **signing people in
 without passwords**: with a social provider they already use, or with a
 passkey. Your apps talk to Umbral using any standard OIDC library. Umbral talks
-to Discord, GitHub and Google, and to any OpenID Connect provider you already
-run, such as Authentik, Keycloak, Pocket ID or Authelia, and it can sign people
-in with a passkey on its own. You wire each provider up once, in one place,
-instead of in every app.
+to Discord, GitHub and Google, to Mastodon and GoToSocial servers, and to any
+OpenID Connect provider you already run, such as Authentik, Keycloak, Pocket ID
+or Authelia, and it can sign people in with a passkey on its own. You wire each
+provider up once, in one place, instead of in every app.
 
 It ships as **one container with an embedded SQLite database**: no Postgres, no
 Redis, no sidecar. It is meant for a homelab or a small project: a Raspberry Pi
@@ -17,7 +17,7 @@ It has three concepts, and that is the whole product:
 | Concept | What it is |
 | --- | --- |
 | **App** | A program that signs people in through Umbral. It gets a client ID and a client secret. |
-| **Connector** | Umbral's identity at an upstream provider (Discord, GitHub, Google, or an OpenID Connect provider of your own): the OAuth application you create there, with its credentials. There can be several per provider. Umbral's own **passkey** connector is the one exception: Umbral is the provider, there is nothing to create anywhere, and there is one per instance. |
+| **Connector** | Umbral's identity at an upstream provider (Discord, GitHub, Google, or an OpenID Connect provider of your own): the OAuth application you create there, with its credentials. There can be several per provider. Two connectors are exceptions with one per instance: **passkey**, where Umbral is the provider and there is nothing to create anywhere, and **Fediverse**, where there is nothing to create either because Umbral registers itself with each Mastodon or GoToSocial server the first time someone from it signs in. |
 | **User** | A person who has signed in at least once. |
 
 **What Umbral is not.** It has no realms, tenants, groups, roles or permissions,
@@ -49,7 +49,8 @@ which are good at it.
 Provider walkthroughs: [Discord](docs/connectors/discord.md) ·
 [GitHub](docs/connectors/github.md) · [Google](docs/connectors/google.md) ·
 [Your own OpenID Connect provider](docs/connectors/oidc.md) ·
-[Passkeys](docs/connectors/passkey.md)
+[Passkeys](docs/connectors/passkey.md) ·
+[Fediverse](docs/connectors/fediverse.md)
 
 Where connector secrets can live (optional):
 [AWS Secrets Manager](docs/secret-stores/aws.md) ·
@@ -75,7 +76,10 @@ An external store loads the manager's client library, so an instance that uses o
   create an OAuth app in, or an OpenID Connect provider of your own. Umbral
   cannot do that for you. Or the **passkey connector**, which needs no account
   anywhere: it needs HTTPS (or `localhost`) and a device that holds passkeys,
-  such as a phone, a laptop or a security key. See [Passkeys](#passkeys).
+  such as a phone, a laptop or a security key. See [Passkeys](#passkeys). Or the
+  **Fediverse connector**, which also needs no account to create: people sign in
+  with an account on a Mastodon or GoToSocial server. See the
+  [Fediverse walkthrough](docs/connectors/fediverse.md).
 
 The quick start builds the image from this repository, so it works from any
 checkout. Tagged releases are also published to GHCR; see
@@ -214,7 +218,9 @@ same command replaces the credential (see
 detail and the gotchas are in the [GitHub walkthrough](docs/connectors/github.md).)
 
 GitHub is one way to get a first login. The other is the **Passkey** entry in the
-same list, which needs no account anywhere: see [Passkeys](#passkeys).
+same list, which needs no account anywhere: see [Passkeys](#passkeys). The
+**Fediverse** entry needs nothing created either: see the
+[Fediverse walkthrough](docs/connectors/fediverse.md).
 
 ### 5. Register an app
 
@@ -335,9 +341,10 @@ What an app can count on:
   email private, a Discord account can be unverified, and a passkey-only user has
   none. Handle all three.
 - **`name`, `preferred_username`, `picture`** come with the `profile` scope when
-  the provider supplied them. **`idp`** is Umbral's one extra claim: the
+  the provider supplied them, and **`profile`** (the person's page) for a
+  fediverse sign-in. **`idp`** is Umbral's one extra claim: the
   provider the person used (`github`, `discord`, `google`, `oidc` for any
-  OpenID Connect provider you added, or `passkey`). It is the provider's
+  OpenID Connect provider you added, `passkey`, or `fediverse`). It is the provider's
   kind, never a connector's identifier: with several Discord connectors it is
   still `discord`. Ignore it freely.
 - **Access tokens are opaque.** They are not JWTs: do not try to decode them.
@@ -631,6 +638,11 @@ there is nothing to judge. Who can create an account through it is its
 **enrolment mode** (invitations only, or anyone can sign up), chosen on its
 page. The Apps screen warns about an app that offers a passkey connector open to
 anyone, the way it warns about a connector without a rule.
+
+Nor do they govern the Fediverse connector: a fediverse account carries no
+verified email. Who can sign in through it is its server choice, **Any server**
+or **Only these servers** with a list of server addresses, set on its page. See
+the [Fediverse walkthrough](docs/connectors/fediverse.md#the-server-list).
 
 ## Passkeys
 
