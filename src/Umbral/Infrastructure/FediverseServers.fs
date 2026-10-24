@@ -112,6 +112,18 @@ let find (config: Database.DbConfig) (protection: IDataProtectionProvider) (host
         return if hasRow then readRow protection reader else None
     }
 
+/// Overwrites every column: a registration made again after the server forgot
+/// the app or the callback address moved.
+let replace (config: Database.DbConfig) (protection: IDataProtectionProvider) (registration: Registration) : Task<unit> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+        command.CommandText <- Replace
+        bind protection command registration
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
+    }
+
 /// Stores the registration unless the host already has one, then returns what is
 /// stored. Two first sign-ins racing keep one registration (research R7); the
 /// losing one stays unused on the server.
@@ -133,19 +145,14 @@ let insertIfAbsent
             }
 
         let! stored = find config protection registration.Host
-        return defaultArg stored registration
-    }
 
-/// Overwrites every column: a registration made again after the server forgot
-/// the app or the callback address moved.
-let replace (config: Database.DbConfig) (protection: IDataProtectionProvider) (registration: Registration) : Task<unit> =
-    task {
-        use! connection = Database.openConnection config
-        use command = connection.CreateCommand()
-        command.CommandText <- Replace
-        bind protection command registration
-        let! _ = command.ExecuteNonQueryAsync()
-        return ()
+        match stored with
+        | Some stored -> return stored
+        | None ->
+            // The row the insert left alone has a secret no key can read: keep
+            // the fresh registration, or every sign-in would register again.
+            do! replace config protection registration
+            return registration
     }
 
 let delete (config: Database.DbConfig) (host: string) : Task<unit> =
