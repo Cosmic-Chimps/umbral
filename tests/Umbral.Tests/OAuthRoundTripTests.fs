@@ -49,10 +49,12 @@ let private cookiesFrom (ctx: HttpContext) =
 let private clock () = FakeTimeProvider DateTimeOffset.UtcNow
 
 /// Start a round trip and return the cookies plus the minted correlation.
-let private start (clock: TimeProvider) slug =
+let private startOn (clock: TimeProvider) slug server =
     let ctx = contextWith [] []
-    let started = OAuthRoundTrip.start protectors clock ctx slug "/connect/authorize?x=1"
+    let started = OAuthRoundTrip.start protectors clock ctx slug server "/connect/authorize?x=1"
     cookiesFrom ctx, started.Correlation
+
+let private start (clock: TimeProvider) slug = startOn clock slug ""
 
 let private complete (clock: TimeProvider) cookies slug query =
     OAuthRoundTrip.complete protectors clock (contextWith cookies query) slug
@@ -202,7 +204,7 @@ let ``a cookie from a different key ring is refused`` () =
 let ``the correlation cookie is HttpOnly, Lax and scoped to connect`` () =
     let clock = clock ()
     let ctx = contextWith [] []
-    OAuthRoundTrip.start protectors clock ctx "discord" "/" |> ignore
+    OAuthRoundTrip.start protectors clock ctx "discord" "" "/" |> ignore
 
     let header =
         ctx.Response.Headers.SetCookie
@@ -225,3 +227,37 @@ let ``two round trips never share a state or a verifier`` () =
     Assert.Equal(50, states |> List.map (fun c -> c.State) |> List.distinct |> List.length)
     Assert.Equal(50, states |> List.map (fun c -> c.CodeVerifier) |> List.distinct |> List.length)
     Assert.Equal(50, states |> List.map (fun c -> c.Nonce) |> List.distinct |> List.length)
+
+// ---------------------------------------------------------------------------
+// The server a fediverse round trip is bound to (specs/010 research R9)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a correlation started with a server returns it from complete`` () =
+    let clock = clock ()
+    let cookies, correlation = startOn clock "fediverse" "mastodon.social"
+    Assert.Equal("mastodon.social", correlation.Server)
+
+    match complete clock cookies "fediverse" [ "code", "abc"; "state", correlation.State ] with
+    | Ok recovered -> Assert.Equal("mastodon.social", recovered.Server)
+    | Error e -> failwith $"expected success, got {e.Detail}"
+
+[<Fact>]
+let ``a six-field payload minted before the upgrade still decodes with no server`` () =
+    let clock = clock ()
+    let state = "the-state"
+
+    // The old shape, protected under the same purpose the module uses.
+    let payload =
+        String.Join(
+            '\u001f',
+            [| state; "verifier"; "nonce"; "discord"; "/connect/authorize?x=1"; clock.GetUtcNow().ToString "o" |]
+        )
+
+    let protected' = protectors.CreateProtector("Umbral.Connect.v1").Protect payload
+
+    match complete clock [ "umbral_connect", protected' ] "discord" [ "code", "abc"; "state", state ] with
+    | Ok recovered ->
+        Assert.Equal("", recovered.Server)
+        Assert.Equal("/connect/authorize?x=1", recovered.ReturnUrl)
+    | Error e -> failwith $"expected success, got {e.Detail}"

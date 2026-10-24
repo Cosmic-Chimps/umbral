@@ -137,6 +137,38 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T16:45:29.176Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T009",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:49:33.327Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T010",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:49:33.413Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T011",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:49:33.498Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T012",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:49:33.581Z"
     }
   ],
   "unattended": true,
@@ -394,7 +426,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T008",
+  "currentTask": "T012",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -464,6 +496,37 @@
         "src/Umbral/Infrastructure/UserStore.fs",
         "src/Umbral/Handlers/Admin/Users.fs",
         "src/Umbral/Infrastructure/Providers/*.fs"
+      ]
+    },
+    "T009": {
+      "status": "DONE",
+      "did": "Correlation.Server, seven fields, six still decoded, start takes server",
+      "files": [
+        "OAuthRoundTrip.fs",
+        "Start.fs"
+      ]
+    },
+    "T010": {
+      "status": "DONE",
+      "did": "FediverseServerRegistered event type",
+      "files": [
+        "SecurityEvents.fs"
+      ]
+    },
+    "T011": {
+      "status": "DONE",
+      "did": "catalogue strings and two notices of contract section 5",
+      "files": [
+        "Texts.fs"
+      ]
+    },
+    "T012": {
+      "status": "DONE",
+      "did": "v6 to v7 upgrade, FediverseAccess round trip, correlation server and six-field decode",
+      "files": [
+        "DatabaseTests.fs",
+        "OidcConnectorStoreTests.fs",
+        "OAuthRoundTripTests.fs"
       ]
     }
   }

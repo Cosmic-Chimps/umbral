@@ -947,3 +947,58 @@ let ``an invitation secret hash is unique`` () =
 
             Assert.Contains("UNIQUE", messageOf error)
         })
+
+// ---------------------------------------------------------------------------
+// Schema version 7 (spec 010, the Fediverse connector): `connectors.fediverse_scope`
+// and `fediverse_servers`, `users.preferred_username` and `profile_url`, and
+// the `fediverse_servers` table.
+// ---------------------------------------------------------------------------
+
+/// A database as version 6 left it: the version 5 shape plus `passkey_enrolment`,
+/// stamped 6. The passkey tables are not made here: `schema` runs first and
+/// creates what is missing, which is how a real upgrade reaches them too.
+let private seedVersionSix (config: DbConfig) =
+    task {
+        do! seedVersionFive config
+
+        do!
+            exec
+                config
+                "ALTER TABLE connectors ADD COLUMN passkey_enrolment TEXT NOT NULL DEFAULT 'invitations';
+                 UPDATE settings SET value = '6' WHERE key = 'schema_version';"
+    }
+
+[<Fact>]
+let ``a version 6 database upgrades to 7 with every connector on any server and no profile fields`` () =
+    withDb (fun config ->
+        task {
+            do! seedVersionSix config
+            do! initializeSchema config
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("7", version)
+
+            // Every connector that existed takes the column defaults.
+            let! total = scalar config "SELECT count(*) FROM connectors"
+            Assert.Equal("3", total)
+            let! any = scalar config "SELECT count(*) FROM connectors WHERE fediverse_scope = 'any' AND fediverse_servers = ''"
+            Assert.Equal("3", any)
+
+            // The user keeps their row and has no profile fields.
+            let! users = scalar config "SELECT count(*) FROM users WHERE preferred_username IS NULL AND profile_url IS NULL"
+            Assert.Equal("1", users)
+
+            // The table exists and is empty.
+            let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('fediverse_servers')"
+
+            for expected in
+                [ "host"; "client_id"; "client_secret"; "authorize_url"; "token_url"; "redirect_uri"; "registered_utc"; "checked_utc"; "last_used_utc" ] do
+                Assert.Contains(expected, columns)
+
+            let! servers = scalar config "SELECT count(*) FROM fediverse_servers"
+            Assert.Equal("0", servers)
+
+            // Nothing else about the rows moved.
+            let! discord = scalar config "SELECT client_id || '|' || is_enabled || '|' || allowed_email_domains || '|' || passkey_enrolment FROM connectors WHERE slug = 'discord'"
+            Assert.Equal("d-id|1|acme.com|invitations", discord)
+        })

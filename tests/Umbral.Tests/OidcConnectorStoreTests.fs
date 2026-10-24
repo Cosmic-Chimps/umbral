@@ -182,3 +182,74 @@ let ``saving the form of another kind and updating a passkey connector keep its 
         Assert.Equal(OpenSignUp, stored.Value.PasskeyEnrolment)
         Assert.False stored.Value.IsShared
     }
+
+// ---------------------------------------------------------------------------
+// The fediverse kind's server access (spec 010 T006-T007)
+// ---------------------------------------------------------------------------
+
+let private fediverseConnector (access: FediverseAccess) : Connector =
+    { connector "fediverse" Fediverse None with
+        DisplayName = "Fediverse"
+        ClientId = ""
+        FediverseAccess = access }
+
+[<Fact>]
+let ``a saved fediverse connector reads back its access, listed with two servers and listed with none`` () =
+    task {
+        use! app = Fixtures.createApp ()
+
+        let two = { OnlyListed = true; Servers = [ "mastodon.social"; "fosstodon.org" ] }
+        do! ConnectorStore.save app.DbConfig app.Clock (fediverseConnector two) None
+        let! stored = ConnectorStore.findBySlug app.DbConfig "fediverse"
+        Assert.Equal(Fediverse, stored.Value.Kind)
+        Assert.Equal(two, stored.Value.FediverseAccess)
+
+        // An empty list under `listed` is kept as listed: nobody can sign in.
+        let none = { OnlyListed = true; Servers = [] }
+        do! ConnectorStore.save app.DbConfig app.Clock (fediverseConnector none) None
+        let! empty = ConnectorStore.findBySlug app.DbConfig "fediverse"
+        Assert.Equal(none, empty.Value.FediverseAccess)
+
+        do! ConnectorStore.save app.DbConfig app.Clock (fediverseConnector FediverseAccess.Any) None
+        let! any = ConnectorStore.findBySlug app.DbConfig "fediverse"
+        Assert.Equal(FediverseAccess.Any, any.Value.FediverseAccess)
+    }
+
+[<Fact>]
+let ``setFediverseAccess changes the access and nothing else`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! ConnectorStore.save app.DbConfig app.Clock (fediverseConnector FediverseAccess.Any) None
+        let! before = ConnectorStore.findBySlug app.DbConfig "fediverse"
+
+        let listed = { OnlyListed = true; Servers = [ "mastodon.social"; "fosstodon.org" ] }
+        do! ConnectorStore.setFediverseAccess app.DbConfig app.Clock "fediverse" listed
+
+        let! after = ConnectorStore.findBySlug app.DbConfig "fediverse"
+        Assert.Equal(listed, after.Value.FediverseAccess)
+        Assert.Equal({ before.Value with FediverseAccess = listed; UpdatedUtc = after.Value.UpdatedUtc }, after.Value)
+
+        let empty = { OnlyListed = true; Servers = [] }
+        do! ConnectorStore.setFediverseAccess app.DbConfig app.Clock "fediverse" empty
+        let! cleared = ConnectorStore.findBySlug app.DbConfig "fediverse"
+        Assert.Equal(empty, cleared.Value.FediverseAccess)
+
+        do! ConnectorStore.setFediverseAccess app.DbConfig app.Clock "fediverse" FediverseAccess.Any
+        let! back = ConnectorStore.findBySlug app.DbConfig "fediverse"
+        Assert.Equal(FediverseAccess.Any, back.Value.FediverseAccess)
+    }
+
+[<Fact>]
+let ``an unknown stored scope word reads as only listed, the closed way`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! ConnectorStore.save app.DbConfig app.Clock (fediverseConnector FediverseAccess.Any) None
+
+        use! connection = Database.openConnection app.DbConfig
+        use command = connection.CreateCommand()
+        command.CommandText <- "UPDATE connectors SET fediverse_scope = 'everyone' WHERE slug = 'fediverse'"
+        let! _ = command.ExecuteNonQueryAsync()
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "fediverse"
+        Assert.True stored.Value.FediverseAccess.OnlyListed
+    }

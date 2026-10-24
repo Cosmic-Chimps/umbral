@@ -467,7 +467,36 @@ type Texts =
       /// The name of the user whose passkey the operator is about to remove.
       UserPasskeyRemoveConfirm: string -> string
       /// The notice after inviting an existing user, with their name.
-      UserPasskeyInvited: string -> string }
+      UserPasskeyInvited: string -> string
+      // Fediverse connector (specs/010)
+      FediverseCardLead: string
+      FediverseNoEmailNote: string
+      FediverseScopeAnyLabel: string
+      FediverseScopeAnyHint: string
+      FediverseScopeListedLabel: string
+      FediverseScopeListedHint: string
+      FediverseServersLabel: string
+      FediversePlaceholder: string
+      FediverseServersHint: string
+      FediverseServersEmptyNote: string
+      FediverseEnableButton: string
+      /// The entry the operator typed, which is not a server address.
+      FediverseServerNotAddress: string -> string
+      /// The entry the operator typed, which has a wildcard.
+      FediverseServerWildcard: string -> string
+      FediverseStepTitle: string
+      FediverseAccountLabel: string
+      FediverseAccountPlaceholder: string
+      FediverseAccountHint: string
+      FediverseContinue: string
+      FediverseOtherWays: string
+      FediverseNotAHandle: string
+      /// The normalised server that does not offer the sign-in Umbral uses.
+      FediverseUnsupported: string -> string
+      /// The normalised server the connector's list does not allow.
+      FediverseNotAllowed: string -> string
+      /// The normalised server that did not answer.
+      FediverseUnreachable: string -> string }
 
 /// The display name of a store, by the id a `SecretRef` carries.
 let private secretStoreNameEn (storeId: string) : string =
@@ -709,6 +738,9 @@ let private noticeEn (code: string) : string option =
     // word is in the security log, for the operator.
     | "passkey-connector-saved" -> Some "Saved. People can sign in with a passkey from the next page load."
     | "passkey-connector-invalid" -> Some "Choose invitations only or anyone can sign up, then save again."
+    // The Fediverse connector (spec 010).
+    | "fediverse-connector-saved" -> Some "Saved. People can sign in with a Fediverse account from the next page load."
+    | "fediverse-connector-invalid" -> Some "Choose Any server or Only these servers, then save again."
     | "passkey-invitation-created" ->
         Some "Invitation created. Copy the link below and send it to the person; it is not shown again."
     | "passkey-invitation-invalid" -> Some "A note is at most 64 characters. Shorten it, then invite again."
@@ -1171,7 +1203,38 @@ let en: Texts =
         fun name -> $"Remove this passkey from {name}'s account? They will not be able to sign in with it."
       UserPasskeyInvited =
         fun name ->
-            $"Send this link to {name} over a channel you trust. It adds a passkey to their account, works once and for 7 days, and is not shown again." }
+            $"Send this link to {name} over a channel you trust. It adds a passkey to their account, works once and for 7 days, and is not shown again."
+
+      // Fediverse connector (specs/010)
+      FediverseCardLead =
+        "People sign in with an account on a Mastodon-compatible server. Umbral registers itself with each server the first time someone from it signs in."
+      FediverseNoEmailNote =
+        "A fediverse account has no verified email, so allowed email domains do not apply to it and it never joins another account by email."
+      FediverseScopeAnyLabel = "Any server"
+      FediverseScopeAnyHint = "Anyone with an account on a server that works like Mastodon."
+      FediverseScopeListedLabel = "Only these servers"
+      FediverseScopeListedHint = "Only accounts on the servers listed below."
+      FediverseServersLabel = "Servers"
+      FediversePlaceholder = "mastodon.social, fosstodon.org"
+      FediverseServersHint = "Server addresses, separated by commas or spaces. Used only with \"Only these servers\"."
+      FediverseServersEmptyNote =
+        "The list is empty, so nobody can sign in through Fediverse. Add a server, or choose Any server."
+      FediverseEnableButton = "Enable Fediverse"
+      FediverseServerNotAddress = fun entry -> $"\"{entry}\" is not a server address."
+      FediverseServerWildcard = fun entry -> $"\"{entry}\" has a wildcard; list each server."
+      FediverseStepTitle = "Where is your account?"
+      FediverseAccountLabel = "Your account or server"
+      FediverseAccountPlaceholder = "@you@mastodon.social"
+      FediverseAccountHint =
+        "A handle like @you@mastodon.social, or a server like mastodon.social. Mastodon and GoToSocial servers work."
+      FediverseContinue = "Continue"
+      FediverseOtherWays = "Other ways to sign in"
+      FediverseNotAHandle = "Enter a handle like @you@mastodon.social, or a server address."
+      FediverseUnsupported =
+        fun server ->
+            $"{server} does not offer the sign-in Umbral uses. Mastodon and GoToSocial servers do; Akkoma, Pleroma, Misskey and Sharkey do not yet. Use another account, or another way to sign in."
+      FediverseNotAllowed = fun server -> $"Accounts on {server} cannot sign in here. Use another way to sign in."
+      FediverseUnreachable = fun server -> $"{server} did not answer. Try again in a moment." }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.

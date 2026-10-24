@@ -68,6 +68,7 @@ let handler (slug: string) : EndpointHandler =
                             (ctx.GetService<System.TimeProvider>())
                             ctx
                             connector.Slug
+                            ""
                             returnUrl
 
                     // From the configured public origin, never from this

@@ -51,6 +51,9 @@ type EventType =
     | PasskeyRemoved
     | PasskeyInvitationCreated
     | PasskeyInvitationRevoked
+    /// A credential change: Umbral stored a client it registered on a fediverse
+    /// server (specs/010 FR-023).
+    | FediverseServerRegistered
     // Protocol
     | AuthorizationCodeReplayed
 
@@ -85,6 +88,7 @@ type EventType =
         | PasskeyRemoved -> "passkey_removed"
         | PasskeyInvitationCreated -> "passkey_invitation_created"
         | PasskeyInvitationRevoked -> "passkey_invitation_revoked"
+        | FediverseServerRegistered -> "fediverse_server_registered"
         | AuthorizationCodeReplayed -> "authorization_code_replayed"
 
 /// Every event type, for the test that asserts each one is emitted somewhere in
@@ -117,6 +121,7 @@ let allEventTypes =
       PasskeyRemoved
       PasskeyInvitationCreated
       PasskeyInvitationRevoked
+      FediverseServerRegistered
       AuthorizationCodeReplayed ]
 
 /// The `Detail` of a `secret_store_failed` event: which store, which operation

@@ -36,7 +36,11 @@ type Correlation =
       Slug: string
       /// The authorization request to replay once the user is signed in.
       ReturnUrl: string
-      IssuedAtUtc: DateTimeOffset }
+      IssuedAtUtc: DateTimeOffset
+      /// The normalised fediverse server this round trip is bound to, empty for
+      /// every other kind. The callback exchanges the code there and nowhere
+      /// else (specs/010 research R9).
+      Server: string }
 
 type RoundTripError =
     | NoCorrelation
@@ -63,27 +67,27 @@ type RoundTripError =
 // ---------------------------------------------------------------------------
 // Serialisation
 //
-// Six strings joined by a unit separator, not JSON.
+// Seven strings joined by a unit separator, not JSON.
 //
 // The first version used System.Text.Json over a `type private Stored`. F#
 // compiles a private type as non-public, which the serializer cannot construct,
 // so every correlation came back as a decode failure — indistinguishable from
-// tampering, and reported as such. Joining six values we control needs no
+// tampering, and reported as such. Joining seven values we control needs no
 // serializer at all.
 //
 // None of these values can contain the separator: they are all base64url
-// (state, verifier, nonce), a validated slug, or a local path.
+// (state, verifier, nonce), a validated slug, a local path, or a host (a host
+// cannot contain the unit separator, so the server field is safe too).
 // ---------------------------------------------------------------------------
 
 [<Literal>]
 let private Separator = '\u001f'
 
 let private encode (c: Correlation) =
-    String.Join(Separator, [| c.State; c.CodeVerifier; c.Nonce; c.Slug; c.ReturnUrl; c.IssuedAtUtc.ToString "o" |])
+    String.Join(Separator, [| c.State; c.CodeVerifier; c.Nonce; c.Slug; c.ReturnUrl; c.IssuedAtUtc.ToString "o"; c.Server |])
 
 let private decode (payload: string) =
-    match payload.Split Separator with
-    | [| state; verifier; nonce; slug; returnUrl; issuedAt |] ->
+    let build (state: string) (verifier: string) (nonce: string) (slug: string) (returnUrl: string) (issuedAt: string) (server: string) =
         match DateTimeOffset.TryParse(issuedAt, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.RoundtripKind) with
         | true, issuedAt ->
             Some
@@ -92,8 +96,15 @@ let private decode (payload: string) =
                   Nonce = nonce
                   Slug = slug
                   ReturnUrl = returnUrl
-                  IssuedAtUtc = issuedAt }
+                  IssuedAtUtc = issuedAt
+                  Server = server }
         | _ -> None
+
+    match payload.Split Separator with
+    | [| state; verifier; nonce; slug; returnUrl; issuedAt; server |] ->
+        build state verifier nonce slug returnUrl issuedAt server
+    // Six fields: a cookie minted just before an upgrade, which has no server.
+    | [| state; verifier; nonce; slug; returnUrl; issuedAt |] -> build state verifier nonce slug returnUrl issuedAt ""
     | _ -> None
 
 // ---------------------------------------------------------------------------
@@ -111,6 +122,7 @@ let start
     (clock: TimeProvider)
     (ctx: HttpContext)
     (slug: string)
+    (server: string)
     (returnUrl: string)
     : Started =
     let verifier = Ids.newCodeVerifier ()
@@ -121,7 +133,8 @@ let start
           Nonce = Ids.newNonce ()
           Slug = slug
           ReturnUrl = returnUrl
-          IssuedAtUtc = clock.GetUtcNow() }
+          IssuedAtUtc = clock.GetUtcNow()
+          Server = server }
 
     let protector = protectorProvider.CreateProtector ProtectorPurpose
     let payload = protector.Protect(encode correlation)
