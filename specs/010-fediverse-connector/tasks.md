@@ -21,8 +21,8 @@ with or before the code they cover and must fail without it.
 
 **Wave 1 — independent (different files):**
 
-- [ ] **T002** [P] `ProviderKind.Fediverse` (`Value` `fediverse`, `DisplayName` `Fediverse`, `parseKind`, an empty `endpointsFor` entry, `setupCaveat` None) and `FediverseAccess = { OnlyListed: bool; Servers: string list }` as a field of `Connector`; fix every `Connector` record literal in `src/` and `tests/` the compiler names (`FediverseAccess = FediverseAccess.Any` or an equivalent default value), and every exhaustive match on `ProviderKind` (`mayCreate` → false, `EmailDomainRules.ruleFor` → `NoRule`, Picker label → default arm) · src/Umbral/Domains/Connectors.fs
-- [ ] **T003** [P] Make the domain check in `EmailDomains` public (a `normaliseDomain : string -> string option` returning the ASCII, lower-case, validated domain, or the existing `isDomain`), with no behaviour change to `parse` · src/Umbral/Domains/EmailDomains.fs
+- [x] **T002** [P] `ProviderKind.Fediverse` (`Value` `fediverse`, `DisplayName` `Fediverse`, `parseKind`, an empty `endpointsFor` entry, `setupCaveat` None) and `FediverseAccess = { OnlyListed: bool; Servers: string list }` as a field of `Connector`; fix every `Connector` record literal in `src/` and `tests/` the compiler names (`FediverseAccess = FediverseAccess.Any` or an equivalent default value), and every exhaustive match on `ProviderKind` (`mayCreate` → false, `EmailDomainRules.ruleFor` → `NoRule`, Picker label → default arm) · src/Umbral/Domains/Connectors.fs
+- [x] **T003** [P] Make the domain check in `EmailDomains` public (a `normaliseDomain : string -> string option` returning the ASCII, lower-case, validated domain, or the existing `isDomain`), with no behaviour change to `parse` · src/Umbral/Domains/EmailDomains.fs
 
 **⟶ Wait for Wave 1 to finish, then:**
 
@@ -72,7 +72,7 @@ Files: src/Umbral/Infrastructure/FediverseServers.fs, src/Umbral/Infrastructure/
 
 **Wave 3:**
 
-- [ ] **T019** [US1] The handlers (research R13; contract sections 1 and 4): GET `/connect/fediverse/start` renders the step in the picker's chrome (404 when the connector is absent or disabled); POST validates antiforgery, parses, checks address, scope, support, registers or reuses (with the 24 h check and one re-registration), starts the round trip with the server, redirects; every fixable problem re-renders with 422, the typed value, `aria-invalid`, the message, `autofocus`; GET `/connect/fediverse/callback` completes the round trip, re-checks scope (`account-not-allowed`), exchanges at the correlation's server (deleting the row on `invalid_client`), reads the account, builds the profile, calls `finishSignIn` with no email rule; every failure in the security log with the reason and server; all three routes on the `sign-in` rate limit. Add to `Umbral.fsproj` after `Connect/Callback.fs` and the endpoint list to `Program.fs` · src/Umbral/Handlers/Connect/Fediverse.fs
+- [ ] **T019** [US1] The handlers (research R13; contract sections 1 and 4): GET `/connect/fediverse/start` renders the step in the picker's chrome (404 when the connector is absent or disabled); POST validates antiforgery, parses, checks address, scope, support, registers or reuses (re-registering once when the stored `redirect_uri` is not the current callback, or when the 24 h check says `invalid_client`), starts the round trip with the server, redirects; every fixable problem re-renders with 422, the typed value, `aria-invalid`, the message, `autofocus`; GET `/connect/fediverse/callback` completes the round trip, re-checks scope (`account-not-allowed`), exchanges at the correlation's server (deleting the row on `invalid_client`), reads the account, builds the profile, calls `finishSignIn` with no email rule; every failure in the security log with the reason and server; all three routes on the `sign-in` rate limit. Add to `Umbral.fsproj` after `Connect/Callback.fs` and the endpoint list to `Program.fs` · src/Umbral/Handlers/Connect/Fediverse.fs
 
 **Checkpoint**: with the connector row inserted directly, a person signs in through a fake server and an app receives them (T013 passes).
 
@@ -119,7 +119,7 @@ Files: none beyond its tests.
 
 ### Tests
 
-- [ ] **T025** [US4] With a stored registration checked more than 24 hours ago (fake clock) that the stub no longer knows: the check gets `invalid_client`, Umbral registers once, replaces the row, records the event, and the sign-in completes; when the new registration is refused too, the step says "did not answer" and only one re-registration was attempted; a registration checked within 24 hours is not checked; `invalid_client` at the code exchange deletes the row and the next attempt registers again · tests/Umbral.Tests/FediverseReRegistrationTests.fs
+- [ ] **T025** [US4] With a stored registration checked more than 24 hours ago (fake clock) that the stub no longer knows: the check gets `invalid_client`, Umbral registers once, replaces the row, records the event, and the sign-in completes; when the new registration is refused too, the step says "did not answer" and only one re-registration was attempted; a registration checked within 24 hours is not checked; a registration stored with another callback address (public origin changed) is replaced without a check; `invalid_client` at the code exchange deletes the row and the next attempt registers again · tests/Umbral.Tests/FediverseReRegistrationTests.fs
 
 **Checkpoint**: FR-013 holds.
 

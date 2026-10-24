@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS fediverse_servers (
     client_secret  TEXT NOT NULL,               -- Data Protection ciphertext, purpose Umbral.FediverseServers.v1
     authorize_url  TEXT NOT NULL,               -- as the server's metadata says, https
     token_url      TEXT NOT NULL,               -- as the server's metadata says, https
+    redirect_uri   TEXT NOT NULL,               -- the callback address this registration was made with
     registered_utc TEXT NOT NULL,
     checked_utc    TEXT     NULL,               -- last time the registration was proved to still work
     last_used_utc  TEXT     NULL                -- last sign-in through this server
@@ -112,6 +113,11 @@ deleted --next attempt--> none --> registered
   exchange deletes the row so the next attempt registers again. The person sees
   the generic sign-in failure, and the failure is recorded with the host and no
   secret.
+- **Moved origin.** When the stored `redirect_uri` is not the current callback
+  address (the operator changed `UMBRAL__PUBLIC_ORIGIN`), the registration is
+  treated as forgotten before the redirect: Umbral registers again with the new
+  address and replaces the row. A server would otherwise refuse the redirect
+  with its own error page and never send the person back.
 - `last_used_utc` is stamped when a code exchange succeeds.
 - Every transition reads and writes the row by host in one connection. No other
   process writes the table.

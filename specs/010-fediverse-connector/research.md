@@ -145,8 +145,8 @@ servers that work today.
 **Decision.** Table `fediverse_servers`, one row per normalised host: client
 id, client secret protected with Data Protection (purpose
 `Umbral.FediverseServers.v1`, the local key ring in the data directory),
-authorization and token endpoints as discovered, registered, checked and last
-used times. Always local, whatever secret store the operator configured for
+authorization and token endpoints as discovered, the callback address it was
+registered with, registered, checked and last used times. Always local, whatever secret store the operator configured for
 connector secrets.
 
 Two first sign-ins racing: the insert is `ON CONFLICT(host) DO NOTHING`, and
@@ -165,6 +165,10 @@ registration is gone: register again once and replace the row. Any other
 failure is "did not answer". A successful check stamps `checked_utc`. At the
 callback, an `invalid_client` from the code exchange deletes the row so the
 next attempt registers again; the person sees the generic sign-in failure.
+
+The same replacement happens, without asking the server, when the stored
+registration was made with another callback address than the current one (the
+operator changed the public origin): the server would refuse the redirect.
 
 **Rationale.** A Mastodon server shows its own error page for an unknown
 client and never redirects back, so the check has to happen before the

@@ -2,8 +2,8 @@
   "workflow": "companion",
   "specName": "The Fediverse connector",
   "branch": "alta/earnest-cetus-9pd3",
-  "currentStep": "tasks",
-  "status": "ready-to-implement",
+  "currentStep": "implement",
+  "status": "implementing",
   "history": [
     {
       "step": "specify",
@@ -74,6 +74,29 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T16:25:48.871Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-24T16:25:57.201Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T002",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:35:32.795Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T003",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:35:32.887Z"
     }
   ],
   "unattended": true,
@@ -330,5 +353,27 @@
       "summary": "30 tasks: setup, foundational (3 waves), US1 (3 waves), US2 (2 waves), US3/US4 tests, polish"
     }
   },
-  "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns."
+  "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
+  "currentTask": "T003",
+  "task_summaries": {
+    "T002": {
+      "status": "DONE",
+      "did": "Fediverse kind, FediverseAccess type and Connector field; every construction and match fixed",
+      "files": [
+        "src/Umbral/Domains/Connectors.fs",
+        "src/Umbral/Handlers/Admin/Connectors.fs",
+        "src/Umbral/Infrastructure/EmailDomainRules.fs",
+        "src/Umbral/Infrastructure/ConnectorStore.fs",
+        "src/Umbral/Handlers/Admin/PasskeyConnector.fs",
+        "tests"
+      ]
+    },
+    "T003": {
+      "status": "DONE",
+      "did": "EmailDomains.normaliseDomain",
+      "files": [
+        "src/Umbral/Domains/EmailDomains.fs"
+      ]
+    }
+  }
 }
