@@ -163,8 +163,9 @@ let createAppWithProviderHandler
 /// (`Fediverse.PrimaryHandler`, specs/010 research R6): the real client code, the
 /// server store and the screens, with only the network replaced. It also lifts
 /// the connect guard, which a stub does not reach anyway.
-let createAppWithFediverseHandler
+let createAppWithFediverseHandlerAndResolver
     (handler: HttpMessageHandler)
+    (resolver: Umbral.Infrastructure.Providers.Fediverse.HostResolver)
     (settings: (string * string) list)
     (customize: WebApplicationBuilder -> unit)
     : Task<TestApp> =
@@ -173,7 +174,21 @@ let createAppWithFediverseHandler
             Umbral.Infrastructure.Providers.Fediverse.PrimaryHandler(fun () -> new Borrowed(handler) :> HttpMessageHandler))
         |> ignore
 
+        builder.Services.AddSingleton<Umbral.Infrastructure.Providers.Fediverse.HostResolver>(resolver) |> ignore
         customize builder)
+
+/// As above, with every name resolving to one public address, so the address
+/// pre-check passes for the stub's made-up hosts without the development setting.
+let createAppWithFediverseHandler
+    (handler: HttpMessageHandler)
+    (settings: (string * string) list)
+    (customize: WebApplicationBuilder -> unit)
+    : Task<TestApp> =
+    let resolver =
+        Umbral.Infrastructure.Providers.Fediverse.HostResolver(fun _ _ ->
+            Task.FromResult [| System.Net.IPAddress.Parse "93.184.215.14" |])
+
+    createAppWithFediverseHandlerAndResolver handler resolver settings customize
 
 /// Replaces the registry with one holding `stores` (each under its own `Id`)
 /// and writing new secrets to the store named `activeId`, for `customize`.

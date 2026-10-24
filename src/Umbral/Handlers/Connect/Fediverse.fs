@@ -122,7 +122,7 @@ let private getHandler: EndpointHandler =
 /// Is any address of this host public? Resolving first means a name that points
 /// inside the network is refused before Umbral sends it a single request
 /// (FR-008). `Ok false` is "resolves, but only to non-public addresses".
-let private resolvesPublic (host: string) : Threading.Tasks.Task<Result<bool, unit>> =
+let private resolvesPublic (resolver: Client.HostResolver) (host: string) : Threading.Tasks.Task<Result<bool, unit>> =
     task {
         let name =
             match host.LastIndexOf ':' with
@@ -132,7 +132,7 @@ let private resolvesPublic (host: string) : Threading.Tasks.Task<Result<bool, un
         use cts = new CancellationTokenSource(TimeSpan.FromSeconds 5.0)
 
         try
-            let! addresses = Dns.GetHostAddressesAsync(name, cts.Token)
+            let! addresses = resolver.Invoke(name, cts.Token)
             return Ok(addresses |> Array.exists Rules.isPublicAddress)
         with _ ->
             return Error()
@@ -154,14 +154,14 @@ let private refusalOf (t: Texts.Texts) (host: string) (error: Client.ServerError
 
 /// FR-008: nothing is sent to a host that the list refuses or that resolves
 /// only inside the network.
-let private checkHost (t: Texts.Texts) (allowDev: bool) (access: FediverseAccess) (host: string) =
+let private checkHost (resolver: Client.HostResolver) (t: Texts.Texts) (allowDev: bool) (access: FediverseAccess) (host: string) =
     task {
         if access.OnlyListed && not (Rules.allows access host) then
             return Some { Message = t.FediverseNotAllowed host; Reason = "server_not_allowed" }
         elif allowDev then
             return None
         else
-            match! resolvesPublic host with
+            match! resolvesPublic resolver host with
             | Ok true -> return None
             | Ok false -> return Some { Message = t.FediverseNotAHandle; Reason = "non_public_address" }
             | Error() -> return Some { Message = t.FediverseUnreachable host; Reason = "unreachable" }
@@ -290,6 +290,7 @@ let private postHandler: EndpointHandler =
                 let returnUrl = Picker.sanitizeReturnUrl (WebForms.value form "returnUrl")
                 let allowDev = (ctx.GetService<Client.Options>()).AllowDev
                 let access = connector.FediverseAccess
+                let resolver = ctx.GetService<Client.HostResolver>()
 
                 let refuse (host: string option) (refusal: Refusal) =
                     task {
@@ -311,7 +312,7 @@ let private postHandler: EndpointHandler =
                         | Rules.Handle(_, domain) -> domain
                         | Rules.Server host -> host
 
-                    match! checkHost t allowDev access typedHost with
+                    match! checkHost resolver t allowDev access typedHost with
                     | Some refusal -> return! refuse (Some typedHost) refusal
                     | None ->
 
@@ -328,7 +329,7 @@ let private postHandler: EndpointHandler =
 
                                 match authority |> Option.map (Rules.normaliseServer allowDev) with
                                 | Some(Ok host) when host <> domain ->
-                                    match! checkHost t allowDev access host with
+                                    match! checkHost resolver t allowDev access host with
                                     | Some refusal -> return Error(host, refusal)
                                     | None -> return Ok host
                                 | _ -> return Ok domain
@@ -363,8 +364,108 @@ let private postHandler: EndpointHandler =
                             ctx.Response.Redirect(url.ToString())
         }
 
-// The callback follows in T019b.
+/// Coming back from the server. As with every provider, `OAuthRoundTrip.complete`
+/// validates the correlation and consumes its cookie first. The server used from
+/// here on is the one the correlation names, never anything in this request's
+/// query (FR-016, FR-017): a forged callback cannot redirect the code exchange.
+let private callbackHandler: EndpointHandler =
+    fun ctx ->
+        task {
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let protectors = ctx.GetService<IDataProtectionProvider>()
+            let allowDev = (ctx.GetService<Client.Options>()).AllowDev
+
+            // Read before `complete` consumes the cookie, so its own failures can
+            // still return to the app's page.
+            let earlyReturnUrl = OAuthRoundTrip.returnUrlOf protectors clock ctx
+
+            match OAuthRoundTrip.complete protectors clock ctx "fediverse" with
+            | Error error ->
+                do! record' ctx config SignInFailed Failure $"fediverse:exchange_failed;{error.Detail}"
+
+                match error with
+                | OAuthRoundTrip.ProviderReturnedError "access_denied" ->
+                    return Picker.redirectWithFailure ctx earlyReturnUrl "access-denied"
+                | _ -> return Picker.redirectWithFailure ctx earlyReturnUrl "sign-in-failed"
+
+            | Ok correlation ->
+
+            let fail code = Picker.redirectWithFailure ctx (Some correlation.ReturnUrl) code
+            let server = correlation.Server
+
+            if String.IsNullOrEmpty server then
+                do! record' ctx config SignInFailed Failure "fediverse:exchange_failed;no_server"
+                return fail "sign-in-failed"
+            else
+
+            match! findConnector config with
+            | None ->
+                do! record' ctx config SignInFailed Failure $"fediverse:exchange_failed;connector_unavailable;server={server}"
+                return fail "sign-in-failed"
+
+            | Some connector ->
+
+            // FR-019: the list may have changed since the round trip began.
+            if not (Rules.allows connector.FediverseAccess server) then
+                do! record' ctx config SignInFailed Failure $"fediverse:server_not_allowed;server={server}"
+                return fail "account-not-allowed"
+            else
+
+            match! FediverseServers.find config (ctx.GetService<IDataProtectionProvider>()) server with
+            | None ->
+                do! record' ctx config SignInFailed Failure $"fediverse:client_rejected;server={server}"
+                return fail "sign-in-failed"
+
+            | Some registration ->
+
+            match ctx.Request.Query.TryGetValue "code" with
+            | true, values when values.Count > 0 && not (String.IsNullOrEmpty values[0]) ->
+                let code = string values[0]
+                let client = ctx.GetService<IHttpClientFactory>().CreateClient Client.HttpClientName
+                let origin = ctx.GetService<PublicOrigin.PublicOrigin>()
+                let callback = (PublicOrigin.callbackUri origin "fediverse").ToString()
+
+                match!
+                    Client.exchange
+                        client
+                        (endpointsOf registration)
+                        registration.ClientId
+                        registration.ClientSecret
+                        callback
+                        code
+                        correlation.CodeVerifier
+                with
+                | Error Client.ClientRejected ->
+                    // R8: the server no longer knows our client. The row is
+                    // dropped so the next attempt registers afresh instead of
+                    // failing the same way.
+                    do! FediverseServers.delete config server
+                    do! record' ctx config SignInFailed Failure $"fediverse:client_rejected;server={server}"
+                    return fail "sign-in-failed"
+
+                | Error _ ->
+                    do! record' ctx config SignInFailed Failure $"fediverse:exchange_failed;server={server}"
+                    return fail "sign-in-failed"
+
+                | Ok token ->
+
+                match! Client.account client allowDev server token with
+                | Error _ ->
+                    do! record' ctx config SignInFailed Failure $"fediverse:account_unreadable;server={server}"
+                    return fail "sign-in-failed"
+
+                | Ok account ->
+                    do! FediverseServers.markUsed config clock server
+                    let profile = Client.toProfile server account
+                    return! Callback.finishSignIn ctx connector profile correlation.ReturnUrl false
+
+            | _ ->
+                do! record' ctx config SignInFailed Failure $"fediverse:exchange_failed;no_authorization_code;server={server}"
+                return fail "sign-in-failed"
+        }
 
 let endpoint =
-    [ GET [ route "/connect/fediverse/start" getHandler |> configureEndpoint _.RequireRateLimiting(RateLimits.SignIn) ]
+    [ GET [ route "/connect/fediverse/callback" callbackHandler |> configureEndpoint _.RequireRateLimiting(RateLimits.SignIn) ]
+      GET [ route "/connect/fediverse/start" getHandler |> configureEndpoint _.RequireRateLimiting(RateLimits.SignIn) ]
       POST [ route "/connect/fediverse/start" postHandler |> configureEndpoint _.RequireRateLimiting(RateLimits.SignIn) ] ]

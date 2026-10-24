@@ -243,6 +243,7 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     services.AddSingleton<Providers.Fediverse.Options>(({ AllowDev = allowInsecureHttp }: Providers.Fediverse.Options))
     |> ignore
 
+    services.TryAddSingleton<Providers.Fediverse.HostResolver>(Providers.Fediverse.systemResolver)
     services.TryAddSingleton<Providers.Fediverse.PrimaryHandler>(
         Providers.Fediverse.PrimaryHandler(fun () -> Providers.Fediverse.guardedHandler allowInsecureHttp))
 

@@ -42,6 +42,13 @@ type Options = { AllowDev: bool }
 /// `ProviderAdapters.PrimaryHandler`.
 type PrimaryHandler = delegate of unit -> HttpMessageHandler
 
+/// The DNS lookup of the account step's address pre-check (FR-008). A delegate
+/// so a test can answer for names that do not exist, as `PrimaryHandler` does
+/// for the network.
+type HostResolver = delegate of string * CancellationToken -> Task<IPAddress array>
+
+let systemResolver = HostResolver(fun name token -> Dns.GetHostAddressesAsync(name, token))
+
 [<Literal>]
 let private MaxResponseBytes = 65536
 
