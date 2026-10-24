@@ -31,10 +31,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Links and anchors in the docs resolve
-        # T8 lands before T1 (docs audit, docs/audit-2026-10.md), and main
-        # still has the dead anchor of W15 in docs/connectors/oidc.md: the step
-        # reports it without failing the run. T1 fixes it and removes this line.
-        continue-on-error: true
         run: .github/scripts/check-links.py
 
   test:

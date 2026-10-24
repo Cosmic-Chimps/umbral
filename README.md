@@ -156,7 +156,7 @@ least 12 characters. It is the only way into the admin area and it is not tied
 to any provider, so a broken Discord or Google app can never lock you out. Use
 a password manager: there is no recovery screen (but see
 [Forgotten operator credential](#forgotten-operator-credential)). To change it
-later while signed in, open **Credential** in the top bar: it asks for the
+later while signed in, open **Credential** in the side rail: it asks for the
 current one and the new one twice, and signs every other admin session out.
 
 > `/admin` always takes you to the right place: the setup page the first time,
@@ -164,8 +164,8 @@ current one and the new one twice, and signs every other admin session out.
 > the issuer URL for app developers, and a link to `/admin`); it shows nothing
 > about how this instance is set up.
 
-You land on the **Connectors** screen. The admin area has three screens:
-**Apps**, **Connectors**, **Users**.
+You land on the **Connectors** screen. The admin area has three screens,
+**Apps**, **Connectors** and **Users**, and the **Credential** page.
 
 #### Claim an instance from a script
 
@@ -412,8 +412,9 @@ then adds a passkey to that account is one user, with the same `sub`.
 
 Umbral has one look, called Umbra: a warm gold accent on near-black, or on
 paper in the light theme, with the **Gnomon** as its mark (a sundial's upright
-and its shadow). The operator screens have a side rail with the four screens
-and **Sign out**; on a narrow screen it stacks above the page.
+and its shadow). The operator screens have a side rail with the three screens,
+**Apps**, **Connectors** and **Users**, the **Credential** page, and
+**Sign out**; on a narrow screen it stacks above the page.
 
 **Two themes, and it follows your system.** By default Umbral is dark or light
 as your operating system or browser says, and changes when it does. To pick one
@@ -527,25 +528,15 @@ dark theme, and some mid-tones such as `#f26b1d` just miss on the light one;
 `#d9480f` and `#c2410c` are safe on both. The card's sample button shows what
 people will see.
 
-### Where it is kept, and upgrading
+### Where it is kept
 
 Logos and colours live in `umbral.db`, so the [backup](#your-data-back-it-up)
 you already take covers them. Deleting an app deletes its branding with it.
 
-Branding adds a table, which makes the database **schema version 4**. Umbral
-upgrades an older database by itself when it starts, and every app starts with no
-branding, so no page changes. It does not work the other way: an older image
-refuses to start on a version 4 database, and says so in `docker logs umbral`
-(*...written by a newer Umbral. Run the newer image, or restore the backup of the
-data directory taken before the upgrade.*). Take a backup before you upgrade, and
-you can always go back.
-
-Passkeys, invitations and the challenges of passkey sign-ins add three tables,
-which makes the database **schema version 6**. Umbral upgrades an older database
-by itself when it starts, and nothing changes until you enable the passkey
-connector. It does not work the other way: an older image refuses to start on a
-version 6 database, and says so in `docker logs umbral`. Take a backup before
-you upgrade, and you can always go back.
+An Umbral from before branding upgrades its database by itself, and every app
+starts with no branding, so no page changes. See
+[Upgrading](#upgrading) for what an upgrade does to the database and how to go
+back.
 
 ## Who can sign in
 
@@ -1134,6 +1125,17 @@ the same credentials, to read them back. Two instances that use the same
 `UMBRAL__SECRET_STORE_PREFIX` in the same manager share their secrets: give the
 second one its own prefix.
 
+### Upgrading
+
+The database is at **schema version 6**. Umbral upgrades an older database by
+itself when it starts, and nothing changes until you use what the upgrade
+added: for example, every app starts with no branding, and nobody can use a
+passkey until you enable the passkey connector. It does not work the other way: an older
+image refuses to start on a newer database, and says so in `docker logs umbral`
+(*...written by a newer Umbral. Run the newer image, or restore the backup of
+the data directory taken before the upgrade.*). Take a
+[backup](#your-data-back-it-up) before you upgrade, and you can always go back.
+
 ## Forgotten operator credential
 
 Run this on the machine that hosts the container:
@@ -1296,7 +1298,7 @@ dotnet test        # from the repository root; no Docker or network needed
 Umbral is built on .NET 10 (F#), [Oxpecker](https://github.com/Lanayx/Oxpecker),
 [OpenIddict](https://documentation.openiddict.com/) and SQLite. The project's
 rules are in [`.specify/memory/constitution.md`](.specify/memory/constitution.md)
-and its specification is in [`specs/001-umbral-mvp/`](specs/001-umbral-mvp/).
+and its specifications are in [`specs/`](specs/), one folder per feature.
 A change people who run Umbral will notice also gets an entry under `## Unreleased`
 in [`CHANGELOG.md`](CHANGELOG.md); [Release](#release) says how it is used.
 

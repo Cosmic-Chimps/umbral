@@ -46,8 +46,9 @@ its **Identifier** (its slug) there. The identifier is part of the callback URL:
 For example, with the identifier `home` and the origin `https://auth.example.com`:
 `https://auth.example.com/connect/home/callback`. Use lower-case letters, digits
 and hyphens, up to 32 characters, such as `home` or `club-keycloak`. It cannot
-be the name of a built-in provider (`discord`, `github`, `google`) or `oidc`, and
-it cannot be changed later.
+be the name of a kind of connector (`discord`, `github`, `google`, `passkey`,
+`oidc`, or `fake`, which Umbral's own tests use), and it cannot be changed
+later.
 
 Because you choose it, you can type the callback URL into your provider's
 console before you add the provider in Umbral. After you add it, the new card
@@ -94,7 +95,7 @@ things:
 | Redirect URI | The callback URL from step 1: `<UMBRAL__PUBLIC_ORIGIN>/connect/<identifier>/callback`. Exact match, with no wildcards. |
 | Token endpoint authentication | `client_secret_basic` or `client_secret_post`. Either is fine; "client secret" or "client authentication: on" in most consoles. Umbral uses Basic when your provider allows it. |
 | Signing algorithm for the identity token | **RS256** or **ES256** (the others in the RS, PS and ES families work too). **Not HS256.** See below. |
-| Scopes | `openid`, `email` and `profile`. These are what Umbral always asks for. If your provider needs another scope before it releases something (a `groups` claim, say), add it as an extra scope in step 4. |
+| Scopes | `openid`, `email` and `profile`. These are what Umbral always asks for, and the only ones: there is no setting to ask for more. |
 
 Copy the **client ID** and the **client secret** the provider gives you. Most
 products show the secret once.
@@ -141,8 +142,8 @@ in the form:
 | **Issuer URL** | The issuer from step 2. |
 | **Client ID** | From your provider. |
 | **Client secret** | From your provider. Required. |
-| **Extra scopes** | Optional. More scopes to ask for besides `openid email profile`, separated by spaces, like `groups offline_access`. Leave it empty if you are not sure. |
 | **Shared with every app** | Ticked by default: every app set to "all shared connectors" offers it. Untick it to offer this provider only to the apps that choose it (**Apps → Sign-in methods**). |
+| **Allowed email domains** | Optional. Domains separated by commas, like `acme.com, example.org`: only people whose verified email is at one of them can sign in through this provider. Leave it empty to use the instance list. See [Allowed email domains](#allowed-email-domains). |
 
 The form carries the email warning from the top of this page. Click **Add
 connector**.
@@ -173,33 +174,6 @@ A provider that **answers wrongly** is never saved: a different issuer in its
 discovery document, an endpoint that is not https, no asymmetric signing, no
 client secret method Umbral can use. The form keeps what you typed and the
 message says what to change.
-
-### Keeping it in the configuration file
-
-The provider can also live in Umbral's [configuration
-file](../../README.md#configuration-as-code), next to your other connectors.
-It is a connector entry with `kind: oidc` and the issuer:
-
-```yaml
-connectors:
-  - slug: home                       # fixed: it is in the callback URL
-    kind: oidc
-    issuer: https://auth.example.com/application/o/umbral   # fixed: people are recognised by it
-    display_name: Home
-    client_id: umbral
-    client_secret: ${UMBRAL_HOME_SECRET}
-    enabled: true
-    extra_scopes: [groups]           # optional
-```
-
-Umbral never contacts the provider when it applies the file, so it starts even
-if the provider is down; a provider that is wrong fails its sign-ins with the
-usual message instead. The `enabled` value is written as it is. The issuer
-follows the same rules as the form (https, no `?` or `#`), and a file that gives
-an existing identifier a **different issuer**, or an issuer another connector
-already has, stops Umbral from starting and says which entry: delete the
-connector, or use a new identifier. `GET /admin/config` exports the provider
-in this form.
 
 ### The issuer and the identifier cannot be changed
 
