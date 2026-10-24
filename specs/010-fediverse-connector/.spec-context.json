@@ -257,6 +257,14 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T17:45:35.143Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T020",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T17:50:35.001Z"
     }
   ],
   "unattended": true,
@@ -514,7 +522,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T023",
+  "currentTask": "T020",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -699,6 +707,13 @@
       "did": "Apps screen: Fediverse limited exactly when Only these servers",
       "files": [
         "src/Umbral/Handlers/Admin/Apps.fs"
+      ]
+    },
+    "T020": {
+      "status": "DONE",
+      "did": "9 admin tests: list order, pane states, save, refused entries, empty list, toggle/delete, allowlist before contact, FR-019 at callback",
+      "files": [
+        "tests/Umbral.Tests/FediverseAdminTests.fs"
       ]
     }
   }
