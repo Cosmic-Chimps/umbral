@@ -97,6 +97,22 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T16:35:32.887Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T004",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:39:14.436Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T005",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T16:39:14.524Z"
     }
   ],
   "unattended": true,
@@ -354,7 +370,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T003",
+  "currentTask": "T005",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -373,6 +389,31 @@
       "did": "EmailDomains.normaliseDomain",
       "files": [
         "src/Umbral/Domains/EmailDomains.fs"
+      ]
+    },
+    "T004": {
+      "status": "DONE",
+      "did": "Pure Fediverse module",
+      "files": [
+        "normaliseServer",
+        "parseInput",
+        "parseServers",
+        "allows",
+        "scope",
+        "isPublicAddress",
+        "baseUrl",
+        "fromMetadata",
+        "fromNodeInfo",
+        "subject:src/Umbral/Domains/Fediverse.fs",
+        "src/Umbral/Umbral.fsproj"
+      ]
+    },
+    "T005": {
+      "status": "DONE",
+      "did": "158 tests over every branch of the Fediverse module",
+      "files": [
+        "tests/Umbral.Tests/FediverseDomainTests.fs",
+        "tests/Umbral.Tests/Umbral.Tests.fsproj"
       ]
     }
   }

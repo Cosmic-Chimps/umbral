@@ -50,6 +50,7 @@
     <Compile Include="Domains/Passkeys.fs" />
     <Compile Include="Domains/Linking.fs" />
     <Compile Include="Domains/EmailDomains.fs" />
+    <Compile Include="Domains/Fediverse.fs" />
     <Compile Include="Domains/RedirectUris.fs" />
     <Compile Include="Domains/Branding.fs" />
     <Compile Include="Domains/PngLogo.fs" />

@@ -79,6 +79,7 @@
     <Compile Include="SignInBrandingTests.fs" />
     <Compile Include="AppBrandingAdminTests.fs" />
     <Compile Include="EmailDomainsTests.fs" />
+    <Compile Include="FediverseDomainTests.fs" />
     <Compile Include="AllowedDomainsSignInTests.fs" />
     <Compile Include="AllowedDomainsAdminTests.fs" />
     <Compile Include="AppsMasterDetailTests.fs" />
