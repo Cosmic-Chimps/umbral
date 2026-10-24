@@ -67,3 +67,32 @@ A full `dotnet test` on the branch at `9e58a4b`, run by the reviewer: **1656 pas
 ## What happens next
 
 Fix B1–B4 on the branch, with tests. Note each fix and the nits you take in `notes.md`. Commit this file with your answers, then message the `umbral` session for the one re-check. No merge until this file says clear. The maintainer merges.
+
+## Re-check at `ad499a8` (2026-10-24)
+
+**Clear to merge.** I read `5780ef5` and `92b1177` against each finding and ran the suite myself.
+
+- **B1, fixed.** `guardedHandler` sets `UseProxy <- false`, so the connect callback always judges the fediverse server's own address.
+- **B2, fixed.** A value over its bound makes the answer `Malformed`; nothing is truncated:
+  - `client_id` and `client_secret` at 512;
+  - account `id` at 128;
+  - `display_name` at 256;
+  - `avatar`, `url` and the metadata endpoints at 2048.
+
+  A registration row is now a few KB at most. Not pruning rows is accepted: the bound, the sign-in rate limit and the spec's "no clean-up in 010" together make it reasonable.
+- **B3, fixed.**
+  - `isUsername` is Mastodon's pattern anchored with `\A…\z` (better than the `$` I suggested, which matches before a final newline; a test covers `"alice\n"`) and at most 64 characters.
+  - `profile` is kept only when it is https and on the server's own host.
+- **B4, fixed.**
+  - **How it decides:** `FediverseServers.recheckServer` reads the hosts of the user's own fediverse links, but only when the session's connector is a Fediverse connector set to "only these servers". It admits when one of those hosts is still listed.
+  - **Where it runs:** session reuse at authorize (sign out, then sign in again) and refresh in `Token.fs` (`invalid_grant`). Both record `fediverse:server_not_allowed;server=<host>`.
+  - **Tests:** `FediverseSessionRecheckTests` covers a refusal at reuse, a refusal at refresh, and a still-listed server.
+  - **Docs:** the README and walkthrough sentence about it goes to `umbral-documentation`, and its clearance covers that text.
+- **Nits:**
+  - N1 is fixed: `OAuthRoundTrip.peek` reads the cookie without consuming it, so a failed callback names its server.
+  - N2 is fixed: a registration is deleted only if it was made before the round trip began.
+  - N3 is fixed: the five IPv6 ranges are refused.
+  - N4 stays as it is, as agreed.
+- **Tests:** a full `dotnet test` at `ad499a8`, run by the reviewer, passes **1688 of 1688**, 0 failed, 0 skipped.
+
+**One cosmetic nit, no re-check needed.** `usernamePattern`/`isUsername` (`Domains/Fediverse.fs`), `MaxEndpointLength` (the same file) and the `Max*Length` literals (`Providers/Fediverse.fs`) were inserted between an existing `///` doc comment and the function it documents (`isPublicAddress`, `ownEndpoint`, `register`). Those comments now attach to the new definitions. Move each new definition above the doc comment, or into its own place, when convenient; it can land after the merge.

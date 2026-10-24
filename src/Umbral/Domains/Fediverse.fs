@@ -254,11 +254,6 @@ let private publicV4 (b: byte[]) : bool =
         || a >= 224
     )
 
-/// Whether a connection to this address may go out. Refuses what is not on the
-/// public internet: loopback, private, link-local, CGNAT, unique-local,
-/// multicast, unspecified, benchmark and documentation ranges. An IPv4-mapped
-/// IPv6 address is judged as the IPv4 it wraps, and so are the embedded forms
-/// (NAT64 and 6to4), or `::ffff:10.0.0.1` would walk past the IPv4 rules.
 /// Mastodon's username pattern, for what a server answers (not typed input).
 /// `\z`, not `$`: in .NET `$` also matches before a final newline.
 let private usernamePattern =
@@ -267,6 +262,11 @@ let private usernamePattern =
 let isUsername (value: string) : bool =
     value.Length <= 64 && usernamePattern.IsMatch value
 
+/// Whether a connection to this address may go out. Refuses what is not on the
+/// public internet: loopback, private, link-local, CGNAT, unique-local,
+/// multicast, unspecified, benchmark and documentation ranges. An IPv4-mapped
+/// IPv6 address is judged as the IPv4 it wraps, and so are the embedded forms
+/// (NAT64 and 6to4), or `::ffff:10.0.0.1` would walk past the IPv4 rules.
 let isPublicAddress (address: IPAddress) : bool =
     let address = if address.IsIPv4MappedToIPv6 then address.MapToIPv4() else address
     let bytes = address.GetAddressBytes()
@@ -328,14 +328,14 @@ type ServerMetadata =
       TokenEndpoint: string option
       RegistrationEndpoint: string option }
 
-/// An endpoint is believed only when it is an absolute https address (http under
-/// `allowDev`) on the server's own host and port, so metadata cannot send the
-/// sign-in or the registration to another machine.
 /// Longest endpoint URL kept. An anonymous person could otherwise grow the
 /// database without limit through a hostile server (code review B2).
 [<Literal>]
 let private MaxEndpointLength = 2048
 
+/// An endpoint is believed only when it is an absolute https address (http under
+/// `allowDev`) on the server's own host and port, so metadata cannot send the
+/// sign-in or the registration to another machine.
 let private ownEndpoint (allowDev: bool) (host: string) (endpoint: string option) : string option =
     endpoint
     |> Option.bind (fun text ->

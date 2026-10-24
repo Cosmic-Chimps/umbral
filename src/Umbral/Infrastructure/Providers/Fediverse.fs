@@ -353,8 +353,6 @@ let private serverFailure (answer: Answer) =
     else
         None
 
-/// Registers Umbral as an app on the server. The answer must carry both a client
-/// id and a secret; a 4xx is the server's refusal.
 // Bounds on what a server answers: an anonymous person could otherwise grow the
 // database and app tokens without limit (code review B2).
 [<Literal>]
@@ -369,6 +367,8 @@ let private MaxDisplayNameLength = 256
 [<Literal>]
 let private MaxUrlLength = 2048
 
+/// Registers Umbral as an app on the server. The answer must carry both a client
+/// id and a secret; a 4xx is the server's refusal.
 let register
     (client: HttpClient)
     (endpoints: ServerEndpoints)
