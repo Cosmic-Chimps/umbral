@@ -68,19 +68,21 @@ module InviteReveal =
 let private formatTime (value: DateTimeOffset) =
     value.ToString("yyyy-MM-dd HH:mm 'UTC'", Globalization.CultureInfo.InvariantCulture)
 
-let private enrolmentRadio (t: Texts.Texts) (checkedValue: string) (value: string) (label': string) (hint: string) =
-    div(class' = "space-y-1") {
-        label(class' = "flex items-center gap-2 text-body-md text-on-surface") {
-            let radio = input(type' = "radio", name = "enrolment", value = value)
+/// One enrolment mode as a radio card, the same `.um-choice` the Apps pane draws
+/// its sign-in methods with: a real radio input, styled by CSS only.
+let private enrolmentRadio (checkedValue: string) (value: string) (title: string) (description: string) =
+    label(class' = "um-choice") {
+        let radio = input(type' = "radio", name = "enrolment", value = value, class' = "um-choice-radio")
 
-            if checkedValue = value then
-                radio.attr("checked", "checked") |> ignore
+        if checkedValue = value then
+            radio.attr("checked", "checked") |> ignore
 
-            radio
-            span() { label' }
+        radio
+
+        span(class' = "um-choice-body") {
+            span(class' = "um-choice-title") { title }
+            span(class' = "um-choice-desc") { description }
         }
-
-        p(class' = "um-hint") { hint }
     }
 
 /// The Passkey pane. `existing` None is the unconfigured kind, whose form
@@ -187,9 +189,11 @@ let pane
                           p(class' = "um-hint") { t.ConnectorSharedHint }
                       }
 
-                      fieldset(class' = "space-y-2").data("enrolment", "") {
-                          enrolmentRadio t enrolment "invitations" t.PasskeyEnrolmentInvitationsLabel t.PasskeyEnrolmentInvitationsHint
-                          enrolmentRadio t enrolment "open" t.PasskeyEnrolmentOpenLabel t.PasskeyEnrolmentOpenHint
+                      fieldset(class' = "um-choice-group").data("enrolment", "") {
+                          div(class' = "grid gap-3 md:grid-cols-2") {
+                              enrolmentRadio enrolment "invitations" t.PasskeyEnrolmentInvitationsLabel t.PasskeyEnrolmentInvitationsHint
+                              enrolmentRadio enrolment "open" t.PasskeyEnrolmentOpenLabel t.PasskeyEnrolmentOpenHint
+                          }
                       }
 
                       p(class' = "um-hint").data("rule", "enrolment") { t.PasskeyEnrolmentRule }

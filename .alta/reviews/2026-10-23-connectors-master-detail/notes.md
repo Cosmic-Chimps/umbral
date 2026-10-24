@@ -165,3 +165,11 @@ htmx, at 1280: a click on the Passkey entry pushes `/admin/connectors/passkey`, 
 Connectors | Umbral", focus lands on the pane's `h2`, one `[data-frame]`. The pinned entry likewise
 (`/admin/connectors/domains`, it is the one `aria-current`). Disable on GitHub's pane: the URL stays
 `/admin/connectors/github`, one frame, the entry reads "Disabled", the pane's notice is `connector-disabled`.
+
+## After the review (review.md: clear, two nits)
+
+- Nit 1: `PasskeyInvitationForNew` "A new person" → "a new person", so an open invitation reads "For a new person".
+- Nit 2: the enrolment choice in the Passkey pane uses the `.um-choice` radio cards the Apps pane draws its
+  sign-in methods with (`um-choice-group`, `um-choice`, `um-choice-radio`), side by side from `md`. No new CSS
+  rule: `umbral.css` is unchanged and `build-css.sh --check` passes. Recaptured: `detail-passkey` at 1280 and 360,
+  dark and light. Connector, passkey and allowed-domains filters: 403 passed, 0 failed.
