@@ -632,8 +632,12 @@ anyone, the way it warns about a connector without a rule.
 
 Nor do they govern the Fediverse connector: a fediverse account carries no
 verified email. Who can sign in through it is its server choice, **Any server**
-or **Only these servers** with a list of server addresses, set on its page. See
-the [Fediverse walkthrough](docs/connectors/fediverse.md#the-server-list).
+or **Only these servers** with a list of server addresses, set on its page. Like
+a domain rule, a change to that list reaches people who are already signed in:
+someone from a server taken off it is refused at their next sign-in, the next
+time an app authorizes them with their existing session, or the next time an
+app refreshes their token. See the
+[Fediverse walkthrough](docs/connectors/fediverse.md#the-server-list).
 
 ## Passkeys
 

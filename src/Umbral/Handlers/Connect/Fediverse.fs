@@ -378,11 +378,18 @@ let private callbackHandler: EndpointHandler =
 
             // Read before `complete` consumes the cookie, so its own failures can
             // still return to the app's page.
-            let earlyReturnUrl = OAuthRoundTrip.returnUrlOf protectors clock ctx
+            let early = OAuthRoundTrip.peek protectors clock ctx
+            let earlyReturnUrl = early |> Option.map _.ReturnUrl
+
+            // Code review N1: the failure names the server when the cookie does.
+            let earlyServer =
+                match early with
+                | Some c when c.Server <> "" -> $";server={c.Server}"
+                | _ -> ""
 
             match OAuthRoundTrip.complete protectors clock ctx "fediverse" with
             | Error error ->
-                do! record' ctx config SignInFailed Failure $"fediverse:exchange_failed;{error.Detail}"
+                do! record' ctx config SignInFailed Failure $"fediverse:exchange_failed;{error.Detail}{earlyServer}"
 
                 match error with
                 | OAuthRoundTrip.ProviderReturnedError "access_denied" ->
@@ -440,7 +447,12 @@ let private callbackHandler: EndpointHandler =
                     // R8: the server no longer knows our client. The row is
                     // dropped so the next attempt registers afresh instead of
                     // failing the same way.
-                    do! FediverseServers.delete config server
+                    // Code review N2: only a registration made before this round
+                    // trip began is the one the server rejected; a newer one (a
+                    // concurrent account step) is left alone.
+                    if registration.RegisteredUtc <= correlation.IssuedAtUtc then
+                        do! FediverseServers.delete config server
+
                     do! record' ctx config SignInFailed Failure $"fediverse:client_rejected;server={server}"
                     return fail "sign-in-failed"
 

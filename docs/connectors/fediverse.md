@@ -137,8 +137,12 @@ server.
   contact whoever runs this Umbral.*
 
 Removing a server from the list does not delete its registration and does not
-delete the people who signed in from it. They simply cannot sign in until it is
-listed again.
+delete the people who signed in from it. It does reach the people from it who
+are already signed in, as a change to allowed email domains does: they are
+refused the next time an app authorizes them with their existing session, or
+the next time an app refreshes their token, and they cannot sign in until the
+server is listed again. Access tokens already issued keep working until they
+run out, within an hour.
 
 ## Scopes Umbral requests
 

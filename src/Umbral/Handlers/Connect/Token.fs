@@ -105,6 +105,26 @@ let handler: EndpointHandler =
 
             | EmailDomains.Admitted ->
 
+            // Code review B4: the Fediverse server list, judged at the same place.
+            let! refusedServer = FediverseServers.recheckServer config connectorSlug u.Id
+
+            match refusedServer with
+            | Some host ->
+                do!
+                    SecurityEvents.record
+                        config
+                        (ctx.GetService<TimeProvider>())
+                        { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
+                            UserId = Some u.Id
+                            ClientId = Option.ofObj request.ClientId
+                            ConnectorSlug = connectorSlug
+                            RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+                            Detail = Some $"fediverse:server_not_allowed;server={host}" }
+
+                return! Authorize.forbid ctx Errors.InvalidGrant "This account can no longer be used to sign in."
+
+            | None ->
+
             // Rebuilt from the principal's own claims, not from scratch. The
             // private `oi_*` claims — scopes, authorization id, token lineage —
             // live there, and without them the new tokens lose their

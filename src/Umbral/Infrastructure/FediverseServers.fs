@@ -191,3 +191,40 @@ let markChecked (config: Database.DbConfig) (clock: TimeProvider) (host: string)
 /// successful exchange proves the client works.
 let markUsed (config: Database.DbConfig) (clock: TimeProvider) (host: string) : Task<unit> =
     stamp config (fun command -> command.CommandText <- MarkUsed) clock host
+
+[<Literal>]
+let private FediverseSubjects =
+    "SELECT provider_subject FROM linked_accounts WHERE user_id = @user AND provider_kind = 'fediverse'"
+
+/// Whether a remembered sign-in through the Fediverse connector must be refused
+/// because "Only these servers" no longer lists the person's server (code review
+/// B4). The same reasoning as the email-domain recheck: tightening a rule reaches
+/// the people already signed in. `Some host` is the refused server ("" when none
+/// can be read); `None` admits.
+let recheckServer (config: Database.DbConfig) (connectorSlug: string option) (userId: string) : Task<string option> =
+    task {
+        match connectorSlug with
+        | None -> return None
+        | Some slug ->
+            let! connector = ConnectorStore.findBySlug config slug
+
+            match connector with
+            | Some c when c.Kind = Umbral.Domains.Connectors.Fediverse && c.FediverseAccess.OnlyListed ->
+                use! connection = Database.openConnection config
+                use command = connection.CreateCommand()
+                command.CommandText <- FediverseSubjects
+                command.Parameters.AddWithValue("@user", userId) |> ignore
+                use! reader = command.ExecuteReaderAsync()
+                let hosts = ResizeArray<string>()
+
+                while reader.Read() do
+                    match Umbral.Domains.Fediverse.parseFediverseSubject (reader.GetString 0) with
+                    | Some(host, _) -> hosts.Add host
+                    | None -> ()
+
+                if hosts |> Seq.exists (Umbral.Domains.Fediverse.allows c.FediverseAccess) then
+                    return None
+                else
+                    return Some(Seq.tryHead hosts |> Option.defaultValue "")
+            | _ -> return None
+    }

@@ -86,6 +86,7 @@
     <Compile Include="FediverseAdminTests.fs" />
     <Compile Include="FediverseStepErrorsTests.fs" />
     <Compile Include="FediverseReRegistrationTests.fs" />
+    <Compile Include="FediverseSessionRecheckTests.fs" />
     <Compile Include="AllowedDomainsSignInTests.fs" />
     <Compile Include="AllowedDomainsAdminTests.fs" />
     <Compile Include="AppsMasterDetailTests.fs" />

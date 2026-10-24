@@ -247,7 +247,32 @@ let handler: EndpointHandler =
                                     (Sessions.currentEmailDomain principal)
 
                             match decision with
-                            | EmailDomains.Admitted -> return true
+                            | EmailDomains.Admitted ->
+                                // Code review B4: the Fediverse server list is the
+                                // same kind of rule, judged at the same place.
+                                let! refusedServer =
+                                    FediverseServers.recheckServer
+                                        config
+                                        (Sessions.currentConnector principal)
+                                        (Sessions.currentSubject principal |> Option.defaultValue "")
+
+                                match refusedServer with
+                                | None -> return true
+                                | Some host ->
+                                    do! Sessions.signOut ctx
+
+                                    do!
+                                        SecurityEvents.record
+                                            config
+                                            (ctx.GetService<TimeProvider>())
+                                            { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
+                                                UserId = Sessions.currentSubject principal
+                                                ClientId = Option.ofObj request.ClientId
+                                                ConnectorSlug = Sessions.currentConnector principal
+                                                RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+                                                Detail = Some $"fediverse:server_not_allowed;server={host}" }
+
+                                    return false
                             | EmailDomains.Refused(level, reason) ->
                                 do! Sessions.signOut ctx
 

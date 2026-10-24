@@ -301,7 +301,7 @@ let complete
 ///
 /// Reads only. It does not delete the cookie and does not mark anything
 /// consumed, so it cannot weaken `complete`.
-let returnUrlOf (protectorProvider: IDataProtectionProvider) (clock: TimeProvider) (ctx: HttpContext) : string option =
+let peek (protectorProvider: IDataProtectionProvider) (clock: TimeProvider) (ctx: HttpContext) : Correlation option =
     let cookie =
         match ctx.Request.Cookies.TryGetValue CookieName with
         | true, value -> Option.ofObj value |> Option.filter (fun v -> v.Length > 0)
@@ -315,7 +315,12 @@ let returnUrlOf (protectorProvider: IDataProtectionProvider) (clock: TimeProvide
 
             match decode (protector.Unprotect payload) with
             | Some correlation when clock.GetUtcNow() - correlation.IssuedAtUtc <= Lifetime ->
-                Some correlation.ReturnUrl
+                Some correlation
             | _ -> None
         with _ ->
             None
+
+/// The authorization request of `peek`'s correlation: where a failed callback
+/// returns the person.
+let returnUrlOf (protectorProvider: IDataProtectionProvider) (clock: TimeProvider) (ctx: HttpContext) : string option =
+    peek protectorProvider clock ctx |> Option.map _.ReturnUrl
