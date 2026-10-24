@@ -259,7 +259,12 @@ let pane
                                           ) {
                                               ctx.GetAntiforgeryInput()
 
-                                              button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                                              // A red ghost, not a red fill: inviting again undoes it, and
+                                              // the pane's one red fill is Delete (DESIGN.md).
+                                              button(
+                                                  type' = "submit",
+                                                  class' = Components.btnSm Components.Ghost + " text-error hover:text-error"
+                                              ) {
                                                   t.PasskeyInvitationRevokeButton
                                               }
                                           })

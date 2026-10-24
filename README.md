@@ -186,8 +186,9 @@ same command replaces the credential (see
 
 ### 4. Add a connector (GitHub)
 
-1. On **Connectors**, choose **GitHub** in the list. Find **Redirect URI to
-   register with the provider** and copy it. It is `<origin>/connect/github/callback`, here
+1. On **Connectors**, choose **GitHub** in the list. Under **Set-up**, find
+   **Redirect URI to register with the provider** and copy it. It is
+   `<origin>/connect/github/callback`, here
    `http://localhost:8080/connect/github/callback`. Umbral builds it for you:
    do not type it by hand.
 2. In GitHub: your profile picture → **Settings** → **Developer settings**

@@ -19,8 +19,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
   URIs now wrap instead of running past the screen on a phone.
 - The **Connectors** screen is a list and a detail pane too: the connectors on the left (those
   set up, then the providers not set up yet, then **Passkey**, then **Allowed email domains**, the
-  instance-wide list), each marked Enabled, Disabled or with a warning sign when it needs
-  attention, and the selected one's set-up details, settings and actions on the right. Each
+  instance-wide list), those set up marked Enabled, Disabled, or with a warning sign when they
+  need attention, and the selected one's set-up details, settings and actions on the right. Each
   connector has its own address, `/admin/connectors/<identifier>`, where every change to it lands;
   **Add connector** opens its form at `/admin/connectors/new`, and the allowed email domains are at
   `/admin/connectors/domains`. `new` and `domains` can no longer be used as a connector's
