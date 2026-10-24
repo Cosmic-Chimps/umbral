@@ -136,7 +136,7 @@ Files: none beyond its tests.
 
 - [x] **T028** Regenerate `umbral.css` with `build-css.sh` if any view gained a class, and check it is unchanged otherwise · src/Umbral/Assets/umbral.input.css, src/Umbral/Assets/umbral.css
 - [x] **T029** Validate against the Success Criteria: full `dotnet test`, the link check, idle memory with the connector enabled (SC-007), and a browser walk of the step and pane; record figures in the review notes · .alta/reviews/2026-10-23-fediverse-connector/notes.md
-- [ ] **T030** Design review captures (design contract section 5) and doc review notes (audit section 6); send to `umbral-designer` and `umbral-documentation`; answer their reviews · .alta/reviews/2026-10-23-fediverse-connector/
+- [x] **T030** Design review captures (design contract section 5) and doc review notes (audit section 6); send to `umbral-designer` and `umbral-documentation`; answer their reviews · .alta/reviews/2026-10-23-fediverse-connector/
 
 ## Dependencies & Execution Order
 

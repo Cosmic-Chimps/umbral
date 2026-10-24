@@ -3,7 +3,7 @@
   "specName": "The Fediverse connector",
   "branch": "alta/earnest-cetus-9pd3",
   "currentStep": "implement",
-  "status": "implementing",
+  "status": "completed",
   "history": [
     {
       "step": "specify",
@@ -313,6 +313,21 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-24T18:12:03.732Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T030",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T20:41:25.170Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-24T20:41:25.193Z"
     }
   ],
   "unattended": true,
@@ -588,7 +603,7 @@
     }
   },
   "approach": "A Fediverse module beside the provider adapters: pure parsing in Domains/Fediverse.fs, a registration store, an SSRF-guarded HTTP client, an account-step handler and callback sharing Callback.fs's sign-in tail, and a Connectors pane. Correlation cookie carries the server; schema v7 adds fediverse_servers and profile columns.",
-  "currentTask": "T029",
+  "currentTask": "T030",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -824,6 +839,13 @@
       "did": "Full suite 1656/1656, link check (no new finding), changelog check, idle memory 4 runs, browser walk via capture script",
       "files": [
         ".alta/reviews/2026-10-23-fediverse-connector/notes.md"
+      ]
+    },
+    "T030": {
+      "status": "DONE",
+      "did": "Design review clear, documentation review clear (incl. B4 sentences), code review clear at ad499a8 after B1-B4 and N1-N3; captures and notes in the review folder",
+      "files": [
+        ".alta/reviews/2026-10-23-fediverse-connector/"
       ]
     }
   },
