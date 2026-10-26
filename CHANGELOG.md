@@ -10,6 +10,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+## 0.6.0 - 2026-10-26
+
 ### Added
 - The Fediverse connector: people can sign in with an account on a Mastodon (4.3 and later) or
   GoToSocial server, typing a handle such as `@ana@mastodon.social` or just the server. Enable it from
