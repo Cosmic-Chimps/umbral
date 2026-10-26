@@ -24,6 +24,14 @@ new image. Add to "Unreleased" as you work; a release renames it.
   `email`, and allowed email domains do not apply to them.
 - A walkthrough, `docs/connectors/fediverse.md`, and Fediverse in the README.
 
+### Upgrade
+- The database becomes schema version 7. An older image refuses to start on it: take a backup
+  before you upgrade.
+- An instance with the Fediverse connector enabled idles under 150 MB, the ceiling the idle-memory
+  test asserts on Linux.
+
+## 0.5.0 - 2026-10-24
+
 ### Changed
 - The **Apps** screen is a list and a detail pane: the apps are listed by name on the left, and
   the selected one's connection details, sign-in methods, branding and actions are on the right
@@ -44,12 +52,6 @@ new image. Add to "Unreleased" as you work; a release renames it.
 - An app card's **Sign-in page branding** heading now reads as the title of its section rather than
   a third field label beside **Logo** and **Accent colour**, and **Regenerate secret** and **Delete
   app** sit behind a hairline that closes the card, instead of hanging under the accent form.
-
-### Upgrade
-- The database becomes schema version 7. An older image refuses to start on it: take a backup
-  before you upgrade.
-- An instance with the Fediverse connector enabled idles under 150 MB, the ceiling the idle-memory
-  test asserts on Linux.
 
 ## 0.4.0 - 2026-10-22
 
