@@ -4,8 +4,7 @@ Task `2026-10-24-users-invite-button-says-recovery-r3cv`.
 Branch `alta/faithful-atlas-chdr` (worktree `~/.alta/worktrees/umbral/faithful-atlas-chdr`),
 on top of `main` at `6f0467e`.
 
-**Commits.** `6f0467e..COMMIT`: the change, tests and docs in one commit, then these notes and
-the captures.
+**Commits.** `6f0467e..HEAD`: `5f5e38b` the change, tests and docs; `a0dda49` the passkey walkthrough fix, these notes and the captures; then the reviewers' files.
 
 Copy only. Same route (`POST /admin/users/{id}/invite`), same invitation, same single reveal,
 same notice. The wording is `umbral-designer`'s answer of 2026-10-26.
@@ -38,7 +37,7 @@ link, on a provider user's row an invitation``. Ana (passkey user) shows the rec
 hint and the `aria-describedby`; Lea (signed in through the fake provider, no passkey) shows
 "Invite to add a passkey" with no hint; inviting from each shows "Recovery link" and
 "Invitation link" as the label, once. The existing invitation tests (`PasskeyInvitationTests`,
-`PasskeyAdminTests`) pass unchanged. Full suite: FULLSUITE.
+`PasskeyAdminTests`) pass unchanged. Full suite at `5f5e38b`: 1689 passed, 0 failed, 0 skipped (`dotnet test tests/Umbral.Tests`, 11 min).
 
 ## CHANGELOG, under `## Unreleased`, `### Changed`
 
