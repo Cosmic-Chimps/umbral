@@ -68,10 +68,10 @@ cookie over a 422 re-render so both screens work the same way and POST/redirect/
 ### Nits
 
 - Apps, empty list: the notice is drawn once, at the top; the create pane draws one only on `/new`.
-- Reserved slugs `new` / `domains`: the add form already refused them. A connector saved under one by
-  an older version cannot be opened, so `initialize` logs a warning at start naming it and saying to
-  delete it with `POST /admin/connectors/<slug>/delete` (that route has another shape and still
-  works) and add it again. The start is not stopped.
+- Reserved slugs `new` / `domains`: the add form already refused them. Versions 0.1.0 to 0.4.0
+  accepted both (`^[a-z0-9-]{1,32}$`, only kind names reserved), so one can exist; its page cannot be
+  opened, so `initialize` logs a warning at start naming it. The start is not stopped. (See N1 below
+  for the remedy.)
 - Refused domain list to a slug with no stored row: the pane of a kind **not set up** exists and draws
   the draft (the first set-up), so that still answers 422 with the pane. Only when the slug has no row
   and another connector of that kind exists (no pane at all: a stale form) does it go to the list with
@@ -87,7 +87,9 @@ From `git grep` on each tag:
 - Secret or invitation link used up by the list URL: v0.5.0 (the master-detail screens).
 - Fediverse unshare confirm: not released.
 
-A patch release (0.5.1) is the maintainer's call; CHANGELOG has it under Unreleased → Fixed / Security.
+The release is the maintainer's call; CHANGELOG has it under Unreleased → Fixed / Security. As the
+code review notes, Unreleased also holds the Fediverse connector and schema 7, so the next release
+from `main` is 0.6.0, not a 0.5.1 patch.
 
 ## Tests
 
@@ -121,3 +123,16 @@ New `tests/Umbral.Tests/CraftedLinkTests.fs` (13 tests):
 None in the real flows: the strand warnings are drawn as before. A crafted or refreshed link now shows
 the fixed warning text without a list or button (before: the list and button). The Apps confirm adds
 the browser's native `confirm()`, no drawn element. I did not send a design review for this.
+
+## Answers to the code review (`code-review.md`: clear to merge, two nits)
+
+- **N1, the startup warning pointed to a POST nobody can make by hand.** Agreed. Versions 0.1.0 to
+  0.4.0 did accept `new` and `domains`, so such a connector can exist, and today nothing but the
+  database reaches it. Making its page reachable is more than a nit inside a security fix:
+  `detailPath` is concatenated with `/delete`, `/toggle` and `?msg=` all over. So the warning now
+  says only what is true: the page cannot be opened, the connector still signs people in, and it
+  cannot be changed or deleted from the admin screens in this version. The CHANGELOG line matches.
+  The real fix is proposed as the follow-up task
+  `2026-10-26-a-connector-saved-under-the-slug-new-or-domains-can-be-opene-4z87`.
+- **N2, "A crafted Connectors link".** Now "A crafted link to the admin screens".
+- **Release note.** Taken: the notes above now say 0.6.0.

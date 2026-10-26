@@ -29,11 +29,12 @@ new image. Add to "Unreleased" as you work; a release renames it.
   confirmed: **Stop sharing anyway** answered that the settings were invalid. It now goes ahead.
 - After deleting the last app, its notice is shown once, not twice.
 - A connector saved by an older version under the slug `new` or `domains` has a page that cannot
-  be opened; Umbral now says so in its log at start, with how to remove it.
+  be opened; Umbral now says so in its log at start. The connector still signs people in.
 
 ### Security
-- A crafted Connectors link could show a confirm button that acted on another app or user. Opened
-  by a signed-in operator, a link to the Connectors screen could draw a red **Delete anyway** or
+- A crafted link to the admin screens could show a confirm button that acted on another app or
+  user. Opened by a signed-in operator, a link to the Connectors screen could draw a red
+  **Delete anyway** or
   **Disable anyway** button that deleted an app or disabled a user. A crafted link could also draw
   the **Save anyway** button of an app that leaves the app with no way to sign in, and the
   **Remove anyway** button that clears the allowed email domains of the instance. These buttons are

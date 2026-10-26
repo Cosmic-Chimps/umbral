@@ -505,7 +505,7 @@ let initialize (app: WebApplication) =
         for c in connectors do
             if Umbral.Handlers.Admin.ConnectorPaths.reservedSlugs.Contains c.Slug then
                 startupLog.LogWarning(
-                    "The connector with the slug {Slug} cannot be opened on the Connectors screen, because that slug is an address of the screen. Delete it with POST /admin/connectors/{Slug}/delete and add it again under another slug.",
+                    "The connector with the slug {Slug} cannot be opened on the Connectors screen, because that slug is now an address of the screen. It still signs people in, but it cannot be changed or deleted from the admin screens in this version.",
                     c.Slug
                 )
 
