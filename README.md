@@ -676,8 +676,10 @@ person signs in through any connector, clicks **Add a passkey**, and confirms on
 the device. An account can hold several passkeys, up to 10.
 
 **Recovery.** When someone loses a device, open **Users**, find their row and
-click **Invite to add a passkey**. They register a new passkey on the same
-account, so their `sub` does not change, and remove the old one on their page.
+click **Create a recovery link** (on the row of someone with no passkey, the
+same button reads **Invite to add a passkey**). Send them the **Recovery
+link**. They register a new passkey on the same account, so their `sub` does
+not change, and remove the old one on their page.
 
 **Removing a passkey.** The person removes their own on `/account/passkeys`,
 except the last one when they have no provider to sign in with ("You can't

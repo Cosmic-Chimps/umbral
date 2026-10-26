@@ -10,6 +10,7 @@ open System.Text.RegularExpressions
 open Xunit
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
+open Umbral.Views
 open Umbral.Tests.Infrastructure
 open Umbral.Tests.Infrastructure.Journeys
 open Umbral.Tests.Infrastructure.Flows
@@ -186,6 +187,45 @@ let ``the Users rows show the passkey pill and list`` () =
         let sam = articleOf html w.SamId
         Assert.Contains("data-linked-provider=\"passkey\"", sam)
         Assert.Contains("data-linked-provider=\"fake\"", sam)
+    }
+
+let private inviteButtonOf (article: string) =
+    (string (WebUtility.HtmlDecode(Regex.Match(article, "<button[^>]*data-user-invite[^>]*>(.*?)</button>", RegexOptions.Singleline).Groups[1].Value))).Trim()
+
+let private linkLabelOf (html: string) (id: string) =
+    (string (WebUtility.HtmlDecode(Regex.Match(articleOf html id, "<label for=\"invite-" + id + "\"[^>]*>(.*?)</label>", RegexOptions.Singleline).Groups[1].Value))).Trim()
+
+[<Fact>]
+let ``on a row with a passkey the invitation is a recovery link, on a provider user's row an invitation`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! w = world app
+        let! viaFake = signInViaFake (Browser(app.Client)) w.ClientId "openid" "fake-user-2" "lea@example.com"
+        Assert.True(Result.isOk viaFake)
+        let! leaId = userIdOf app "fake-user-2"
+
+        let! html = w.Operator.GetHtml "/admin/users"
+        let ana = articleOf html w.AnaId
+        Assert.Equal(Texts.en.UserRecoveryLinkButton, inviteButtonOf ana)
+        Assert.Contains(Texts.en.UserRecoveryLinkHint, string (WebUtility.HtmlDecode ana))
+        Assert.Contains($"aria-describedby=\"invite-{w.AnaId}-hint\"", ana)
+        Assert.Contains($"id=\"invite-{w.AnaId}-hint\"", ana)
+
+        let lea = articleOf html leaId
+        Assert.Equal(Texts.en.UserInvitePasskeyButton, inviteButtonOf lea)
+        Assert.DoesNotContain("data-user-invite-hint", lea)
+        Assert.DoesNotContain("aria-describedby", Regex.Match(lea, "<button[^>]*data-user-invite[^>]*>").Value)
+
+        // Same route and the same single reveal for both; only the label of the
+        // revealed link follows the row.
+        let! r = w.Operator.PostForm("/admin/users", $"/admin/users/{w.AnaId}/invite", [])
+        let! shownAna = w.Operator.GetHtml(location r)
+        Assert.Equal(Texts.en.UserRecoveryLinkLabel, linkLabelOf shownAna w.AnaId)
+
+        let! r2 = w.Operator.PostForm("/admin/users", $"/admin/users/{leaId}/invite", [])
+        let! shownLea = w.Operator.GetHtml(location r2)
+        Assert.Equal(Texts.en.UserInvitationLinkLabel, linkLabelOf shownLea leaId)
+        Assert.Equal(1, Regex.Matches(shownLea, "data-invitation-link").Count)
     }
 
 [<Fact>]

@@ -192,13 +192,32 @@ let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
         else
             Fragment() :> HtmlElement
 
-        if data.CanInvite then
-            (form(method = "post", action = $"/admin/users/{user.Id}/invite", class' = "inline") {
-                ctx.GetAntiforgeryInput()
+        // Someone who still has a device adds passkeys on /account/passkeys, so
+        // on a row that lists one, the operator's invitation is for recovery.
+        let recovery = not data.Passkeys.IsEmpty
 
+        if data.CanInvite then
+            let hintId = $"invite-{user.Id}-hint"
+
+            let submit =
                 button(type' = "submit", class' = Components.btnSm Components.Secondary).data ("user-invite", "") {
-                    t.UserInvitePasskeyButton
+                    if recovery then t.UserRecoveryLinkButton else t.UserInvitePasskeyButton
                 }
+
+            if recovery then
+                submit.attr ("aria-describedby", hintId) |> ignore
+
+            (div(class' = "space-y-1") {
+                form(method = "post", action = $"/admin/users/{user.Id}/invite", class' = "inline") {
+                    ctx.GetAntiforgeryInput()
+                    submit
+                }
+
+                if recovery then
+                    (p(id = hintId, class' = "um-hint").data ("user-invite-hint", "") { t.UserRecoveryLinkHint })
+                    :> HtmlElement
+                else
+                    Fragment() :> HtmlElement
             })
             :> HtmlElement
         else
@@ -206,7 +225,9 @@ let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
 
         match data.RevealedLink with
         | Some link ->
-            Components.copyField t.Copy t.Copied t.UserInvitePasskeyButton $"invite-{user.Id}" link (fun i ->
+            let label' = if recovery then t.UserRecoveryLinkLabel else t.UserInvitationLinkLabel
+
+            Components.copyField t.Copy t.Copied label' $"invite-{user.Id}" link (fun i ->
                 i.data ("invitation-link", "") |> ignore)
             :> HtmlElement
         | None -> Fragment() :> HtmlElement

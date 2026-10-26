@@ -464,6 +464,12 @@ type Texts =
       PasskeyInvitationRevokeConfirm: string
       // The Users screen
       UserInvitePasskeyButton: string
+      /// The same invitation, on the row of someone who already has a passkey:
+      /// there it only ever means recovery from a lost device.
+      UserRecoveryLinkButton: string
+      UserRecoveryLinkHint: string
+      UserRecoveryLinkLabel: string
+      UserInvitationLinkLabel: string
       /// The name of the user whose passkey the operator is about to remove.
       UserPasskeyRemoveConfirm: string -> string
       /// The notice after inviting an existing user, with their name.
@@ -1202,6 +1208,11 @@ let en: Texts =
       PasskeyInvitationRevokeConfirm = "Revoke this invitation? The link will stop working."
 
       UserInvitePasskeyButton = "Invite to add a passkey"
+      UserRecoveryLinkButton = "Create a recovery link"
+      UserRecoveryLinkHint =
+        "For a lost device: the link adds a new passkey to the same account. Remove the lost passkey afterwards."
+      UserRecoveryLinkLabel = "Recovery link"
+      UserInvitationLinkLabel = "Invitation link"
       UserPasskeyRemoveConfirm =
         fun name -> $"Remove this passkey from {name}'s account? They will not be able to sign in with it."
       UserPasskeyInvited =
