@@ -147,4 +147,4 @@ let handler (slug: string) : EndpointHandler =
                         $"{store}|{name}"
         })
 
-let endpoint = POST [ routef "/admin/connectors/{%s}/delete" handler ]
+let endpoint = POST [ routef "/admin/connectors/{%s}/delete" (slugOfSegment >> handler) ]

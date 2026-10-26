@@ -28,8 +28,10 @@ new image. Add to "Unreleased" as you work; a release renames it.
 - Stopping sharing the Passkey connector while an app had no other way to sign in could not be
   confirmed: **Stop sharing anyway** answered that the settings were invalid. It now goes ahead.
 - After deleting the last app, its notice is shown once, not twice.
-- A connector saved by an older version under the slug `new` or `domains` has a page that cannot
-  be opened; Umbral now says so in its log at start. The connector still signs people in.
+- A connector saved by an older version under the slug `new` or `domains` could not be opened,
+  changed or deleted on the Connectors screen, because those are now addresses of the screen. Its
+  page is now at `/admin/connectors/_new` or `/admin/connectors/_domains`, and its entry in the
+  list links there. Its slug, and so its callback URL, stay as they are.
 
 ### Security
 - A crafted link to the admin screens could show a confirm button that acted on another app or

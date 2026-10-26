@@ -498,17 +498,6 @@ let initialize (app: WebApplication) =
         if connectors |> List.exists (fun c -> c.Kind = Umbral.Domains.Connectors.Fake) && not gate.IsAllowed then
             failwith gate.Explain
 
-        // `new` and `domains` are addresses of the Connectors screen. One saved
-        // under either slug by an older version has a pane nobody can open.
-        let startupLog = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Umbral.Startup")
-
-        for c in connectors do
-            if Umbral.Handlers.Admin.ConnectorPaths.reservedSlugs.Contains c.Slug then
-                startupLog.LogWarning(
-                    "The connector with the slug {Slug} cannot be opened on the Connectors screen, because that slug is now an address of the screen. It still signs people in, but it cannot be changed or deleted from the admin screens in this version.",
-                    c.Slug
-                )
-
         let! configured = AdminAuth.isConfigured dbConfig
 
         // An unconfigured instance is claimable by whoever reaches /admin/setup

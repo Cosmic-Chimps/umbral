@@ -109,4 +109,4 @@ let handler (slug: string) : EndpointHandler =
                     (if turningOff then "connector-disabled" else "connector-enabled")
         })
 
-let endpoint = POST [ routef "/admin/connectors/{%s}/toggle" handler ]
+let endpoint = POST [ routef "/admin/connectors/{%s}/toggle" (slugOfSegment >> handler) ]

@@ -232,11 +232,11 @@ let private providerPane
 
     let toggleForm =
         // htmx intercepts this; it is a real form either way (D11).
-        (form(method = "post", action = confirmed $"/admin/connectors/{slug}/toggle", class' = "inline") {
+        (form(method = "post", action = confirmed (detailPath slug + "/toggle"), class' = "inline") {
             ctx.GetAntiforgeryInput()
 
             button(type' = "submit", class' = Components.btnSm Components.Ghost)
-                .attr("hx-post", confirmed $"/admin/connectors/{slug}/toggle")
+                .attr("hx-post", confirmed (detailPath slug + "/toggle"))
                 .attr("hx-target", "[data-frame]")
                 .attr("hx-select", "[data-frame]")
                 .attr("hx-swap", "outerHTML") {
@@ -251,7 +251,7 @@ let private providerPane
         :> HtmlElement
 
     let deleteForm =
-        (form(method = "post", action = confirmed $"/admin/connectors/{slug}/delete", class' = "inline") {
+        (form(method = "post", action = confirmed (detailPath slug + "/delete"), class' = "inline") {
             ctx.GetAntiforgeryInput()
 
             button(type' = "submit", class' = Components.btnSm Components.Danger) {
@@ -369,7 +369,7 @@ let private providerPane
 
               Components.paneSection
                   t.ConnectorSettingsTitle
-                  (form(method = "post", action = $"/admin/connectors/{slug}", class' = "space-y-3") {
+                  (form(method = "post", action = detailPath slug, class' = "space-y-3") {
                       ctx.GetAntiforgeryInput()
 
                       // FR-013: the slug and the kind are not fields. Neither ever
@@ -2062,8 +2062,8 @@ let endpoint =
     [ GET [ route "/admin/connectors" page ]
       GET [ route "/admin/connectors/new" newPage ]
       GET [ route "/admin/connectors/domains" domainsPage ]
-      GET [ routef "/admin/connectors/{%s}" detailPage ]
+      GET [ routef "/admin/connectors/{%s}" (slugOfSegment >> detailPage) ]
       POST [ route "/admin/connectors" create ]
       POST [ route "/admin/allowed-domains" saveAllowedDomains ]
       POST [ route "/admin/connectors/fediverse" saveFediverse ]
-      POST [ routef "/admin/connectors/{%s}" save ] ]
+      POST [ routef "/admin/connectors/{%s}" (slugOfSegment >> save) ] ]

@@ -423,6 +423,101 @@ let ``the slugs of the screen's own addresses are refused and nothing is stored`
         Assert.True stored.IsNone
     }
 
+/// A connector stored the way versions before 0.5.0 could: with a slug the add form now refuses.
+let private seedLegacy (app: Fixtures.TestApp) (slug: string) =
+    task {
+        let! reference = Fixtures.putSecret app slug "unused"
+
+        do!
+            ConnectorStore.save
+                app.DbConfig
+                app.Clock
+                { Slug = slug
+                  Kind = ProviderKind.Fake
+                  DisplayName = "Legacy " + slug
+                  ClientId = "legacy-" + slug
+                  ClientSecretRef = reference.Encoded
+                  ClientSecretHint = "used"
+                  IssuerUrl = None
+                  AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = app.Clock.GetUtcNow()
+                  UpdatedUtc = app.Clock.GetUtcNow() }
+                None
+    }
+
+[<Theory>]
+[<InlineData("new")>]
+[<InlineData("domains")>]
+let ``a stored connector with a reserved slug has its pane at the slug behind an underscore`` (slug: string) =
+    task {
+        let! app, operator = operatorApp ()
+        use _ = app
+        do! seedLegacy app slug
+
+        let! list = operator.GetHtml "/admin/connectors"
+        Assert.Contains($"href=\"/admin/connectors/_{slug}\"", entryTag list slug)
+
+        let! response = operator.Get $"/admin/connectors/_{slug}"
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+        Assert.Equal<string list>([ slug ], connectorPanes html)
+        Assert.Equal<string list>([ slug ], selectedEntries html)
+        Assert.DoesNotContain("data-card=\"allowed-domains\"", pane html)
+
+        // The screen's own addresses are still the screen's.
+        let! add = operator.GetHtml "/admin/connectors/new"
+        Assert.Empty(connectorPanes add)
+        Assert.DoesNotContain("data-connector=\"new\"", add)
+
+        let! domains = operator.GetHtml "/admin/connectors/domains"
+        Assert.Empty(connectorPanes domains)
+        Assert.Contains("data-card=\"allowed-domains\"", pane domains)
+    }
+
+[<Theory>]
+[<InlineData("new")>]
+[<InlineData("domains")>]
+let ``the pane of a connector with a reserved slug saves, toggles and deletes at its underscore address`` (slug: string) =
+    task {
+        let! app, operator = operatorApp ()
+        use _ = app
+        do! seedLegacy app slug
+        let address = $"/admin/connectors/_{slug}"
+
+        let! saved = operator.PostForm(address, address, paneFields "Renamed" "client-renamed")
+        Assert.Equal(address, landing saved)
+        let! stored = ConnectorStore.findBySlug app.DbConfig slug
+        Assert.Equal("Renamed", stored.Value.DisplayName)
+        Assert.Equal("client-renamed", stored.Value.ClientId)
+
+        // The enabled `fake` connector keeps the last-enabled guard out of the way.
+        let! toggled = operator.PostForm(address, address + "/toggle", [])
+        Assert.Equal(address, landing toggled)
+        let! stored = ConnectorStore.findBySlug app.DbConfig slug
+        Assert.False stored.Value.IsEnabled
+
+        let! deleted = operator.PostForm(address, address + "/delete", [])
+        Assert.Equal<string>("/admin/connectors", (landing deleted))
+        let! stored = ConnectorStore.findBySlug app.DbConfig slug
+        Assert.True stored.IsNone
+    }
+
+[<Fact>]
+let ``an underscore before a slug that is not reserved is no address of that connector`` () =
+    task {
+        let! app, operator = operatorApp ()
+        use _ = app
+
+        let! response = operator.Get "/admin/connectors/_fake"
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode)
+    }
+
 // ---------------------------------------------------------------------------
 // Attention, the toggle and the frame
 // ---------------------------------------------------------------------------
