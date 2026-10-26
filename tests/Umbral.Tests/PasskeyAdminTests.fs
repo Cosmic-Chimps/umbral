@@ -183,6 +183,12 @@ let ``the Users rows show the passkey pill and list`` () =
         Assert.Equal(1, Regex.Matches(ana, "data-passkey=").Count)
         Assert.Contains("Phone", ana)
         Assert.Contains("Added", ana)
+        // One red fill per card, the user's Delete: a passkey's Remove can be undone (the
+        // person adds another), so it is a ghost in the error colour.
+        Assert.Equal(1, Regex.Matches(ana, "um-btn-danger").Count)
+        let remove = Regex.Match(ana, "<li[^>]*data-passkey=[\\s\\S]*?<button[^>]*>").Value
+        Assert.Contains("um-btn-ghost", remove)
+        Assert.Contains("text-error", remove)
         let sam = articleOf html w.SamId
         Assert.Contains("data-linked-provider=\"passkey\"", sam)
         Assert.Contains("data-linked-provider=\"fake\"", sam)

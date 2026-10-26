@@ -24,6 +24,11 @@ new image. Add to "Unreleased" as you work; a release renames it.
   `email`, and allowed email domains do not apply to them.
 - A walkthrough, `docs/connectors/fediverse.md`, and Fediverse in the README.
 
+### Fixed
+- On the **Users** screen, a passkey's **Remove** is a quiet button in the error colour instead of a
+  second red one beside the user's **Delete**: removing a passkey can be undone by adding another,
+  deleting the user cannot.
+
 ### Upgrade
 - The database becomes schema version 7. An older image refuses to start on it: take a backup
   before you upgrade.
