@@ -396,6 +396,17 @@ let private errorHandler (ctx: HttpContext) (next: RequestDelegate) =
 let configureApp (app: WebApplication) =
     app
         .UseForwardedHeaders()
+        // Nothing under /admin may be kept by a browser or a proxy: the page that
+        // shows a new client secret or a passkey invitation link would come back
+        // from the cache on Back. Set when the response starts, so no handler
+        // can leave a different value behind.
+        .Use(fun (ctx: HttpContext) (next: RequestDelegate) ->
+            if ctx.Request.Path.StartsWithSegments "/admin" then
+                ctx.Response.OnStarting(fun () ->
+                    ctx.Response.Headers.CacheControl <- "no-store"
+                    Task.CompletedTask)
+
+            next.Invoke ctx)
         .UseRouting()
         .UseRateLimiter()
         .UseAuthentication()
@@ -486,6 +497,17 @@ let initialize (app: WebApplication) =
 
         if connectors |> List.exists (fun c -> c.Kind = Umbral.Domains.Connectors.Fake) && not gate.IsAllowed then
             failwith gate.Explain
+
+        // `new` and `domains` are addresses of the Connectors screen. One saved
+        // under either slug by an older version has a pane nobody can open.
+        let startupLog = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Umbral.Startup")
+
+        for c in connectors do
+            if Umbral.Handlers.Admin.ConnectorPaths.reservedSlugs.Contains c.Slug then
+                startupLog.LogWarning(
+                    "The connector with the slug {Slug} cannot be opened on the Connectors screen, because that slug is an address of the screen. Delete it with POST /admin/connectors/{Slug}/delete and add it again under another slug.",
+                    c.Slug
+                )
 
         let! configured = AdminAuth.isConfigured dbConfig
 

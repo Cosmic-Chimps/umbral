@@ -57,11 +57,7 @@ let handler (slug: string) : EndpointHandler =
 
             if not stranded.IsEmpty && not confirmed then
                 return!
-                    WebForms.redirectWithNoticeAbout
-                        ctx
-                        (detailPath slug)
-                        "connector-delete-strands-apps"
-                        [ "slug", slug ]
+                    WebForms.NoticeReason.redirect ctx (detailPath slug) "connector-delete-strands-apps" "slug" slug "delete"
             elif connector.IsEnabled && remaining = 0 && not confirmed then
                 return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-delete-last-enabled"
             else

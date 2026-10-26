@@ -459,15 +459,16 @@ type private StrandAction =
     | Unsharing
 
 /// The apps a disable, a delete or an unshare would leave with no way to sign
-/// in, named, with the button that goes ahead anyway (FR-010). Recomputed from
-/// the slug the redirect carried, so the redirect never has to carry app names.
+/// in, named, with the button that goes ahead anyway (FR-010). Drawn only for
+/// a change the operator just submitted (the single-use cookie says so) and
+/// recomputed here, so the redirect never has to carry app names.
 type private StrandWarning =
-    { Slug: string
-      Action: StrandAction
-      /// What the stored connector holds, which the unshare confirmation posts
-      /// back: the warning said nothing was changed, so what was typed on the
-      /// pane is not carried through it.
-      Stored: Connector option
+    { Action: StrandAction
+      /// What the stored connector holds. Every form action is built from its
+      /// slug, and the unshare confirmation posts its values back: the warning
+      /// said nothing was changed, so what was typed on the pane is not carried
+      /// through it.
+      Stored: Connector
       Apps: (string * string) list }
 
 let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWarning) =
@@ -479,24 +480,34 @@ let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWa
                 li().data("stranded-app", clientId) { name }
         }
 
-        match warning.Action, warning.Stored with
-        | Unsharing, Some stored ->
+        let stored = warning.Stored
+
+        match warning.Action with
+        | Unsharing ->
             // The pane's own save, with the stored values and the box
-            // unticked: the pane's form cannot be re-posted from here.
-            form(method = "post", action = $"/admin/connectors/{warning.Slug}?confirm=yes", class' = "inline") {
+            // unticked: the pane's form cannot be re-posted from here. Each
+            // kind's save needs what it reads, or the confirmation would be
+            // refused, or would wipe the value.
+            form(method = "post", action = detailPath stored.Slug + "?confirm=yes", class' = "inline") {
                 ctx.GetAntiforgeryInput()
                 input(type' = "hidden", name = "displayName", value = stored.DisplayName)
                 input(type' = "hidden", name = "clientId", value = stored.ClientId)
+
+                match stored.Kind with
+                | Passkey -> input(type' = "hidden", name = "enrolment", value = stored.PasskeyEnrolment.Value)
+                | Fediverse ->
+                    input(type' = "hidden", name = "scope", value = Fediverse.scopeValue stored.FediverseAccess)
+                    input(type' = "hidden", name = "servers", value = String.concat "\n" stored.FediverseAccess.Servers)
+                | _ -> ()
 
                 button(type' = "submit", class' = Components.btnSm Components.Danger) {
                     t.ConnectorNotSharedStrandsConfirm
                 }
             }
-        | Unsharing, None -> ()
-        | action, _ ->
-            let path = if action = Deleting then "delete" else "toggle"
+        | action ->
+            let path = if action = Deleting then "/delete" else "/toggle"
 
-            form(method = "post", action = $"/admin/connectors/{warning.Slug}/{path}?confirm=yes", class' = "inline") {
+            form(method = "post", action = detailPath stored.Slug + path + "?confirm=yes", class' = "inline") {
                 ctx.GetAntiforgeryInput()
 
                 button(type' = "submit", class' = Components.btnSm Components.Danger) {
@@ -747,7 +758,10 @@ let private noticeKind (code: string) =
     | "passkey-connector-invalid"
     | "passkey-invitation-invalid"
     | "passkey-invitation-not-open"
-    | "passkey-not-enabled" -> Components.Warning
+    | "passkey-not-enabled"
+    | "connector-strands-apps"
+    | "connector-delete-strands-apps"
+    | "allowed-domains-removal" -> Components.Warning
     | _ -> Components.Success
 
 /// One notice block: the removal warning, what the provider said, the apps a
@@ -765,8 +779,8 @@ let private noticeBlock
     | "allowed-domains-removal", _ ->
         match domains.Removal with
         | Some names -> (removalWarning ctx t code names) :> HtmlElement
-        // A link that outlived the list it was about: nothing to warn of.
-        | None -> Fragment() :> HtmlElement
+        // No cookie (a link, a refresh, another pane): the fixed text only.
+        | None -> (div().data("notice", code) { Components.alert Components.Warning (t.Notice code) }) :> HtmlElement
     // A notice that carries what the provider said (`explained`) is a
     // warning, not a success: the provider was saved disabled, or would not
     // be enabled.
@@ -1067,7 +1081,11 @@ let private render
             // that is no longer there has nothing to remove.
             let removal =
                 match notice with
-                | Some "allowed-domains-removal" when not instanceList.IsEmpty ->
+                | Some "allowed-domains-removal" when
+                    selection = DomainsPane
+                    && not instanceList.IsEmpty
+                    && (WebForms.NoticeReason.consume ctx "allowed-domains-removal" "list" "instance").IsSome
+                    ->
                     match existing |> List.filter (fun c -> c.Kind <> Passkey && c.Kind <> Fediverse && c.AllowedEmailDomains.IsEmpty) with
                     | [] -> None
                     | open' -> Some(open' |> List.map (fun c -> c.Slug, c.DisplayName))
@@ -1081,32 +1099,46 @@ let private render
 
             // The strand warnings carry the slug they are about. The apps are
             // recomputed here, with the connector as the action would leave it.
+            // Only for a change the operator just submitted: the cookie the
+            // refusal wrote names the action, and only that connector's own
+            // pane reads it. A link alone draws the notice's fixed text.
             let! strand =
-                match notice, ctx.TryGetQueryValue "slug" with
-                | Some("connector-strands-apps" | "connector-delete-strands-apps" as code), Some slug ->
-                    task {
-                        let! apps = AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
-
+                match notice, selection, ctx.TryGetQueryValue "slug" with
+                | Some("connector-strands-apps" | "connector-delete-strands-apps" as code), Item s, Some slug when slug = s ->
+                    match existing |> List.tryFind (fun c -> c.Slug = s) with
+                    | None -> System.Threading.Tasks.Task.FromResult None
+                    | Some stored ->
                         let action =
-                            if code = "connector-delete-strands-apps" then Deleting
-                            elif ctx.TryGetQueryValue "change" = Some "unshare" then Unsharing
-                            else Disabling
+                            match WebForms.NoticeReason.consume ctx code "slug" s, code with
+                            | Some "delete", "connector-delete-strands-apps" -> Some Deleting
+                            | Some "disable", "connector-strands-apps" -> Some Disabling
+                            | Some "unshare", "connector-strands-apps" -> Some Unsharing
+                            | _ -> None
 
-                        let after =
-                            match action with
-                            | Deleting -> existing |> List.filter (fun c -> c.Slug <> slug)
-                            | Unsharing ->
-                                existing |> List.map (fun c -> if c.Slug = slug then { c with IsShared = false } else c)
-                            | Disabling ->
-                                existing |> List.map (fun c -> if c.Slug = slug then { c with IsEnabled = false } else c)
+                        match action with
+                        | None -> System.Threading.Tasks.Task.FromResult None
+                        | Some action ->
+                            task {
+                                let! apps =
+                                    AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
 
-                        return
-                            Some
-                                { Slug = slug
-                                  Action = action
-                                  Stored = existing |> List.tryFind (fun c -> c.Slug = slug)
-                                  Apps = AppConnectors.strandedByChange apps existing after }
-                    }
+                                let after =
+                                    match action with
+                                    | Deleting -> existing |> List.filter (fun c -> c.Slug <> s)
+                                    | Unsharing ->
+                                        existing |> List.map (fun c -> if c.Slug = s then { c with IsShared = false } else c)
+                                    | Disabling ->
+                                        existing |> List.map (fun c -> if c.Slug = s then { c with IsEnabled = false } else c)
+
+                                match AppConnectors.strandedByChange apps existing after with
+                                | [] -> return None
+                                | stranded ->
+                                    return
+                                        Some
+                                            { Action = action
+                                              Stored = stored
+                                              Apps = stranded }
+                            }
                 | _ -> System.Threading.Tasks.Task.FromResult None
 
             // The OpenID Connect notices that say what the provider answered. The
@@ -1175,7 +1207,7 @@ let private render
             // another page does not use it up.
             let revealedLink =
                 match selected with
-                | Some { Kind = Passkey } when selection <> Create && selection <> DomainsPane ->
+                | Some { Kind = Passkey } when selection = Item "passkey" ->
                     PasskeyConnector.InviteReveal.consume ctx "connector"
                 | _ -> None
 
@@ -1328,11 +1360,13 @@ let saveFediverse: EndpointHandler =
 
                         if not stranded.IsEmpty then
                             return!
-                                WebForms.redirectWithNoticeAbout
+                                WebForms.NoticeReason.redirect
                                     ctx
                                     (detailPath "fediverse")
                                     "connector-strands-apps"
-                                    [ "slug", "fediverse"; "change", "unshare" ]
+                                    "slug"
+                                    "fediverse"
+                                    "unshare"
                         else
                             let! _ = ConnectorStore.update config clock "fediverse" "Fediverse" "" shared None None
                             let! _ = ConnectorStore.setFediverseAccess config clock "fediverse" access
@@ -1751,6 +1785,15 @@ let save (slug: string) : EndpointHandler =
 
             match parsedDomains with
             | Error message ->
+                // A refused list is drawn again on the connector's pane. A slug
+                // with no row has a pane only while its kind is not set up; once
+                // another connector of the kind exists, the form is stale.
+                let! all = ConnectorStore.listAll config
+
+                if existing.IsNone && all |> List.exists (fun c -> c.Kind = kind) then
+                    return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+                else
+
                 return!
                     refuseDomains
                         ctx
@@ -1833,11 +1876,7 @@ let save (slug: string) : EndpointHandler =
 
                 if not stranded.IsEmpty then
                     return!
-                        WebForms.redirectWithNoticeAbout
-                            ctx
-                            (detailPath slug)
-                            "connector-strands-apps"
-                            [ "slug", slug; "change", "unshare" ]
+                        WebForms.NoticeReason.redirect ctx (detailPath slug) "connector-strands-apps" "slug" slug "unshare"
                 else
 
                 let secrets = ctx.GetService<SecretStores>()
@@ -2009,7 +2048,7 @@ let saveAllowedDomains: EndpointHandler =
                 && connectors |> List.exists (fun c -> c.AllowedEmailDomains.IsEmpty)
 
             if opens && not confirmed then
-                return! WebForms.redirectWithNotice ctx domainsPath "allowed-domains-removal"
+                return! WebForms.NoticeReason.redirect ctx domainsPath "allowed-domains-removal" "list" "instance" "removal"
             else
 
             if list <> stored then

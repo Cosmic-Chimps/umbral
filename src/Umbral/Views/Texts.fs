@@ -165,6 +165,7 @@ type Texts =
       ConnectorNotSharedStrandsConfirm: string
       ConnectorDeleteStrandsConfirm: string
       AppConnectorsStrandConfirm: string
+      AppConnectorsStrandConfirmMessage: string -> string
 
       // Screen 2 — Connectors
       ConnectorsTitle: string
@@ -932,6 +933,7 @@ let en: Texts =
       ConnectorNotSharedStrandsConfirm = "Stop sharing anyway"
       ConnectorDeleteStrandsConfirm = "Delete anyway"
       AppConnectorsStrandConfirm = "Save anyway"
+      AppConnectorsStrandConfirmMessage = fun name -> $"Save this choice anyway? \"{name}\" will offer no way to sign in."
 
       ConnectorsTitle = "Connectors"
       AppTypeWebOption = "Web application"
