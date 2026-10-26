@@ -46,3 +46,20 @@ Reviewed 2026-10-26 by the documentation reviewer session, per section 6 of
    the sentence reads as if "Recovery link" were a thing to find elsewhere.
    "Send them the link shown under **Recovery link**" says where it is. Yours
    to take or leave.
+
+---
+
+## Re-check, 2026-10-26, at `a0dda49`
+
+**Clear to merge.**
+
+- Blocking item fixed. `docs/connectors/passkey.md`, "Recovery", now says
+  **Create a recovery link**, quotes the hint verbatim (`UserRecoveryLinkHint`,
+  `Texts.fs:1212-1213`), says the link is shown once under **Recovery link**,
+  and for a provider-only person names **Invite to add a passkey** and
+  **Invitation link**. All four strings match the catalogue.
+- Nit taken: README:680 "Send them the link shown under **Recovery link**."
+- The old button name now appears only where it should: the catalogue, the
+  README's provider-case parenthesis, the CHANGELOG (the 0.5.0 history and the
+  new Changed bullet naming what it replaced), specs/008 and a design note.
+- Link check: 182 links in 14 files, all resolve.
