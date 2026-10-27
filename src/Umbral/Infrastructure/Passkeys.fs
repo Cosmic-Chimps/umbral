@@ -309,6 +309,13 @@ type Purpose =
     | Invite
     /// A signed-in person adding a passkey to their own account.
     | Add
+    /// The operator signing in to the admin area (specs/011-operator-passkeys).
+    | OperatorSignin
+    /// The operator adding a passkey to the operator credential; `Nickname`
+    /// holds the name typed.
+    | OperatorAdd
+    /// The operator confirming a change on the Credential screen.
+    | OperatorConfirm
 
     member this.Value =
         match this with
@@ -316,6 +323,9 @@ type Purpose =
         | Signup -> "signup"
         | Invite -> "invitation"
         | Add -> "add"
+        | OperatorSignin -> "operator-signin"
+        | OperatorAdd -> "operator-add"
+        | OperatorConfirm -> "operator-confirm"
 
 let private parsePurpose (word: string) =
     match word with
@@ -323,6 +333,9 @@ let private parsePurpose (word: string) =
     | "signup" -> Some Signup
     | "invitation" -> Some Invite
     | "add" -> Some Add
+    | "operator-signin" -> Some OperatorSignin
+    | "operator-add" -> Some OperatorAdd
+    | "operator-confirm" -> Some OperatorConfirm
     | _ -> None
 
 /// A ceremony in progress: the options the browser was given, kept as the

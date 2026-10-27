@@ -252,6 +252,21 @@ let private schema =
         created_utc    TEXT NOT NULL,
         expires_utc    TEXT NOT NULL
     );
+
+    -- The operator credential's passkeys (spec 011), apart from the users'
+    -- `passkeys` on purpose: the operator is not a user, so no foreign key. An
+    -- upgraded instance has none, and with no `operator_password_signin`
+    -- setting row password sign-in stays on, so nothing changes on upgrade.
+    CREATE TABLE IF NOT EXISTS operator_passkeys (
+        id             TEXT    NOT NULL PRIMARY KEY,
+        credential_id  BLOB    NOT NULL UNIQUE,
+        public_key     BLOB    NOT NULL,
+        sign_count     INTEGER NOT NULL DEFAULT 0,
+        name           TEXT    NOT NULL,
+        transports     TEXT    NOT NULL DEFAULT '',
+        created_utc    TEXT    NOT NULL,
+        last_used_utc  TEXT        NULL
+    );
     """
 
 /// The unique index on the issuer, kept out of `schema`: that script also runs
@@ -269,7 +284,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 7
+let SchemaVersion = 8
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -384,6 +399,24 @@ let private UpgradeToVersion7 =
          last_used_utc  TEXT     NULL
      );"
 
+/// Spec 011. The operator credential's passkeys, apart from the users'
+/// `passkeys` on purpose: the operator is not a user, so no foreign key. An
+/// upgraded instance has none, and with no `operator_password_signin` setting
+/// row password sign-in stays on, so nothing changes on upgrade. The statement
+/// is the one `schema` runs, repeated here so the step is complete on its own.
+[<Literal>]
+let private UpgradeToVersion8 =
+    "CREATE TABLE IF NOT EXISTS operator_passkeys (
+         id             TEXT    NOT NULL PRIMARY KEY,
+         credential_id  BLOB    NOT NULL UNIQUE,
+         public_key     BLOB    NOT NULL,
+         sign_count     INTEGER NOT NULL DEFAULT 0,
+         name           TEXT    NOT NULL,
+         transports     TEXT    NOT NULL DEFAULT '',
+         created_utc    TEXT    NOT NULL,
+         last_used_utc  TEXT        NULL
+     );"
+
 /// What takes a database from the version before to the version named. Applied
 /// in order, inside `initializeSchema`'s transaction, to a database stamped
 /// lower than `SchemaVersion`; a fresh database skips them, because `schema`
@@ -402,7 +435,8 @@ let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
       4, (fun command -> command.CommandText <- UpgradeToVersion4)
       5, (fun command -> command.CommandText <- UpgradeToVersion5)
       6, (fun command -> command.CommandText <- UpgradeToVersion6)
-      7, (fun command -> command.CommandText <- UpgradeToVersion7) ]
+      7, (fun command -> command.CommandText <- UpgradeToVersion7)
+      8, (fun command -> command.CommandText <- UpgradeToVersion8) ]
 
 let initializeSchema (config: DbConfig) : Task<unit> =
     task {

@@ -14,10 +14,10 @@ No setup: no dependency, no tooling.
 
 **Wave 1 — independent (different files):**
 
-- [ ] **T001** [P] Schema 8: `operator_passkeys` in `schema` and `UpgradeToVersion8`, `SchemaVersion = 8`; update the schema tests for version 8 and an upgrade from 7 · `Infrastructure/Database.fs`, `tests/Umbral.Tests/DatabaseTests.fs`
-- [ ] **T002** [P] Three ceremony purposes `operator-signin`, `operator-add`, `operator-confirm` (stored words, parse) · `Infrastructure/Passkeys.fs`
-- [ ] **T003** [P] Event types `operator_passkey_added`, `operator_passkey_removed`, `operator_password_signin_changed` · `Infrastructure/SecurityEvents.fs`
-- [ ] **T004** [P] Every string and notice code of `design/contracts/operator-passkeys-ui.md` section 4, registered in `knownNotice` · `Views/Texts.fs`
+- [x] **T001** [P] Schema 8: `operator_passkeys` in `schema` and `UpgradeToVersion8`, `SchemaVersion = 8`; update the schema tests for version 8 and an upgrade from 7 · `Infrastructure/Database.fs`, `tests/Umbral.Tests/DatabaseTests.fs`
+- [x] **T002** [P] Three ceremony purposes `operator-signin`, `operator-add`, `operator-confirm` (stored words, parse) · `Infrastructure/Passkeys.fs`
+- [x] **T003** [P] Event types `operator_passkey_added`, `operator_passkey_removed`, `operator_password_signin_changed` · `Infrastructure/SecurityEvents.fs`
+- [x] **T004** [P] Every string and notice code of `design/contracts/operator-passkeys-ui.md` section 4, registered in `knownNotice` · `Views/Texts.fs`
 
 **⟶ Wait for Wave 1 to finish, then:**
 

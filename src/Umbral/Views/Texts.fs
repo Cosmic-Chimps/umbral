@@ -70,6 +70,46 @@ type Texts =
       CurrentCredentialLabel: string
       CredentialReplaced: string
 
+      // The Credential screen and operator sign-in with passkeys (spec 011)
+      CredentialTitle: string
+      CredentialLead: string
+      OperatorPasskeysTitle: string
+      OperatorPasskeysLead: string
+      OperatorPasskeysEmpty: string
+      OperatorPasskeysLimit: string
+      OperatorPasskeyNameLabel: string
+      OperatorPasskeyNameHint: string
+      OperatorPasskeyAddButton: string
+      OperatorPasskeyAddedOn: string -> string
+      OperatorPasskeyLastUsedOn: string -> string
+      OperatorPasskeyNeverUsed: string
+      OperatorPasskeyRemoveButton: string
+      OperatorPasskeyRemoveQuestion: string -> string
+      OperatorPasskeyRemoveConfirmButton: string
+      UsePasskeyInstead: string
+      ConfirmWithPasskey: string
+      ConfirmCancel: string
+      CurrentPasswordLabel: string
+      PasswordSignInTitle: string
+      PasswordSignInOn: string
+      PasswordSignInOff: string
+      PasswordSignInOnSentence: string
+      PasswordSignInOffSentence: string
+      TurnPasswordSignInOff: string
+      TurnPasswordSignInOn: string
+      AddPasskeyFirstHint: string
+      PasswordSignInOffConfirm: string
+      PasswordSignInOnConfirm: string
+      PasswordCardTitle: string
+      PasswordCardLead: string
+      PasswordReplaceButton: string
+      SignInLeadBoth: string
+      SignInLeadPasskeyOnly: string
+      OperatorPasskeyNeedsJavaScript: string
+      OperatorPasskeyNeedsJavaScriptOnly: string
+      OperatorPasskeyUserName: string
+      OperatorPasskeyDisplayName: string
+
       // End-user connector picker (/signin) — not an admin screen
       PickerTitle: string
       PickerLead: string
@@ -759,7 +799,20 @@ let private noticeEn (code: string) : string option =
     | "user-disabled" -> Some "User disabled."
     | "user-deleted" -> Some "User deleted."
     | "credential-replaced" -> Some "Operator credential replaced."
-    | "credential-current-incorrect" -> Some "That's not the current credential. Check it and try again."
+    | "credential-current-incorrect" -> Some "That's not the current password. Check it and try again."
+    // Operator passkeys (spec 011).
+    | "operator-passkey-added" -> Some "Passkey added."
+    | "operator-passkey-removed" -> Some "Passkey removed. Every other admin session was signed out."
+    | "operator-password-off" -> Some "Password sign-in is off. Every other admin session was signed out."
+    | "operator-password-on" -> Some "Password sign-in is on."
+    | "operator-password-off-needs-passkey" -> Some "Add a passkey before turning password sign-in off."
+    | "operator-passkey-last" ->
+        Some "This is the only passkey, and password sign-in is off. Turn password sign-in on first, or add another passkey."
+    | "operator-passkey-not-confirmed" -> Some "The passkey did not confirm. Try again."
+    | "operator-passkey-limit" -> Some "This credential has 10 passkeys, the most it can hold. Remove one to add another."
+    | "operator-passkey-signin-failed" ->
+        Some "That passkey did not sign you in. Try again, or use your password if it is on."
+    | "operator-passkey-registration-failed" -> Some "The passkey was not added. Try again."
     // The passkey connector (spec 008). The sign-in and invitation notices are
     // what a stranger reads, so none says why a ceremony was refused: the reason
     // word is in the security log, for the operator.
@@ -867,7 +920,46 @@ let en: Texts =
       CredentialNewLabel = "New credential"
       CredentialReplaceButton = "Replace credential"
       CurrentCredentialLabel = "Current credential"
-      CredentialReplaced = "Operator credential replaced. Use it next time you sign in."
+      CredentialReplaced = "Password replaced. Use it next time you sign in."
+
+      CredentialTitle = "Credential"
+      CredentialLead = "How you sign in to the admin area: with your password, with a passkey, or either."
+      OperatorPasskeysTitle = "Passkeys"
+      OperatorPasskeysLead = "A passkey signs you in with your phone, laptop or security key, and cannot be phished. Up to 10."
+      OperatorPasskeysEmpty = "No passkey yet."
+      OperatorPasskeysLimit = "This credential has 10 passkeys, the most it can hold. Remove one to add another."
+      OperatorPasskeyNameLabel = "Name this passkey (optional)"
+      OperatorPasskeyNameHint = "So you can tell it apart later: \"Phone\", \"YubiKey\". Left empty, it is named by its date."
+      OperatorPasskeyAddButton = "Add a passkey"
+      OperatorPasskeyAddedOn = fun date -> $"Added {date}"
+      OperatorPasskeyLastUsedOn = fun date -> $"Last used {date}"
+      OperatorPasskeyNeverUsed = "Never used"
+      OperatorPasskeyRemoveButton = "Remove"
+      OperatorPasskeyRemoveQuestion = fun name -> $"Remove the passkey \"{name}\"? It will not sign you in any more."
+      OperatorPasskeyRemoveConfirmButton = "Remove passkey"
+      UsePasskeyInstead = "Use a passkey instead"
+      ConfirmWithPasskey = "Confirm with a passkey"
+      ConfirmCancel = "Cancel"
+      CurrentPasswordLabel = "Current password"
+      PasswordSignInTitle = "Password sign-in"
+      PasswordSignInOn = "On"
+      PasswordSignInOff = "Off"
+      PasswordSignInOnSentence = "You can sign in with your password or with a passkey."
+      PasswordSignInOffSentence = "Only a passkey signs you in. Your password is kept, and comes back unchanged when you turn this on."
+      TurnPasswordSignInOff = "Turn password sign-in off"
+      TurnPasswordSignInOn = "Turn password sign-in on"
+      AddPasskeyFirstHint = "Add a passkey first."
+      PasswordSignInOffConfirm = "With password sign-in off, only a passkey opens the admin area, on every browser. Keep a passkey somewhere safe. Confirm with a passkey to turn it off."
+      PasswordSignInOnConfirm = "Turning password sign-in on brings your password back as it was. Confirm with a passkey."
+      PasswordCardTitle = "Password"
+      PasswordCardLead = "Replace the password you sign in with."
+      PasswordReplaceButton = "Replace the password"
+      SignInLeadBoth = "Use your password, or a passkey."
+      SignInLeadPasskeyOnly = "Sign in with your passkey."
+      OperatorPasskeyNeedsJavaScript = "A passkey needs JavaScript. Turn it on for this page, or sign in with your password."
+      OperatorPasskeyNeedsJavaScriptOnly = "A passkey needs JavaScript. Turn it on for this page."
+      OperatorPasskeyUserName = "operator"
+      OperatorPasskeyDisplayName = "Umbral operator"
 
       PickerTitle = "Sign in"
       PickerLead = "Choose how you'd like to sign in."
