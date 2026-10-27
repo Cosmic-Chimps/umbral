@@ -84,3 +84,21 @@ Complete under section 6: every statement with its source (spec, routes,
 Texts.fs or code line), the three items it could not verify listed as such,
 which I have now checked, and the one addition of its own marked. Agreed on all
 of it.
+
+---
+
+## Addendum, 2026-10-27, at `eb30cdc`
+
+**Still clear.** All three nits taken in the README: "Bound to the host name"
+with the scheme-and-port sentence; Upgrading says "until you turn it off under
+**Credential**"; the security-log paragraph adds "a refused change is the same
+event with a failure outcome". The people's-passkeys sentence (README:701) is
+left for T4, as agreed.
+
+The strings changed at `20a81c2` for the code and design reviews
+(`operator-passkey-signin-failed` now "…Try again, or use your password." or
+"…Try again."; the Password card's **New password** and **Confirm the new
+password**; the sign-in page's **Password** field) are quoted nowhere in the
+README or the walkthroughs; the README's "asks for the current one and the new
+one twice" is a description and still holds. Link check: 184 links in 14 files,
+all resolve.
