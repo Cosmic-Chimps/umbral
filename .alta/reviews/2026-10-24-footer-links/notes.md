@@ -119,4 +119,5 @@ The implementer could not run it: there is no CLI on this machine. The design re
 ## Reviews
 
 - Design: `umbral-designer`, `review.md`: **clear at `32ab4af`, no blocking items, no nits** (2026-10-26). Nothing to answer.
-- Code: `umbral`, `code-review.md` (pending).
+- Code: `umbral`, `code-review.md`: **clear at `32ab4af`, no blocking items, one nit, no re-check needed** (2026-10-26, committed as `8e2dbc1`).
+  - **N1 (referrer): taken.** Both footer links now carry `rel="noreferrer"`, so following one sends GitHub no `Referer`, not even the instance's origin. `FooterTests` asserts the exact anchor markup, attribute included. The site-wide `Referrer-Policy` the reviewer also suggested is broader than this task (it changes every response) and is left for a separate one. The design is unchanged: `rel` has no visual effect. Full suite after the fix: 1712 passed, 0 failed, 0 skipped.

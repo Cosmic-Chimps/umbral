@@ -29,8 +29,8 @@ let private footerLinks (html: string) =
 let private assertFooterLinks (html: string) =
     let nav = footerLinks html
     Assert.Contains("aria-label=\"About Umbral\"", nav)
-    Assert.Contains($"<a href=\"{Texts.RepositoryUrl}\" class=\"um-footer-link\">Source on GitHub</a>", nav)
-    Assert.Contains($"<a href=\"{Texts.DocumentationUrl}\" class=\"um-footer-link\">Documentation</a>", nav)
+    Assert.Contains($"<a href=\"{Texts.RepositoryUrl}\" class=\"um-footer-link\" rel=\"noreferrer\">Source on GitHub</a>", nav)
+    Assert.Contains($"<a href=\"{Texts.DocumentationUrl}\" class=\"um-footer-link\" rel=\"noreferrer\">Documentation</a>", nav)
     Assert.Equal(2, Regex.Matches(nav, "<a ").Count)
     Assert.DoesNotContain("target=", nav)
 
