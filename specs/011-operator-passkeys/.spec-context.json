@@ -1,0 +1,113 @@
+{
+  "workflow": "companion",
+  "specName": "Operator passkeys",
+  "branch": "alta/earthy-orinoco-8bkw",
+  "currentStep": "specify",
+  "status": "specified",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-27T03:29:55.348Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-10-27T03:31:56.984Z"
+    }
+  ],
+  "unattended": true,
+  "coverage": {
+    "FR-001": {
+      "title": "Add an operator passkey with a name, UV and discoverable required"
+    },
+    "FR-002": {
+      "title": "At most 10 operator passkeys"
+    },
+    "FR-003": {
+      "title": "List with name, added, last used, Remove"
+    },
+    "FR-004": {
+      "title": "Add, remove and switch re-check the current credential in the action"
+    },
+    "FR-005": {
+      "title": "Sign in with a passkey on /admin/signin, password form kept while on"
+    },
+    "FR-006": {
+      "title": "Passkey sign-in opens the admin session and updates last used"
+    },
+    "FR-007": {
+      "title": "Switch off refused with no passkey, takes a passkey ceremony"
+    },
+    "FR-008": {
+      "title": "Password refused everywhere while off, neutral sign-in answer"
+    },
+    "FR-009": {
+      "title": "No password field shown while off"
+    },
+    "FR-010": {
+      "title": "Stored password kept while off"
+    },
+    "FR-011": {
+      "title": "Last passkey removal refused while off, race-safe"
+    },
+    "FR-012": {
+      "title": "Remove and switch-off end other admin sessions"
+    },
+    "FR-013": {
+      "title": "reset-credential: new password, switch on, sessions ended, passkeys kept"
+    },
+    "FR-014": {
+      "title": "reset-credential --forget-passkeys removes all operator passkeys"
+    },
+    "FR-015": {
+      "title": "Operator passkeys apart from users, never sign in to an app"
+    },
+    "FR-016": {
+      "title": "Single-use challenge, RP ID, origin, counter checks"
+    },
+    "FR-017": {
+      "title": "Checking requests share RateLimits.AdminAuth"
+    },
+    "FR-018": {
+      "title": "Security-log events, no credential material anywhere"
+    },
+    "FR-019": {
+      "title": "No-JS sign-in behaviour"
+    },
+    "FR-020": {
+      "title": "First-run setup unchanged"
+    },
+    "FR-021": {
+      "title": "Next schema version; upgrade starts with none and on"
+    },
+    "FR-022": {
+      "title": "README and CHANGELOG"
+    }
+  },
+  "size": "normal",
+  "classification": {
+    "projectedFiles": 20,
+    "projectedTasks": 30,
+    "scopeSignal": "none",
+    "verdict": "normal"
+  },
+  "expectations": [
+    "no TOTP or 6-digit codes",
+    "no operator accounts or roles",
+    "no change to first-run setup",
+    "no operator passkey on the Users screen"
+  ],
+  "context": [
+    "area: src/Umbral/Handlers/Admin (Credential.fs, SignIn.fs)",
+    "area: src/Umbral/Infrastructure (AdminAuth.fs, WebAuthn.fs, Passkeys.fs ceremonies, Database.fs schema 7)",
+    "area: src/Umbral/Program.fs reset-credential",
+    "constraint: constitution 3.0.1 Principle VII operator credential bullet",
+    "constraint: reuse WebAuthn.Verifier, do not copy"
+  ],
+  "intent": "Operator passkeys for the admin area and a switch to turn password sign-in off"
+}
