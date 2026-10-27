@@ -111,8 +111,13 @@ and layout questions went to `umbral-designer` (see "Design questions").
 ### Design questions (for `umbral-designer`)
 
 Layout and wording of the Credential screen and the sign-in page belong to the
-designer. The behaviour above does not depend on them. Asked on 2026-10-26; the
-answers are recorded in `design-answers.md` in this directory when they arrive.
+designer. Asked on 2026-10-26, answered the same day in
+`design/contracts/operator-passkeys-ui.md`, which is normative for the screens.
+Two behaviours come from it: Remove and the switch first post with no re-check,
+and the server answers 422 with the screen redrawn around a confirm block that
+carries the re-check (a strand-warning confirm); and "Credential" stays the
+screen name, meaning the set of ways in, while the password is called the
+password.
 
 ## User Scenarios & Testing *(mandatory)*
 

@@ -32,14 +32,16 @@ src/Umbral/
 │   └── Admin/
 │       ├── Credential.fs        # the screen (list, add, switch, replace password)
 │       ├── SignIn.fs            # the page: passkey button, password form while on
-│       └── OperatorPasskeys.fs  # NEW: the JSON ceremonies, remove, switch, re-check (after Ceremonies.fs)
+│       ├── OperatorPasskeys.fs  # NEW: the JSON ceremonies and the re-check reader (after Ceremonies.fs)
+│       ├── OperatorPasswordSignIn.fs  # NEW: the switch (like ConnectorToggle.fs)
+│       └── OperatorPasskeyRemove.fs   # NEW: remove (like ConnectorDelete.fs)
 ├── Views/Texts.fs               # strings and notice codes (designer's wording)
 ├── Assets/passkeys.js           # the four operator hooks
 ├── Assets/umbral.input.css, umbral.css  # only if a class is new
 ├── Umbral.fsproj                # two Compile entries
 └── Program.fs                   # routes; reset-credential [--forget-passkeys]
 tests/Umbral.Tests/
-├── OperatorPasskeyTests.fs      # NEW: the spec's scenarios with SoftwareAuthenticator
+├── OperatorPasskeyTests.fs, OperatorPasswordSwitchTests.fs, OperatorPasskeyRemoveTests.fs  # NEW
 ├── Infrastructure/OperatorFlows.fs  # NEW: helpers (add, sign in, confirm)
 └── existing: CredentialTests, SubcommandTests, DatabaseTests, CsrfTests, PasskeyCeremonyTests
 README.md, CHANGELOG.md

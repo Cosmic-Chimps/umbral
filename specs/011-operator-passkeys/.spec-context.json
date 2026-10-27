@@ -2,8 +2,8 @@
   "workflow": "companion",
   "specName": "Operator passkeys",
   "branch": "alta/earthy-orinoco-8bkw",
-  "currentStep": "plan",
-  "status": "planned",
+  "currentStep": "tasks",
+  "status": "ready-to-implement",
   "history": [
     {
       "step": "specify",
@@ -46,75 +46,197 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T03:35:10.387Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-27T03:36:00.248Z"
+    },
+    {
+      "step": "tasks",
+      "substep": "generate",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:36:47.468Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:36:49.066Z"
     }
   ],
   "unattended": true,
   "coverage": {
     "FR-001": {
-      "title": "Add an operator passkey with a name, UV and discoverable required"
+      "title": "Add an operator passkey with a name, UV and discoverable required",
+      "tasks": [
+        "T005",
+        "T006",
+        "T009",
+        "T010",
+        "T011",
+        "T013"
+      ]
     },
     "FR-002": {
-      "title": "At most 10 operator passkeys"
+      "title": "At most 10 operator passkeys",
+      "tasks": [
+        "T005",
+        "T009",
+        "T010",
+        "T011"
+      ]
     },
     "FR-003": {
-      "title": "List with name, added, last used, Remove"
+      "title": "List with name, added, last used, Remove",
+      "tasks": [
+        "T011"
+      ]
     },
     "FR-004": {
-      "title": "Add, remove and switch re-check the current credential in the action"
+      "title": "Add, remove and switch re-check the current credential in the action",
+      "tasks": [
+        "T010",
+        "T014",
+        "T015",
+        "T016",
+        "T017"
+      ]
     },
     "FR-005": {
-      "title": "Sign in with a passkey on /admin/signin, password form kept while on"
+      "title": "Sign in with a passkey on /admin/signin, password form kept while on",
+      "tasks": [
+        "T010",
+        "T012",
+        "T013"
+      ]
     },
     "FR-006": {
-      "title": "Passkey sign-in opens the admin session and updates last used"
+      "title": "Passkey sign-in opens the admin session and updates last used",
+      "tasks": [
+        "T009",
+        "T010"
+      ]
     },
     "FR-007": {
-      "title": "Switch off refused with no passkey, takes a passkey ceremony"
+      "title": "Switch off refused with no passkey, takes a passkey ceremony",
+      "tasks": [
+        "T005",
+        "T014",
+        "T015"
+      ]
     },
     "FR-008": {
-      "title": "Password refused everywhere while off, neutral sign-in answer"
+      "title": "Password refused everywhere while off, neutral sign-in answer",
+      "tasks": [
+        "T007",
+        "T014"
+      ]
     },
     "FR-009": {
-      "title": "No password field shown while off"
+      "title": "No password field shown while off",
+      "tasks": [
+        "T011",
+        "T012",
+        "T014"
+      ]
     },
     "FR-010": {
-      "title": "Stored password kept while off"
+      "title": "Stored password kept while off",
+      "tasks": [
+        "T014"
+      ]
     },
     "FR-011": {
-      "title": "Last passkey removal refused while off, race-safe"
+      "title": "Last passkey removal refused while off, race-safe",
+      "tasks": [
+        "T005",
+        "T016",
+        "T017"
+      ]
     },
     "FR-012": {
-      "title": "Remove and switch-off end other admin sessions"
+      "title": "Remove and switch-off end other admin sessions",
+      "tasks": [
+        "T007",
+        "T015",
+        "T017"
+      ]
     },
     "FR-013": {
-      "title": "reset-credential: new password, switch on, sessions ended, passkeys kept"
+      "title": "reset-credential: new password, switch on, sessions ended, passkeys kept",
+      "tasks": [
+        "T018",
+        "T019"
+      ]
     },
     "FR-014": {
-      "title": "reset-credential --forget-passkeys removes all operator passkeys"
+      "title": "reset-credential --forget-passkeys removes all operator passkeys",
+      "tasks": [
+        "T018",
+        "T019"
+      ]
     },
     "FR-015": {
-      "title": "Operator passkeys apart from users, never sign in to an app"
+      "title": "Operator passkeys apart from users, never sign in to an app",
+      "tasks": [
+        "T001",
+        "T005",
+        "T009"
+      ]
     },
     "FR-016": {
-      "title": "Single-use challenge, RP ID, origin, counter checks"
+      "title": "Single-use challenge, RP ID, origin, counter checks",
+      "tasks": [
+        "T002",
+        "T006",
+        "T009"
+      ]
     },
     "FR-017": {
-      "title": "Checking requests share RateLimits.AdminAuth"
+      "title": "Checking requests share RateLimits.AdminAuth",
+      "tasks": [
+        "T009",
+        "T010",
+        "T015",
+        "T017"
+      ]
     },
     "FR-018": {
-      "title": "Security-log events, no credential material anywhere"
+      "title": "Security-log events, no credential material anywhere",
+      "tasks": [
+        "T003",
+        "T009",
+        "T010"
+      ]
     },
     "FR-019": {
-      "title": "No-JS sign-in behaviour"
+      "title": "No-JS sign-in behaviour",
+      "tasks": [
+        "T012"
+      ]
     },
     "FR-020": {
-      "title": "First-run setup unchanged"
+      "title": "First-run setup unchanged",
+      "tasks": [
+        "T023"
+      ]
     },
     "FR-021": {
-      "title": "Next schema version; upgrade starts with none and on"
+      "title": "Next schema version; upgrade starts with none and on",
+      "tasks": [
+        "T001"
+      ]
     },
     "FR-022": {
-      "title": "README and CHANGELOG"
+      "title": "README and CHANGELOG",
+      "tasks": [
+        "T021"
+      ]
     }
   },
   "size": "normal",
@@ -174,6 +296,9 @@
     "plan": {
       "summary": "Plan: schema 8 table, shared verifier/ceremonies, new operator handler module, verify refuses while off",
       "key_finding": "WebAuthn.Verifier is coupled to Passkeys.Passkey in three members; decoupling them is the reuse point"
+    },
+    "tasks": {
+      "summary": "24 tasks: foundational 8 (schema, store, verifier, AdminAuth, texts), US1 5, US2 2, US3 2, US4 2, polish 5"
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off."

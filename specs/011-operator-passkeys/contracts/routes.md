@@ -32,8 +32,14 @@ object in a JSON body).
 | `POST /admin/credential/confirm/options` | `{}` | `{ ceremony, options }` (`operator-confirm`) | `RateLimits.SignIn` |
 | `POST /admin/credential/passkeys/options` | `{ name, current }` or `{ name, ceremony, credential }` | re-check, then `{ ceremony, options }` (`operator-add`, existing passkeys excluded) | `RateLimits.AdminAuth` |
 | `POST /admin/credential/passkeys` | `{ ceremony, credential }` | store; `{ redirect: "/admin/credential?msg=operator-passkey-added" }` | `RateLimits.AdminAuth` |
-| `POST /admin/credential/passkeys/{id}/remove` | form re-check | remove, end other sessions; refusal `operator-passkey-last` while off | `RateLimits.AdminAuth` |
-| `POST /admin/credential/password-signin` | form `state=on\|off` + re-check (off: ceremony only) | set; off ends other sessions; refusal `operator-password-off-needs-passkey` | `RateLimits.AdminAuth` |
+| `POST /admin/credential/passkeys/{id}/remove` | form, re-check optional | no re-check: 422, the screen with that row's confirm block; with one: remove, end other sessions; refusal `operator-passkey-last` while off | `RateLimits.AdminAuth` |
+| `POST /admin/credential/password-signin` | form `state=on\|off`, ceremony optional | no ceremony: 422, the card's confirm block; with one: set; off ends other sessions; refusal `operator-password-off-needs-passkey` | `RateLimits.AdminAuth` |
+
+A 422 confirm redraw is not a failure: no event is written. A re-check that is
+present and wrong is a failure (event, Warning notice). The switch takes only a
+passkey ceremony in both directions: turning it off requires one (FR-007), and
+while it is off no password is accepted. Words and layout:
+`design/contracts/operator-passkeys-ui.md`.
 
 Notice codes are registered in `Texts.knownNotice`; their words are the
 designer's.
