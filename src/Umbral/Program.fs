@@ -396,6 +396,17 @@ let private errorHandler (ctx: HttpContext) (next: RequestDelegate) =
 let configureApp (app: WebApplication) =
     app
         .UseForwardedHeaders()
+        // Nothing under /admin may be kept by a browser or a proxy: the page that
+        // shows a new client secret or a passkey invitation link would come back
+        // from the cache on Back. Set when the response starts, so no handler
+        // can leave a different value behind.
+        .Use(fun (ctx: HttpContext) (next: RequestDelegate) ->
+            if ctx.Request.Path.StartsWithSegments "/admin" then
+                ctx.Response.OnStarting(fun () ->
+                    ctx.Response.Headers.CacheControl <- "no-store"
+                    Task.CompletedTask)
+
+            next.Invoke ctx)
         .UseRouting()
         .UseRateLimiter()
         .UseAuthentication()

@@ -110,7 +110,22 @@ let private adminRoutes =
       "POST", "/admin/apps/some-client/delete"
       "GET", "/admin/users"
       "POST", "/admin/users/some-user/toggle"
-      "POST", "/admin/users/some-user/delete" ]
+      "POST", "/admin/users/some-user/delete"
+      "GET", "/admin/apps/new"
+      "GET", "/admin/apps/some-client"
+      "POST", "/admin/apps/some-client/connectors"
+      "GET", "/admin/connectors"
+      "GET", "/admin/connectors/new"
+      "GET", "/admin/connectors/domains"
+      "GET", "/admin/connectors/discord"
+      "POST", "/admin/connectors"
+      "POST", "/admin/connectors/discord"
+      "POST", "/admin/connectors/discord/toggle"
+      "POST", "/admin/connectors/discord/delete"
+      "POST", "/admin/connectors/passkey"
+      "POST", "/admin/connectors/passkey/invitations"
+      "POST", "/admin/connectors/fediverse"
+      "POST", "/admin/allowed-domains" ]
 
 let private request (client: HttpClient) (method: string) (url: string) =
     task {

@@ -404,11 +404,7 @@ let save: EndpointHandler =
 
                     if not stranded.IsEmpty then
                         return!
-                            WebForms.redirectWithNoticeAbout
-                                ctx
-                                (detailPath Slug)
-                                "connector-strands-apps"
-                                [ "slug", Slug; "change", "unshare" ]
+                            WebForms.NoticeReason.redirect ctx (detailPath Slug) "connector-strands-apps" "slug" Slug "unshare"
                     else
                         let! _ = ConnectorStore.update config clock Slug "Passkey" "" shared None None
                         let! _ = ConnectorStore.setEnrolment config clock Slug enrolment

@@ -38,6 +38,28 @@ new image. Add to "Unreleased" as you work; a release renames it.
   `email`, and allowed email domains do not apply to them.
 - A walkthrough, `docs/connectors/fediverse.md`, and Fediverse in the README.
 
+### Fixed
+- Stopping sharing the Passkey connector while an app had no other way to sign in could not be
+  confirmed: **Stop sharing anyway** answered that the settings were invalid. It now goes ahead.
+- After deleting the last app, its notice is shown once, not twice.
+- A connector saved by an older version under the slug `new` or `domains` could not be opened,
+  changed or deleted on the Connectors screen, because those are now addresses of the screen. Its
+  page is now at `/admin/connectors/_new` or `/admin/connectors/_domains`, and its entry in the
+  list links there. Its slug, and so its callback URL, stay as they are.
+
+### Security
+- A crafted link to the admin screens could show a confirm button that acted on another app or
+  user. Opened by a signed-in operator, a link to the Connectors screen could draw a red
+  **Delete anyway** or
+  **Disable anyway** button that deleted an app or disabled a user. A crafted link could also draw
+  the **Save anyway** button of an app that leaves the app with no way to sign in, and the
+  **Remove anyway** button that clears the allowed email domains of the instance. These buttons are
+  now drawn only right after the operator's own change was refused, and only for that connector or
+  app. Every version from 0.1.0 to 0.5.0 has this.
+- The admin pages are no longer kept by the browser (`Cache-Control: no-store`), so **Back** cannot
+  show a new client secret or a passkey invitation link again. On a narrow screen, `/admin/apps`
+  and `/admin/connectors` no longer use up a new secret or invitation link in a pane the screen hides.
+
 ### Upgrade
 - The database becomes schema version 7. An older image refuses to start on it: take a backup
   before you upgrade.

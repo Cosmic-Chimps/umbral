@@ -670,7 +670,7 @@ let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWa
             li().data("stranded-app", warning.ClientId) { warning.Name }
         }
 
-        form(method = "post", action = $"/admin/apps/{warning.ClientId}/connectors?confirm=yes", class' = "inline") {
+        (form(method = "post", action = detailPath warning.ClientId + "/connectors?confirm=yes", class' = "inline") {
             ctx.GetAntiforgeryInput()
             input(type' = "hidden", name = "connectorChoice", value = choiceValue warning.Choice)
 
@@ -678,7 +678,8 @@ let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWa
                 input(type' = "hidden", name = "connectors", value = slug)
 
             button(type' = "submit", class' = Components.btnSm Components.Danger) { t.AppConnectorsStrandConfirm }
-        }
+        })
+        |> Components.confirmSubmit (t.AppConnectorsStrandConfirmMessage warning.Name)
     }
 
 /// A notice about the app whose pane this is, drawn under its heading.
@@ -698,19 +699,35 @@ let private itemNotice (ctx: HttpContext) (t: Texts.Texts) (row: Row) (code: str
                      $"{saved} {t.AppsUnrestrictedWarning row.Unrestricted}")
         })
         :> HtmlElement
-    // The choice that was attempted travels in the query; the app is this one.
+    // The choice that was attempted comes from the single-use cookie the refusal
+    // wrote for this app, never from the URL: a link must not be able to draw a
+    // button that saves a choice. Without the cookie only the fixed text shows.
     | "app-connectors-strand" ->
-        let slugs =
-            (ctx.TryGetQueryValue "connectors" |> Option.defaultValue "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+        let attempted =
+            WebForms.NoticeReason.consume ctx code "app" row.ClientId
+            |> Option.map WebForms.NoticeReason.parsePairs
+            |> Option.bind (fun values ->
+                values
+                |> Map.tryFind "choice"
+                |> Option.map (fun kind ->
+                    let slugs =
+                        (values |> Map.tryFind "connectors" |> Option.defaultValue "")
+                            .Split(',', StringSplitOptions.RemoveEmptyEntries)
 
-        let warning =
-            { ClientId = row.ClientId
-              Name = row.DisplayName
-              Choice = choiceFrom (ctx.TryGetQueryValue "choice" |> Option.defaultValue "") slugs }
+                    choiceFrom kind slugs))
 
         (div().data("notice", code) {
             Components.alert Components.Warning (t.Notice code)
-            strandWarning ctx t warning
+
+            match attempted with
+            | Some choice ->
+                strandWarning
+                    ctx
+                    t
+                    { ClientId = row.ClientId
+                      Name = row.DisplayName
+                      Choice = choice }
+            | None -> Fragment() :> HtmlElement
         })
         :> HtmlElement
     | code when isBrandingNotice code ->
@@ -977,11 +994,12 @@ let private view
                 (listPath, t.NavApps)
                 [ Components.paneHeading "app-heading" t.AppCreateTitle []
 
+                  // On the list URL the page notice above is the one drawn.
                   (match notice with
-                   | Some code ->
+                   | Some code when selection = Create ->
                        (div(class' = "mt-6").data("notice", code) { Components.alert (noticeKind code) (t.Notice code) })
                        :> HtmlElement
-                   | None -> Fragment() :> HtmlElement)
+                   | _ -> Fragment() :> HtmlElement)
 
                   (let cancel = a(href = listPath, class' = Components.btn Components.Secondary)
                    Components.frameNav cancel listPath |> ignore
@@ -1117,10 +1135,11 @@ let private screen (selection: Selection) : EndpointHandler =
             | Item _, None -> ctx.SetStatusCode 404
             | _ -> ()
 
-            // Only the app being shown takes its secret off the cookie.
+            // Only the app's own URL takes its secret off the cookie: the list
+            // URL's implicit first app may be hidden on a narrow screen.
             let revealed =
                 match selected with
-                | Some row when selection <> Create -> SecretReveal.consumeFor ctx row.ClientId
+                | Some row when selection = Item row.ClientId -> SecretReveal.consumeFor ctx row.ClientId
                 | _ -> None
 
             return! ctx.WriteHtmlView(view ctx t origin rows connectors hasEnabledConnector selection selected revealed notice)
@@ -1247,13 +1266,18 @@ let setConnectors (clientId: string) : EndpointHandler =
                     | Only slugs -> Set.toList slugs
                     | AllShared -> []
 
-                return!
-                    WebForms.redirectWithNoticeAbout
-                        ctx
-                        (detailPath clientId)
-                        "app-connectors-strand"
+                // Connector slugs are already known ones (checked above), so
+                // they hold no `;`, `=` or `,`.
+                WebForms.NoticeReason.stash
+                    ctx
+                    "app-connectors-strand"
+                    "app"
+                    clientId
+                    (WebForms.NoticeReason.encodePairs
                         [ "choice", choiceValue choice
-                          "connectors", String.Join(",", slugs) ]
+                          "connectors", String.Join(",", slugs) ])
+
+                return! WebForms.redirectWithNotice ctx (detailPath clientId) "app-connectors-strand"
             else
 
             do! AppConnectors.setChoice config clientId choice
