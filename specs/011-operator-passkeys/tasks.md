@@ -88,8 +88,8 @@ Files: `Handlers/Admin/OperatorPasskeyRemove.fs` (new), `tests/Umbral.Tests/Oper
 
 Files: `resetCredential` and `main` in `Program.fs`, `tests/Umbral.Tests/SubcommandTests.fs`
 
-- [ ] **T018** [US4] Tests: with the switch off and two passkeys, `reset-credential` prints a password, the switch is on, passkeys kept, sessions ended; with `--forget-passkeys` none remain and the output says so; events written · `tests/Umbral.Tests/SubcommandTests.fs`
-- [ ] **T019** [US4] `reset-credential [--forget-passkeys]`: switch on, optional removal, the output lines, events · `Program.fs`
+- [x] **T018** [US4] Tests: with the switch off and two passkeys, `reset-credential` prints a password, the switch is on, passkeys kept, sessions ended; with `--forget-passkeys` none remain and the output says so; events written · `tests/Umbral.Tests/SubcommandTests.fs`
+- [x] **T019** [US4] `reset-credential [--forget-passkeys]`: switch on, optional removal, the output lines, events · `Program.fs`
 
 **Checkpoint**: no lost device locks the operator out.
 
