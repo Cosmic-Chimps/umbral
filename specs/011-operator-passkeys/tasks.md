@@ -51,7 +51,7 @@ Files: `Handlers/Admin/OperatorPasskeys.fs` (new), `Handlers/Admin/Credential.fs
 **⟶ Wait for T010, then:**
 
 - [x] **T011** [US1] The Credential screen as the design contract section 1 to 3 says: three cards, rows, add form, limit line, the switch card (off button disabled with no passkey), the password card only while on, the confirm blocks for a row and for the switch drawn from a parameter (used by US2 and US3), notices, `passkeys.js` linked · `Handlers/Admin/Credential.fs`
-- [ ] **T012** [US1] The sign-in page: both, or passkey only; `hidden` passkey button; `noscript` lines · `Handlers/Admin/SignIn.fs`
+- [x] **T012** [US1] The sign-in page: both, or passkey only; `hidden` passkey button; `noscript` lines · `Handlers/Admin/SignIn.fs`
 - [x] **T013** [US1] Script hooks `data-operator-passkey-signin`, `data-operator-passkey-add`, `data-operator-confirm`, `data-operator-confirm-passkey`, reveal of hidden ceremony buttons · `Assets/passkeys.js`
 
 **Checkpoint**: an operator can add a passkey and sign in with it.

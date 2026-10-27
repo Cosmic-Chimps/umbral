@@ -178,6 +178,14 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T04:20:42.662Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T012",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:27:00.214Z"
     }
   ],
   "unattended": true,
@@ -413,7 +421,7 @@
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
-  "currentTask": "T011",
+  "currentTask": "T012",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -514,6 +522,16 @@
         "src/Umbral/Views/Layout.fs",
         "src/Umbral/Views/Texts.fs",
         "tests/Umbral.Tests/CredentialTests.fs",
+        "tests/Umbral.Tests/PageAssetsTests.fs"
+      ]
+    },
+    "T012": {
+      "status": "DONE",
+      "did": "Sign-in page: password form while on, divider and scripted passkey button, noscript lines, passkeys.js linked; 3 tests",
+      "files": [
+        "src/Umbral/Handlers/Admin/SignIn.fs",
+        "src/Umbral/Views/Texts.fs",
+        "tests/Umbral.Tests/OperatorPasskeyTests.fs",
         "tests/Umbral.Tests/PageAssetsTests.fs"
       ]
     }

@@ -219,7 +219,7 @@ let ``the operator sign-in page is self-contained`` () =
     task {
         use! app = Fixtures.createApp ()
         do! claimOperator app (Browser app.Client)
-        let! _ = getPage (Browser app.Client) "/admin/signin"
+        let! _ = getPageWithScripts [ Assets.passkeys.Href ] (Browser app.Client) "/admin/signin"
         ()
     }
 

@@ -319,3 +319,90 @@ let ``the credential id appears in no event and not on the Credential screen`` (
         let! page = operator.GetHtml "/admin/credential"
         Assert.DoesNotContain(id, page)
     }
+
+// The sign-in page and the switch (spec 011, FR-006 and FR-008).
+
+/// One stored passkey, so that password sign-in can be switched off.
+let private storeOnePasskey (app: Fixtures.TestApp) =
+    task {
+        let key: OperatorPasskeys.OperatorPasskey =
+            { Id = OperatorPasskeys.newId ()
+              CredentialId = [| 4uy; 5uy; 6uy |]
+              PublicKey = [| 1uy |]
+              SignCount = 0u
+              Name = "Phone"
+              Transports = []
+              CreatedUtc = DateTimeOffset.MinValue
+              LastUsedUtc = None }
+
+        let! added = OperatorPasskeys.add app.DbConfig app.Clock key
+        Assert.Equal(OperatorPasskeys.Added, added)
+    }
+
+let private switchPasswordOff (app: Fixtures.TestApp) =
+    task {
+        do! storeOnePasskey app
+        let! off = OperatorPasskeys.turnPasswordSignInOff app.DbConfig app.Clock
+        Assert.Equal(OperatorPasskeys.SwitchedOff, off)
+    }
+
+[<Fact>]
+let ``while password sign-in is on the page offers both, the passkey button hidden until scripted`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! claimOperator app (Browser app.Client)
+
+        let! html = Browser(app.Client).GetHtml "/admin/signin"
+        Assert.Contains("type=\"password\"", html)
+        Assert.Contains("Use your password, or a passkey.", html)
+        Assert.Contains("data-operator-passkey-signin", html)
+        Assert.Contains("data-scripted", html)
+        Assert.Contains("hidden", html)
+        Assert.Contains("um-or", html)
+        Assert.Contains("A passkey needs JavaScript. Turn it on for this page, or sign in with your password.", html)
+        Assert.Contains("__RequestVerificationToken", html)
+        Assert.Contains("/assets/passkeys.js", html)
+    }
+
+[<Fact>]
+let ``while password sign-in is off the page has the passkey button alone`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! claimOperator app (Browser app.Client)
+        do! switchPasswordOff app
+
+        let! html = Browser(app.Client).GetHtml "/admin/signin"
+        Assert.DoesNotContain("type=\"password\"", html)
+        Assert.DoesNotContain("action=\"/admin/signin\"", html)
+        Assert.DoesNotContain("um-or", html)
+        Assert.Contains("Sign in with your passkey.", html)
+        Assert.Contains("data-operator-passkey-signin", html)
+        Assert.Contains("um-btn-primary", html)
+        Assert.Contains("A passkey needs JavaScript. Turn it on for this page.", html)
+        Assert.DoesNotContain("or sign in with your password", html)
+        // The script reads the token from the page even with no form on it.
+        Assert.Contains("__RequestVerificationToken", html)
+    }
+
+[<Fact>]
+let ``while password sign-in is off the right password is refused like a wrong one`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! claimOperator app (Browser app.Client)
+        do! switchPasswordOff app
+
+        let browser = Browser(app.Client)
+        let! response = browser.PostForm("/admin/signin", "/admin/signin", [ "credential", OperatorCredential ])
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.Contains("/admin/signin?msg=signin-incorrect", location response)
+
+        let! screen = browser.Get "/admin/apps"
+        Assert.Equal(HttpStatusCode.Redirect, screen.StatusCode)
+        Assert.Contains("/admin/signin", location screen)
+
+        do!
+            assertScalar
+                app
+                "SELECT count(*) FROM security_events WHERE event_type = 'operator_sign_in_failed' AND detail = 'credential_mismatch'"
+                "1"
+    }

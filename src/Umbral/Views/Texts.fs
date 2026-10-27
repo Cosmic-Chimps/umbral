@@ -59,7 +59,6 @@ type Texts =
 
       // Operator sign-in (/admin/signin)
       SignInTitle: string
-      SignInLead: string
       SignInButton: string
 
       // Replacing the operator credential once signed in (FR-017a)
@@ -907,7 +906,6 @@ let en: Texts =
         "Printed in the container log when Umbral started. Run `docker logs umbral` and copy the token shown there."
 
       SignInTitle = "Operator sign-in"
-      SignInLead = "Sign in with the operator credential to manage Apps, Connectors and Users."
       SignInButton = "Sign in"
 
       CredentialNewLabel = "New credential"
