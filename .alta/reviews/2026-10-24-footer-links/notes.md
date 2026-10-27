@@ -112,10 +112,11 @@ Under `## Unreleased`:
 
 ## Impeccable detector
 
-Not run: there is no `impeccable` CLI on this machine's PATH, and the 4.7.1 plugin cache holds no
-detect script. The reviewer may run it on `umbral.input.css`, `Layout.fs`, `Components.fs` and `Home.fs`.
+The implementer could not run it: there is no CLI on this machine. The design reviewer ran it on
+2026-10-26 and got only the pre-existing `design-system-color` advisory on the logo crop's shade in
+`umbral.input.css`, which is not part of this change.
 
 ## Reviews
 
-- Design: `umbral-designer`, `review.md` (pending).
+- Design: `umbral-designer`, `review.md`: **clear at `32ab4af`, no blocking items, no nits** (2026-10-26). Nothing to answer.
 - Code: `umbral`, `code-review.md` (pending).
