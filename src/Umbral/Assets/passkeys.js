@@ -295,6 +295,14 @@ function revealScriptedControls() {
     elements[i].hidden = false;
     elements[i].disabled = false;
   }
+  // The browser skips `autofocus` on a control that was hidden and disabled
+  // when the page loaded, so a confirm block's own button is focused here.
+  for (var j = 0; j < elements.length; j++) {
+    if (elements[j].hasAttribute('autofocus')) {
+      elements[j].focus();
+      break;
+    }
+  }
 }
 
 if (document.readyState === 'loading') {
