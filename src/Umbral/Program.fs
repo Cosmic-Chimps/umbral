@@ -4,6 +4,8 @@ open System
 open Microsoft.AspNetCore.Builder
 open System.Net.Http
 open System.Threading.Tasks
+// GetOpenIddictServerRequest lives in this namespace.
+open Microsoft.AspNetCore
 open Microsoft.AspNetCore.Antiforgery
 open Microsoft.Extensions.Logging
 open Umbral.Views
@@ -16,6 +18,7 @@ open Microsoft.EntityFrameworkCore
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.DependencyInjection.Extensions
+open OpenIddict.Abstractions
 open Oxpecker
 open Umbral.Infrastructure
 open Umbral.Infrastructure.SecretStores.Registry
@@ -405,6 +408,22 @@ let configureApp (app: WebApplication) =
                 ctx.Response.OnStarting(fun () ->
                     ctx.Response.Headers.CacheControl <- "no-store"
                     Task.CompletedTask)
+
+            next.Invoke ctx)
+        // Layout.referrerPolicy on every response, unless the handler set its
+        // own or it is OpenIddict's form_post answer (see there). Set when the
+        // response starts, when both are known.
+        .Use(fun (ctx: HttpContext) (next: RequestDelegate) ->
+            ctx.Response.OnStarting(fun () ->
+                let formPost =
+                    match ctx.GetOpenIddictServerRequest() with
+                    | null -> false
+                    | request -> request.ResponseMode = OpenIddictConstants.ResponseModes.FormPost
+
+                if not formPost && not (ctx.Response.Headers.ContainsKey "Referrer-Policy") then
+                    ctx.Response.Headers["Referrer-Policy"] <- Layout.referrerPolicy
+
+                Task.CompletedTask)
 
             next.Invoke ctx)
         .UseRouting()

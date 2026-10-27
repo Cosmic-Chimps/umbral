@@ -102,6 +102,7 @@
     <Compile Include="LastUsedConnectorTests.fs" />
     <Compile Include="PasskeyAdminTests.fs" />
     <Compile Include="FooterTests.fs" />
+    <Compile Include="ReferrerPolicyTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 
