@@ -23,6 +23,9 @@ new image. Add to "Unreleased" as you work; a release renames it.
   device, and the link it shows is labelled **Recovery link**. A row without a passkey keeps
   **Invite to add a passkey**, and its link is labelled **Invitation link**. The link and what it
   does are unchanged.
+- The footer line reads **Umbral — self-hosted passwordless sign-in** instead of "self-hosted
+  social login", and the home page says that apps can offer a passkey as well as an account at
+  Discord, GitHub, Google, a Mastodon-compatible server or any OpenID Connect provider.
 
 ### Fixed
 - On the **Users** screen, a passkey's **Remove** is a quiet button in the error colour instead of a
