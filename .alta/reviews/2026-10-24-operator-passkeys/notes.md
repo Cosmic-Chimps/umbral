@@ -68,6 +68,17 @@ These were removed because nothing reads them any more: `SignInLead`, `Credentia
 
 - `build-css.sh --check`: up to date. No new class was needed, so `umbral.css` is unchanged.
 - Full `dotnet test`: 1770 of 1770 pass (2026-10-27).
+- Idle memory, Linux arm64 (Docker, `mcr.microsoft.com/dotnet/sdk:10.0`), Release, `--filter-class Umbral.Tests.IdleMemoryTests`, 2026-10-27:
+
+  | Run | Idle resident set | Ceiling |
+  | --- | --- | --- |
+  | Operator passkey in use (new) | 147.6 MiB | 150 MiB |
+  | Local store | 140.1 MiB | 150 MiB |
+  | Passkey connector in use | 147.2 MiB | 160 MiB |
+  | Fediverse connector | 141.9 MiB | 150 MiB |
+  | AWS store | 149.9 MiB | 160 MiB |
+
+  macOS measures about 171 MiB for both passkey runs. The test applies only a sanity ceiling there, as its module comment explains. CI's linux/amd64 figure comes after the first push.
 - Impeccable detector: I could not run it, because the CLI is not installed in this session.
 - New test files: `OperatorPasskeyStoreTests.fs`, `OperatorPasskeyTests.fs`, `OperatorPasswordSwitchTests.fs`, `OperatorPasskeyRemoveTests.fs`. Additions went to `CredentialTests.fs`, `SubcommandTests.fs`, `CsrfTests.fs`, `SecurityEventCoverageTests.fs` and `IdleMemoryTests.fs`.
 - CHANGELOG under `## Unreleased`: Added (operator passkeys, turning password sign-in off, `--forget-passkeys`), Changed (the Credential page in three parts, `reset-credential` wording), and Upgrade (schema 8).

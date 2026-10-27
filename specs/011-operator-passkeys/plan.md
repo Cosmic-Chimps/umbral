@@ -73,3 +73,10 @@ on every route while off; the last passkey refused while off; `reset-credential`
 with and without `--forget-passkeys`; the rate limits; an operator passkey
 refused at `/passkey/assertion` and a user passkey at the operator sign-in; no
 operator passkey on the Users screen. `CsrfTests` walks the new POSTs.
+
+## Memory
+
+Measured on linux/arm64 (Docker, Release, 2026-10-27): an instance with an
+operator passkey in use (added, then signed in with) idles at 147.6 MiB, under
+Principle II's 150 MiB. The local store measured 140.1 MiB in the same run.
+`IdleMemoryTests` holds the operator run to 150 MiB.
