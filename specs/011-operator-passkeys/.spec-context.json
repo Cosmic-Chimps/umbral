@@ -186,6 +186,38 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T04:27:00.214Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T014",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:35:39.864Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T015",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:35:40.003Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T016",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:35:40.109Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T017",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:35:40.212Z"
     }
   ],
   "unattended": true,
@@ -421,7 +453,7 @@
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
-  "currentTask": "T012",
+  "currentTask": "T017",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -533,6 +565,35 @@
         "src/Umbral/Views/Texts.fs",
         "tests/Umbral.Tests/OperatorPasskeyTests.fs",
         "tests/Umbral.Tests/PageAssetsTests.fs"
+      ]
+    },
+    "T014": {
+      "status": "DONE",
+      "did": "7 switch tests: refusals, 422 confirm, off ends sessions, password refused everywhere while off, on again",
+      "files": [
+        "tests/Umbral.Tests/OperatorPasswordSwitchTests.fs"
+      ]
+    },
+    "T015": {
+      "status": "DONE",
+      "did": "POST /admin/credential/password-signin: passkey-only re-check, 422 confirm, stamp moved on off, events",
+      "files": [
+        "src/Umbral/Handlers/Admin/OperatorPasswordSignIn.fs"
+      ]
+    },
+    "T016": {
+      "status": "DONE",
+      "did": "7 remove tests: 422 confirm, password and passkey re-check, sessions ended, last refused while off, unknown id; coverage journey",
+      "files": [
+        "tests/Umbral.Tests/OperatorPasskeyRemoveTests.fs",
+        "tests/Umbral.Tests/SecurityEventCoverageTests.fs"
+      ]
+    },
+    "T017": {
+      "status": "DONE",
+      "did": "POST /admin/credential/passkeys/{id}/remove: last refused up front while off, re-check, remove, stamp moved, events",
+      "files": [
+        "src/Umbral/Handlers/Admin/OperatorPasskeyRemove.fs"
       ]
     }
   }

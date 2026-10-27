@@ -297,6 +297,45 @@ let ``every event type in the data model is emitted by the real product`` () =
         let! signedBackIn = operator.PostForm("/admin/signin", "/admin/signin", [ "credential", OperatorCredential ])
         Assert.Equal(HttpStatusCode.Redirect, signedBackIn.StatusCode)
 
+        // -- The operator's passkeys (spec 011): add two with the password
+        //    (operator_passkey_added), switch password sign-in off and on again
+        //    with a passkey (operator_password_signin_changed), and remove one
+        //    (operator_passkey_removed). Each of the last two re-signs this
+        //    browser in, so the rest of the journey keeps its session.
+        let! credentialToken = operator.TokenFrom "/admin/credential"
+        let laptop = OperatorFlows.operatorAuthenticator ()
+        let phone = OperatorFlows.operatorAuthenticator ()
+        let! _, _, laptopId = OperatorFlows.addOperatorPasskey operator credentialToken laptop "Laptop"
+        let! _, _, _ = OperatorFlows.addOperatorPasskey operator credentialToken phone "Phone"
+
+        let switchTo (state: string) =
+            task {
+                let! ceremony, credential = OperatorFlows.confirmCeremony operator credentialToken laptop laptopId
+
+                return!
+                    operator.PostForm(
+                        "/admin/credential",
+                        "/admin/credential/password-signin",
+                        [ "state", state; "ceremony", ceremony; "credential", credential ]
+                    )
+            }
+
+        let! off = switchTo "off"
+        Assert.Contains("operator-password-off", location off)
+        let! on = switchTo "on"
+        Assert.Contains("operator-password-on", location on)
+
+        let! phoneRow = scalar app "SELECT id FROM operator_passkeys WHERE name = 'Phone'" []
+
+        let! phoneRemoved =
+            operator.PostForm(
+                "/admin/credential",
+                $"/admin/credential/passkeys/{phoneRow}/remove",
+                [ "current", OperatorCredential ]
+            )
+
+        Assert.Contains("operator-passkey-removed", location phoneRemoved)
+
         // -- Apps: create two (rotated and deleted at the end, once the secret
         //    the sign-ins below redeem with is no longer needed)
         do! seedFakeConnector app

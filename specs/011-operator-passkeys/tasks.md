@@ -62,11 +62,11 @@ Files: `Handlers/Admin/OperatorPasswordSignIn.fs` (new), `tests/Umbral.Tests/Ope
 
 ### Tests
 
-- [ ] **T014** [US2] With no passkey, off refused and logged; a post with no ceremony answers 422 with the confirm block; off with a ceremony ends other sessions; while off the correct password is refused at sign-in (same answer as a wrong one), as a re-check and as a replacement, and no page shows a password field; on again with a ceremony and the old password works · `tests/Umbral.Tests/OperatorPasswordSwitchTests.fs`
+- [x] **T014** [US2] With no passkey, off refused and logged; a post with no ceremony answers 422 with the confirm block; off with a ceremony ends other sessions; while off the correct password is refused at sign-in (same answer as a wrong one), as a re-check and as a replacement, and no page shows a password field; on again with a ceremony and the old password works · `tests/Umbral.Tests/OperatorPasswordSwitchTests.fs`
 
 ### Implementation
 
-- [ ] **T015** [US2] `POST /admin/credential/password-signin`: 422 confirm redraw, passkey re-check only, the switch through T005, stamp rotation on off, events; route in `Program.fs` · `Handlers/Admin/OperatorPasswordSignIn.fs`
+- [x] **T015** [US2] `POST /admin/credential/password-signin`: 422 confirm redraw, passkey re-check only, the switch through T005, stamp rotation on off, events; route in `Program.fs` · `Handlers/Admin/OperatorPasswordSignIn.fs`
 
 **Checkpoint**: password sign-in can be turned off and on.
 
@@ -76,11 +76,11 @@ Files: `Handlers/Admin/OperatorPasskeyRemove.fs` (new), `tests/Umbral.Tests/Oper
 
 ### Tests
 
-- [ ] **T016** [US3] A post with no re-check answers 422 with that row's confirm block and logs nothing; remove with a password and with another passkey; the removed passkey's sign-in refused; other sessions ended; the last one refused while off with the next action, and removed while on; an unknown id refused · `tests/Umbral.Tests/OperatorPasskeyRemoveTests.fs`
+- [x] **T016** [US3] A post with no re-check answers 422 with that row's confirm block and logs nothing; remove with a password and with another passkey; the removed passkey's sign-in refused; other sessions ended; the last one refused while off with the next action, and removed while on; an unknown id refused · `tests/Umbral.Tests/OperatorPasskeyRemoveTests.fs`
 
 ### Implementation
 
-- [ ] **T017** [US3] `POST /admin/credential/passkeys/{id}/remove`: 422 confirm redraw, re-check, remove through T005, stamp rotation, events; route in `Program.fs` · `Handlers/Admin/OperatorPasskeyRemove.fs`
+- [x] **T017** [US3] `POST /admin/credential/passkeys/{id}/remove`: 422 confirm redraw, re-check, remove through T005, stamp rotation, events; route in `Program.fs` · `Handlers/Admin/OperatorPasskeyRemove.fs`
 
 **Checkpoint**: a lost device can be removed.
 

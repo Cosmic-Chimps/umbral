@@ -130,6 +130,8 @@
     <Compile Include="Handlers/Connect/Picker.fs" />
     <Compile Include="Handlers/Passkeys/Ceremonies.fs" />
     <Compile Include="Handlers/Admin/OperatorPasskeys.fs" />
+    <Compile Include="Handlers/Admin/OperatorPasswordSignIn.fs" />
+    <Compile Include="Handlers/Admin/OperatorPasskeyRemove.fs" />
     <Compile Include="Handlers/Passkeys/SignIn.fs" />
     <Compile Include="Handlers/Passkeys/Invitation.fs" />
     <Compile Include="Handlers/Passkeys/Account.fs" />
