@@ -52,10 +52,9 @@ These replace existing wording:
 
 These were removed because nothing reads them any more: `SignInLead`, `CredentialReplaceTitle`, `CredentialReplaceLead`, `CredentialReplaceButton`, `CurrentCredentialLabel` and `CredentialReplaced`.
 
-## Open for your call
+## Open for your call (answered)
 
-1. **Password card labels.** "New credential", "Confirm credential" and the hint about connectors are unchanged. Section 1 says "fields as today", and the first-run setup screen shares two of those labels and must stay unchanged. "New password" and "Confirm the new password" would match the card. Say if you want them.
-2. **The sign-in field label.** It is still "Operator credential" (`CredentialLabel`), which setup shares. The same question applies.
+The design review took both. The Password card has its own "New password" and "Confirm the new password", the sign-in page its own "Password", and setup keeps "Operator credential" and "Confirm credential". See "Answers to the reviews" below.
 
 ## Deviations and decisions
 
@@ -82,3 +81,29 @@ These were removed because nothing reads them any more: `SignInLead`, `Credentia
 - Impeccable detector: I could not run it, because the CLI is not installed in this session.
 - New test files: `OperatorPasskeyStoreTests.fs`, `OperatorPasskeyTests.fs`, `OperatorPasswordSwitchTests.fs`, `OperatorPasskeyRemoveTests.fs`. Additions went to `CredentialTests.fs`, `SubcommandTests.fs`, `CsrfTests.fs`, `SecurityEventCoverageTests.fs` and `IdleMemoryTests.fs`.
 - CHANGELOG under `## Unreleased`: Added (operator passkeys, turning password sign-in off, `--forget-passkeys`), Changed (the Credential page in three parts, `reset-credential` wording), and Upgrade (schema 8).
+
+## Answers to the reviews (task r011, 2026-10-27)
+
+### Code review
+
+- **B1, a sign-in the change overtakes.** `AdminAuth.sessionStamp` and `signInWithStamp` are new; `signIn` is now "read the stamp, then `signInWithStamp`" and stays for the changes that move the stamp on purpose (remove, switch-off, replace). The password sign-in and the passkey sign-in read the stamp before they check anything and sign in with that value, so a stamp that moves in between leaves a cookie the next request refuses. `recordUse` returns the rows changed and `verifyOperatorAnswer` refuses as `UnknownCredential` at 0. Tests: `OperatorConfirmBindingTests` (a trigger on the `operator_signed_in` insert moves the stamp between the check and the cookie; both sign-ins; each fails against the old code, I ran it), and two store tests for `recordUse` on a removed passkey and for the counter.
+- **B2, a confirm is for one action.** The confirm options take `{ action }` (`add`, `switch-off`, `switch-on`, `remove:<id>`; anything else is a 400) and keep it on the ceremony, in its `Nickname`, which a confirm does not otherwise use (no schema change). Each re-check names its action and accepts only that; the ceremony is burned first, so a mismatch also uses it up. `passkeys.js` sends the action: the add form says `add`, and each confirm form's `data-operator-confirm` value is its action. A refusal is `passkey_refused;reason=confirm_not_for_this_action;stage=assertion`, a new closed word. Tests: one per action for a confirm made for another one, with the burn checked, plus one for a confirm for removing one passkey used on another, and one for an unknown action.
+- **N1 taken.** `sign_count = MAX(sign_count, @signCount)` in both `recordUse`s (operator and people's). Test: the counter never moves backwards.
+- **N2 taken.** The passkey sign-in POST answers 400 before first-run setup, like its options route. Test added.
+- **N3 taken.** A removal's action names the passkey, and the passkey being removed may not answer it (same refusal word). Test added. While password sign-in is off with two passkeys, the operator picks the other one in the browser's dialog.
+- **N4 taken.** `reset-credential` moves the stamp once more at the end, after the passkeys are gone and the switch is on. The replacement already moved it first. The existing reset tests still pass; I did not add a test for the order.
+- **N5 taken.** Store tests with two tasks at once: two removals while off leave exactly one passkey (ten rounds), and a removal with a switch-off never leaves it off with no passkey (twenty rounds).
+
+### Design review
+
+The three `Texts.fs` nits are taken. The failed passkey sign-in notice is two codes, `operator-passkey-signin-failed` ("... Try again, or use your password.") and `operator-passkey-signin-failed-passkey-only` ("... Try again."). The server picks one by the switch, and the page's button names its own for the script, so a failure that never reached the server says the right one too.
+
+### Documentation review
+
+The README says "host name" for the operator's passkeys, with "a change of scheme or port does not" (nit 2). The Upgrading sentence says password sign-in stays on "until you turn it off" (nit 1), and the security-log paragraph says a refused change is the same event with a failure outcome (nit 3). The people's-passkeys sentence is left for T4.
+
+### Checks
+
+- Full `dotnet test`: 1784 of 1784 pass (macOS). `build-css.sh --check` is clean and `umbral.css` is untouched. `changelog.sh released` against `main` says every released section is unchanged; `main` has not moved since this branch started.
+- The routes contract says what the confirm options take, and that a confirm is for one action.
+- Not run: the linux/amd64 idle memory figure, which comes from CI on the first push. If it is over 150 MiB the ceiling is not to be raised.

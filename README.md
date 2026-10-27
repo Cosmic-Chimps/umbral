@@ -751,8 +751,9 @@ passkey and turning password sign-in off sign out every other admin session.
 You cannot remove the last passkey while password sign-in is off: turn password
 sign-in on first, or add another passkey.
 
-**Bound to the address.** Like people's passkeys, the operator's belong to the
-address in `UMBRAL__PUBLIC_ORIGIN`. If you change it, they stop working.
+**Bound to the host name.** Like people's passkeys, the operator's belong to the
+host name in `UMBRAL__PUBLIC_ORIGIN`. If you change the host name, they stop
+working; a change of scheme or port does not.
 
 **If you lose the device.** Run `reset-credential` on the host. It keeps the
 passkeys unless you add `--forget-passkeys` (see
@@ -761,7 +762,8 @@ passkeys unless you add `--forget-passkeys` (see
 **The security log.** Adding a passkey is `operator_passkey_added`, removing one
 is `operator_passkey_removed`, and a change of the switch is
 `operator_password_signin_changed`, with the detail `on` or `off`
-(`offline_reset` when `reset-credential` turned it back on). A passkey sign-in
+(`offline_reset` when `reset-credential` turned it back on); a refused change
+is the same event with a failure outcome. A passkey sign-in
 is an `operator_signed_in` event with the detail `passkey`. A refused one is an
 `operator_sign_in_failed` event whose detail starts `passkey_refused;reason=`.
 No challenge, credential id, key or password is ever logged.
@@ -1206,7 +1208,8 @@ The database is at **schema version 8**. Umbral upgrades an older database by
 itself when it starts, and nothing changes until you use what the upgrade
 added: for example, every app starts with no branding, nobody can use a
 passkey until you enable the passkey connector, and the operator has no
-passkey and password sign-in stays on until you add one under **Credential**. It does not work the other way: an older
+passkey, and password sign-in stays on until you turn it off under
+**Credential**. It does not work the other way: an older
 image refuses to start on a newer database, and says so in `docker logs umbral`
 (*...written by a newer Umbral. Run the newer image, or restore the backup of
 the data directory taken before the upgrade.*). Take a
