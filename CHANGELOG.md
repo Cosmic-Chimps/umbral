@@ -41,6 +41,11 @@ new image. Add to "Unreleased" as you work; a release renames it.
 - The admin pages are no longer kept by the browser (`Cache-Control: no-store`), so **Back** cannot
   show a new client secret or a passkey invitation link again. On a narrow screen, `/admin/apps`
   and `/admin/connectors` no longer use up a new secret or invitation link in a pane the screen hides.
+- Every response now carries `Referrer-Policy: same-origin`, so going from Umbral to another site
+  (an identity provider, an app, a link in the footer) no longer tells that site the instance's
+  address. The passkey invitation page keeps its stricter `no-referrer`. The page that posts a
+  sign-in back to an app that asked for `response_mode=form_post` has no policy, as before, so the
+  app still sees where the post comes from.
 
 ## 0.6.0 - 2026-10-26
 

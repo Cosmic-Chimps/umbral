@@ -78,6 +78,20 @@ let private rail (ctx: HttpContext) (t: Texts) (theme: ThemeChoice) =
 let contentSecurityPolicy =
     "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'"
 
+/// The Referrer-Policy of every response, set by a middleware in Program.fs: a
+/// request to Umbral's own pages keeps its `Referer`, a request to another site
+/// (an identity provider, an app, the links of the footer) gets none, so no
+/// page tells another site the address of this instance or of the page.
+///
+/// Not `no-referrer`: under it a browser sends `Origin: null` on every form
+/// post, Umbral's own included. A handler that needs stricter sets its own
+/// header first (the invitation page, whose address holds a secret), and the
+/// middleware leaves it. OpenIddict's `form_post` answer is left without one,
+/// as it is left without a Content-Security-Policy: under `same-origin` its
+/// cross-site post to the app would carry `Origin: null`, which an app that
+/// checks where the post comes from refuses.
+let referrerPolicy = "same-origin"
+
 /// What a branded sign-in page takes from an app's branding (spec 006). Only
 /// the accent colour reaches the page shell: the logo is content in the card,
 /// placed by the picker, not part of the chrome.
