@@ -346,7 +346,7 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     // on first use (WebAuthn.fs), so an instance with no passkey connector never
     // loads it.
     services.AddSingleton<WebAuthn.Verifier>(fun sp ->
-        WebAuthn.Verifier(sp.GetRequiredService<PublicOrigin.PublicOrigin>(), sp.GetRequiredService<Database.DbConfig>()))
+        WebAuthn.Verifier(sp.GetRequiredService<PublicOrigin.PublicOrigin>()))
     |> ignore
 
     services.AddRouting().AddOxpecker() |> ignore

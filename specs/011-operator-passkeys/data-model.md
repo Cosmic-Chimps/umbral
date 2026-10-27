@@ -45,11 +45,17 @@ instance has no passkeys and no switch row, so password sign-in is on.
 
 | Type (stored value) | Success detail | Failure detail |
 | --- | --- | --- |
-| `operator_passkey_added` | — | `Passkeys.refusalDetail` for a ceremony refusal; `limit_reached`, `recheck_failed` |
-| `operator_passkey_removed` | `offline_reset` when by the host | `last_passkey_password_off`, `recheck_failed`, `not_found` |
-| `operator_password_signin_changed` | `on` / `off` / `offline_reset` | `no_passkey`, `recheck_failed` |
+| `operator_passkey_added` | — | `limit_reached`, a failed re-check, or `Passkeys.refusalDetail` for a refused registration |
+| `operator_passkey_removed` | `offline_reset count=N` when by the host | `last_passkey_password_off`, `not_found`, a failed re-check |
+| `operator_password_signin_changed` | `on` / `off` / `offline_reset` | `no_passkey`, a failed re-check |
 | `operator_signed_in` (existing) | `passkey` | — |
-| `operator_sign_in_failed` (existing) | — | `Passkeys.refusalDetail` for a passkey sign-in or re-check; `recheck_password_mismatch` |
+| `operator_sign_in_failed` (existing) | — | `Passkeys.refusalDetail` for a refused passkey sign-in |
+
+A failed re-check is `recheck_password_mismatch` (wrong password, or any
+password while password sign-in is off) or `Passkeys.refusalDetail` of the
+confirm ceremony's refusal. Each refused change writes one event, of its own
+type. A change posted with no re-check at all is not a failure: it is answered
+with the confirm block and writes nothing.
 
 Reasons are the closed words of `Passkeys.Reason`. No credential id,
 key, challenge or password in any detail.

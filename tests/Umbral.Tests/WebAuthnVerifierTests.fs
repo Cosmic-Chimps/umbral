@@ -23,6 +23,10 @@ let private origin =
     | Ok origin -> origin
     | Error error -> failwith (PublicOrigin.describe error)
 
+/// The uniqueness question the verifier asks, answered by the user passkeys
+/// store as the connector's handlers answer it.
+let private taken (app: Fixtures.TestApp) = Store.credentialIdExists app.DbConfig
+
 let private seedUser (app: Fixtures.TestApp) (id: string) =
     Users.insertForTesting
         app.DbConfig
@@ -59,12 +63,12 @@ let private register (overrides: RegisterOverrides) =
     task {
         use! app = Fixtures.createApp ()
         do! seedUser app "u1"
-        let verifier = Verifier(origin, app.DbConfig)
+        let verifier = Verifier(origin)
         let authenticator = SoftwareAuthenticator(RpId, OriginText)
         let options = verifier.RegistrationOptions("u1", "User", "User u1", [])
         let json = options.ToJson()
         let credential = authenticator.Register(element json, overrides)
-        return! verifier.VerifyRegistration(json, credential)
+        return! verifier.VerifyRegistration(json, credential, taken app)
     }
 
 let private expectRegistrationRefused (reason: Reason) (overrides: RegisterOverrides) =
@@ -79,11 +83,11 @@ let private signIn (storedCount: uint32) (make: byte array -> AssertOverrides) =
         use! app = Fixtures.createApp ()
         do! seedUser app "u1"
         do! seedUser app "u2"
-        let verifier = Verifier(origin, app.DbConfig)
+        let verifier = Verifier(origin)
         let authenticator = SoftwareAuthenticator(RpId, OriginText)
         let options = verifier.RegistrationOptions("u1", "User", "User u1", [])
         let json = options.ToJson()
-        let! registered = verifier.VerifyRegistration(json, authenticator.Register(element json))
+        let! registered = verifier.VerifyRegistration(json, authenticator.Register(element json), taken app)
         let registered = Result.defaultWith (fun reason -> failwith $"{reason}") registered
         // A second credential of another user, whose key can sign instead.
         let otherOptions = verifier.RegistrationOptions("u2", "Other", "User u2", [])
@@ -102,7 +106,7 @@ let private signIn (storedCount: uint32) (make: byte array -> AssertOverrides) =
                 make other.Id
             )
 
-        return! verifier.VerifyAssertion(assertionJson, response, passkey)
+        return! verifier.VerifyAssertion(assertionJson, response, passkey.PublicKey, passkey.SignCount, passkey.UserId)
     }
 
 [<Fact>]
@@ -110,7 +114,7 @@ let ``a registration and a sign-in verify`` () =
     task {
         use! app = Fixtures.createApp ()
         do! seedUser app "u1"
-        let verifier = Verifier(origin, app.DbConfig)
+        let verifier = Verifier(origin)
         let authenticator = SoftwareAuthenticator(RpId, OriginText)
         let options = verifier.RegistrationOptions("u1", "User", "User u1", [])
         let json = options.ToJson()
@@ -119,7 +123,7 @@ let ``a registration and a sign-in verify`` () =
         // The authenticator's output is what the library deserialises.
         JsonSerializer.Deserialize<Fido2NetLib.AuthenticatorAttestationRawResponse>(credential) |> ignore
 
-        let! result = verifier.VerifyRegistration(json, credential)
+        let! result = verifier.VerifyRegistration(json, credential, taken app)
 
         match result with
         | Error reason -> failwith $"registration refused: {reason}"
@@ -132,7 +136,7 @@ let ``a registration and a sign-in verify`` () =
             let assertion = verifier.AssertionOptions().ToJson()
             let answer = authenticator.Assert(element assertion, registered.CredentialId)
             JsonSerializer.Deserialize<Fido2NetLib.AuthenticatorAssertionRawResponse>(answer) |> ignore
-            let! verified = verifier.VerifyAssertion(assertion, answer, passkey)
+            let! verified = verifier.VerifyAssertion(assertion, answer, passkey.PublicKey, passkey.SignCount, passkey.UserId)
             Assert.Equal(Ok 1u, verified)
     }
 
@@ -168,9 +172,9 @@ let ``a registration of the wrong type is refused`` () =
 let ``garbage is a malformed registration`` () =
     task {
         use! app = Fixtures.createApp ()
-        let verifier = Verifier(origin, app.DbConfig)
+        let verifier = Verifier(origin)
         let json = verifier.RegistrationOptions("u1", "User", "User u1", []).ToJson()
-        let! result = verifier.VerifyRegistration(json, element "\"garbage\"")
+        let! result = verifier.VerifyRegistration(json, element "\"garbage\"", taken app)
         Assert.Equal(Error MalformedResponse, result |> Result.map ignore)
     }
 
@@ -178,7 +182,7 @@ let ``garbage is a malformed registration`` () =
 let ``garbage is a malformed sign-in`` () =
     task {
         use! app = Fixtures.createApp ()
-        let verifier = Verifier(origin, app.DbConfig)
+        let verifier = Verifier(origin)
         let json = verifier.AssertionOptions().ToJson()
 
         let passkey: Store.Passkey =
@@ -194,7 +198,7 @@ let ``garbage is a malformed sign-in`` () =
               CreatedUtc = DateTimeOffset.UnixEpoch
               LastUsedUtc = None }
 
-        let! result = verifier.VerifyAssertion(json, element "[1]", passkey)
+        let! result = verifier.VerifyAssertion(json, element "[1]", passkey.PublicKey, passkey.SignCount, passkey.UserId)
         Assert.Equal(Error MalformedResponse, result)
     }
 
