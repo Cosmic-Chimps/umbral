@@ -104,7 +104,7 @@ Files: `resetCredential` and `main` in `Program.fs`, `tests/Umbral.Tests/Subcomm
 **⟶ Wait for Wave 1, then:**
 
 - [x] **T023** Full `dotnet test` green, idle memory within 150 MiB (`IdleMemoryTests`), against the Success Criteria
-- [ ] **T024** Reviews: captures and `notes.md` in `.alta/reviews/2026-10-24-operator-passkeys/` for `umbral-designer`; doc notes for `umbral-documentation`; branch and range to `umbral` for the code review; answers committed; all three clear · `.alta/reviews/2026-10-24-operator-passkeys/`
+- [x] **T024** Reviews: captures and `notes.md` in `.alta/reviews/2026-10-24-operator-passkeys/` for `umbral-designer`; doc notes for `umbral-documentation`; branch and range to `umbral` for the code review; answers committed; all three clear · `.alta/reviews/2026-10-24-operator-passkeys/`
 
 ## Dependencies & Execution Order
 

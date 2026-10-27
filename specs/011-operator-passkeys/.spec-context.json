@@ -3,7 +3,7 @@
   "specName": "Operator passkeys",
   "branch": "alta/earthy-orinoco-8bkw",
   "currentStep": "implement",
-  "status": "implementing",
+  "status": "completed",
   "history": [
     {
       "step": "specify",
@@ -258,6 +258,21 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T18:19:17.509Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T024",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T19:28:26.422Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T19:28:26.482Z"
     }
   ],
   "unattended": true,
@@ -490,10 +505,13 @@
     },
     "tasks": {
       "summary": "24 tasks: foundational 8 (schema, store, verifier, AdminAuth, texts), US1 5, US2 2, US3 2, US4 2, polish 5"
+    },
+    "implement": {
+      "summary": "Operator passkeys, password sign-in switch, reset-credential --forget-passkeys; three reviews clear"
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
-  "currentTask": "T023",
+  "currentTask": "T024",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -671,6 +689,37 @@
       "files": [
         "tests/Umbral.Tests/IdleMemoryTests.fs"
       ]
+    },
+    "T024": {
+      "status": "DONE",
+      "did": "Design clear (0e498b9), docs clear (19d1acc), code clear after B1/B2 (782c4f8); full suite 1784/1784 and browser walk at HEAD",
+      "files": [
+        ".alta/reviews/2026-10-24-operator-passkeys/"
+      ]
     }
-  }
+  },
+  "verified": [
+    {
+      "what": "full suite at 782c4f8",
+      "command": "dotnet test tests/Umbral.Tests",
+      "result": "1784/1784"
+    },
+    {
+      "what": "browser walk with Chrome virtual authenticator at 782c4f8",
+      "command": "node /tmp/umcap/capture-0p5k.mjs",
+      "result": "add, passkey sign-in, switch off, two removes while off, last refused, switch on: all pass"
+    },
+    {
+      "what": "idle memory linux/arm64 operator passkey",
+      "command": "dotnet test -c Release --filter-class Umbral.Tests.IdleMemoryTests (docker)",
+      "result": "147.6 MiB under 150"
+    }
+  ],
+  "concerns": [
+    {
+      "note": "linux/amd64 idle-memory figure comes from CI after the first push",
+      "step": "implement"
+    }
+  ],
+  "last_action": "all 24 tasks done, 1784 tests pass"
 }
