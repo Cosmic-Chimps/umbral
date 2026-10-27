@@ -63,12 +63,7 @@ type Texts =
       SignInButton: string
 
       // Replacing the operator credential once signed in (FR-017a)
-      CredentialReplaceTitle: string
-      CredentialReplaceLead: string
       CredentialNewLabel: string
-      CredentialReplaceButton: string
-      CurrentCredentialLabel: string
-      CredentialReplaced: string
 
       // The Credential screen and operator sign-in with passkeys (spec 011)
       CredentialTitle: string
@@ -798,7 +793,7 @@ let private noticeEn (code: string) : string option =
     | "user-enabled" -> Some "User enabled."
     | "user-disabled" -> Some "User disabled."
     | "user-deleted" -> Some "User deleted."
-    | "credential-replaced" -> Some "Operator credential replaced."
+    | "credential-replaced" -> Some "Password replaced. Use it next time you sign in."
     | "credential-current-incorrect" -> Some "That's not the current password. Check it and try again."
     // Operator passkeys (spec 011).
     | "operator-passkey-added" -> Some "Passkey added."
@@ -915,12 +910,7 @@ let en: Texts =
       SignInLead = "Sign in with the operator credential to manage Apps, Connectors and Users."
       SignInButton = "Sign in"
 
-      CredentialReplaceTitle = "Replace the operator credential"
-      CredentialReplaceLead = "Enter your current credential, then the new one. Every other admin session is signed out immediately."
       CredentialNewLabel = "New credential"
-      CredentialReplaceButton = "Replace credential"
-      CurrentCredentialLabel = "Current credential"
-      CredentialReplaced = "Password replaced. Use it next time you sign in."
 
       CredentialTitle = "Credential"
       CredentialLead = "How you sign in to the admin area: with your password, with a passkey, or either."

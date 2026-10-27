@@ -170,6 +170,14 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T04:07:06.463Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T011",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:20:42.662Z"
     }
   ],
   "unattended": true,
@@ -405,7 +413,7 @@
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
-  "currentTask": "T013",
+  "currentTask": "T011",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -496,6 +504,17 @@
       "did": "passkeys.js: reveal data-scripted controls, operator sign-in, add form, confirm forms",
       "files": [
         "src/Umbral/Assets/passkeys.js"
+      ]
+    },
+    "T011": {
+      "status": "DONE",
+      "did": "Credential screen: Passkeys, Password sign-in and Password cards, confirm blocks via render ctx confirm, notices; operatorPageWithScripts",
+      "files": [
+        "src/Umbral/Handlers/Admin/Credential.fs",
+        "src/Umbral/Views/Layout.fs",
+        "src/Umbral/Views/Texts.fs",
+        "tests/Umbral.Tests/CredentialTests.fs",
+        "tests/Umbral.Tests/PageAssetsTests.fs"
       ]
     }
   }

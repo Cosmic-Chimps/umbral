@@ -305,6 +305,18 @@ let signInPage (ctx: HttpContext) (t: Texts) (titleText: string) (branding: Sign
 let operatorPage (ctx: HttpContext) (t: Texts) (titleText: string) (stylesheets: string list) (content: HtmlElement) =
     shell Operator stylesheets [] ctx t titleText content
 
+/// `operatorPage`, with further same-origin scripts linked: the Credential
+/// screen loads the ceremony script this way (specs/011 contracts/routes.md).
+let operatorPageWithScripts
+    (scripts: Assets.Asset list)
+    (ctx: HttpContext)
+    (t: Texts)
+    (titleText: string)
+    (stylesheets: string list)
+    (content: HtmlElement)
+    =
+    shell Operator stylesheets scripts ctx t titleText content
+
 /// Where a message page sends the person reading it, which depends on who that is.
 ///
 /// Under `/admin` it is the operator, and `/admin` itself routes them to setup,

@@ -288,10 +288,13 @@ document.addEventListener('submit', function (event) {
 });
 
 // The operator's pages. Elements that cannot work without this script are rendered
-// `hidden` and carry data-scripted: they appear once it runs.
+// `hidden` and `disabled` and carry data-scripted: they appear, usable, once it runs.
 function revealScriptedControls() {
   var elements = document.querySelectorAll('[data-scripted]');
-  for (var i = 0; i < elements.length; i++) elements[i].hidden = false;
+  for (var i = 0; i < elements.length; i++) {
+    elements[i].hidden = false;
+    elements[i].disabled = false;
+  }
 }
 
 if (document.readyState === 'loading') {
