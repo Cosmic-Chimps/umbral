@@ -29,11 +29,18 @@ object in a JSON body).
 | --- | --- | --- | --- |
 | `GET /admin/credential` | | the screen | |
 | `POST /admin/credential` | form `current`, `credential`, `confirm` | replace the password; refused while off | `RateLimits.AdminAuth` |
-| `POST /admin/credential/confirm/options` | `{}` | `{ ceremony, options }` (`operator-confirm`) | `RateLimits.SignIn` |
+| `POST /admin/credential/confirm/options` | `{ action }`, one of `add`, `switch-off`, `switch-on`, `remove:<id>` | `{ ceremony, options }` (`operator-confirm`) | `RateLimits.SignIn` |
 | `POST /admin/credential/passkeys/options` | `{ name, current }` or `{ name, ceremony, credential }` | re-check, then `{ ceremony, options }` (`operator-add`, existing passkeys excluded) | `RateLimits.AdminAuth` |
 | `POST /admin/credential/passkeys` | `{ ceremony, credential }` | store; `{ redirect: "/admin/credential?msg=operator-passkey-added" }` | `RateLimits.SignIn` |
 | `POST /admin/credential/passkeys/{id}/remove` | form, re-check optional | no re-check: 422, the screen with that row's confirm block; with one: remove, end other sessions; refusal `operator-passkey-last` while off | `RateLimits.AdminAuth` |
 | `POST /admin/credential/password-signin` | form `state=on\|off`, ceremony optional | no ceremony: 422, the card's confirm block; with one: set; off ends other sessions; refusal `operator-password-off-needs-passkey` | `RateLimits.AdminAuth` |
+
+A confirm ceremony is made for one action, kept with the ceremony, and its
+answer counts for that action only; a removal does not accept the passkey being
+removed as its confirm. A confirm made for another action is a failed re-check
+(`confirm_not_for_this_action`) and is burned. A sign-in with a passkey signs the
+browser in with the session stamp read before the answer was checked, so a
+removal or a switch-off that lands meanwhile leaves that cookie stale.
 
 A 422 confirm redraw is not a failure: no event is written. A re-check that is
 present and wrong is a failure (event, Warning notice). The switch takes only a
@@ -50,7 +57,7 @@ designer's.
 | --- | --- | --- |
 | `data-operator-passkey-signin` | button, rendered `hidden` | revealed on load; a `get` ceremony against the two sign-in routes |
 | `data-operator-passkey-add` | form with `name` and maybe `current` | with a password typed, `{ name, current }`; otherwise a confirm ceremony first; then the `create` ceremony |
-| `data-operator-confirm` | form (remove, switch) | with a password typed, a normal submit; otherwise a confirm ceremony fills hidden `ceremony` and `credential`, then submits |
+| `data-operator-confirm` | form (remove, switch); its value is the action the confirm is for | with a password typed, a normal submit; otherwise a confirm ceremony fills hidden `ceremony` and `credential`, then submits |
 | `data-operator-confirm-passkey` | a submit button inside such a form | forces the passkey path even when a password field exists |
 
 ## Command

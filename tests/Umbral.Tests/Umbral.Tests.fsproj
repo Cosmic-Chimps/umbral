@@ -106,6 +106,7 @@
     <Compile Include="OperatorPasskeyTests.fs" />
     <Compile Include="OperatorPasswordSwitchTests.fs" />
     <Compile Include="OperatorPasskeyRemoveTests.fs" />
+    <Compile Include="OperatorConfirmBindingTests.fs" />
     <Compile Include="FooterTests.fs" />
     <Compile Include="ReferrerPolicyTests.fs" />
     <Compile Include="SmokeTests.fs" />

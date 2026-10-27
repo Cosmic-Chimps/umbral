@@ -111,6 +111,9 @@ type Reason =
     /// Anything else the library refused.
     | VerificationFailed
     | CeremonyUnknownOrExpired
+    /// A genuine confirm answer, but made for another action (or, for a removal,
+    /// by the passkey being removed): it counts for nothing here.
+    | ConfirmNotForThisAction
     | UnknownCredential
     | UserNotFound
     | UserDisabled
@@ -144,6 +147,7 @@ type Reason =
         | MalformedResponse -> "malformed_response"
         | VerificationFailed -> "verification_failed"
         | CeremonyUnknownOrExpired -> "ceremony_unknown_or_expired"
+        | ConfirmNotForThisAction -> "confirm_not_for_this_action"
         | UnknownCredential -> "unknown_credential"
         | UserNotFound -> "user_not_found"
         | UserDisabled -> "user_disabled"

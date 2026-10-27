@@ -54,7 +54,7 @@ let handler: EndpointHandler =
                     return! refuseNoPasskey ctx
                 else
 
-                match! recheckForm ctx form false with
+                match! recheckForm ctx form false (if turningOff then ConfirmSwitchOff else ConfirmSwitchOn) with
                 | Missing ->
                     ctx.SetStatusCode 422
                     return! Credential.render ctx (Some(if turningOff then Credential.SwitchOff else Credential.SwitchOn))

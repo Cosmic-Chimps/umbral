@@ -310,7 +310,7 @@ let ``every event type in the data model is emitted by the real product`` () =
 
         let switchTo (state: string) =
             task {
-                let! ceremony, credential = OperatorFlows.confirmCeremony operator credentialToken laptop laptopId
+                let! ceremony, credential = OperatorFlows.confirmCeremony operator credentialToken $"switch-{state}" laptop laptopId
 
                 return!
                     operator.PostForm(

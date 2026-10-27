@@ -63,7 +63,7 @@ let handler (id: string) : EndpointHandler =
                 return! refuseLast ctx
             else
 
-            match! recheckForm ctx form true with
+            match! recheckForm ctx form true (confirmRemove id) with
             | Missing ->
                 ctx.SetStatusCode 422
                 return! Credential.render ctx (Some(Credential.RemovePasskey id))

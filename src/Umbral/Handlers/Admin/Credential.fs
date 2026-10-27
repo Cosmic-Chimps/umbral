@@ -100,7 +100,7 @@ let private removeConfirm (ctx: HttpContext) (t: Texts.Texts) (passwordOn: bool)
         p(class' = "text-body-md text-on-surface") { t.OperatorPasskeyRemoveQuestion key.Name }
 
         form(method = "post", action = $"/admin/credential/passkeys/{key.Id}/remove", class' = "space-y-3")
-            .data ("operator-confirm", "") {
+            .data ("operator-confirm", $"remove:{key.Id}") {
             ctx.GetAntiforgeryInput()
             ceremonyInputs
 
@@ -225,7 +225,7 @@ let private switchCard (ctx: HttpContext) (t: Texts.Texts) (passwordOn: bool) (a
                 p(class' = "text-body-md text-on-surface") { if off then t.PasswordSignInOffConfirm else t.PasswordSignInOnConfirm }
 
                 form(method = "post", action = "/admin/credential/password-signin", class' = "space-y-3")
-                    .data ("operator-confirm", "") {
+                    .data ("operator-confirm", (if off then "switch-off" else "switch-on")) {
                     ctx.GetAntiforgeryInput()
                     input(type' = "hidden", name = "state", value = (if off then "off" else "on"))
                     ceremonyInputs
@@ -273,8 +273,8 @@ let private passwordCard (ctx: HttpContext) (t: Texts.Texts) =
             ctx.GetAntiforgeryInput()
 
             Components.currentPasswordField t.CurrentPasswordLabel "current" None None
-            Components.passwordField t.CredentialNewLabel "credential" (Some t.CredentialHint) None
-            Components.passwordField t.CredentialConfirmLabel "confirm" None None
+            Components.passwordField t.PasswordNewLabel "credential" (Some t.CredentialHint) None
+            Components.passwordField t.PasswordConfirmLabel "confirm" None None
 
             button(type' = "submit", class' = Components.btn Components.Primary) {
                 Components.icon Theme.Shield

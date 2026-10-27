@@ -153,20 +153,22 @@ let add (config: Database.DbConfig) (clock: TimeProvider) (passkey: OperatorPass
     }
 
 /// After a successful sign-in or re-check: the authenticator's new signature
-/// counter and the time of use.
-let recordUse (config: Database.DbConfig) (clock: TimeProvider) (id: string) (newCount: uint32) : Task<unit> =
+/// counter and the time of use. The counter only moves forward, so two answers
+/// verified against the same stored value cannot leave the lower one stored.
+/// Returns the rows changed: 0 means the passkey was removed since it was read,
+/// and the answer must not count.
+let recordUse (config: Database.DbConfig) (clock: TimeProvider) (id: string) (newCount: uint32) : Task<int> =
     task {
         use! connection = Database.openConnection config
         use command = connection.CreateCommand()
 
         command.CommandText <-
-            "UPDATE operator_passkeys SET sign_count = @signCount, last_used_utc = @now WHERE id = @id"
+            "UPDATE operator_passkeys SET sign_count = MAX(sign_count, @signCount), last_used_utc = @now WHERE id = @id"
 
         command.Parameters.AddWithValue("@signCount", int64 newCount) |> ignore
         command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
         command.Parameters.AddWithValue("@id", id) |> ignore
-        let! _ = command.ExecuteNonQueryAsync()
-        return ()
+        return! command.ExecuteNonQueryAsync()
     }
 
 type RemoveOutcome =

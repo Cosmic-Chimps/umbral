@@ -20,7 +20,7 @@ let private view (ctx: HttpContext) (t: Texts.Texts) (passwordOn: bool) (error: 
         let kind = if passwordOn then Components.Secondary else Components.Primary
 
         button(type' = "button", class' = Components.btn kind + " w-full justify-center")
-            .data("operator-passkey-signin", "")
+            .data("operator-passkey-signin", (if passwordOn then "operator-passkey-signin-failed" else "operator-passkey-signin-failed-passkey-only"))
             .attr("disabled", "")
         |> scripted
         |> fun b ->
@@ -44,7 +44,7 @@ let private view (ctx: HttpContext) (t: Texts.Texts) (passwordOn: bool) (error: 
             if passwordOn then
                 form(method = "post", action = "/admin/signin", class' = "space-y-4") {
                     ctx.GetAntiforgeryInput()
-                    Components.passwordField t.CredentialLabel "credential" None None
+                    Components.passwordField t.SignInPasswordLabel "credential" None None
 
                     button(type' = "submit", class' = Components.btn Components.Primary + " w-full justify-center") {
                         Components.icon Theme.Lock
@@ -90,6 +90,11 @@ let submit: EndpointHandler =
             let credential = WebForms.value form "credential"
             let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
 
+            // Read before the check: a switch-off that lands while the password
+            // is being hashed moves the stamp, and a cookie signed with the
+            // earlier value is then refused at the next request.
+            let! stamp = AdminAuth.sessionStamp config
+
             // While password sign-in is off `verify` is false for every
             // value, so the right password gets the wrong-password answer
             // (FR-008).
@@ -101,7 +106,7 @@ let submit: EndpointHandler =
                         clock
                         { event OperatorSignedIn Success Actor.Operator with RemoteIp = remoteIp }
 
-                do! AdminAuth.signIn ctx
+                do! AdminAuth.signInWithStamp ctx stamp
                 return! WebForms.redirect ctx "/admin/connectors"
 
             | false ->

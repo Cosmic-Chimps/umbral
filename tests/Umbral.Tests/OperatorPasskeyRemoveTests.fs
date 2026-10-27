@@ -114,7 +114,7 @@ let ``another passkey's confirm is a re-check for removing`` () =
         let! operator, token, laptop, laptopId, _, _ = withTwoPasskeys app
         let! phone = idOf app "Phone"
 
-        let! ceremony, credential = confirmCeremony operator token laptop laptopId
+        let! ceremony, credential = confirmCeremony operator token $"remove:{phone}" laptop laptopId
         let! response = post operator phone [ "ceremony", ceremony; "credential", credential ]
         Assert.Contains("operator-passkey-removed", location response)
 
@@ -145,12 +145,12 @@ let ``the last passkey stays while password sign-in is off`` () =
         let! operator, token, laptop, laptopId = withOnePasskey app
         let id = idOf app "Laptop"
 
-        let! ceremony, credential = confirmCeremony operator token laptop laptopId
+        let! ceremony, credential = confirmCeremony operator token "switch-off" laptop laptopId
         let! off = operator.PostForm("/admin/credential", "/admin/credential/password-signin", [ "state", "off"; "ceremony", ceremony; "credential", credential ])
         Assert.Contains("operator-password-off", location off)
 
         let! id = id
-        let! ceremony, credential = confirmCeremony operator token laptop laptopId
+        let! ceremony, credential = confirmCeremony operator token $"remove:{id}" laptop laptopId
         let! response = post operator id [ "ceremony", ceremony; "credential", credential ]
         Assert.Contains("operator-passkey-last", location response)
 

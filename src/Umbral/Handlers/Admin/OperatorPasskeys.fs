@@ -31,6 +31,9 @@ module Store = Umbral.Infrastructure.Passkeys
 let private NoticeSignIn = "operator-passkey-signin-failed"
 
 [<Literal>]
+let private NoticeSignInPasskeyOnly = "operator-passkey-signin-failed-passkey-only"
+
+[<Literal>]
 let private NoticeRegistration = "operator-passkey-registration-failed"
 
 [<Literal>]
@@ -48,14 +51,18 @@ let private NoticePasswordIncorrect = "credential-current-incorrect"
 
 /// Whether a passkey answer is the operator's: the ceremony is consumed first,
 /// so a reused id fails before anything else is looked at, and it counts only
-/// when its purpose is one the caller named. The credential must be one the
-/// operator holds and the answer must carry the operator's own user handle.
+/// when its purpose is one the caller named. A confirm ceremony also carries the
+/// action it was made for (in its `Nickname`, which no confirm otherwise uses),
+/// and counts only for that one (`action`); the ceremony is burned either way.
+/// The credential must be one the operator holds and the answer must carry the
+/// operator's own user handle. Answers with the id of the passkey that signed.
 let verifyOperatorAnswer
     (ctx: HttpContext)
     (purposes: Store.Purpose list)
+    (action: string option)
     (ceremonyId: string)
     (credential: JsonElement)
-    : Task<Result<unit, Reason>> =
+    : Task<Result<string, Reason>> =
     task {
         let config = ctx.GetService<Database.DbConfig>()
         let clock = ctx.GetService<TimeProvider>()
@@ -64,6 +71,7 @@ let verifyOperatorAnswer
 
         match found |> Option.filter (fun ceremony -> List.contains ceremony.Purpose purposes) with
         | None -> return Error CeremonyUnknownOrExpired
+        | Some ceremony when action.IsSome && ceremony.Nickname <> action -> return Error ConfirmNotForThisAction
         | Some ceremony ->
 
         let credentialId =
@@ -88,8 +96,11 @@ let verifyOperatorAnswer
             ) with
         | Error reason -> return Error reason
         | Ok newCount ->
-            do! OperatorPasskeys.recordUse config clock stored.Id newCount
-            return Ok()
+            // No row changed: the passkey was removed since it was read, so
+            // this answer is not the operator's any more.
+            match! OperatorPasskeys.recordUse config clock stored.Id newCount with
+            | 0 -> return Error UnknownCredential
+            | _ -> return Ok stored.Id
     }
 
 // ---------------------------------------------------------------------------
@@ -112,20 +123,40 @@ let private passwordMismatch = Failed("recheck_password_mismatch", NoticePasswor
 let private notConfirmed (reason: Reason) =
     Failed(Rules.refusalDetail reason Assertion, NoticeNotConfirmed)
 
+/// The confirm actions: what a confirm ceremony is made for, and what each
+/// action accepts. A removal's action names the passkey, and that passkey may
+/// not confirm its own removal ("another passkey").
+let ConfirmAdd = "add"
+let ConfirmSwitchOff = "switch-off"
+let ConfirmSwitchOn = "switch-on"
+let confirmRemove (id: string) = $"remove:{id}"
+
+let private removalPrefix = "remove:"
+
+/// Whether `action` is one a confirm can be made for.
+let isConfirmAction (action: string) =
+    action = ConfirmAdd
+    || action = ConfirmSwitchOff
+    || action = ConfirmSwitchOn
+    || (action.StartsWith removalPrefix && action.Length > removalPrefix.Length && action.Length <= 80)
+
 /// A passkey answer wins over a password when both came. `allowPassword` is
 /// false for the actions that take a passkey only (turning password sign-in
-/// off): a password there is wrong without being looked at.
+/// off): a password there is wrong without being looked at. `action` is what
+/// this request does; a confirm made for another one is refused.
 let recheck
     (ctx: HttpContext)
     (current: string option)
     (answer: (string * JsonElement) option)
     (allowPassword: bool)
+    (action: string)
     : Task<Recheck> =
     task {
         match answer, current with
         | Some(ceremonyId, credential), _ ->
-            match! verifyOperatorAnswer ctx [ Store.OperatorConfirm ] ceremonyId credential with
-            | Ok() -> return Confirmed
+            match! verifyOperatorAnswer ctx [ Store.OperatorConfirm ] (Some action) ceremonyId credential with
+            | Ok signedBy when action = confirmRemove signedBy -> return notConfirmed ConfirmNotForThisAction
+            | Ok _ -> return Confirmed
             | Error reason -> return notConfirmed reason
         | None, Some password when password <> "" ->
             if not allowPassword then
@@ -142,12 +173,12 @@ let recheck
 /// The re-check of a form post: `current`, `ceremony` and `credential` (the
 /// browser's answer as a JSON string, since a form field holds text). A ceremony
 /// without a credential, or the reverse, is a malformed answer, not a missing one.
-let recheckForm (ctx: HttpContext) (form: IFormCollection) (allowPassword: bool) : Task<Recheck> =
+let recheckForm (ctx: HttpContext) (form: IFormCollection) (allowPassword: bool) (action: string) : Task<Recheck> =
     task {
         let current = WebForms.optional form "current"
 
         match WebForms.optional form "ceremony", WebForms.optional form "credential" with
-        | None, None -> return! recheck ctx current None allowPassword
+        | None, None -> return! recheck ctx current None allowPassword action
         | Some ceremonyId, Some credentialText ->
             let parsed =
                 try
@@ -159,18 +190,19 @@ let recheckForm (ctx: HttpContext) (form: IFormCollection) (allowPassword: bool)
             | None -> return notConfirmed MalformedResponse
             | Some document ->
                 use document = document
-                return! recheck ctx current (Some(ceremonyId, document.RootElement)) allowPassword
+                return! recheck ctx current (Some(ceremonyId, document.RootElement)) allowPassword action
         | _ -> return notConfirmed MalformedResponse
     }
 
-/// The re-check of a JSON body: `current` and `ceremony` strings, `credential`
-/// an object. The password is allowed; `verify` refuses it while it is off.
+/// The re-check of a JSON body, which only the add takes: `current` and `ceremony`
+/// strings, `credential` an object. The password is allowed; `verify` refuses it
+/// while it is off.
 let recheckJson (ctx: HttpContext) (body: JsonElement) : Task<Recheck> =
     let current = tryString body "current" |> Option.filter (fun value -> value <> "")
 
     match tryString body "ceremony", tryProperty body "credential" with
-    | None, None -> recheck ctx current None true
-    | Some ceremonyId, Some credential -> recheck ctx current (Some(ceremonyId, credential)) true
+    | None, None -> recheck ctx current None true ConfirmAdd
+    | Some ceremonyId, Some credential -> recheck ctx current (Some(ceremonyId, credential)) true ConfirmAdd
     | _ -> Task.FromResult(notConfirmed MalformedResponse)
 
 // ---------------------------------------------------------------------------
@@ -203,7 +235,12 @@ let private refuseWith
     }
 
 let private refuseSignIn (ctx: HttpContext) (reason: Reason) : Task =
-    refuseWith ctx OperatorSignInFailed (Rules.refusalDetail reason Assertion) NoticeSignIn
+    task {
+        // The notice depends on whether a password is on offer on the page.
+        let! passwordOn = OperatorPasskeys.passwordSignInEnabled (ctx.GetService<Database.DbConfig>())
+        let notice = if passwordOn then NoticeSignIn else NoticeSignInPasskeyOnly
+        do! refuseWith ctx OperatorSignInFailed (Rules.refusalDetail reason Assertion) notice
+    }
 
 let private refuseRegistration (ctx: HttpContext) (reason: Reason) : Task =
     refuseWith ctx OperatorPasskeyAdded (Rules.refusalDetail reason Registration) NoticeRegistration
@@ -265,15 +302,28 @@ let signIn: EndpointHandler =
     fun ctx ->
         withBody ctx (fun body ->
             task {
-                match tryString body "ceremony", tryProperty body "credential" with
-                | Some ceremonyId, Some credential ->
-                    match! verifyOperatorAnswer ctx [ Store.OperatorSignin ] ceremonyId credential with
-                    | Error reason -> do! refuseSignIn ctx reason
-                    | Ok() ->
-                        do! recordEvent ctx OperatorSignedIn Success (Some "passkey")
-                        do! AdminAuth.signIn ctx
-                        do! writeObject ctx 200 [ "redirect", text "/admin/connectors" ]
-                | _ -> do! refuseSignIn ctx MalformedResponse
+                let config = ctx.GetService<Database.DbConfig>()
+                let! configured = AdminAuth.isConfigured config
+
+                if not configured then
+                    // Like the options route: before first-run setup there is
+                    // nothing to sign in to, whatever a restored database holds.
+                    do! badRequest ctx
+                else
+                    // Read before the answer is checked: a removal or a switch-off
+                    // that lands meanwhile moves the stamp, and a cookie signed
+                    // with the earlier value is refused at its next request.
+                    let! stamp = AdminAuth.sessionStamp config
+
+                    match tryString body "ceremony", tryProperty body "credential" with
+                    | Some ceremonyId, Some credential ->
+                        match! verifyOperatorAnswer ctx [ Store.OperatorSignin ] None ceremonyId credential with
+                        | Error reason -> do! refuseSignIn ctx reason
+                        | Ok _ ->
+                            do! recordEvent ctx OperatorSignedIn Success (Some "passkey")
+                            do! AdminAuth.signInWithStamp ctx stamp
+                            do! writeObject ctx 200 [ "redirect", text "/admin/connectors" ]
+                    | _ -> do! refuseSignIn ctx MalformedResponse
             })
 
 // ---------------------------------------------------------------------------
@@ -282,10 +332,15 @@ let signIn: EndpointHandler =
 
 let confirmOptions: EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
-        withBody ctx (fun _ ->
+        withBody ctx (fun body ->
             task {
-                let options = ctx.GetService<WebAuthn.Verifier>().AssertionOptions()
-                do! startAndAnswer ctx Store.OperatorConfirm (options.ToJson()) None
+                // The action the confirm is for rides with the ceremony, so an
+                // answer made for one change cannot authorise another (FR-004).
+                match tryString body "action" |> Option.filter isConfirmAction with
+                | None -> do! writeObject ctx 400 [ "error", text NoticeNotConfirmed ]
+                | Some action ->
+                    let options = ctx.GetService<WebAuthn.Verifier>().AssertionOptions()
+                    do! startAndAnswer ctx Store.OperatorConfirm (options.ToJson()) (Some action)
             }))
 
 let addOptions: EndpointHandler =

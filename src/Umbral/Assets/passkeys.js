@@ -24,7 +24,9 @@
 //   [data-operator-confirm]          a form (remove a passkey, the password sign-in
 //                                    switch): a passkey ceremony re-checks it, and its
 //                                    answer fills the hidden `ceremony` and
-//                                    `credential` fields before the form is sent
+//                                    `credential` fields before the form is sent. The
+//                                    attribute's value is the action the confirm is for
+//                                    (`remove:<id>`, `switch-off`, `switch-on`)
 //   [data-operator-confirm-passkey]  a submit button of such a form: always the
 //                                    passkey ceremony, even when a password field exists
 //
@@ -316,8 +318,9 @@ document.addEventListener('click', function (event) {
   var button = event.target.closest('[data-operator-passkey-signin]');
   if (!button || button.disabled) return;
   event.preventDefault();
+  // The page names the notice for its own state (a password is or is not on offer).
   runPasskeyCeremony(button, 'get', '/admin/signin/passkey/options', '/admin/signin/passkey', {},
-    OPERATOR_SIGNIN_FAILED);
+    button.getAttribute('data-operator-passkey-signin') || OPERATOR_SIGNIN_FAILED);
 });
 
 function passkeysUnavailable() {
@@ -342,8 +345,10 @@ function usesPasskeyConfirm(form, submitter) {
 
 // The re-check by passkey: `{ ceremony, credential }` for the server to verify.
 // No credential is a failure.
-function confirmWithPasskey() {
-  return postPasskeyJson('/admin/credential/confirm/options', {}).then(function (started) {
+// `action` is what the confirm is for ('add', 'switch-off', 'switch-on' or
+// 'remove:<id>'); the server accepts the answer for that action only.
+function confirmWithPasskey(action) {
+  return postPasskeyJson('/admin/credential/confirm/options', { action: action }).then(function (started) {
     return navigator.credentials.get({ publicKey: parseRequestOptions(started.options) })
       .then(function (credential) {
         if (!credential) throw new Error('no-credential');
@@ -381,7 +386,7 @@ document.addEventListener('submit', function (event) {
 
   var name = passkeyField(form, 'name');
   var recheck = usesPasskeyConfirm(form, event.submitter)
-    ? confirmWithPasskey().then(function (confirmed) {
+    ? confirmWithPasskey('add').then(function (confirmed) {
       return { name: name, ceremony: confirmed.ceremony, credential: confirmed.credential };
     })
     : Promise.resolve({ name: name, current: passkeyField(form, 'current') });
@@ -419,7 +424,7 @@ document.addEventListener('submit', function (event) {
   var controls = submitButtonsOf(form);
   setDisabled(controls, true);
 
-  confirmWithPasskey()
+  confirmWithPasskey(form.getAttribute('data-operator-confirm'))
     .then(function (confirmed) {
       var ceremony = form.querySelector('input[name="ceremony"]');
       var credential = form.querySelector('input[name="credential"]');

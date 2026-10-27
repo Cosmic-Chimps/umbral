@@ -227,7 +227,7 @@ let recordUse (config: Database.DbConfig) (clock: TimeProvider) (id: string) (ne
         use! connection = Database.openConnection config
         use command = connection.CreateCommand()
 
-        command.CommandText <- "UPDATE passkeys SET sign_count = @signCount, last_used_utc = @now WHERE id = @id"
+        command.CommandText <- "UPDATE passkeys SET sign_count = MAX(sign_count, @signCount), last_used_utc = @now WHERE id = @id"
 
         command.Parameters.AddWithValue("@signCount", int64 newCount) |> ignore
         command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore

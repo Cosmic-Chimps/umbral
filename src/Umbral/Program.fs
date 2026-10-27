@@ -637,6 +637,11 @@ let resetCredential (app: WebApplication) (forgetPasskeys: bool) (write: string 
                               SecurityEvents.Actor.System with
                             Detail = Some "offline_reset" }
 
+            // Moved once more, last: the replacement moved it first, and a
+            // passkey sign-in that landed before the passkeys went (or the
+            // switch came on) would otherwise keep its session.
+            do! AdminAuth.endEverySession dbConfig clock
+
             let line = String.replicate 64 "="
 
             let headline =

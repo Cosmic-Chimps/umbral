@@ -104,7 +104,7 @@ let ``turning it off with a passkey ends the other sessions and keeps this one``
         let! operator, token, authenticator, credentialId = withOnePasskey app
         let! other = secondBrowser app
 
-        let! answer = confirmCeremony operator token authenticator credentialId
+        let! answer = confirmCeremony operator token "switch-off" authenticator credentialId
         let! response = postSwitch operator "off" (passkeyCheck answer)
         Assert.Contains("operator-password-off", location response)
 
@@ -125,7 +125,7 @@ let ``while it is off a password does nothing and no screen asks for one`` () =
     task {
         use! app = Fixtures.createApp ()
         let! operator, token, authenticator, credentialId = withOnePasskey app
-        let! answer = confirmCeremony operator token authenticator credentialId
+        let! answer = confirmCeremony operator token "switch-off" authenticator credentialId
         let! _ = postSwitch operator "off" (passkeyCheck answer)
 
         // The right password signs nobody in.
@@ -165,7 +165,7 @@ let ``while it is off a password does nothing and no screen asks for one`` () =
         Assert.DoesNotContain("type=\"password\"", signInPage)
 
         // The stored password is the old one: it works again once the switch is on.
-        let! answer = confirmCeremony operator token authenticator credentialId
+        let! answer = confirmCeremony operator token "switch-on" authenticator credentialId
         let! back = postSwitch operator "on" (passkeyCheck answer)
         Assert.Contains("operator-password-on", location back)
 
@@ -180,10 +180,10 @@ let ``turning it on with a passkey lets the old password sign in again`` () =
     task {
         use! app = Fixtures.createApp ()
         let! operator, token, authenticator, credentialId = withOnePasskey app
-        let! answer = confirmCeremony operator token authenticator credentialId
+        let! answer = confirmCeremony operator token "switch-off" authenticator credentialId
         let! _ = postSwitch operator "off" (passkeyCheck answer)
 
-        let! answer = confirmCeremony operator token authenticator credentialId
+        let! answer = confirmCeremony operator token "switch-on" authenticator credentialId
         let! response = postSwitch operator "on" (passkeyCheck answer)
         Assert.Contains("operator-password-on", location response)
 

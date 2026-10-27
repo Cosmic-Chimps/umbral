@@ -107,11 +107,78 @@ let ``recordUse updates the counter and the last used time`` () =
     withDb (fun config ->
         task {
             let! key = addOne config 1
-            do! recordUse config clock key.Id 7u
+            let! rows = recordUse config clock key.Id 7u
+            Assert.Equal(1, rows)
 
             let! stored = findById config key.Id
             Assert.Equal(7u, stored.Value.SignCount)
             Assert.True stored.Value.LastUsedUtc.IsSome
+        })
+
+[<Fact>]
+let ``recordUse for a removed passkey changes no row`` () =
+    withDb (fun config ->
+        task {
+            let! key = addOne config 1
+            let! removed = remove config key.Id
+            Assert.Equal(Removed, removed)
+
+            // The sign-in that read it before the removal must not count.
+            let! rows = recordUse config clock key.Id 3u
+            Assert.Equal(0, rows)
+        })
+
+[<Fact>]
+let ``the counter never moves backwards`` () =
+    withDb (fun config ->
+        task {
+            let! key = addOne config 1
+            let! _ = recordUse config clock key.Id 9u
+            let! _ = recordUse config clock key.Id 4u
+
+            let! stored = findById config key.Id
+            Assert.Equal(9u, stored.Value.SignCount)
+        })
+
+// Two requests at once, as the single statements are meant to serialise: the
+// outcomes below hold whichever one SQLite lets in first.
+
+[<Fact>]
+let ``two removals at once while password sign-in is off leave exactly one passkey`` () =
+    withDb (fun config ->
+        task {
+            for round in 1..10 do
+                let! a = addOne config (round * 2)
+                let! b = addOne config (round * 2 + 1)
+                let! off = turnPasswordSignInOff config clock
+                Assert.Equal(SwitchedOff, off)
+
+                let! outcomes = Task.WhenAll [ remove config a.Id; remove config b.Id ]
+                Assert.Equal(1, outcomes |> Array.filter ((=) Removed) |> Array.length)
+                Assert.Equal(1, outcomes |> Array.filter ((=) LastWhilePasswordOff) |> Array.length)
+
+                let! held = count config
+                Assert.Equal(1, held)
+
+                // Back to a clean slate for the next round.
+                let! _ = removeAll config
+                do! turnPasswordSignInOn config clock
+        })
+
+[<Fact>]
+let ``a removal and a switch-off at once never leave it off with no passkey`` () =
+    withDb (fun config ->
+        task {
+            for round in 1..20 do
+                let! key = addOne config round
+                let! _ = Task.WhenAll [ (remove config key.Id :> Task); (turnPasswordSignInOff config clock :> Task) ]
+
+                let! held = count config
+                let! on = passwordSignInEnabled config
+                Assert.True(on || held > 0, $"round {round}: password sign-in off with no passkey")
+
+                let! _ = removeAll config
+                do! turnPasswordSignInOn config clock
         })
 
 [<Fact>]

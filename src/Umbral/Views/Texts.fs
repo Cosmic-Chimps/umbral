@@ -60,9 +60,13 @@ type Texts =
       // Operator sign-in (/admin/signin)
       SignInTitle: string
       SignInButton: string
+      /// The sign-in page's own word for the field; setup keeps `CredentialLabel`.
+      SignInPasswordLabel: string
 
-      // Replacing the operator credential once signed in (FR-017a)
-      CredentialNewLabel: string
+      // Replacing the operator credential once signed in (FR-017a): the Password
+      // card's own labels, not setup's.
+      PasswordNewLabel: string
+      PasswordConfirmLabel: string
 
       // The Credential screen and operator sign-in with passkeys (spec 011)
       CredentialTitle: string
@@ -804,8 +808,9 @@ let private noticeEn (code: string) : string option =
         Some "This is the only passkey, and password sign-in is off. Turn password sign-in on first, or add another passkey."
     | "operator-passkey-not-confirmed" -> Some "The passkey did not confirm. Try again."
     | "operator-passkey-limit" -> Some "This credential has 10 passkeys, the most it can hold. Remove one to add another."
-    | "operator-passkey-signin-failed" ->
-        Some "That passkey did not sign you in. Try again, or use your password if it is on."
+    // Two words for one failure, because the page knows whether a password is on.
+    | "operator-passkey-signin-failed" -> Some "That passkey did not sign you in. Try again, or use your password."
+    | "operator-passkey-signin-failed-passkey-only" -> Some "That passkey did not sign you in. Try again."
     | "operator-passkey-registration-failed" -> Some "The passkey was not added. Try again."
     // The passkey connector (spec 008). The sign-in and invitation notices are
     // what a stranger reads, so none says why a ceremony was refused: the reason
@@ -907,8 +912,10 @@ let en: Texts =
 
       SignInTitle = "Operator sign-in"
       SignInButton = "Sign in"
+      SignInPasswordLabel = "Password"
 
-      CredentialNewLabel = "New credential"
+      PasswordNewLabel = "New password"
+      PasswordConfirmLabel = "Confirm the new password"
 
       CredentialTitle = "Credential"
       CredentialLead = "How you sign in to the admin area: with your password, with a passkey, or either."

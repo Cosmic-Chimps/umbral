@@ -281,7 +281,8 @@ let ``passkeys are listed by name with their dates and never by credential id`` 
         let second = passkey 2 None
         do! addPasskey app first
         do! addPasskey app second
-        do! OperatorPasskeys.recordUse app.DbConfig app.Clock second.Id 1u
+        let! _ = OperatorPasskeys.recordUse app.DbConfig app.Clock second.Id 1u
+        ()
 
         let! html = operator.GetHtml "/admin/credential"
         Assert.Contains("Key number 1", html)

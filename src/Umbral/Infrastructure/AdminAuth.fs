@@ -249,14 +249,27 @@ let configureCookie (options: CookieAuthenticationOptions) =
     options.LoginPath <- PathString "/admin/signin"
     options.AccessDeniedPath <- PathString "/admin/signin"
 
-let signIn (ctx: HttpContext) : Task =
+/// The session stamp as it is now. A sign-in that has to be ended by a change
+/// made while it was being checked reads it BEFORE the check and signs in with
+/// that value: a stamp that moved in between then makes the new cookie stale.
+let sessionStamp (config: Database.DbConfig) : Task<string> = currentStamp config
+
+/// Signs the browser in with a stamp read earlier (see `sessionStamp`).
+let signInWithStamp (ctx: HttpContext) (stamp: string) : Task =
     task {
-        let! stamp = currentStamp (ctx.GetService<Database.DbConfig>())
         let identity = ClaimsIdentity(Scheme)
         identity.AddClaim(Claim(ClaimTypes.Name, "operator"))
         identity.AddClaim(Claim(OperatorClaim, "true"))
         identity.AddClaim(Claim(StampClaim, stamp))
         do! ctx.SignInAsync(Scheme, ClaimsPrincipal identity)
+    }
+
+/// Signs the browser in with the stamp as it is now: for a change that has just
+/// moved it on purpose and wants this browser to survive it.
+let signIn (ctx: HttpContext) : Task =
+    task {
+        let! stamp = currentStamp (ctx.GetService<Database.DbConfig>())
+        do! signInWithStamp ctx stamp
     }
 
 let signOut (ctx: HttpContext) : Task = ctx.SignOutAsync Scheme

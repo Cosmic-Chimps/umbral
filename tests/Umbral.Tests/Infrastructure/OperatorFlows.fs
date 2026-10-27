@@ -26,16 +26,18 @@ let signedInOperator (app: Fixtures.TestApp) : Task<Browser * string> =
         return browser, token
     }
 
-/// The answer of an existing operator passkey to a fresh confirm ceremony:
-/// the ceremony id and the credential as the browser would send it.
+/// The answer of an existing operator passkey to a fresh confirm ceremony made
+/// for `action` (`add`, `switch-off`, `switch-on`, `remove:<id>`): the ceremony
+/// id and the credential as the browser would send it.
 let confirmAnswer
     (browser: Browser)
     (token: string)
+    (action: string)
     (authenticator: SoftwareAuthenticator.SoftwareAuthenticator)
     (credentialId: byte array)
     : Task<string * JsonElement> =
     task {
-        let! response, started = postJson browser "/admin/credential/confirm/options" token {||}
+        let! response, started = postJson browser "/admin/credential/confirm/options" token {| action = action |}
         Assert.Equal(HttpStatusCode.OK, response.StatusCode)
         let credential = authenticator.Assert(started.GetProperty "options", credentialId)
         return strOf started "ceremony", credential
@@ -45,11 +47,12 @@ let confirmAnswer
 let confirmCeremony
     (browser: Browser)
     (token: string)
+    (action: string)
     (authenticator: SoftwareAuthenticator.SoftwareAuthenticator)
     (credentialId: byte array)
     : Task<string * string> =
     task {
-        let! ceremony, credential = confirmAnswer browser token authenticator credentialId
+        let! ceremony, credential = confirmAnswer browser token action authenticator credentialId
         return ceremony, credential.GetRawText()
     }
 
@@ -93,7 +96,7 @@ let addOperatorPasskeyConfirmedBy
     (confirming: byte array)
     : Task<HttpResponseMessage * JsonElement * byte array> =
     task {
-        let! ceremony, credential = confirmAnswer browser token confirmer confirming
+        let! ceremony, credential = confirmAnswer browser token "add" confirmer confirming
 
         let! options, started =
             postJson
