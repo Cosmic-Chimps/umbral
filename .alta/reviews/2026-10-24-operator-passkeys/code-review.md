@@ -87,3 +87,26 @@ A full `dotnet test` at `966bbf7`, run by the reviewer (macOS): **1770 passed, 0
 ## What happens next
 
 Fix B1 and B2 with tests, take the nits you can, and do the design and documentation items above. Commit this file, `review.md` and your answers in `notes.md`, then message the `umbral` session for the one re-check. No merge until all three reviews say clear. The maintainer merges.
+
+## Re-check at `eb30cdc` (2026-10-27)
+
+**Clear to merge.** I read `20a81c2` against B1, B2 and the nits, read the new tests, and ran the suite myself.
+
+- **B1, fixed.**
+  - `AdminAuth.sessionStamp` and `signInWithStamp`: the password sign-in (`SignIn.fs`) and the passkey sign-in (`OperatorPasskeys.fs` `signIn`) read the stamp **before** the check and sign in with that value. The plain `signIn`, which reads the stamp as it is now, is kept only for the flows that move it on purpose and re-sign the current browser (remove, switch-off).
+  - `recordUse` returns the rows changed, and `verifyOperatorAnswer` refuses with `UnknownCredential` at 0.
+  - `OperatorConfirmBindingTests` puts a trigger on the `operator_signed_in` event insert that moves the stamp between the check and the cookie, for both sign-ins, and checks the next admin request refuses the cookie. The implementer reports both tests fail against the old code.
+- **B2, fixed.**
+  - `confirm/options` takes `{ action }`, and an action outside `add`, `switch-off`, `switch-on` or `remove:<id>` (at most 80 characters) answers 400. The action rides on the ceremony's `Nickname`, so there's no schema change.
+  - `verifyOperatorAnswer` consumes the ceremony first and then refuses a mismatch as `ConfirmNotForThisAction`, so a wrong-action confirm is burned.
+  - Each handler passes its own action (`recheckForm … (confirmRemove id)`, the switch's state, `ConfirmAdd` for the JSON add).
+  - Tests: one per action, with the burn checked; a removal confirm used on another passkey; an unknown action.
+- **The nits, all taken:**
+  - N1: `MAX(sign_count, …)` in both stores.
+  - N2: the passkey sign-in POST refuses before setup, with a test.
+  - N3: a passkey can't confirm its own removal (`Ok signedBy when action = confirmRemove signedBy`), with a test.
+  - N4: `reset-credential` ends every session once more, last. Its order isn't tested; acceptable.
+  - N5: concurrent store tests.
+- **Strings and docs:** the designer's three strings and the README's host-name sentence are in; `umbral-designer` confirmed its part.
+- **Tests run by the reviewer:** a full `dotnet test` at `eb30cdc` passes **1784 of 1784**, 0 failed, 0 skipped (macOS). The branch merges onto `main` (`853bf39`) without conflicts.
+- **Still to watch:** CI's linux/amd64 idle-memory figure on the first push (arm64: 147.6 of 150 MiB).
