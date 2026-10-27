@@ -1,0 +1,725 @@
+{
+  "workflow": "companion",
+  "specName": "Operator passkeys",
+  "branch": "alta/earthy-orinoco-8bkw",
+  "currentStep": "implement",
+  "status": "completed",
+  "history": [
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-27T03:29:55.348Z"
+    },
+    {
+      "step": "specify",
+      "substep": null,
+      "kind": "complete",
+      "by": "extension",
+      "at": "2026-10-27T03:31:56.984Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-27T03:32:05.709Z"
+    },
+    {
+      "step": "plan",
+      "substep": "research",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:34:21.346Z"
+    },
+    {
+      "step": "plan",
+      "substep": "design",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:35:06.273Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:35:10.387Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-27T03:36:00.248Z"
+    },
+    {
+      "step": "tasks",
+      "substep": "generate",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:36:47.468Z"
+    },
+    {
+      "step": "tasks",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:36:49.066Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-27T03:37:02.233Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T002",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:37:46.936Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T003",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:37:47.114Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T001",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:41:34.336Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T004",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:41:34.605Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T005",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:44:12.852Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T007",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:44:46.559Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T006",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:49:50.432Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T010",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:57:36.872Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T008",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:04:47.958Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T009",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:04:48.068Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T020",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:04:48.175Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T013",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:07:06.463Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T011",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:20:42.662Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T012",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:27:00.214Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T014",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:35:39.864Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T015",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:35:40.003Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T016",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:35:40.109Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T017",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:35:40.212Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T018",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:38:30.306Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T019",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:38:30.426Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T021",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:38:30.660Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T022",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:38:46.707Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T023",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T18:19:17.509Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T024",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T19:28:26.422Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T19:28:26.482Z"
+    }
+  ],
+  "unattended": true,
+  "coverage": {
+    "FR-001": {
+      "title": "Add an operator passkey with a name, UV and discoverable required",
+      "tasks": [
+        "T005",
+        "T006",
+        "T009",
+        "T010",
+        "T011",
+        "T013"
+      ]
+    },
+    "FR-002": {
+      "title": "At most 10 operator passkeys",
+      "tasks": [
+        "T005",
+        "T009",
+        "T010",
+        "T011"
+      ]
+    },
+    "FR-003": {
+      "title": "List with name, added, last used, Remove",
+      "tasks": [
+        "T011"
+      ]
+    },
+    "FR-004": {
+      "title": "Add, remove and switch re-check the current credential in the action",
+      "tasks": [
+        "T010",
+        "T014",
+        "T015",
+        "T016",
+        "T017"
+      ]
+    },
+    "FR-005": {
+      "title": "Sign in with a passkey on /admin/signin, password form kept while on",
+      "tasks": [
+        "T010",
+        "T012",
+        "T013"
+      ]
+    },
+    "FR-006": {
+      "title": "Passkey sign-in opens the admin session and updates last used",
+      "tasks": [
+        "T009",
+        "T010"
+      ]
+    },
+    "FR-007": {
+      "title": "Switch off refused with no passkey, takes a passkey ceremony",
+      "tasks": [
+        "T005",
+        "T014",
+        "T015"
+      ]
+    },
+    "FR-008": {
+      "title": "Password refused everywhere while off, neutral sign-in answer",
+      "tasks": [
+        "T007",
+        "T014"
+      ]
+    },
+    "FR-009": {
+      "title": "No password field shown while off",
+      "tasks": [
+        "T011",
+        "T012",
+        "T014"
+      ]
+    },
+    "FR-010": {
+      "title": "Stored password kept while off",
+      "tasks": [
+        "T014"
+      ]
+    },
+    "FR-011": {
+      "title": "Last passkey removal refused while off, race-safe",
+      "tasks": [
+        "T005",
+        "T016",
+        "T017"
+      ]
+    },
+    "FR-012": {
+      "title": "Remove and switch-off end other admin sessions",
+      "tasks": [
+        "T007",
+        "T015",
+        "T017"
+      ]
+    },
+    "FR-013": {
+      "title": "reset-credential: new password, switch on, sessions ended, passkeys kept",
+      "tasks": [
+        "T018",
+        "T019"
+      ]
+    },
+    "FR-014": {
+      "title": "reset-credential --forget-passkeys removes all operator passkeys",
+      "tasks": [
+        "T018",
+        "T019"
+      ]
+    },
+    "FR-015": {
+      "title": "Operator passkeys apart from users, never sign in to an app",
+      "tasks": [
+        "T001",
+        "T005",
+        "T009"
+      ]
+    },
+    "FR-016": {
+      "title": "Single-use challenge, RP ID, origin, counter checks",
+      "tasks": [
+        "T002",
+        "T006",
+        "T009"
+      ]
+    },
+    "FR-017": {
+      "title": "Checking requests share RateLimits.AdminAuth",
+      "tasks": [
+        "T009",
+        "T010",
+        "T015",
+        "T017"
+      ]
+    },
+    "FR-018": {
+      "title": "Security-log events, no credential material anywhere",
+      "tasks": [
+        "T003",
+        "T009",
+        "T010"
+      ]
+    },
+    "FR-019": {
+      "title": "No-JS sign-in behaviour",
+      "tasks": [
+        "T012"
+      ]
+    },
+    "FR-020": {
+      "title": "First-run setup unchanged",
+      "tasks": [
+        "T023"
+      ]
+    },
+    "FR-021": {
+      "title": "Next schema version; upgrade starts with none and on",
+      "tasks": [
+        "T001"
+      ]
+    },
+    "FR-022": {
+      "title": "README and CHANGELOG",
+      "tasks": [
+        "T021"
+      ]
+    }
+  },
+  "size": "normal",
+  "classification": {
+    "projectedFiles": 20,
+    "projectedTasks": 30,
+    "scopeSignal": "none",
+    "verdict": "normal"
+  },
+  "expectations": [
+    "no TOTP or 6-digit codes",
+    "no operator accounts or roles",
+    "no change to first-run setup",
+    "no operator passkey on the Users screen"
+  ],
+  "context": [
+    "area: src/Umbral/Handlers/Admin (Credential.fs, SignIn.fs)",
+    "area: src/Umbral/Infrastructure (AdminAuth.fs, WebAuthn.fs, Passkeys.fs ceremonies, Database.fs schema 7)",
+    "area: src/Umbral/Program.fs reset-credential",
+    "constraint: constitution 3.0.1 Principle VII operator credential bullet",
+    "constraint: reuse WebAuthn.Verifier, do not copy"
+  ],
+  "intent": "Operator passkeys for the admin area and a switch to turn password sign-in off",
+  "decisions": [
+    {
+      "decision": "Verifier takes keys and a uniqueness function instead of user Passkey records",
+      "why": "reuse the one WebAuthn module for both kinds",
+      "rejected": "a second verifier (copy)"
+    },
+    {
+      "decision": "Operator ceremonies share passkey_ceremonies with three operator purposes",
+      "why": "single-use, expiry and lifetime already tested",
+      "rejected": "an operator_ceremonies table"
+    },
+    {
+      "decision": "Re-check carried by each action request (password or a confirm ceremony answer)",
+      "why": "no elevated window to steal, same as replacing the password",
+      "rejected": "sudo window"
+    },
+    {
+      "decision": "AdminAuth.verify refuses every password while the switch is off",
+      "why": "one place covers every route",
+      "rejected": "checks in each handler"
+    },
+    {
+      "decision": "Admin limit on checking/completing requests, connector ceremony limit on options",
+      "why": "options check nothing; admin limit would halve passkey sign-ins",
+      "rejected": "admin limit on all"
+    },
+    {
+      "decision": "Remove and switch-off rotate the session stamp",
+      "why": "usual reason is a lost device or a doubted password",
+      "rejected": "no rotation"
+    }
+  ],
+  "step_summaries": {
+    "plan": {
+      "summary": "Plan: schema 8 table, shared verifier/ceremonies, new operator handler module, verify refuses while off",
+      "key_finding": "WebAuthn.Verifier is coupled to Passkeys.Passkey in three members; decoupling them is the reuse point"
+    },
+    "tasks": {
+      "summary": "24 tasks: foundational 8 (schema, store, verifier, AdminAuth, texts), US1 5, US2 2, US3 2, US4 2, polish 5"
+    },
+    "implement": {
+      "summary": "Operator passkeys, password sign-in switch, reset-credential --forget-passkeys; three reviews clear"
+    }
+  },
+  "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
+  "currentTask": "T024",
+  "task_summaries": {
+    "T002": {
+      "status": "DONE",
+      "did": "Three operator ceremony purposes with stored words",
+      "files": [
+        "src/Umbral/Infrastructure/Passkeys.fs"
+      ]
+    },
+    "T003": {
+      "status": "DONE",
+      "did": "Three operator event types in the enum, Value and allEventTypes",
+      "files": [
+        "src/Umbral/Infrastructure/SecurityEvents.fs"
+      ]
+    },
+    "T001": {
+      "status": "DONE",
+      "did": "Schema 8 operator_passkeys in schema and UpgradeToVersion8; DatabaseTests at 8 plus a 7-to-8 upgrade test",
+      "files": [
+        "src/Umbral/Infrastructure/Database.fs",
+        "tests/Umbral.Tests/DatabaseTests.fs"
+      ]
+    },
+    "T004": {
+      "status": "DONE",
+      "did": "Design contract strings and ten notice codes in Texts.fs; re-check refusal says password",
+      "files": [
+        "src/Umbral/Views/Texts.fs"
+      ]
+    },
+    "T005": {
+      "status": "DONE",
+      "did": "OperatorPasskeys store: list, add under 10, recordUse, remove unless last while off, removeAll, switch, user handle; 12 store tests",
+      "files": [
+        "src/Umbral/Infrastructure/OperatorPasskeys.fs",
+        "tests/Umbral.Tests/OperatorPasskeyStoreTests.fs"
+      ]
+    },
+    "T007": {
+      "status": "DONE",
+      "did": "AdminAuth.verify refuses while password sign-in is off; endEverySession rotates the stamp",
+      "files": [
+        "src/Umbral/Infrastructure/AdminAuth.fs"
+      ]
+    },
+    "T006": {
+      "status": "DONE",
+      "did": "Verifier takes exclude pairs, a uniqueness function and stored key/counter/handle; Ceremonies helpers public; 165 passkey tests green",
+      "files": [
+        "src/Umbral/Infrastructure/WebAuthn.fs",
+        "src/Umbral/Handlers/Passkeys/Ceremonies.fs",
+        "src/Umbral/Program.fs",
+        "tests/Umbral.Tests/WebAuthnVerifierTests.fs"
+      ]
+    },
+    "T010": {
+      "status": "DONE",
+      "did": "Operator ceremony endpoints (sign-in, confirm, add) and the shared re-check reader",
+      "files": [
+        "src/Umbral/Handlers/Admin/OperatorPasskeys.fs",
+        "src/Umbral/Umbral.fsproj",
+        "src/Umbral/Program.fs"
+      ]
+    },
+    "T008": {
+      "status": "DONE",
+      "did": "OperatorFlows helpers: signed-in operator, add with password or passkey re-check, confirm ceremony, operator passkey sign-in",
+      "files": [
+        "tests/Umbral.Tests/Infrastructure/OperatorFlows.fs"
+      ]
+    },
+    "T009": {
+      "status": "DONE",
+      "did": "13 US1 tests: add both ways, refusals, limit, sign-in, replay/origin/UV/counter, isolation both ways, rate limit, no credential id",
+      "files": [
+        "tests/Umbral.Tests/OperatorPasskeyTests.fs"
+      ]
+    },
+    "T020": {
+      "status": "DONE",
+      "did": "CsrfTests walks the new JSON admin routes as JSON, one address per request, sign-in routes open to a stranger",
+      "files": [
+        "tests/Umbral.Tests/CsrfTests.fs"
+      ]
+    },
+    "T013": {
+      "status": "DONE",
+      "did": "passkeys.js: reveal data-scripted controls, operator sign-in, add form, confirm forms",
+      "files": [
+        "src/Umbral/Assets/passkeys.js"
+      ]
+    },
+    "T011": {
+      "status": "DONE",
+      "did": "Credential screen: Passkeys, Password sign-in and Password cards, confirm blocks via render ctx confirm, notices; operatorPageWithScripts",
+      "files": [
+        "src/Umbral/Handlers/Admin/Credential.fs",
+        "src/Umbral/Views/Layout.fs",
+        "src/Umbral/Views/Texts.fs",
+        "tests/Umbral.Tests/CredentialTests.fs",
+        "tests/Umbral.Tests/PageAssetsTests.fs"
+      ]
+    },
+    "T012": {
+      "status": "DONE",
+      "did": "Sign-in page: password form while on, divider and scripted passkey button, noscript lines, passkeys.js linked; 3 tests",
+      "files": [
+        "src/Umbral/Handlers/Admin/SignIn.fs",
+        "src/Umbral/Views/Texts.fs",
+        "tests/Umbral.Tests/OperatorPasskeyTests.fs",
+        "tests/Umbral.Tests/PageAssetsTests.fs"
+      ]
+    },
+    "T014": {
+      "status": "DONE",
+      "did": "7 switch tests: refusals, 422 confirm, off ends sessions, password refused everywhere while off, on again",
+      "files": [
+        "tests/Umbral.Tests/OperatorPasswordSwitchTests.fs"
+      ]
+    },
+    "T015": {
+      "status": "DONE",
+      "did": "POST /admin/credential/password-signin: passkey-only re-check, 422 confirm, stamp moved on off, events",
+      "files": [
+        "src/Umbral/Handlers/Admin/OperatorPasswordSignIn.fs"
+      ]
+    },
+    "T016": {
+      "status": "DONE",
+      "did": "7 remove tests: 422 confirm, password and passkey re-check, sessions ended, last refused while off, unknown id; coverage journey",
+      "files": [
+        "tests/Umbral.Tests/OperatorPasskeyRemoveTests.fs",
+        "tests/Umbral.Tests/SecurityEventCoverageTests.fs"
+      ]
+    },
+    "T017": {
+      "status": "DONE",
+      "did": "POST /admin/credential/passkeys/{id}/remove: last refused up front while off, re-check, remove, stamp moved, events",
+      "files": [
+        "src/Umbral/Handlers/Admin/OperatorPasskeyRemove.fs"
+      ]
+    },
+    "T018": {
+      "status": "DONE",
+      "did": "3 subcommand tests: reset keeps passkeys and turns the switch on; --forget-passkeys removes them; fresh claim prints no switch lines",
+      "files": [
+        "tests/Umbral.Tests/SubcommandTests.fs"
+      ]
+    },
+    "T019": {
+      "status": "DONE",
+      "did": "reset-credential [--forget-passkeys]: switch on, optional removal, events, new output wording",
+      "files": [
+        "src/Umbral/Program.fs"
+      ]
+    },
+    "T021": {
+      "status": "DONE",
+      "did": "README: quick start, admin passkeys subsection, backup table, schema 8, Forgotten operator credential with --forget-passkeys; CHANGELOG Unreleased Added/Changed/Upgrade",
+      "files": [
+        "README.md",
+        "CHANGELOG.md"
+      ]
+    },
+    "T022": {
+      "status": "DONE",
+      "did": "build-css.sh --check passes: no new class, umbral.css unchanged",
+      "files": [
+        "src/Umbral/Assets/umbral.css"
+      ]
+    },
+    "T023": {
+      "status": "DONE",
+      "did": "Full suite 1770/1770; idle memory linux/arm64 operator passkey 147.6 MiB under 150",
+      "files": [
+        "tests/Umbral.Tests/IdleMemoryTests.fs"
+      ]
+    },
+    "T024": {
+      "status": "DONE",
+      "did": "Design clear (0e498b9), docs clear (19d1acc), code clear after B1/B2 (782c4f8); full suite 1784/1784 and browser walk at HEAD",
+      "files": [
+        ".alta/reviews/2026-10-24-operator-passkeys/"
+      ]
+    }
+  },
+  "verified": [
+    {
+      "what": "full suite at 782c4f8",
+      "command": "dotnet test tests/Umbral.Tests",
+      "result": "1784/1784"
+    },
+    {
+      "what": "browser walk with Chrome virtual authenticator at 782c4f8",
+      "command": "node /tmp/umcap/capture-0p5k.mjs",
+      "result": "add, passkey sign-in, switch off, two removes while off, last refused, switch on: all pass"
+    },
+    {
+      "what": "idle memory linux/arm64 operator passkey",
+      "command": "dotnet test -c Release --filter-class Umbral.Tests.IdleMemoryTests (docker)",
+      "result": "147.6 MiB under 150"
+    }
+  ],
+  "concerns": [
+    {
+      "note": "linux/amd64 idle-memory figure comes from CI after the first push",
+      "step": "implement"
+    }
+  ],
+  "last_action": "all 24 tasks done, 1784 tests pass"
+}

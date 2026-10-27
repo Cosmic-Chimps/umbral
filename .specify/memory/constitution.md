@@ -1,6 +1,37 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 3.0.0 → 3.0.1
+Rationale: PATCH, a clarification with no change in meaning. Spec 001 noted
+that its single operator credential (FR-017) "sits awkwardly" with Principle
+VII's exclusion of "password-based local accounts", and asked for the wording
+to be narrowed; that never happened. The exclusion was always about end users:
+the operator credential signs nobody in to an app. A bullet now says so, and
+that the credential may be a password, one or more passkeys, or both (spec 011,
+operator passkeys). Nothing leaves the exclusion list: MFA stays excluded, and
+an operator passkey is a way to sign in, not a second step.
+
+Principles:
+  VII. The Default Answer Is No                    CLARIFIED (the operator credential is not a local account)
+  All others                                       unchanged
+
+Sections changed:
+  - Principle VII: one bullet on the operator credential.
+  - Version line: 3.0.1, Last Amended 2026-10-26.
+
+Templates requiring updates:
+  ✅ .specify/templates/plan-template.md: no edit required.
+  ✅ .specify/templates/spec-template.md: no edit required.
+  ✅ .specify/templates/tasks-template.md: no edit required.
+  ✅ specs/001-umbral-mvp/spec.md: its note after the assumptions table is
+     answered by this bullet; the spec itself is history and is not edited.
+
+Plans invalidated: none.
+
+Deferred items: none.
+
+Previous report (3.0.0) follows.
+==================
 Version change: 2.1.0 → 3.0.0
 Rationale: MAJOR. The product's purpose is redefined: Umbral was "social login
 only"; it becomes "passwordless sign-in: social login or a passkey". The
@@ -212,6 +243,11 @@ passkey), self-hosted, simple" are declined, and declining them is the job.
   another one: a passkey account is not a password account, and offering a
   passkey is not MFA. Asking for a passkey after a social login, or for anything
   after a passkey, stays excluded as MFA.
+- The single operator credential that guards the admin area (spec 001 FR-017)
+  is not a local account: it signs nobody in to an app. It may be a password,
+  one or more passkeys, or both, and that changes nothing in the exclusion list.
+  MFA stays excluded: an operator passkey is the operator's way to sign in, not
+  a second step after the password.
 - A request to add any of the above MUST be answered by pointing at Keycloak or
   Authentik, which solve that problem well. That is a successful outcome, not a
   lost user.
@@ -305,4 +341,4 @@ time and re-evaluated after design. Violations are either removed from the
 feature or recorded in the plan's Complexity Tracking table with an explicit
 justification; an unjustified violation blocks the plan.
 
-**Version**: 3.0.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-19
+**Version**: 3.0.1 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-26

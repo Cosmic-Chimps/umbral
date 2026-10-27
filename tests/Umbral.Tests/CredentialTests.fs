@@ -226,3 +226,152 @@ let ``guessing the current credential here is rate limited like sign-in`` () =
         let! over = send ()
         Assert.Equal(HttpStatusCode.TooManyRequests, over.StatusCode)
     }
+
+// The screen itself (spec 011, design/contracts/operator-passkeys-ui.md).
+
+let private passkey (seed: int) (lastUsed: System.DateTimeOffset option) : OperatorPasskeys.OperatorPasskey =
+    { Id = OperatorPasskeys.newId ()
+      CredentialId = [| byte seed; 7uy; 7uy; 7uy |]
+      PublicKey = [| 1uy; byte seed |]
+      SignCount = 0u
+      Name = $"Key number {seed}"
+      Transports = [ "usb" ]
+      CreatedUtc = System.DateTimeOffset(2026, 10, 26, 8, 0, 0, System.TimeSpan.Zero)
+      LastUsedUtc = lastUsed }
+
+let private addPasskey (app: Fixtures.TestApp) (key: OperatorPasskeys.OperatorPasskey) =
+    task {
+        let! outcome = OperatorPasskeys.add app.DbConfig app.Clock key
+        Assert.Equal(OperatorPasskeys.Added, outcome)
+    }
+
+[<Fact>]
+let ``with no passkey the screen says so, offers the add form and blocks the off switch`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+
+        let! html = operator.GetHtml "/admin/credential"
+        Assert.Contains("data-section=\"passkeys\"", html)
+        Assert.Contains("data-passkeys-empty", html)
+        Assert.Contains("No passkey yet.", html)
+        Assert.Contains("data-operator-passkey-add", html)
+        Assert.Contains("data-section=\"password-signin\"", html)
+        Assert.Contains("data-section=\"password\"", html)
+        Assert.Contains("Turn password sign-in off", html)
+        Assert.Contains("disabled", html)
+        Assert.Contains("data-add-passkey-first", html)
+        Assert.Contains("Add a passkey first.", html)
+        // With none yet there is nothing to use instead.
+        Assert.DoesNotContain("data-operator-confirm-passkey", html)
+        Assert.Contains("/assets/passkeys.js", html)
+    }
+
+[<Fact>]
+let ``passkeys are listed by name with their dates and never by credential id`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+
+        // The store stamps both dates from the clock, whatever the record says.
+        let today = app.Clock.GetUtcNow().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+        let first = passkey 1 None
+        let second = passkey 2 None
+        do! addPasskey app first
+        do! addPasskey app second
+        let! _ = OperatorPasskeys.recordUse app.DbConfig app.Clock second.Id 1u
+        ()
+
+        let! html = operator.GetHtml "/admin/credential"
+        Assert.Contains("Key number 1", html)
+        Assert.Contains("Key number 2", html)
+        // The separator between the two is encoded by the view engine, so the
+        // parts are checked on their own.
+        Assert.Contains($"Added {today}", html)
+        Assert.Contains("Never used", html)
+        Assert.Contains($"Last used {today}", html)
+        Assert.Contains($"data-passkey-row=\"{first.Id}\"", html)
+        Assert.Contains($"/admin/credential/passkeys/{first.Id}/remove", html)
+        Assert.DoesNotContain("data-passkeys-empty", html)
+        Assert.DoesNotContain("Add a passkey first.", html)
+        // The re-check field and the passkey alternative sit on the add form.
+        Assert.Contains("data-operator-confirm-passkey", html)
+
+        for key in [ first; second ] do
+            let credentialId = System.Convert.ToBase64String key.CredentialId
+            let urlSafe = credentialId.TrimEnd('=').Replace('+', '-').Replace('/', '_')
+            Assert.DoesNotContain(credentialId, html)
+            Assert.DoesNotContain(urlSafe, html)
+    }
+
+[<Fact>]
+let ``with password sign-in off there is no password field and no Password card`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+        do! addPasskey app (passkey 1 None)
+
+        let! off = OperatorPasskeys.turnPasswordSignInOff app.DbConfig app.Clock
+        Assert.Equal(OperatorPasskeys.SwitchedOff, off)
+
+        let! html = operator.GetHtml "/admin/credential"
+        Assert.DoesNotContain("type=\"password\"", html)
+        Assert.DoesNotContain("data-section=\"password\"", html)
+        Assert.Contains("data-section=\"passkeys\"", html)
+        Assert.Contains("Turn password sign-in on", html)
+        Assert.Contains("data-password-signin-state=\"off\"", html)
+        // The only way to re-check is the ceremony, so no "instead" button.
+        Assert.DoesNotContain("data-operator-confirm-passkey", html)
+    }
+
+[<Fact>]
+let ``a refusal notice renders as a warning and a success as a success`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+
+        let! refused = operator.GetHtml "/admin/credential?msg=operator-passkey-last"
+        Assert.Contains("data-notice=\"operator-passkey-last\"", refused)
+        Assert.Contains("um-alert-warning", refused)
+        Assert.DoesNotContain("um-alert-success", refused)
+
+        let! added = operator.GetHtml "/admin/credential?msg=operator-passkey-added"
+        Assert.Contains("um-alert-success", added)
+        Assert.Contains("Passkey added.", added)
+
+        let! unknown = operator.GetHtml "/admin/credential?msg=not-a-code"
+        Assert.DoesNotContain("data-notice", unknown)
+    }
+
+[<Fact>]
+let ``at ten passkeys the add form gives way to the limit line`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+
+        for seed in 1 .. OperatorPasskeys.MaxPasskeys do
+            do! addPasskey app (passkey seed None)
+
+        let! html = operator.GetHtml "/admin/credential"
+        Assert.Contains("data-passkeys-limit", html)
+        Assert.DoesNotContain("data-operator-passkey-add", html)
+        Assert.Contains("Remove one to add another.", html)
+    }
+
+[<Fact>]
+let ``the replace form still posts from the Password card while password sign-in is on`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let operator = Browser(app.Client)
+        do! claimOperator app operator
+
+        let! html = operator.GetHtml "/admin/credential"
+        Assert.Contains("action=\"/admin/credential\"", html)
+        Assert.Contains("Replace the password", html)
+        Assert.Contains("data-password-signin-state=\"on\"", html)
+    }

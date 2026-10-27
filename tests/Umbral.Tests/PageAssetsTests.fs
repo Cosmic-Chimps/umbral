@@ -175,7 +175,7 @@ let private externalFontHosts = [ "fonts.googleapis.com"; "fonts.gstatic.com" ]
 /// The page is a page of ours: no violations, no external font host, the policy
 /// header, and exactly the three assets Views/Assets.fs names (the fonts are
 /// loaded by the stylesheet, not by the page).
-let private assertSelfContained (name: string) (response: HttpResponseMessage) =
+let private assertSelfContainedWith (scripts: string list) (name: string) (response: HttpResponseMessage) =
     task {
         let! html = response.Content.ReadAsStringAsync()
 
@@ -189,16 +189,22 @@ let private assertSelfContained (name: string) (response: HttpResponseMessage) =
         | true, values -> Assert.Equal<string list>([ Layout.contentSecurityPolicy ], values |> Option.ofObj |> Option.defaultValue Seq.empty |> List.ofSeq)
         | _ -> Assert.Fail $"{name}: no Content-Security-Policy header"
 
-        Assert.Equal<string list>([ Assets.css.Href; Assets.htmx.Href; Assets.script.Href ], stylesheetsAndScripts html)
+        Assert.Equal<string list>([ Assets.css.Href; Assets.htmx.Href; Assets.script.Href ] @ scripts, stylesheetsAndScripts html)
         return html
     }
 
-let private getPage (browser: Browser) (url: string) =
+let private assertSelfContained (name: string) (response: HttpResponseMessage) = assertSelfContainedWith [] name response
+
+/// A page that links the ceremony script after the three, as the Credential
+/// screen does.
+let private getPageWithScripts (scripts: string list) (browser: Browser) (url: string) =
     task {
         let! response = browser.Get url
         Assert.Equal(HttpStatusCode.OK, response.StatusCode)
-        return! assertSelfContained url response
+        return! assertSelfContainedWith scripts url response
     }
+
+let private getPage (browser: Browser) (url: string) = getPageWithScripts [] browser url
 
 [<Fact>]
 let ``the setup page on a fresh instance is self-contained`` () =
@@ -213,7 +219,7 @@ let ``the operator sign-in page is self-contained`` () =
     task {
         use! app = Fixtures.createApp ()
         do! claimOperator app (Browser app.Client)
-        let! _ = getPage (Browser app.Client) "/admin/signin"
+        let! _ = getPageWithScripts [ Assets.passkeys.Href ] (Browser app.Client) "/admin/signin"
         ()
     }
 
@@ -290,7 +296,7 @@ let ``every admin screen is self-contained, and its confirmations are data attri
             Assert.Contains("data-confirm=\"", html)
             Assert.DoesNotContain("onsubmit", html)
 
-        let! _ = getPage operator "/admin/credential"
+        let! _ = getPageWithScripts [ Assets.passkeys.Href ] operator "/admin/credential"
         let! _ = getPage operator "/admin/users?q=alex"
         ()
     }

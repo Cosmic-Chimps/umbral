@@ -47,6 +47,13 @@
 /// run that performs one measures it. It shares the 160 MiB ceiling of the
 /// external-store run.
 ///
+/// Another run measures the operator's passkey in use (specs/011): a claimed
+/// instance, then, over HTTP, a password sign-in, a passkey added to the
+/// operator credential, and a sign-in with it from a fresh browser. It is the
+/// same WebAuthn library the connector run loads on its first ceremony, but here
+/// nothing else is enabled, and spec 011 holds the operator's use of it to the
+/// 150 MiB of Principle II, not the connector's 160.
+///
 /// Umbral.fsproj sets TieredCompilation=false (measured on linux/arm64: local
 /// 144.0 -> 137.7 MiB, aws 154.8 -> 147.6 MiB), and the child process reads it
 /// from Umbral.runtimeconfig.json like the container does.
@@ -391,7 +398,9 @@ let private seedPasskeyConnector (dataDirectory: string) =
 /// The jar is by hand because the app's cookies are `Secure` and the child is
 /// reached over plain http, which a `CookieContainer` would not send them over.
 type private Visitor(port: int) =
-    let http = new HttpClient(new HttpClientHandler(UseCookies = false), BaseAddress = Uri $"http://127.0.0.1:{port}")
+    // Redirects are not followed: the Set-Cookie of a sign-in is on the 302, and
+    // the jar only sees the answer the client returns.
+    let http = new HttpClient(new HttpClientHandler(UseCookies = false, AllowAutoRedirect = false), BaseAddress = Uri $"http://127.0.0.1:{port}")
     let jar = Collections.Generic.Dictionary<string, string>()
 
     do http.Timeout <- TimeSpan.FromSeconds 30.0
@@ -568,3 +577,83 @@ let ``an idle instance with the fediverse connector enabled stays under 150 MB r
         []
         seedFediverseConnector
         useAccountStep
+
+/// A claimed instance: the operator password is set in the data directory
+/// before the child opens it, as `reset-credential` would have.
+let private seedClaimedOperator (dataDirectory: string) =
+    task {
+        let config: Database.DbConfig = { DataSource = Path.Combine(dataDirectory, "umbral.db") }
+        do! Database.initializeSchema config
+
+        match! AdminAuth.replaceCredential config TimeProvider.System Journeys.OperatorCredential with
+        | AdminAuth.Set -> ()
+        | other -> failwith $"the operator could not be seeded: {other}"
+
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools()
+    }
+
+/// The operator signs in with the password, adds a passkey, and a fresh browser
+/// signs in with it, each step answered as it should be: a run that never
+/// reached the library would measure an instance that has not paid for a ceremony.
+let private performOperatorCeremonies (port: int) =
+    task {
+        let authenticator = SoftwareAuthenticator.SoftwareAuthenticator("umbral.test", "https://umbral.test")
+        let parse (text: string) = JsonDocument.Parse(text).RootElement.Clone()
+
+        use operator = new Visitor(port)
+        let! token = operator.TokenFrom "/admin/signin"
+        let request = new HttpRequestMessage(HttpMethod.Post, "/admin/signin")
+
+        request.Content <-
+            new FormUrlEncodedContent(
+                [ Collections.Generic.KeyValuePair("__RequestVerificationToken", token)
+                  Collections.Generic.KeyValuePair("credential", Journeys.OperatorCredential) ]
+            )
+
+        use! signedIn = operator.Send request
+        Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode)
+
+        let! token = operator.TokenFrom "/admin/credential"
+
+        let! status, text =
+            operator.PostJson(
+                "/admin/credential/passkeys/options",
+                token,
+                {| name = "Idle"; current = Journeys.OperatorCredential |}
+            )
+
+        Assert.True((status = HttpStatusCode.OK), $"add options answered {int status}: {text}")
+        let started = parse text
+        let credential = authenticator.Register(started.GetProperty "options")
+
+        let! status, text =
+            operator.PostJson("/admin/credential/passkeys", token, {| ceremony = Journeys.strOf started "ceremony"; credential = credential |})
+
+        Assert.True((status = HttpStatusCode.OK), $"add answered {int status}: {text}")
+
+        use fresh = new Visitor(port)
+        let! token = fresh.TokenFrom "/admin/signin"
+        let! status, text = fresh.PostJson("/admin/signin/passkey/options", token, {||})
+        Assert.True((status = HttpStatusCode.OK), $"sign-in options answered {int status}: {text}")
+        let started = parse text
+        let credential = authenticator.Assert(started.GetProperty "options", (List.head authenticator.Credentials).Id)
+
+        let! status, text =
+            fresh.PostJson("/admin/signin/passkey", token, {| ceremony = Journeys.strOf started "ceremony"; credential = credential |})
+
+        Assert.True((status = HttpStatusCode.OK), $"sign-in answered {int status}: {text}")
+
+        // The cookie it answered with opens the admin area.
+        use! page = fresh.Send(new HttpRequestMessage(HttpMethod.Get, "/admin/credential"))
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode)
+    }
+
+[<Fact>]
+let ``an idle instance with an operator passkey in use stays under 150 MB resident`` () =
+    assertIdleUnderCeilingWith
+        "operator passkey"
+        "spec 011"
+        LocalStoreCeilingBytes
+        []
+        seedClaimedOperator
+        performOperatorCeremonies

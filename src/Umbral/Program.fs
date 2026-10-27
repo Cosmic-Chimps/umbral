@@ -72,7 +72,10 @@ let endpoints: Endpoint list =
       yield! Umbral.Handlers.Passkeys.SignIn.endpoint
       yield! Umbral.Handlers.Passkeys.Invitation.endpoint
       yield! Umbral.Handlers.Passkeys.Account.endpoint
-      yield! Umbral.Handlers.Passkeys.Ceremonies.endpoint ]
+      yield! Umbral.Handlers.Passkeys.Ceremonies.endpoint
+      yield! Umbral.Handlers.Admin.OperatorPasskeys.endpoint
+      yield! Umbral.Handlers.Admin.OperatorPasswordSignIn.endpoint
+      yield! Umbral.Handlers.Admin.OperatorPasskeyRemove.endpoint ]
 
 // ---------------------------------------------------------------------------
 // Startup settings
@@ -346,7 +349,7 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     // on first use (WebAuthn.fs), so an instance with no passkey connector never
     // loads it.
     services.AddSingleton<WebAuthn.Verifier>(fun sp ->
-        WebAuthn.Verifier(sp.GetRequiredService<PublicOrigin.PublicOrigin>(), sp.GetRequiredService<Database.DbConfig>()))
+        WebAuthn.Verifier(sp.GetRequiredService<PublicOrigin.PublicOrigin>()))
     |> ignore
 
     services.AddRouting().AddOxpecker() |> ignore
@@ -567,7 +570,12 @@ let buildApp (args: string array) (customize: WebApplicationBuilder -> unit) : W
 /// being able to run this process is more authority than the setup token
 /// represents, and refusing would only send the operator to a page that wants a
 /// token from a log they may not have kept. The output says which happened.
-let resetCredential (app: WebApplication) (write: string -> unit) =
+///
+/// It also switches password sign-in back on, so a password forgotten while the
+/// switch was off is recoverable from the host (FR-017's promise). Operator
+/// passkeys are kept unless `--forget-passkeys` is given, which removes them
+/// all, for a stolen device.
+let resetCredential (app: WebApplication) (forgetPasskeys: bool) (write: string -> unit) =
     task {
         let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
         let clock = app.Services.GetRequiredService<TimeProvider>()
@@ -592,23 +600,82 @@ let resetCredential (app: WebApplication) (write: string -> unit) =
                           SecurityEvents.Actor.System with
                         Detail = Some(if wasConfigured then "offline_reset" else "offline_claim") }
 
+            // The credential is replaced first, so a failure there leaves the
+            // passkeys and the switch as they were.
+            let! passkeys =
+                task {
+                    if forgetPasskeys then
+                        let! removed = OperatorPasskeys.removeAll dbConfig
+
+                        if removed > 0 then
+                            do!
+                                SecurityEvents.record
+                                    dbConfig
+                                    clock
+                                    { SecurityEvents.event
+                                          SecurityEvents.OperatorPasskeyRemoved
+                                          SecurityEvents.Success
+                                          SecurityEvents.Actor.System with
+                                        Detail = Some $"offline_reset count={removed}" }
+
+                        return removed
+                    else
+                        return! OperatorPasskeys.count dbConfig
+                }
+
+            let! wasOn = OperatorPasskeys.passwordSignInEnabled dbConfig
+            do! OperatorPasskeys.turnPasswordSignInOn dbConfig clock
+
+            if not wasOn then
+                do!
+                    SecurityEvents.record
+                        dbConfig
+                        clock
+                        { SecurityEvents.event
+                              SecurityEvents.OperatorPasswordSignInChanged
+                              SecurityEvents.Success
+                              SecurityEvents.Actor.System with
+                            Detail = Some "offline_reset" }
+
+            // Moved once more, last: the replacement moved it first, and a
+            // passkey sign-in that landed before the passkeys went (or the
+            // switch came on) would otherwise keep its session.
+            do! AdminAuth.endEverySession dbConfig clock
+
             let line = String.replicate 64 "="
 
             let headline =
                 if wasConfigured then
-                    [ "  The operator credential has been replaced." ]
+                    [ "  The operator password has been replaced." ]
                 else
                     [ "  This instance had no operator yet. It is now claimed:"
                       "  the first-run setup page will no longer ask for a token." ]
+
+            let count = if passkeys = 1 then "1 operator passkey" else $"{passkeys} operator passkeys"
+            let is' = if passkeys = 1 then "is" else "are"
+            let was' = if passkeys = 1 then "was" else "were"
+
+            let passkeyLine =
+                if passkeys = 0 then []
+                elif forgetPasskeys then [ $"  {count} {was'} removed." ]
+                else [ $"  {count} {is'} kept. Add --forget-passkeys to remove them." ]
+
+            // Only an instance that had an operator has a switch or passkeys to
+            // speak of; a fresh claim has neither.
+            let state =
+                if wasConfigured then
+                    [ ""; "  Password sign-in is on." ] @ passkeyLine
+                else
+                    []
 
             write (
                 String.concat
                     Environment.NewLine
                     ([ ""; line ]
                      @ headline
+                     @ [ ""; $"  New password     {replacement}" ]
+                     @ state
                      @ [ ""
-                         $"  New credential   {replacement}"
-                         ""
                          "  Sign in with it, then change it from the admin area."
                          "  This is the only time it is shown."
                          line
@@ -679,7 +746,7 @@ let main args =
         let app = buildApp args ignore
 
         if args |> Array.contains "reset-credential" then
-            (resetCredential app Console.WriteLine).GetAwaiter().GetResult()
+            (resetCredential app (args |> Array.contains "--forget-passkeys") Console.WriteLine).GetAwaiter().GetResult()
         elif args |> Array.contains "move-secrets" then
             (moveSecrets app (args |> Array.contains "--dry-run") Console.WriteLine).GetAwaiter().GetResult()
         else

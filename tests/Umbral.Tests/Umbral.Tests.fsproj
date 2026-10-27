@@ -14,6 +14,7 @@
     <Compile Include="Infrastructure/Journeys.fs" />
     <Compile Include="Infrastructure/SoftwareAuthenticator.fs" />
     <Compile Include="Infrastructure/PasskeyFlows.fs" />
+    <Compile Include="Infrastructure/OperatorFlows.fs" />
     <Compile Include="Infrastructure/StubOidcProvider.fs" />
     <Compile Include="Infrastructure/StubMastodon.fs" />
     <Compile Include="Infrastructure/PngBuilder.fs" />
@@ -33,6 +34,7 @@
     <Compile Include="KeyPersistenceTests.fs" />
     <Compile Include="SecretsTests.fs" />
     <Compile Include="DatabaseTests.fs" />
+    <Compile Include="OperatorPasskeyStoreTests.fs" />
     <Compile Include="SecurityEventsTests.fs" />
     <Compile Include="BootstrapTests.fs" />
     <Compile Include="SignInFlowTests.fs" />
@@ -101,6 +103,10 @@
     <Compile Include="PasskeyAccountTests.fs" />
     <Compile Include="LastUsedConnectorTests.fs" />
     <Compile Include="PasskeyAdminTests.fs" />
+    <Compile Include="OperatorPasskeyTests.fs" />
+    <Compile Include="OperatorPasswordSwitchTests.fs" />
+    <Compile Include="OperatorPasskeyRemoveTests.fs" />
+    <Compile Include="OperatorConfirmBindingTests.fs" />
     <Compile Include="FooterTests.fs" />
     <Compile Include="ReferrerPolicyTests.fs" />
     <Compile Include="SmokeTests.fs" />

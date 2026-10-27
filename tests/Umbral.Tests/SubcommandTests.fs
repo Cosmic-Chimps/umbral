@@ -92,7 +92,7 @@ let private dbConfig (dir: string) : Database.DbConfig =
     { DataSource = Path.Combine(dir, "umbral.db") }
 
 let private printedCredential (stdout: string) =
-    let m = Regex.Match(stdout, @"New credential\s+(\S+)")
+    let m = Regex.Match(stdout, @"New password\s+(\S+)")
     Assert.True(m.Success, $"no credential in the output:\n{stdout}")
     m.Groups[1].Value
 
@@ -133,6 +133,122 @@ let ``reset-credential on a claimed instance replaces the credential and prints 
             Assert.NotEqual<string>(first, second)
             Assert.False(AdminAuth.verify (dbConfig dir) first |> fun t -> t.Result)
             Assert.True(AdminAuth.verify (dbConfig dir) second |> fun t -> t.Result)
+        })
+
+let private scalarOf (dir: string) (statement: string) =
+    task {
+        use! connection = Database.openConnection (dbConfig dir)
+        use command = connection.CreateCommand()
+        command.CommandText <- statement
+        let! value = command.ExecuteScalarAsync()
+        return if isNull value then "" else string value
+    }
+
+let private stamp (dir: string) =
+    scalarOf dir "SELECT value FROM settings WHERE key = 'operator_session_stamp'"
+
+let private eventDetails (dir: string) (eventType: string) =
+    scalarOf
+        dir
+        $"SELECT COALESCE(GROUP_CONCAT(actor || ':' || outcome || ':' || COALESCE(detail, ''), ' '), '') FROM security_events WHERE event_type = '{eventType}'"
+
+/// A claimed instance with two operator passkeys and password sign-in off.
+let private seedSwitchedOff (dir: string) =
+    task {
+        let! code, _, _ = run dir (freePort ()) [ "reset-credential" ]
+        Assert.Equal(0, code)
+        let config = dbConfig dir
+        let clock = TimeProvider.System
+
+        for index, name in List.indexed [ "Laptop"; "Phone" ] do
+            let! outcome =
+                OperatorPasskeys.add
+                    config
+                    clock
+                    { Id = OperatorPasskeys.newId ()
+                      CredentialId = [| byte index; 1uy; 2uy |]
+                      PublicKey = [| 9uy; byte index |]
+                      SignCount = 0u
+                      Name = name
+                      Transports = []
+                      CreatedUtc = clock.GetUtcNow()
+                      LastUsedUtc = None }
+
+            Assert.Equal(OperatorPasskeys.Added, outcome)
+
+        let! off = OperatorPasskeys.turnPasswordSignInOff config clock
+        Assert.Equal(OperatorPasskeys.SwitchedOff, off)
+    }
+
+[<Fact>]
+let ``reset-credential switches password sign-in on, keeps the passkeys and ends every session`` () =
+    withDataDirectory (fun dir ->
+        task {
+            do! seedSwitchedOff dir
+            let! before = stamp dir
+
+            let! code, stdout, stderr = run dir (freePort ()) [ "reset-credential" ]
+            Assert.True((code = 0), $"exit {code}\n{stdout}\n{stderr}")
+
+            Assert.Contains("The operator password has been replaced.", stdout)
+            Assert.Contains("Password sign-in is on.", stdout)
+            Assert.Contains("2 operator passkeys are kept. Add --forget-passkeys to remove them.", stdout)
+
+            let password = printedCredential stdout
+            let! on = OperatorPasskeys.passwordSignInEnabled (dbConfig dir)
+            Assert.True on
+            Assert.True(AdminAuth.verify (dbConfig dir) password |> fun t -> t.Result)
+            let! kept = OperatorPasskeys.count (dbConfig dir)
+            Assert.Equal(2, kept)
+
+            // A session cookie carries the stamp, so a moved stamp rejects it.
+            let! after = stamp dir
+            Assert.NotEqual<string>(before, after)
+
+            let! switched = eventDetails dir "operator_password_signin_changed"
+            Assert.Equal("system:success:offline_reset", switched)
+            let! removed = eventDetails dir "operator_passkey_removed"
+            Assert.Equal("", removed)
+        })
+
+[<Fact>]
+let ``reset-credential with --forget-passkeys removes every operator passkey`` () =
+    withDataDirectory (fun dir ->
+        task {
+            do! seedSwitchedOff dir
+
+            let! code, stdout, stderr = run dir (freePort ()) [ "reset-credential"; "--forget-passkeys" ]
+            Assert.True((code = 0), $"exit {code}\n{stdout}\n{stderr}")
+
+            Assert.Contains("Password sign-in is on.", stdout)
+            Assert.Contains("2 operator passkeys were removed.", stdout)
+            Assert.DoesNotContain("are kept", stdout)
+
+            let! left = OperatorPasskeys.count (dbConfig dir)
+            Assert.Equal(0, left)
+            let! on = OperatorPasskeys.passwordSignInEnabled (dbConfig dir)
+            Assert.True on
+
+            let! removed = eventDetails dir "operator_passkey_removed"
+            Assert.Equal("system:success:offline_reset count=2", removed)
+        })
+
+[<Fact>]
+let ``reset-credential says nothing of passkeys when there are none, and claiming prints no switch lines`` () =
+    withDataDirectory (fun dir ->
+        task {
+            let! _, claimed, _ = run dir (freePort ()) [ "reset-credential" ]
+            Assert.Contains("had no operator yet", claimed)
+            Assert.DoesNotContain("Password sign-in", claimed)
+            Assert.DoesNotContain("passkey", claimed)
+
+            let! _, replaced, _ = run dir (freePort ()) [ "reset-credential"; "--forget-passkeys" ]
+            Assert.Contains("Password sign-in is on.", replaced)
+            Assert.DoesNotContain("passkey", replaced)
+            let! removed = eventDetails dir "operator_passkey_removed"
+            Assert.Equal("", removed)
+            let! switched = eventDetails dir "operator_password_signin_changed"
+            Assert.Equal("", switched)
         })
 
 [<Fact>]

@@ -86,6 +86,7 @@
     <Compile Include="Infrastructure/BrandingStore.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
     <Compile Include="Infrastructure/Passkeys.fs" />
+    <Compile Include="Infrastructure/OperatorPasskeys.fs" />
     <Compile Include="Infrastructure/PasskeyInvitations.fs" />
     <Compile Include="Infrastructure/WebAuthn.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
@@ -128,6 +129,9 @@
     <Compile Include="Handlers/Admin/UserPasskeys.fs" />
     <Compile Include="Handlers/Connect/Picker.fs" />
     <Compile Include="Handlers/Passkeys/Ceremonies.fs" />
+    <Compile Include="Handlers/Admin/OperatorPasskeys.fs" />
+    <Compile Include="Handlers/Admin/OperatorPasswordSignIn.fs" />
+    <Compile Include="Handlers/Admin/OperatorPasskeyRemove.fs" />
     <Compile Include="Handlers/Passkeys/SignIn.fs" />
     <Compile Include="Handlers/Passkeys/Invitation.fs" />
     <Compile Include="Handlers/Passkeys/Account.fs" />

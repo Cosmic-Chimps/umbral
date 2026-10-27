@@ -171,12 +171,28 @@ let replaceCredential (config: Database.DbConfig) (clock: TimeProvider) (plainte
             return Set
     }
 
+/// Whether `candidate` is the operator password. Always false while password
+/// sign-in is off (specs/011-operator-passkeys FR-008): every route that takes
+/// a password (sign-in, the re-check of a change, replacing it) asks here, so
+/// none of them can let one through, and the stored hash is kept for when it is
+/// turned back on. Nothing is hashed then, which tells a caller nothing the
+/// sign-in page does not already show.
 let verify (config: Database.DbConfig) (candidate: string) : Task<bool> =
     task {
-        match! readSetting config CredentialKey with
-        | None -> return false
-        | Some stored -> return verifyCredential stored candidate
+        match! OperatorPasskeys.passwordSignInEnabled config with
+        | false -> return false
+        | true ->
+            match! readSetting config CredentialKey with
+            | None -> return false
+            | Some stored -> return verifyCredential stored candidate
     }
+
+/// Ends every admin session by moving the stamp, as `replaceCredential` does.
+/// For removing an operator passkey and turning password sign-in off, whose
+/// usual reason is a lost device or a password someone else may hold. The
+/// caller that made the change signs in again to keep its own session.
+let endEverySession (config: Database.DbConfig) (clock: TimeProvider) : Task<unit> =
+    writeSetting config clock SessionStampKey (Umbral.Domains.Ids.newSubject ())
 
 // ---------------------------------------------------------------------------
 // Session
@@ -233,14 +249,27 @@ let configureCookie (options: CookieAuthenticationOptions) =
     options.LoginPath <- PathString "/admin/signin"
     options.AccessDeniedPath <- PathString "/admin/signin"
 
-let signIn (ctx: HttpContext) : Task =
+/// The session stamp as it is now. A sign-in that has to be ended by a change
+/// made while it was being checked reads it BEFORE the check and signs in with
+/// that value: a stamp that moved in between then makes the new cookie stale.
+let sessionStamp (config: Database.DbConfig) : Task<string> = currentStamp config
+
+/// Signs the browser in with a stamp read earlier (see `sessionStamp`).
+let signInWithStamp (ctx: HttpContext) (stamp: string) : Task =
     task {
-        let! stamp = currentStamp (ctx.GetService<Database.DbConfig>())
         let identity = ClaimsIdentity(Scheme)
         identity.AddClaim(Claim(ClaimTypes.Name, "operator"))
         identity.AddClaim(Claim(OperatorClaim, "true"))
         identity.AddClaim(Claim(StampClaim, stamp))
         do! ctx.SignInAsync(Scheme, ClaimsPrincipal identity)
+    }
+
+/// Signs the browser in with the stamp as it is now: for a change that has just
+/// moved it on purpose and wants this browser to survive it.
+let signIn (ctx: HttpContext) : Task =
+    task {
+        let! stamp = currentStamp (ctx.GetService<Database.DbConfig>())
+        do! signInWithStamp ctx stamp
     }
 
 let signOut (ctx: HttpContext) : Task = ctx.SignOutAsync Scheme

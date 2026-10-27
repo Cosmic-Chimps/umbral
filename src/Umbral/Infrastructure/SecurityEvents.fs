@@ -30,6 +30,10 @@ type EventType =
     | OperatorSignedIn
     | OperatorSignInFailed
     | OperatorCredentialChanged
+    // Operator passkeys (specs/011-operator-passkeys): credential changes
+    | OperatorPasskeyAdded
+    | OperatorPasskeyRemoved
+    | OperatorPasswordSignInChanged
     // Connectors
     | ConnectorCreated
     | ConnectorUpdated
@@ -72,6 +76,9 @@ type EventType =
         | OperatorSignedIn -> "operator_signed_in"
         | OperatorSignInFailed -> "operator_sign_in_failed"
         | OperatorCredentialChanged -> "operator_credential_changed"
+        | OperatorPasskeyAdded -> "operator_passkey_added"
+        | OperatorPasskeyRemoved -> "operator_passkey_removed"
+        | OperatorPasswordSignInChanged -> "operator_password_signin_changed"
         | ConnectorCreated -> "connector_created"
         | ConnectorUpdated -> "connector_updated"
         | ConnectorEnabled -> "connector_enabled"
@@ -105,6 +112,9 @@ let allEventTypes =
       OperatorSignedIn
       OperatorSignInFailed
       OperatorCredentialChanged
+      OperatorPasskeyAdded
+      OperatorPasskeyRemoved
+      OperatorPasswordSignInChanged
       ConnectorCreated
       ConnectorUpdated
       ConnectorEnabled

@@ -64,8 +64,19 @@ let private outOfScope = [ "/connect/"; "/dev/" ]
 /// header.
 let private jsonRoutes = [ "/passkey/" ]
 
+/// The operator's passkey ceremonies (spec 011) are JSON as well, but sit
+/// among the admin form routes, so they are named exactly rather than by prefix.
+let private jsonAdminRoutes =
+    set
+        [ "/admin/signin/passkey"
+          "/admin/signin/passkey/options"
+          "/admin/credential/confirm/options"
+          "/admin/credential/passkeys"
+          "/admin/credential/passkeys/options" ]
+
 let private isJson (route: MutatingRoute) =
     jsonRoutes |> List.exists route.Pattern.StartsWith
+    || jsonAdminRoutes.Contains route.Pattern
 
 let private tokenField = "__RequestVerificationToken"
 
@@ -193,8 +204,16 @@ let private bodyFor (setupToken: string) (credential: string) =
       // skipped its antiforgery check would save it.
       "accent", "#f26b1d" ]
 
+/// Each walked request comes from an address of its own. The walk sends every
+/// route twice and the admin ones share a rate limit of ten per ten minutes per
+/// address, so one address would be answered 429 before its handler ran, which
+/// proves nothing about the antiforgery check.
+let private nextSource = ref 0
+
 let private send (browser: Browser) (route: MutatingRoute) (path: string) (fields: (string * string) list) =
     let message = new HttpRequestMessage(HttpMethod route.Method, path)
+    let n = Threading.Interlocked.Increment(&nextSource.contents)
+    message.Headers.Add("X-Forwarded-For", $"198.51.{n / 250 % 250}.{n % 250 + 1}")
 
     if isJson route then
         message.Content <- new StringContent("{}", Encoding.UTF8, "application/json")
@@ -466,7 +485,9 @@ let ``a visitor who is not signed in cannot change anything either`` () =
         // must still not unlock an operator-only route. (`/theme` is not one: a
         // stranger may choose their own theme. Nor are a person's routes, which
         // send a stranger to sign in, or the passkey ceremonies, which a
-        // stranger may start: they are open to a stranger with a token on purpose.)
+        // stranger may start: they are open to a stranger with a token on purpose.
+        // The operator's passkey sign-in, `/admin/signin/passkey` and its
+        // options, is the same: it is the sign-in itself.)
         let! token = stranger.TokenFrom "/admin/signin"
         let withToken = (tokenField, token) :: fields
 
@@ -474,7 +495,7 @@ let ``a visitor who is not signed in cannot change anything either`` () =
             routes
             |> List.filter (fun r ->
                 r.Pattern.StartsWith "/admin/"
-                && r.Pattern <> "/admin/signin"
+                && not (r.Pattern.StartsWith "/admin/signin")
                 && r.Pattern <> "/admin/signout"
                 && r.Pattern <> "/admin/setup")
 

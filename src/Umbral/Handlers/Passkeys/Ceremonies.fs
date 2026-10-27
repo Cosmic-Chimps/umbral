@@ -46,7 +46,7 @@ let private NoticeRegistration = "passkey-registration-failed"
 [<Literal>]
 let private NoticeInvitation = "passkey-invitation-unusable"
 
-let private remoteIpOf (ctx: HttpContext) =
+let remoteIpOf (ctx: HttpContext) =
     ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
 
 let private writeJson (ctx: HttpContext) (status: int) (body: JsonNode) : Task =
@@ -56,7 +56,7 @@ let private writeJson (ctx: HttpContext) (status: int) (body: JsonNode) : Task =
 
 /// `JsonValue.Create` and `JsonNode.Parse` are typed nullable, so the fields are
 /// too; `JsonObject` takes a null as the JSON `null`.
-let private writeObject (ctx: HttpContext) (status: int) (fields: (string * (JsonNode | null)) list) : Task =
+let writeObject (ctx: HttpContext) (status: int) (fields: (string * (JsonNode | null)) list) : Task =
     let node = JsonObject()
 
     for name, value in fields do
@@ -64,9 +64,9 @@ let private writeObject (ctx: HttpContext) (status: int) (fields: (string * (Jso
 
     writeJson ctx status node
 
-let private text (value: string) : JsonNode | null = JsonValue.Create value
+let text (value: string) : JsonNode | null = JsonValue.Create value
 
-let private badRequest (ctx: HttpContext) : Task =
+let badRequest (ctx: HttpContext) : Task =
     writeObject ctx 400 [ "error", text "bad-request" ]
 
 /// A refusal: the event first, then the answer. `userId` is the user when the
@@ -104,7 +104,9 @@ let invitationReason (state: PasskeyInvitations.State) : Reason =
 
 /// The antiforgery check first, before anything is read, then the body as a JSON
 /// object; anything else is `bad-request`.
-let private withBody (ctx: HttpContext) (inner: JsonElement -> Task) : Task =
+/// The operator ceremonies (`Handlers/Admin/OperatorPasskeys.fs`) reuse this and
+/// the helpers around it.
+let withBody (ctx: HttpContext) (inner: JsonElement -> Task) : Task =
     task {
         do! WebForms.validateAntiforgery ctx
 
@@ -119,7 +121,7 @@ let private withBody (ctx: HttpContext) (inner: JsonElement -> Task) : Task =
                 do! badRequest ctx
     }
 
-let private tryProperty (element: JsonElement) (name: string) : JsonElement option =
+let tryProperty (element: JsonElement) (name: string) : JsonElement option =
     match element.ValueKind with
     | JsonValueKind.Object ->
         match element.TryGetProperty name with
@@ -127,7 +129,7 @@ let private tryProperty (element: JsonElement) (name: string) : JsonElement opti
         | _ -> None
     | _ -> None
 
-let private tryString (element: JsonElement) (name: string) : string option =
+let tryString (element: JsonElement) (name: string) : string option =
     match tryProperty element name with
     | Some value when value.ValueKind = JsonValueKind.String -> Option.ofObj (value.GetString())
     | _ -> None
@@ -137,7 +139,7 @@ let private fromBase64Url (text: string) : byte array =
     Convert.FromBase64String(padded + String('=', (4 - padded.Length % 4) % 4))
 
 /// Base64url to bytes, None for anything that is not.
-let private tryBytes (text: string) : byte array option =
+let tryBytes (text: string) : byte array option =
     try
         Some(fromBase64Url text)
     with :? FormatException ->
@@ -195,7 +197,7 @@ let assertionOptions: EndpointHandler =
 
 /// Consumes the ceremony the body names, so a reused id fails before anything
 /// else is looked at. Unknown, used, expired and of another purpose are one answer.
-let private takeCeremony (ctx: HttpContext) (body: JsonElement) (purposes: Store.Purpose list) =
+let takeCeremony (ctx: HttpContext) (body: JsonElement) (purposes: Store.Purpose list) =
     task {
         match tryString body "ceremony" with
         | None -> return None
@@ -248,7 +250,13 @@ let assertion: EndpointHandler =
                 | None -> do! refuse (Some user.Id) UnknownCredential NoticeSignIn
                 | Some stored ->
 
-                match! ctx.GetService<WebAuthn.Verifier>().VerifyAssertion(ceremony.OptionsJson, credential, stored) with
+                match! ctx.GetService<WebAuthn.Verifier>().VerifyAssertion(
+                        ceremony.OptionsJson,
+                        credential,
+                        stored.PublicKey,
+                        stored.SignCount,
+                        stored.UserId
+                    ) with
                 | Error reason -> do! refuse (Some user.Id) reason NoticeSignIn
                 | Ok newCount ->
 
@@ -291,7 +299,12 @@ let private startRegistration
     : Task =
     task {
         let clock = ctx.GetService<TimeProvider>()
-        let options = ctx.GetService<WebAuthn.Verifier>().RegistrationOptions(userId, name, displayName, existing)
+        let options = ctx.GetService<WebAuthn.Verifier>().RegistrationOptions(
+                userId,
+                name,
+                displayName,
+                existing |> List.map (fun passkey -> passkey.CredentialId, passkey.Transports)
+            )
         let ceremonyId = Store.newCeremonyId ()
 
         do!
@@ -573,7 +586,11 @@ let registration: EndpointHandler =
                 | _, None -> do! refuse userId MalformedResponse NoticeRegistration
                 | Some credential, Some userId ->
 
-                match! ctx.GetService<WebAuthn.Verifier>().VerifyRegistration(ceremony.OptionsJson, credential) with
+                match! ctx.GetService<WebAuthn.Verifier>().VerifyRegistration(
+                        ceremony.OptionsJson,
+                        credential,
+                        Store.credentialIdExists config
+                    ) with
                 | Error reason -> do! refuse (Some userId) reason NoticeRegistration
                 | Ok registered ->
 

@@ -94,7 +94,7 @@ let private utf8 (text: string) = Encoding.UTF8.GetBytes text
 
 /// The relying party's verifier: one `Fido2` built on first use, so an instance
 /// without a passkey connector never loads the library or libsodium (R2).
-type Verifier(origin: PublicOrigin.PublicOrigin, config: Database.DbConfig) =
+type Verifier(origin: PublicOrigin.PublicOrigin) =
     let fido2 =
         lazy
             (let settings =
@@ -108,20 +108,21 @@ type Verifier(origin: PublicOrigin.PublicOrigin, config: Database.DbConfig) =
 
              Fido2(settings, null))
 
-    let descriptors (existing: Passkeys.Passkey list) : PublicKeyCredentialDescriptor list =
-        existing
-        |> List.map (fun passkey ->
-            let transports = passkey.Transports |> List.choose parseTransport |> Array.ofList
-            PublicKeyCredentialDescriptor(PublicKeyCredentialType.PublicKey, passkey.CredentialId, transports))
+    let descriptors (exclude: (byte array * string list) list) : PublicKeyCredentialDescriptor list =
+        exclude
+        |> List.map (fun (credentialId, transportNames) ->
+            let transports = transportNames |> List.choose parseTransport |> Array.ofList
+            PublicKeyCredentialDescriptor(PublicKeyCredentialType.PublicKey, credentialId, transports))
 
     /// The options for a registration: a discoverable credential with user
     /// verification, no attestation, the credential-properties extension (so the
-    /// server can see `rk`), and the user's existing credentials excluded so the
+    /// server can see `rk`), and the credentials already enrolled for this user
+    /// handle excluded (`exclude`: credential id and transport names) so the
     /// same authenticator is not enrolled twice. The user handle is the opaque
     /// `users.id` (R10); `name` is what the authenticator shows (the email when
     /// the user has one, else the display name).
     member _.RegistrationOptions
-        (userId: string, name: string, displayName: string, existing: Passkeys.Passkey list)
+        (userId: string, name: string, displayName: string, exclude: (byte array * string list) list)
         : CredentialCreateOptions =
         let selection =
             AuthenticatorSelection(
@@ -132,7 +133,7 @@ type Verifier(origin: PublicOrigin.PublicOrigin, config: Database.DbConfig) =
         let request =
             RequestNewCredentialParams(
                 User = Fido2User(Id = utf8 userId, Name = name, DisplayName = displayName),
-                ExcludeCredentials = descriptors existing,
+                ExcludeCredentials = descriptors exclude,
                 AuthenticatorSelection = selection,
                 AttestationPreference = AttestationConveyancePreference.None,
                 Extensions = AuthenticationExtensionsClientInputs(CredProps = true)
@@ -153,8 +154,12 @@ type Verifier(origin: PublicOrigin.PublicOrigin, config: Database.DbConfig) =
         fido2.Value.GetAssertionOptions request
 
     /// Verifies a registration against the options stored when it began.
-    /// `credential` is the browser's `PublicKeyCredential.toJSON()`.
-    member _.VerifyRegistration(optionsJson: string, credential: JsonElement) : Task<Result<Registered, Reason>> =
+    /// `credential` is the browser's `PublicKeyCredential.toJSON()`;
+    /// `isCredentialIdTaken` is the caller's store, asked by the library's
+    /// uniqueness callback.
+    member _.VerifyRegistration
+        (optionsJson: string, credential: JsonElement, isCredentialIdTaken: byte array -> Task<bool>)
+        : Task<Result<Registered, Reason>> =
         task {
             let parsed =
                 try
@@ -177,7 +182,7 @@ type Verifier(origin: PublicOrigin.PublicOrigin, config: Database.DbConfig) =
                             IsCredentialIdUniqueToUserCallback =
                                 IsCredentialIdUniqueToUserAsyncDelegate(fun parameters _ ->
                                     task {
-                                        let! exists = Passkeys.credentialIdExists config parameters.CredentialId
+                                        let! exists = isCredentialIdTaken parameters.CredentialId
                                         return not exists
                                     })
                         )
@@ -218,10 +223,11 @@ type Verifier(origin: PublicOrigin.PublicOrigin, config: Database.DbConfig) =
         }
 
     /// Verifies a sign-in against the options stored when it began and the
-    /// passkey the credential id named. Gives the authenticator's new signature
-    /// counter for `Passkeys.recordUse`.
+    /// passkey the credential id named: its stored public key and signature
+    /// counter, and the user handle it must answer with. Gives the
+    /// authenticator's new signature counter for the store's `recordUse`.
     member _.VerifyAssertion
-        (optionsJson: string, credential: JsonElement, stored: Passkeys.Passkey)
+        (optionsJson: string, credential: JsonElement, publicKey: byte array, signCount: uint32, userHandle: string)
         : Task<Result<uint32, Reason>> =
         task {
             let parsed =
@@ -243,7 +249,7 @@ type Verifier(origin: PublicOrigin.PublicOrigin, config: Database.DbConfig) =
                     let owner =
                         IsUserHandleOwnerOfCredentialIdAsync(fun parameters _ ->
                             task {
-                                let ours = utf8 stored.UserId
+                                let ours = utf8 userHandle
 
                                 let owns =
                                     not (isNull (box parameters.UserHandle))
@@ -260,8 +266,8 @@ type Verifier(origin: PublicOrigin.PublicOrigin, config: Database.DbConfig) =
                         MakeAssertionParams(
                             AssertionResponse = response,
                             OriginalOptions = options,
-                            StoredPublicKey = stored.PublicKey,
-                            StoredSignatureCounter = stored.SignCount,
+                            StoredPublicKey = publicKey,
+                            StoredSignatureCounter = signCount,
                             IsUserHandleOwnerOfCredentialIdCallback = owner
                         )
 
