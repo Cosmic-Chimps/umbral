@@ -10,7 +10,14 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+### Added
+- Every page links to the source and the documentation: the footer has **Source on GitHub** and
+  **Documentation**, except on an app's branded sign-in page, where **Secured by Umbral** stays
+  alone.
+
 ### Changed
+- The home page's **Building an app?** card shows the whole issuer URL, wrapping if it must, with
+  **Copy** under it, instead of a field too narrow to show more than its beginning.
 - On the **Users** screen, the row of someone who already has a passkey offers **Create a
   recovery link** instead of **Invite to add a passkey**, with a line saying it is for a lost
   device, and the link it shows is labelled **Recovery link**. A row without a passkey keeps

@@ -101,6 +101,7 @@
     <Compile Include="PasskeyAccountTests.fs" />
     <Compile Include="LastUsedConnectorTests.fs" />
     <Compile Include="PasskeyAdminTests.fs" />
+    <Compile Include="FooterTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 

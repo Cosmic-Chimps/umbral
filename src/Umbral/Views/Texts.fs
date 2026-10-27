@@ -10,9 +10,24 @@ module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
 open Umbral.Infrastructure.Secrets
 open Umbral.Domains
 
+/// Where Umbral's source lives: the project's repository, not the operator's
+/// copy, so it is a constant and not a setting. Every link to the source or the
+/// documentation starts from it.
+[<Literal>]
+let RepositoryUrl = "https://github.com/Cosmic-Chimps/umbral"
+
+/// The documentation, the README on GitHub until a docs site exists.
+[<Literal>]
+let DocumentationUrl = RepositoryUrl + "#readme"
+
 type Texts =
     { SiteName: string
       Footer: string
+      /// The footer's two links, to `RepositoryUrl` and `DocumentationUrl`.
+      FooterSource: string
+      FooterDocs: string
+      /// The name of the footer's navigation landmark that holds them.
+      FooterAboutLabel: string
       SkipToContent: string
 
       NavApps: string
@@ -179,6 +194,8 @@ type Texts =
       Disable: string
       Copy: string
       Copied: string
+      /// The accessible name of the home page's Copy button, which says what it copies.
+      CopyIssuerUrl: string
       CallbackUrlLabel: string
       ClientIdLabel: string
       ClientSecretLabel: string
@@ -811,6 +828,9 @@ let private secretStoreProblemEn (problem: SecretStoreSettings.SettingProblem) :
 let en: Texts =
     { SiteName = "Umbral"
       Footer = "Umbral — self-hosted social login"
+      FooterSource = "Source on GitHub"
+      FooterDocs = "Documentation"
+      FooterAboutLabel = "About Umbral"
       SkipToContent = "Skip to content"
 
       NavApps = "Apps"
@@ -951,6 +971,7 @@ let en: Texts =
       Disable = "Disable"
       Copy = "Copy"
       Copied = "Copied"
+      CopyIssuerUrl = "Copy the issuer URL"
       CallbackUrlLabel = "Redirect URI to register with the provider"
       ClientIdLabel = "Client ID"
       ClientSecretLabel = "Client secret"

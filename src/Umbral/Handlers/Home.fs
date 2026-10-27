@@ -50,7 +50,9 @@ let private view (t: Texts.Texts) (origin: PublicOrigin.PublicOrigin) (hasPasske
 
                 h2(class' = "text-headline-md text-on-surface") { t.HomeBuildingHeading }
                 p(class' = "text-body-md text-on-surface-variant") { t.HomeBuildingBody }
-                Components.copyField t.Copy t.Copied t.AppIssuerUrlLabel "home-issuer" origin.Text ignore
+                // Shown whole: at a third of the page an input would cut the
+                // one value a developer comes to this card for.
+                Components.copyText t.Copy t.Copied t.CopyIssuerUrl t.AppIssuerUrlLabel "home-issuer" origin.Text
 
                 a(href = "/.well-known/openid-configuration", class' = Components.btn Components.Secondary + " h-auto min-h-11 whitespace-normal py-2 text-center") {
                     Components.icon Link

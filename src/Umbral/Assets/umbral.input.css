@@ -143,10 +143,15 @@
   .um-or { @apply flex items-center gap-3 text-label-md text-on-surface-variant; }
   .um-or::before, .um-or::after { content: ""; flex: 1 1 0%; border-top: 1px solid var(--color-outline-variant); }
   .um-link { @apply text-primary underline decoration-primary/40 hover:decoration-primary; }
+  /* The footer's links to the source and the documentation: the footer's own
+     colour, always underlined because colour alone would not mark them in a
+     line of the same colour, and never the gold of .um-link, so the footer
+     stays quiet. */
+  .um-footer-link { @apply underline decoration-on-surface-variant/40 hover:text-on-surface hover:decoration-on-surface focus-visible:text-on-surface focus-visible:decoration-on-surface; }
   .um-icon { display: inline-block; flex: none; width: 1.25em; height: 1.25em; vertical-align: -0.25em; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .um-btn, .um-input, .um-link, .um-choice, .um-check { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
+  .um-btn, .um-input, .um-link, .um-footer-link, .um-choice, .um-check { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
 }
 @supports selector(:has(*)) {
   .um-choice-radio:focus-visible { outline: none; }

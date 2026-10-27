@@ -311,8 +311,9 @@ line, so there is never a menu to open. The page beside or below it is
 
 Every page without a rail (sign-in, setup, operator sign-in, message pages) has a
 sticky 64px name bar with the brand at the left and a footer with the small
-Gnomon, a line of text and the theme control. A branded sign-in page drops the
-name bar and shows "Secured by Umbral" in the footer instead. The sign-in card
+Gnomon, a line of text, two quiet links to the source and the documentation
+(never on a branded sign-in page), and the theme control. A branded sign-in page
+drops the name bar and shows "Secured by Umbral" in the footer instead. The sign-in card
 itself is `max-w-sm` (384px), centred in at least 60vh, its contents 20px apart
 and its buttons full width; a message card is `max-w-md`, centred, text
 centred.

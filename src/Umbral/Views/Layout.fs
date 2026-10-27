@@ -201,6 +201,24 @@ let private shell
                 // Umbral's whatever the app chose.
                 let footerInner = "mx-auto flex max-w-page flex-wrap items-center justify-between gap-x-6 gap-y-4 px-4 py-6 text-label-md font-normal text-on-surface-variant md:px-8"
 
+                // Umbral's line and where its source and documentation live, on
+                // every page but a branded sign-in page: there "Secured by Umbral"
+                // is what tells the real page from a lookalike, and a link out
+                // would only pull the person off the app's page mid sign-in.
+                // The addresses are constants, never anything from the request.
+                let footerLine =
+                    div(class' = "flex flex-wrap items-center gap-x-4 gap-y-2") {
+                        div(class' = "flex items-center gap-3") {
+                            span(class' = "block h-5 w-5") { raw Mark.small }
+                            p() { t.Footer }
+                        }
+
+                        nav(class' = "flex flex-wrap items-center gap-x-4 gap-y-2").attr("aria-label", t.FooterAboutLabel).data("footer-links", "") {
+                            a(href = Texts.RepositoryUrl, class' = "um-footer-link") { t.FooterSource }
+                            a(href = Texts.DocumentationUrl, class' = "um-footer-link") { t.FooterDocs }
+                        }
+                    }
+
                 match chrome with
                 | SignIn _ ->
                     (footer(class' = "border-t border-outline-variant/40").data("secured-by", "") {
@@ -217,10 +235,7 @@ let private shell
                 | Plain ->
                     (footer(class' = "border-t border-outline-variant/40") {
                         div(class' = footerInner) {
-                            div(class' = "flex items-center gap-3") {
-                                span(class' = "block h-5 w-5") { raw Mark.small }
-                                p() { t.Footer }
-                            }
+                            footerLine
 
                             Components.themeSwitch ctx t theme
                         }
@@ -228,12 +243,7 @@ let private shell
                     :> HtmlElement
                 | Operator ->
                     (footer(class' = "border-t border-outline-variant/40") {
-                        div(class' = footerInner) {
-                            div(class' = "flex items-center gap-3") {
-                                span(class' = "block h-5 w-5") { raw Mark.small }
-                                p() { t.Footer }
-                            }
-                        }
+                        div(class' = footerInner) { footerLine }
                     })
                     :> HtmlElement
             }

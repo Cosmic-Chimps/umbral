@@ -7,15 +7,20 @@
 // elements with data-* attributes and the listeners below act on them.
 
 // Wires `navigator.clipboard` onto every `[data-copy-trigger]` button,
-// copying the value of the `<input>` next to it and swapping the button's
-// label for the "copied" one for two seconds.
+// copying its own `data-copy-value` when it has one (a value shown as text),
+// else the value of the `<input>` next to it, and swapping the button's label
+// for the "copied" one for two seconds.
 document.addEventListener('click', function (event) {
   var trigger = event.target.closest('[data-copy-trigger]');
   if (!trigger) return;
-  var field = trigger.closest('div');
-  var source = field ? field.querySelector('input') : null;
-  if (!source || !navigator.clipboard) return;
-  navigator.clipboard.writeText(source.value).then(function () {
+  var value = trigger.getAttribute('data-copy-value');
+  if (value === null) {
+    var field = trigger.closest('div');
+    var source = field ? field.querySelector('input') : null;
+    value = source ? source.value : null;
+  }
+  if (value === null || !navigator.clipboard) return;
+  navigator.clipboard.writeText(value).then(function () {
     var idle = trigger.querySelector('[data-copy-label-idle]');
     var done = trigger.querySelector('[data-copy-label-done]');
     if (!idle || !done) return;

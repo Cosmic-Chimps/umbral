@@ -94,6 +94,13 @@ let private sameOrigin (url: string) =
     || url.StartsWith "#"
     || url.StartsWith "data:"
 
+/// The footer's two links to Umbral's own source and documentation (an
+/// unbranded page only). An `<a href>` is followed, never fetched, so it makes
+/// no request when the page opens (SC-005); these two exact constants are the
+/// only addresses elsewhere that a page may carry.
+let private projectLink (url: string) =
+    url = Texts.RepositoryUrl || url = Texts.DocumentationUrl
+
 /// What holds for every page here, branded or not (case h).
 let private assertInvariants (what: string) (response: HttpResponseMessage) (html: string) =
     match response.Headers.TryGetValues "Content-Security-Policy" with
@@ -102,7 +109,7 @@ let private assertInvariants (what: string) (response: HttpResponseMessage) (htm
     | _ -> Assert.Fail $"{what}: no Content-Security-Policy header"
 
     for url in urlsOf html do
-        Assert.True(sameOrigin url, $"{what}: {url} leaves this origin")
+        Assert.True(sameOrigin url || projectLink url, $"{what}: {url} leaves this origin")
 
     // Nothing inline, whatever the branding says (the same rule PageAssetsTests holds every page to).
     Assert.Empty(PageAssetsTests.externalOrInlineViolations html)
