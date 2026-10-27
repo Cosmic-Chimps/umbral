@@ -239,6 +239,25 @@ let copyField (copyLabel: string) (copiedLabel: string) (label': string) (name: 
         }
     }
 
+/// A read-only value shown whole, wrapping where it must, with a copy button
+/// under it: for a value a visitor comes to the page for and must see to the
+/// end, in a column too narrow for `copyField`'s input (the home page's issuer
+/// URL). The button carries the value for the script and is named by
+/// `copyName`, which says what it copies.
+let copyText (copyLabel: string) (copiedLabel: string) (copyName: string) (label': string) (name: string) (value: string) =
+    div(class' = "space-y-1.5") {
+        p(class' = "um-label") { label' }
+        p(id = name, class' = "um-mono text-body-md text-on-surface [overflow-wrap:anywhere]") { value }
+
+        div() {
+            button(type' = "button", class' = btn Secondary).attr("aria-label", copyName).data("copy-trigger", "").data("copy-value", value) {
+                icon ContentCopy
+                span().data("copy-label-idle", "") { copyLabel }
+                span(class' = "hidden").data("copy-label-done", "") { copiedLabel }
+            }
+        }
+    }
+
 /// A saved secret, masked with its last four characters, and a Replace
 /// action — never Edit, because there is nothing to edit from (D6).
 let maskedSecretField (label': string) (maskedText: string) (replaceButton: HtmlElement) =

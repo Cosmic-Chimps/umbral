@@ -343,8 +343,9 @@ let ``the control is on the operator sign-in page and the operator's rail`` () =
         Assert.Contains("<aside", signedIn)
         let aside = Regex.Match(signedIn, "<aside.*?</aside>", RegexOptions.Singleline).Value
         Assert.Contains("data-theme-switch", aside)
-        // The theme control is not a <nav>: the navigation stays one landmark.
-        Assert.Equal(1, Regex.Matches(signedIn, "<nav[\\s>]").Count)
+        // The theme control is not a <nav>: the navigation stays one landmark,
+        // beside the footer's links to the source and the documentation.
+        Assert.Equal(1, Regex.Matches(signedIn, "<nav(?![^>]*data-footer-links)[\\s>]").Count)
 
         let! signedOut = getWithTheme app.Client None "/admin/signin?msg=signin-failed"
         assertControl "/admin/signin" signedOut "system" "/admin/signin"
