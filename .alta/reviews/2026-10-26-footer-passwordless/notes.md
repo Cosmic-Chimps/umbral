@@ -17,7 +17,8 @@ rebuilt.
 ## Tests
 
 No test asserted the old literals: the layout tests compare with `Texts.en.Footer`, so they follow
-the new value. `HomeTests`, `SignInBrandingTests`, `ThemeTests`: 37 passed.
+the new value. `HomeTests`, `SignInBrandingTests`, `ThemeTests`: 37 passed. Full suite at
+`9736001`: 1705 passed, 0 failed, 0 skipped (`dotnet test tests/Umbral.Tests`, 10 min 12 s).
 
 ## CHANGELOG, under `## Unreleased`, `### Changed`
 
