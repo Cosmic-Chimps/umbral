@@ -26,7 +26,7 @@ No setup: no dependency, no tooling.
 **⟶ Wait for T005, then:**
 
 - [ ] **T006** The verifier takes `(credentialId, transports)` pairs to exclude, a uniqueness function, and the stored public key, counter and user handle; the connector's call sites map their records; the JSON helpers of `Ceremonies.fs` become public for reuse; the connector's tests stay green · `Infrastructure/WebAuthn.fs`, `Handlers/Passkeys/Ceremonies.fs`
-- [ ] **T007** `verify` returns false while password sign-in is off, before hashing; `endOtherSessions` rotates the stamp · `Infrastructure/AdminAuth.fs`
+- [x] **T007** `verify` returns false while password sign-in is off, before hashing; `endOtherSessions` rotates the stamp · `Infrastructure/AdminAuth.fs`
 
 **⟶ Wait for T006 and T007, then:**
 
