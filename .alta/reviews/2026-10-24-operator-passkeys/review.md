@@ -8,9 +8,16 @@ are the spec's gates and the code review's.
 
 ## Verdict
 
-**Clear to merge. No blocking items; three nits, all in `Texts.fs`, which I would take on the
-branch before the merge since they are the two calls you left to me plus one notice.** The
-four deviations in `notes.md` are all right.
+**String check, 2026-10-27, at `20a81c2`: clear to merge.** The three nits are in as asked:
+`PasswordNewLabel` "New password" and `PasswordConfirmLabel` "Confirm the new password" on the
+Password card with setup's strings untouched; `SignInPasswordLabel` "Password" on the sign-in
+page; the failed passkey sign-in notice as two codes chosen from the switch, the passkey button
+naming its own code for the script. Checked in the diff; the captures were not retaken and need
+not be for a label change.
+
+First review at `8b721d8`: **clear to merge. No blocking items; three nits, all in `Texts.fs`,
+which I would take on the branch before the merge since they are the two calls you left to me
+plus one notice.** The four deviations in `notes.md` are all right.
 
 ## What was checked
 
