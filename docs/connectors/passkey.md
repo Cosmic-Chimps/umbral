@@ -93,12 +93,16 @@ says *Passkeys are not enabled on this Umbral.*
 
 ## Recovery
 
-When someone loses a device, open **Users**, find their row and click **Invite to
-add a passkey**. Umbral shows a link once. Send it over a channel you trust. It
-works once and for 7 days. The page it opens names the account and asks for no
-name. The person registers a new passkey on the same account, so their `sub` is
-the same in every app, and removes the old one on their passkeys page. The same
-button gives a person who signs in only with a provider a passkey of their own.
+When someone loses a device, open **Users**, find their row and click **Create a
+recovery link**. The row says when to use it: *For a lost device: the link adds a
+new passkey to the same account. Remove the lost passkey afterwards.* Umbral shows
+the link once, under **Recovery link**. Send it over a channel you trust. It works
+once and for 7 days. The page it opens names the account and asks for no name.
+The person registers a new passkey on the same account, so their `sub` is the
+same in every app, and removes the old one on their passkeys page. On the row of
+a person who signs in only with a provider, the same button reads **Invite to add
+a passkey** and its link is shown under **Invitation link**: it gives them a
+passkey of their own.
 
 ## Removing a passkey
 
