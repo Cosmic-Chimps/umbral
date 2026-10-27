@@ -1,7 +1,8 @@
 // The WebAuthn ceremony script (specs/008-passkey-connector, contracts/ceremonies.md
-// "The script"). It is linked only on the three pages that run a ceremony: the
-// passkey sign-in page, the invitation page and the passkeys page. Plain
-// JavaScript, no framework, no build step, like umbral.js.
+// "The script"; specs/011-operator-passkeys, contracts/routes.md "Script hooks").
+// It is linked only on the pages that run a ceremony: the passkey sign-in page, the
+// invitation page and the passkeys page of the connector, and the operator's sign-in
+// and credential pages. Plain JavaScript, no framework, no build step, like umbral.js.
 //
 // It is a file, served from this origin, because the pages' Content-Security-Policy
 // (Views/Layout.fs) forbids inline script. Views mark elements with data-* attributes
@@ -11,6 +12,21 @@
 //   [data-passkey-signup]      a form: create an account with a passkey (open sign-up)
 //   [data-passkey-invitation]  a form: redeem the invitation link in the address
 //   [data-passkey-add]         a form: add a passkey to the signed-in account
+//
+// The operator's own passkeys (admin pages, /admin/...):
+//
+//   [data-scripted]                  any element rendered `hidden` because it cannot
+//                                    work without this script: revealed on load
+//   [data-operator-passkey-signin]   a button: sign the operator in with a passkey
+//   [data-operator-passkey-add]      a form: add a passkey to the operator; with a
+//                                    password typed, the password re-checks it,
+//                                    otherwise a passkey ceremony does
+//   [data-operator-confirm]          a form (remove a passkey, the password sign-in
+//                                    switch): a passkey ceremony re-checks it, and its
+//                                    answer fills the hidden `ceremony` and
+//                                    `credential` fields before the form is sent
+//   [data-operator-confirm-passkey]  a submit button of such a form: always the
+//                                    passkey ceremony, even when a password field exists
 //
 // It says nothing of its own. Every word the person reads is already in the page,
 // and a refusal is shown by asking the server for the page again with the notice
@@ -26,6 +42,9 @@ var PASSKEY_CANCELLED = ['NotAllowedError', 'AbortError'];
 // text; the page may name another with data-failure on the element.
 var PASSKEY_SIGNIN_FAILED = 'passkey-sign-in-failed';
 var PASSKEY_REGISTRATION_FAILED = 'passkey-registration-failed';
+var OPERATOR_SIGNIN_FAILED = 'operator-passkey-signin-failed';
+var OPERATOR_REGISTRATION_FAILED = 'operator-passkey-registration-failed';
+var OPERATOR_NOT_CONFIRMED = 'operator-passkey-not-confirmed';
 
 // A server refusal: the notice code it sent. Distinct from any other exception so
 // the person is told what the server said and not what the browser did.
@@ -186,9 +205,11 @@ function passkeyField(form, name) {
 // Runs one ceremony from a control and the first request's body. `kind` is
 // 'create' (registration) or 'get' (sign-in). While it runs the control is
 // disabled, so a second click cannot start a second ceremony; a cancelled
-// dialog enables it again and says nothing.
-function runPasskeyCeremony(control, kind, optionsUrl, finishUrl, body) {
+// dialog enables it again and says nothing. The notice for a failure of the browser
+// is the element's data-failure, else `defaultFailure`, else the connector's.
+function runPasskeyCeremony(control, kind, optionsUrl, finishUrl, body, defaultFailure) {
   var failure = control.getAttribute('data-failure')
+    || defaultFailure
     || (kind === 'get' ? PASSKEY_SIGNIN_FAILED : PASSKEY_REGISTRATION_FAILED);
 
   if (!window.PublicKeyCredential || !navigator.credentials) {
@@ -264,4 +285,139 @@ document.addEventListener('submit', function (event) {
   event.preventDefault();
   var submit = form.querySelector('button[type="submit"],input[type="submit"]') || form;
   runPasskeyCeremony(submit, 'create', '/passkey/registration/options', '/passkey/registration', body);
+});
+
+// The operator's pages. Elements that cannot work without this script are rendered
+// `hidden` and carry data-scripted: they appear once it runs.
+function revealScriptedControls() {
+  var elements = document.querySelectorAll('[data-scripted]');
+  for (var i = 0; i < elements.length; i++) elements[i].hidden = false;
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', revealScriptedControls);
+} else {
+  revealScriptedControls();
+}
+
+document.addEventListener('click', function (event) {
+  if (!(event.target instanceof Element)) return;
+  var button = event.target.closest('[data-operator-passkey-signin]');
+  if (!button || button.disabled) return;
+  event.preventDefault();
+  runPasskeyCeremony(button, 'get', '/admin/signin/passkey/options', '/admin/signin/passkey', {},
+    OPERATOR_SIGNIN_FAILED);
+});
+
+function passkeysUnavailable() {
+  return !window.PublicKeyCredential || !navigator.credentials;
+}
+
+function submitButtonsOf(form) {
+  return form.querySelectorAll('button[type="submit"],input[type="submit"],button:not([type])');
+}
+
+function setDisabled(controls, disabled) {
+  for (var i = 0; i < controls.length; i++) controls[i].disabled = disabled;
+}
+
+// A form asks for a passkey when its submit button says so, or when it has no
+// password field to type into. A password typed on the primary submit is the
+// password's way.
+function usesPasskeyConfirm(form, submitter) {
+  return (!!submitter && submitter.hasAttribute('data-operator-confirm-passkey'))
+    || !form.querySelector('input[name="current"]');
+}
+
+// The re-check by passkey: `{ ceremony, credential }` for the server to verify.
+// No credential is a failure.
+function confirmWithPasskey() {
+  return postPasskeyJson('/admin/credential/confirm/options', {}).then(function (started) {
+    return navigator.credentials.get({ publicKey: parseRequestOptions(started.options) })
+      .then(function (credential) {
+        if (!credential) throw new Error('no-credential');
+        return { ceremony: started.ceremony, credential: credentialToJson(credential) };
+      });
+  });
+}
+
+// What an operator ceremony does with its error: the server's refusal names the
+// notice, a cancelled dialog leaves the page as it was, anything else is `failure`.
+function operatorPasskeyFailed(error, controls, failure) {
+  if (error instanceof PasskeyRefusal) {
+    showPasskeyNotice(error.code);
+  } else if (error && PASSKEY_CANCELLED.indexOf(error.name) >= 0) {
+    setDisabled(controls, false);
+  } else {
+    showPasskeyNotice(failure);
+  }
+}
+
+// Add a passkey to the operator: the re-check (password or passkey) opens the
+// registration, which then runs like the connector's.
+document.addEventListener('submit', function (event) {
+  var form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-operator-passkey-add')) return;
+
+  event.preventDefault();
+  if (passkeysUnavailable()) {
+    showPasskeyNotice(OPERATOR_REGISTRATION_FAILED);
+    return;
+  }
+
+  var controls = submitButtonsOf(form);
+  setDisabled(controls, true);
+
+  var name = passkeyField(form, 'name');
+  var recheck = usesPasskeyConfirm(form, event.submitter)
+    ? confirmWithPasskey().then(function (confirmed) {
+      return { name: name, ceremony: confirmed.ceremony, credential: confirmed.credential };
+    })
+    : Promise.resolve({ name: name, current: passkeyField(form, 'current') });
+
+  recheck
+    .then(function (body) { return postPasskeyJson('/admin/credential/passkeys/options', body); })
+    .then(function (started) {
+      return navigator.credentials.create({ publicKey: parseCreationOptions(started.options) })
+        .then(function (credential) {
+          if (!credential) throw new Error('no-credential');
+          return postPasskeyJson('/admin/credential/passkeys', {
+            ceremony: started.ceremony,
+            credential: credentialToJson(credential)
+          });
+        });
+    })
+    .then(function (done) { followPasskeyRedirect(done.redirect); })
+    .catch(function (error) { operatorPasskeyFailed(error, controls, OPERATOR_REGISTRATION_FAILED); });
+});
+
+// The forms that need the operator's re-check (remove a passkey, the password
+// sign-in switch). They post normally; the passkey's answer travels in their two
+// hidden fields. `form.submit()` does not fire this event again.
+document.addEventListener('submit', function (event) {
+  var form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-operator-confirm')) return;
+  if (!usesPasskeyConfirm(form, event.submitter)) return;
+
+  event.preventDefault();
+  if (passkeysUnavailable()) {
+    showPasskeyNotice(OPERATOR_NOT_CONFIRMED);
+    return;
+  }
+
+  var controls = submitButtonsOf(form);
+  setDisabled(controls, true);
+
+  confirmWithPasskey()
+    .then(function (confirmed) {
+      var ceremony = form.querySelector('input[name="ceremony"]');
+      var credential = form.querySelector('input[name="credential"]');
+      if (!ceremony || !credential) throw new Error('missing-field');
+      ceremony.value = confirmed.ceremony;
+      credential.value = JSON.stringify(confirmed.credential);
+      var current = form.querySelector('input[name="current"]');
+      if (current) current.value = '';
+      form.submit();
+    })
+    .catch(function (error) { operatorPasskeyFailed(error, controls, OPERATOR_NOT_CONFIRMED); });
 });

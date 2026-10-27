@@ -162,6 +162,14 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T04:04:48.175Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T013",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:07:06.463Z"
     }
   ],
   "unattended": true,
@@ -397,7 +405,7 @@
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
-  "currentTask": "T020",
+  "currentTask": "T013",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -481,6 +489,13 @@
       "did": "CsrfTests walks the new JSON admin routes as JSON, one address per request, sign-in routes open to a stranger",
       "files": [
         "tests/Umbral.Tests/CsrfTests.fs"
+      ]
+    },
+    "T013": {
+      "status": "DONE",
+      "did": "passkeys.js: reveal data-scripted controls, operator sign-in, add form, confirm forms",
+      "files": [
+        "src/Umbral/Assets/passkeys.js"
       ]
     }
   }
