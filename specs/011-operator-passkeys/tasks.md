@@ -21,7 +21,7 @@ No setup: no dependency, no tooling.
 
 **⟶ Wait for Wave 1 to finish, then:**
 
-- [ ] **T005** New module: list, count, find by credential id, insert under the 10 limit (one statement), record use (counter and last used), remove unless last while off (one statement), remove all, the switch (read; write off only while a passkey exists, one statement; write on), the operator user handle (get or mint) · `Infrastructure/OperatorPasskeys.fs` (new, before `WebAuthn.fs`)
+- [x] **T005** New module: list, count, find by credential id, insert under the 10 limit (one statement), record use (counter and last used), remove unless last while off (one statement), remove all, the switch (read; write off only while a passkey exists, one statement; write on), the operator user handle (get or mint) · `Infrastructure/OperatorPasskeys.fs` (new, before `WebAuthn.fs`)
 
 **⟶ Wait for T005, then:**
 

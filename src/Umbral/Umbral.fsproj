@@ -86,6 +86,7 @@
     <Compile Include="Infrastructure/BrandingStore.fs" />
     <Compile Include="Infrastructure/UserStore.fs" />
     <Compile Include="Infrastructure/Passkeys.fs" />
+    <Compile Include="Infrastructure/OperatorPasskeys.fs" />
     <Compile Include="Infrastructure/PasskeyInvitations.fs" />
     <Compile Include="Infrastructure/WebAuthn.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />

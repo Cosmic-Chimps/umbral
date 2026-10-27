@@ -106,6 +106,14 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T03:41:34.605Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T005",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:44:12.852Z"
     }
   ],
   "unattended": true,
@@ -341,7 +349,7 @@
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
-  "currentTask": "T004",
+  "currentTask": "T005",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -370,6 +378,14 @@
       "did": "Design contract strings and ten notice codes in Texts.fs; re-check refusal says password",
       "files": [
         "src/Umbral/Views/Texts.fs"
+      ]
+    },
+    "T005": {
+      "status": "DONE",
+      "did": "OperatorPasskeys store: list, add under 10, recordUse, remove unless last while off, removeAll, switch, user handle; 12 store tests",
+      "files": [
+        "src/Umbral/Infrastructure/OperatorPasskeys.fs",
+        "tests/Umbral.Tests/OperatorPasskeyStoreTests.fs"
       ]
     }
   }
