@@ -98,7 +98,7 @@ Files: `resetCredential` and `main` in `Program.fs`, `tests/Umbral.Tests/Subcomm
 **Wave 1 — independent:**
 
 - [x] **T020** [P] `CsrfTests` walks the new admin POSTs (form and JSON) · `tests/Umbral.Tests/CsrfTests.fs`
-- [ ] **T021** [P] README: "Forgotten operator credential" with `--forget-passkeys`; admin sign-in and first-run text; backup table names the operator passkeys; schema version 8 under Upgrading; the security log's new events. CHANGELOG under `## Unreleased` with an Upgrade entry for schema 8 · `README.md`, `CHANGELOG.md`
+- [x] **T021** [P] README: "Forgotten operator credential" with `--forget-passkeys`; admin sign-in and first-run text; backup table names the operator passkeys; schema version 8 under Upgrading; the security log's new events. CHANGELOG under `## Unreleased` with an Upgrade entry for schema 8 · `README.md`, `CHANGELOG.md`
 - [ ] **T022** [P] Regenerate the stylesheet if a view gained a class · `Assets/umbral.css` (via `Assets/build-css.sh`)
 
 **⟶ Wait for Wave 1, then:**

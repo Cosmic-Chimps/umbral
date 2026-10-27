@@ -234,6 +234,14 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T04:38:30.426Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T021",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:38:30.660Z"
     }
   ],
   "unattended": true,
@@ -469,7 +477,7 @@
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
-  "currentTask": "T019",
+  "currentTask": "T021",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -624,6 +632,14 @@
       "did": "reset-credential [--forget-passkeys]: switch on, optional removal, events, new output wording",
       "files": [
         "src/Umbral/Program.fs"
+      ]
+    },
+    "T021": {
+      "status": "DONE",
+      "did": "README: quick start, admin passkeys subsection, backup table, schema 8, Forgotten operator credential with --forget-passkeys; CHANGELOG Unreleased Added/Changed/Upgrade",
+      "files": [
+        "README.md",
+        "CHANGELOG.md"
       ]
     }
   }

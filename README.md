@@ -156,12 +156,18 @@ You will see:
 ```
 
 Open that address, paste the token, and choose an **operator credential** of at
-least 12 characters. It is the only way into the admin area and it is not tied
-to any provider, so a broken Discord or Google app can never lock you out. Use
-a password manager: there is no recovery screen (but see
-[Forgotten operator credential](#forgotten-operator-credential)). To change it
-later while signed in, open **Credential** in the side rail: it asks for the
-current one and the new one twice, and signs every other admin session out.
+least 12 characters. It is a password. It is the only way into the admin area
+at first and it is not tied to any provider, so a broken Discord or Google app
+can never lock you out. Use a password manager: there is no recovery screen
+(but see [Forgotten operator credential](#forgotten-operator-credential)). To
+change it later while signed in, open **Credential** in the side rail: under
+**Password** it asks for the current one and the new one twice, and signs every
+other admin session out.
+
+Once you are in, you can add a passkey under **Credential** and sign in with
+it from the sign-in page with **Sign in with a passkey**. When you have one,
+you can turn password sign-in off there (see
+[Passkeys](#passkeys-for-the-admin-area)).
 
 > `/admin` always takes you to the right place: the setup page the first time,
 > the sign-in page afterwards. `/` is a short public home page (what Umbral is,
@@ -182,10 +188,10 @@ docker exec umbral /app/Umbral reset-credential
 docker compose exec umbral /app/Umbral reset-credential
 ```
 
-On an instance nobody has claimed, it claims it and prints a credential, once.
+On an instance nobody has claimed, it claims it and prints a password, once.
 Have your script store it. The setup page then no longer asks for a token: it
 sends you to the sign-in page. Run on an instance that is already claimed, the
-same command replaces the credential (see
+same command replaces the password (see
 [Forgotten operator credential](#forgotten-operator-credential)).
 
 ### 4. Add a connector (GitHub)
@@ -698,7 +704,8 @@ Umbral cannot move them. Recovery is a new invitation for each person.
 
 **JavaScript.** The sign-in, invitation and passkeys pages need JavaScript, which
 the browser's passkey support needs. With it off, the page says so. Removing a
-passkey and every operator action work without it.
+person's passkey, and everything else the operator does on the Connectors and
+Users screens, works without it.
 
 **The security log.** The events are `passkey_registered`, `passkey_removed`,
 `passkey_invitation_created` and `passkey_invitation_revoked`, and a refused
@@ -709,6 +716,55 @@ ever logged.
 **Memory.** An instance with the passkey connector in use idles under 160 MB (a
 ceiling, as with an external secret store; the figure is confirmed by the
 idle-memory test). Without the connector it stays under 150 MB.
+
+### Passkeys for the admin area
+
+You can also sign in to the admin area with a passkey. These passkeys are the
+operator's own, not people's. They do not need the passkey connector to be
+enabled, they never appear on **Users**, and they never sign anyone in to an
+app.
+
+Open **Credential** in the side rail. The page has three parts: **Passkeys**,
+**Password sign-in** and **Password**.
+
+- **Passkeys.** Type an optional name, then click **Add a passkey** and
+  confirm on the device. You can add up to 10. Each one is listed with when it
+  was added and when it was last used, and a **Remove** button.
+- **Password sign-in.** It is **On** until you turn it off. **Turn password
+  sign-in off** works only once you have a passkey, and asks you to confirm
+  with a passkey. While it is off, no password is accepted anywhere, the sign-in
+  page shows only the passkey, and the **Password** part is hidden. Your
+  password is kept, and comes back unchanged when you click **Turn password
+  sign-in on**.
+- **Password.** Replaces the password, as before.
+
+**Signing in.** On `/admin/signin`, click **Sign in with a passkey** and pick
+the passkey on your device. No name is typed. The password form stays beside it
+while password sign-in is on. Without JavaScript the page shows the password
+form, or, while password sign-in is off, says that a passkey needs JavaScript.
+Adding a passkey needs JavaScript.
+
+**Asking again.** Adding a passkey and removing one each ask you to confirm
+first, with your current password (while password sign-in is on) or with a
+passkey. Turning password sign-in on or off asks for a passkey. Removing a
+passkey and turning password sign-in off sign out every other admin session.
+You cannot remove the last passkey while password sign-in is off: turn password
+sign-in on first, or add another passkey.
+
+**Bound to the address.** Like people's passkeys, the operator's belong to the
+address in `UMBRAL__PUBLIC_ORIGIN`. If you change it, they stop working.
+
+**If you lose the device.** Run `reset-credential` on the host. It keeps the
+passkeys unless you add `--forget-passkeys` (see
+[Forgotten operator credential](#forgotten-operator-credential)).
+
+**The security log.** Adding a passkey is `operator_passkey_added`, removing one
+is `operator_passkey_removed`, and a change of the switch is
+`operator_password_signin_changed`, with the detail `on` or `off`
+(`offline_reset` when `reset-credential` turned it back on). A passkey sign-in
+is an `operator_signed_in` event with the detail `passkey`. A refused one is an
+`operator_sign_in_failed` event whose detail starts `passkey_refused;reason=`.
+No challenge, credential id, key or password is ever logged.
 
 ## Run it for real, behind HTTPS
 
@@ -1078,7 +1134,7 @@ What is in there:
 
 | Path | What |
 | --- | --- |
-| `umbral.db` | SQLite database: connectors, users, apps, each app's sign-in logo and colour, the security log. (While running you will also see `umbral.db-wal` and `umbral.db-shm`: they belong with it.) |
+| `umbral.db` | SQLite database: connectors, users, apps, each app's sign-in logo and colour, the operator's passkeys (public keys, which are not secrets) and whether password sign-in is on, the security log. (While running you will also see `umbral.db-wal` and `umbral.db-shm`: they belong with it.) |
 | `keys/` | Token signing and encryption keys, and the key ring that encrypts the connectors' client secrets kept here |
 
 **Back up** = copy the directory. **Stop Umbral first**: SQLite keeps recent
@@ -1146,10 +1202,11 @@ second one its own prefix.
 
 ### Upgrading
 
-The database is at **schema version 7**. Umbral upgrades an older database by
+The database is at **schema version 8**. Umbral upgrades an older database by
 itself when it starts, and nothing changes until you use what the upgrade
-added: for example, every app starts with no branding, and nobody can use a
-passkey until you enable the passkey connector. It does not work the other way: an older
+added: for example, every app starts with no branding, nobody can use a
+passkey until you enable the passkey connector, and the operator has no
+passkey and password sign-in stays on until you add one under **Credential**. It does not work the other way: an older
 image refuses to start on a newer database, and says so in `docker logs umbral`
 (*...written by a newer Umbral. Run the newer image, or restore the backup of
 the data directory taken before the upgrade.*). Take a
@@ -1165,12 +1222,43 @@ docker exec -it umbral /app/Umbral reset-credential
 docker compose exec umbral /app/Umbral reset-credential
 ```
 
-It replaces the credential with a freshly generated one and prints it, once.
+It replaces the operator password with a freshly generated one and prints it,
+once. It also turns password sign-in back on and signs out every admin session.
+It keeps the operator's passkeys. You see:
+
+```
+================================================================
+  The operator password has been replaced.
+
+  New password     <generated>
+
+  Password sign-in is on.
+  2 operator passkeys are kept. Add --forget-passkeys to remove them.
+
+  Sign in with it, then change it from the admin area.
+  This is the only time it is shown.
+================================================================
+```
+
 Sign in at `/admin/signin` with it, then choose your own under **Credential**,
-and store it in a password manager. Every admin session open before the reset is
-ended. There is deliberately no "forgot your credential" page: reaching this
-command needs access to the machine, which is more than reaching the web page
-needs.
+and store it in a password manager. It is also the way back in when password
+sign-in was off and you lost every device that holds a passkey.
+
+If a device was stolen, also remove the operator passkeys:
+
+```bash
+docker exec -it umbral /app/Umbral reset-credential --forget-passkeys
+# compose:
+docker compose exec umbral /app/Umbral reset-credential --forget-passkeys
+```
+
+The line about passkeys then reads `2 operator passkeys were removed.` With one
+passkey it reads `1 operator passkey is kept.` or `1 operator passkey was
+removed.`, and with none the line is not printed. Add a passkey again under
+**Credential** afterwards.
+
+There is deliberately no "forgot your credential" page: reaching this command
+needs access to the machine, which is more than reaching the web page needs.
 
 ## Moving connector secrets between stores
 
