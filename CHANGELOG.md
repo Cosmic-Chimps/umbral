@@ -21,24 +21,6 @@ new image. Add to "Unreleased" as you work; a release renames it.
 - On the **Users** screen, a passkey's **Remove** is a quiet button in the error colour instead of a
   second red one beside the user's **Delete**: removing a passkey can be undone by adding another,
   deleting the user cannot.
-
-## 0.6.0 - 2026-10-26
-
-### Added
-- The Fediverse connector: people can sign in with an account on a Mastodon (4.3 and later) or
-  GoToSocial server, typing a handle such as `@ana@mastodon.social` or just the server. Enable it from
-  the **Fediverse** entry of the Connectors screen; there is nothing to create at any provider, because
-  Umbral registers itself on each server the first time someone from it signs in. Choose **Any
-  server** or **Only these servers** and list them. A server works when its OAuth metadata
-  advertises PKCE (`S256`) and app registration, or when it is GoToSocial; Akkoma and Pleroma do no
-  PKCE, Misskey and Sharkey have no app registration Umbral can use, and Mastodon before 4.3
-  publishes no metadata, so those are refused with a message.
-- Apps receive an ordinary sign-in with `idp` set to `fediverse`, and `name`, `preferred_username`
-  (as `user@server`), `picture` and `profile` under the `profile` scope. A fediverse user has no
-  `email`, and allowed email domains do not apply to them.
-- A walkthrough, `docs/connectors/fediverse.md`, and Fediverse in the README.
-
-### Fixed
 - Stopping sharing the Passkey connector while an app had no other way to sign in could not be
   confirmed: **Stop sharing anyway** answered that the settings were invalid. It now goes ahead.
 - After deleting the last app, its notice is shown once, not twice.
@@ -59,6 +41,22 @@ new image. Add to "Unreleased" as you work; a release renames it.
 - The admin pages are no longer kept by the browser (`Cache-Control: no-store`), so **Back** cannot
   show a new client secret or a passkey invitation link again. On a narrow screen, `/admin/apps`
   and `/admin/connectors` no longer use up a new secret or invitation link in a pane the screen hides.
+
+## 0.6.0 - 2026-10-26
+
+### Added
+- The Fediverse connector: people can sign in with an account on a Mastodon (4.3 and later) or
+  GoToSocial server, typing a handle such as `@ana@mastodon.social` or just the server. Enable it from
+  the **Fediverse** entry of the Connectors screen; there is nothing to create at any provider, because
+  Umbral registers itself on each server the first time someone from it signs in. Choose **Any
+  server** or **Only these servers** and list them. A server works when its OAuth metadata
+  advertises PKCE (`S256`) and app registration, or when it is GoToSocial; Akkoma and Pleroma do no
+  PKCE, Misskey and Sharkey have no app registration Umbral can use, and Mastodon before 4.3
+  publishes no metadata, so those are refused with a message.
+- Apps receive an ordinary sign-in with `idp` set to `fediverse`, and `name`, `preferred_username`
+  (as `user@server`), `picture` and `profile` under the `profile` scope. A fediverse user has no
+  `email`, and allowed email domains do not apply to them.
+- A walkthrough, `docs/connectors/fediverse.md`, and Fediverse in the README.
 
 ### Upgrade
 - The database becomes schema version 7. An older image refuses to start on it: take a backup
