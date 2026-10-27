@@ -82,12 +82,13 @@ and layout questions went to `umbral-designer` (see "Design questions").
   re-check; the password is not asked for. Turning it back on takes the current
   credential like any other action, which while it is off means a passkey.
 - Q: Which requests count against the admin rate limit? → A: Every request that
-  checks a password or completes an operator passkey ceremony (sign-in and
-  re-check) is limited exactly as the password sign-in is today (`RateLimits.AdminAuth`,
-  10 per 10 minutes per address). A request that only starts a ceremony gets
-  the connector's ceremony limit (`RateLimits.SignIn`): it checks nothing, and
-  putting it under the admin limit would halve the number of passkey sign-ins
-  the limit allows.
+  checks a password or a passkey answer (sign-in and re-check) is limited
+  exactly as the password sign-in is today (`RateLimits.AdminAuth`, 10 per 10
+  minutes per address). A request that checks nothing guessable gets the
+  connector's ceremony limit (`RateLimits.SignIn`): starting a ceremony, and
+  completing an add whose re-check an admin-limited request already made.
+  Putting those under the admin limit would halve the passkey sign-ins it
+  allows, and left a first setup one click from the limit (research R6).
 - Q: Does an action end other admin sessions? → A: Removing a passkey and
   switching password sign-in off end every other admin session, like replacing
   the password: the usual reason for either is that a device or the password is
@@ -251,7 +252,7 @@ and the switch off, with and without the flag, and check the outcome.
 - **FR-014**: `reset-credential --forget-passkeys` MUST additionally remove every operator passkey and say so in its output.
 - **FR-015**: Operator passkeys MUST be stored apart from users' passkeys, MUST NOT appear on the Users screen, and MUST NOT sign anyone in through the passkey connector or any app's sign-in.
 - **FR-016**: Every operator ceremony MUST use a single-use challenge with the passkey connector's lifetime, the issuer's host as RP ID, the configured public origin as the only accepted origin, and MUST refuse a signature counter that goes backwards.
-- **FR-017**: Requests that check a password or complete an operator passkey ceremony MUST share the password sign-in's rate limit.
+- **FR-017**: Requests that check a password or an operator passkey answer MUST share the password sign-in's rate limit.
 - **FR-018**: The security log MUST record operator passkey added, removed, the switch changed, and operator sign-in by passkey, each with its failures, with no credential id, public key, challenge or password in any log, URL or page.
 - **FR-019**: Without JavaScript, the sign-in page MUST show the password form while password sign-in is on, and otherwise a line saying a passkey needs JavaScript.
 - **FR-020**: First-run setup MUST be unchanged: it sets the password, and no passkey is asked for.

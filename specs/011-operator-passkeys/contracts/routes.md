@@ -31,7 +31,7 @@ object in a JSON body).
 | `POST /admin/credential` | form `current`, `credential`, `confirm` | replace the password; refused while off | `RateLimits.AdminAuth` |
 | `POST /admin/credential/confirm/options` | `{}` | `{ ceremony, options }` (`operator-confirm`) | `RateLimits.SignIn` |
 | `POST /admin/credential/passkeys/options` | `{ name, current }` or `{ name, ceremony, credential }` | re-check, then `{ ceremony, options }` (`operator-add`, existing passkeys excluded) | `RateLimits.AdminAuth` |
-| `POST /admin/credential/passkeys` | `{ ceremony, credential }` | store; `{ redirect: "/admin/credential?msg=operator-passkey-added" }` | `RateLimits.AdminAuth` |
+| `POST /admin/credential/passkeys` | `{ ceremony, credential }` | store; `{ redirect: "/admin/credential?msg=operator-passkey-added" }` | `RateLimits.SignIn` |
 | `POST /admin/credential/passkeys/{id}/remove` | form, re-check optional | no re-check: 422, the screen with that row's confirm block; with one: remove, end other sessions; refusal `operator-passkey-last` while off | `RateLimits.AdminAuth` |
 | `POST /admin/credential/password-signin` | form `state=on\|off`, ceremony optional | no ceremony: 422, the card's confirm block; with one: set; off ends other sessions; refusal `operator-password-off-needs-passkey` | `RateLimits.AdminAuth` |
 

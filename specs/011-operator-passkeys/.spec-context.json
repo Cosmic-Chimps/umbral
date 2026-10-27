@@ -242,6 +242,14 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T04:38:30.660Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T022",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:38:46.707Z"
     }
   ],
   "unattended": true,
@@ -477,7 +485,7 @@
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
-  "currentTask": "T021",
+  "currentTask": "T022",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -640,6 +648,13 @@
       "files": [
         "README.md",
         "CHANGELOG.md"
+      ]
+    },
+    "T022": {
+      "status": "DONE",
+      "did": "build-css.sh --check passes: no new class, umbral.css unchanged",
+      "files": [
+        "src/Umbral/Assets/umbral.css"
       ]
     }
   }

@@ -67,14 +67,21 @@ review looks hardest at "no path signs in with a password while off".
 
 ## R6. Rate limits
 
-**Decision**: The admin limit (`RateLimits.AdminAuth`) on every request that
-checks a password or completes an operator ceremony: password sign-in, passkey
-sign-in, add (options and finish, both check), remove, the switch, and replacing
-the password. The connector's ceremony limit (`RateLimits.SignIn`) on the two
-requests that only start a ceremony (sign-in options, confirm options).
+**Decision**: The admin limit (`RateLimits.AdminAuth`, 10 per 10 minutes per
+address) on every request that checks a password or a passkey answer: password
+sign-in, passkey sign-in, add options (it carries the re-check), remove, the
+switch, and replacing the password. The connector's ceremony limit
+(`RateLimits.SignIn`) on the requests that check nothing guessable: the sign-in
+and confirm options (they only start a ceremony) and the add completion (it
+verifies a registration inside an admin session against a single-use ceremony
+that an admin-limited request started).
 
-**Rationale**: Starting a ceremony checks nothing. Putting it under the admin
-limit would halve the passkey sign-ins it allows and gain nothing.
+**Rationale**: Starting a ceremony checks nothing, and putting it under the
+admin limit would halve the passkey sign-ins it allows. The add completion was
+first under the admin limit; the design review walk (2026-10-27) showed a first
+setup (sign in, three passkeys, password sign-in off) spending 9 of the 10
+permits, one click from the "Too many attempts" page. Remove and the switch
+still spend two (the confirm redraw and the confirmed post).
 
 ## R7. Sessions after a change
 

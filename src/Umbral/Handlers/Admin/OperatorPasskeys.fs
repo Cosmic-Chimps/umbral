@@ -387,4 +387,9 @@ let endpoint =
       POST [ route "/admin/signin/passkey" signIn |> limited RateLimits.AdminAuth ]
       POST [ route "/admin/credential/confirm/options" confirmOptions |> limited RateLimits.SignIn ]
       POST [ route "/admin/credential/passkeys/options" addOptions |> limited RateLimits.AdminAuth ]
-      POST [ route "/admin/credential/passkeys" add |> limited RateLimits.AdminAuth ] ]
+      // The completion of an add verifies a registration, inside an admin
+      // session, against a single-use ceremony that an AdminAuth-limited
+      // request started after the re-check: there is nothing to guess, so it
+      // takes the ceremony limit and leaves the admin budget to the requests
+      // that check a password or a passkey answer.
+      POST [ route "/admin/credential/passkeys" add |> limited RateLimits.SignIn ] ]
