@@ -205,7 +205,8 @@ let private shell
                 // every page but a branded sign-in page: there "Secured by Umbral"
                 // is what tells the real page from a lookalike, and a link out
                 // would only pull the person off the app's page mid sign-in.
-                // The addresses are constants, never anything from the request.
+                // The addresses are constants, never anything from the request, and
+                // `noreferrer` keeps the instance's origin from reaching GitHub.
                 let footerLine =
                     div(class' = "flex flex-wrap items-center gap-x-4 gap-y-2") {
                         div(class' = "flex items-center gap-3") {
@@ -214,8 +215,8 @@ let private shell
                         }
 
                         nav(class' = "flex flex-wrap items-center gap-x-4 gap-y-2").attr("aria-label", t.FooterAboutLabel).data("footer-links", "") {
-                            a(href = Texts.RepositoryUrl, class' = "um-footer-link") { t.FooterSource }
-                            a(href = Texts.DocumentationUrl, class' = "um-footer-link") { t.FooterDocs }
+                            a(href = Texts.RepositoryUrl, class' = "um-footer-link").attr("rel", "noreferrer") { t.FooterSource }
+                            a(href = Texts.DocumentationUrl, class' = "um-footer-link").attr("rel", "noreferrer") { t.FooterDocs }
                         }
                     }
 
