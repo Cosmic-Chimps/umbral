@@ -10,6 +10,8 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+## 0.7.0 - 2026-10-27
+
 ### Added
 - Every page links to the source and the documentation: the footer has **Source on GitHub** and
   **Documentation**, except on an app's branded sign-in page, where **Secured by Umbral** stays
