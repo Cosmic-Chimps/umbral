@@ -46,7 +46,7 @@ Files: `Handlers/Admin/OperatorPasskeys.fs` (new), `Handlers/Admin/Credential.fs
 
 **Wave 1:**
 
-- [ ] **T010** [US1] The JSON endpoints: sign-in options and completion, confirm options, add options (with the re-check) and completion; the shared re-check reader (`current`, or `ceremony` + `credential`) that the remove and switch handlers will call; routes in `Program.fs` · `Handlers/Admin/OperatorPasskeys.fs`
+- [x] **T010** [US1] The JSON endpoints: sign-in options and completion, confirm options, add options (with the re-check) and completion; the shared re-check reader (`current`, or `ceremony` + `credential`) that the remove and switch handlers will call; routes in `Program.fs` · `Handlers/Admin/OperatorPasskeys.fs`
 
 **⟶ Wait for T010, then:**
 

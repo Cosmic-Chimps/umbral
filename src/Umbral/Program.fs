@@ -72,7 +72,8 @@ let endpoints: Endpoint list =
       yield! Umbral.Handlers.Passkeys.SignIn.endpoint
       yield! Umbral.Handlers.Passkeys.Invitation.endpoint
       yield! Umbral.Handlers.Passkeys.Account.endpoint
-      yield! Umbral.Handlers.Passkeys.Ceremonies.endpoint ]
+      yield! Umbral.Handlers.Passkeys.Ceremonies.endpoint
+      yield! Umbral.Handlers.Admin.OperatorPasskeys.endpoint ]
 
 // ---------------------------------------------------------------------------
 // Startup settings
