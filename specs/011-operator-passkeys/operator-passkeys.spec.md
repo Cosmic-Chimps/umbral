@@ -73,9 +73,10 @@ and layout questions went to `umbral-designer` (see "Design questions").
 - Q: How does an action on the Credential screen carry the re-check? → A: The
   action itself carries it: either the current password, typed in the same form
   (only while password sign-in is on), or a passkey confirmation made for that
-  action a moment before. A confirmation is single-use, lives as long as a
-  ceremony (5 minutes), and belongs to the admin session that made it. Nothing
-  like a "confirmed for the next N minutes" window exists.
+  action a moment before, whose answer the action's own request carries. The
+  ceremony is single-use, lives as long as a connector ceremony (5 minutes), and
+  only a signed-in admin session can start or complete one. Nothing like a
+  "confirmed for the next N minutes" window exists.
 - Q: Does switching password sign-in off accept the password as its re-check?
   → A: No. Turning it off takes a passkey ceremony on the spot, which is the
   re-check; the password is not asked for. Turning it back on takes the current
@@ -218,8 +219,7 @@ and the switch off, with and without the flag, and check the outcome.
   sign-in never ends up off with no passkey.
 - A user's passkey offered at the operator sign-in, or an operator passkey at
   a user's passkey sign-in: refused, logged, no session of either kind.
-- A ceremony started for one admin session and completed in another, or a
-  confirmation used for a different action than it was made for: refused.
+- A confirmation ceremony replayed for a second action: refused, it is single-use.
 - The authenticator's signature counter goes backwards: refused and logged.
 - An upgrade from schema 7: no passkeys and password sign-in on, so nothing
   changes until the operator adds a passkey.
@@ -233,7 +233,7 @@ and the switch off, with and without the flag, and check the outcome.
 - **FR-001**: The operator MUST be able to add a passkey to the operator credential from the Credential screen, giving it a name, with user verification and a discoverable credential required.
 - **FR-002**: Umbral MUST refuse to add an operator passkey beyond 10.
 - **FR-003**: The Credential screen MUST list each operator passkey with its name, when it was added, when it was last used, and a Remove action.
-- **FR-004**: Adding a passkey, removing one, and changing the password sign-in switch MUST each require the current credential in that same action: the current password (only while password sign-in is on) or a passkey confirmation made for it, single-use, short-lived and bound to the admin session.
+- **FR-004**: Adding a passkey, removing one, and changing the password sign-in switch MUST each require the current credential in that same action: the current password (only while password sign-in is on) or the answer of a passkey ceremony made for it, single-use and short-lived.
 - **FR-005**: The operator sign-in page MUST offer "Sign in with a passkey", a discoverable-credential ceremony that asks for no name, and MUST keep the password form while password sign-in is on.
 - **FR-006**: A successful operator passkey sign-in MUST open the same admin session the password does, and update that passkey's last used time.
 - **FR-007**: Switching password sign-in off MUST be refused while no operator passkey exists, and MUST take a passkey ceremony at that moment.

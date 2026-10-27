@@ -2,8 +2,8 @@
   "workflow": "companion",
   "specName": "Operator passkeys",
   "branch": "alta/earthy-orinoco-8bkw",
-  "currentStep": "specify",
-  "status": "specified",
+  "currentStep": "plan",
+  "status": "planned",
   "history": [
     {
       "step": "specify",
@@ -18,6 +18,34 @@
       "kind": "complete",
       "by": "extension",
       "at": "2026-10-27T03:31:56.984Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "start",
+      "by": "extension",
+      "at": "2026-10-27T03:32:05.709Z"
+    },
+    {
+      "step": "plan",
+      "substep": "research",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:34:21.346Z"
+    },
+    {
+      "step": "plan",
+      "substep": "design",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:35:06.273Z"
+    },
+    {
+      "step": "plan",
+      "substep": null,
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T03:35:10.387Z"
     }
   ],
   "unattended": true,
@@ -109,5 +137,44 @@
     "constraint: constitution 3.0.1 Principle VII operator credential bullet",
     "constraint: reuse WebAuthn.Verifier, do not copy"
   ],
-  "intent": "Operator passkeys for the admin area and a switch to turn password sign-in off"
+  "intent": "Operator passkeys for the admin area and a switch to turn password sign-in off",
+  "decisions": [
+    {
+      "decision": "Verifier takes keys and a uniqueness function instead of user Passkey records",
+      "why": "reuse the one WebAuthn module for both kinds",
+      "rejected": "a second verifier (copy)"
+    },
+    {
+      "decision": "Operator ceremonies share passkey_ceremonies with three operator purposes",
+      "why": "single-use, expiry and lifetime already tested",
+      "rejected": "an operator_ceremonies table"
+    },
+    {
+      "decision": "Re-check carried by each action request (password or a confirm ceremony answer)",
+      "why": "no elevated window to steal, same as replacing the password",
+      "rejected": "sudo window"
+    },
+    {
+      "decision": "AdminAuth.verify refuses every password while the switch is off",
+      "why": "one place covers every route",
+      "rejected": "checks in each handler"
+    },
+    {
+      "decision": "Admin limit on checking/completing requests, connector ceremony limit on options",
+      "why": "options check nothing; admin limit would halve passkey sign-ins",
+      "rejected": "admin limit on all"
+    },
+    {
+      "decision": "Remove and switch-off rotate the session stamp",
+      "why": "usual reason is a lost device or a doubted password",
+      "rejected": "no rotation"
+    }
+  ],
+  "step_summaries": {
+    "plan": {
+      "summary": "Plan: schema 8 table, shared verifier/ceremonies, new operator handler module, verify refuses while off",
+      "key_finding": "WebAuthn.Verifier is coupled to Passkeys.Passkey in three members; decoupling them is the reuse point"
+    }
+  },
+  "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off."
 }
