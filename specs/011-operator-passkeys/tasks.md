@@ -30,7 +30,7 @@ No setup: no dependency, no tooling.
 
 **⟶ Wait for T006 and T007, then:**
 
-- [ ] **T008** Test helpers: claim and sign in, add an operator passkey (password or passkey re-check), sign in with one, run a confirm ceremony, read the switch · `tests/Umbral.Tests/Infrastructure/OperatorFlows.fs` (new)
+- [x] **T008** Test helpers: claim and sign in, add an operator passkey (password or passkey re-check), sign in with one, run a confirm ceremony, read the switch · `tests/Umbral.Tests/Infrastructure/OperatorFlows.fs` (new)
 
 **Checkpoint**: everything builds, the full suite is green, nothing visible has changed.
 
@@ -40,7 +40,7 @@ Files: `Handlers/Admin/OperatorPasskeys.fs` (new), `Handlers/Admin/Credential.fs
 
 ### Tests
 
-- [ ] **T009** [US1] Add with a password re-check and with a passkey re-check; a wrong password adds nothing and is logged; the 11th refused; sign in with a passkey opens an admin session and sets last used; a reused sign-in ceremony, a wrong origin, a regressed counter and a missing UV refused and logged; an operator passkey refused at `/passkey/assertion`, a user passkey refused at the operator sign-in; no operator passkey on the Users screen; the passkey sign-in and add completions limited by `RateLimits.AdminAuth`; no credential id in any page or event · `tests/Umbral.Tests/OperatorPasskeyTests.fs`
+- [x] **T009** [US1] Add with a password re-check and with a passkey re-check; a wrong password adds nothing and is logged; the 11th refused; sign in with a passkey opens an admin session and sets last used; a reused sign-in ceremony, a wrong origin, a regressed counter and a missing UV refused and logged; an operator passkey refused at `/passkey/assertion`, a user passkey refused at the operator sign-in; no operator passkey on the Users screen; the passkey sign-in and add completions limited by `RateLimits.AdminAuth`; no credential id in any page or event · `tests/Umbral.Tests/OperatorPasskeyTests.fs`
 
 ### Implementation
 
@@ -97,7 +97,7 @@ Files: `resetCredential` and `main` in `Program.fs`, `tests/Umbral.Tests/Subcomm
 
 **Wave 1 — independent:**
 
-- [ ] **T020** [P] `CsrfTests` walks the new admin POSTs (form and JSON) · `tests/Umbral.Tests/CsrfTests.fs`
+- [x] **T020** [P] `CsrfTests` walks the new admin POSTs (form and JSON) · `tests/Umbral.Tests/CsrfTests.fs`
 - [ ] **T021** [P] README: "Forgotten operator credential" with `--forget-passkeys`; admin sign-in and first-run text; backup table names the operator passkeys; schema version 8 under Upgrading; the security log's new events. CHANGELOG under `## Unreleased` with an Upgrade entry for schema 8 · `README.md`, `CHANGELOG.md`
 - [ ] **T022** [P] Regenerate the stylesheet if a view gained a class · `Assets/umbral.css` (via `Assets/build-css.sh`)
 

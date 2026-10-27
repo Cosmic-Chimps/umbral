@@ -138,6 +138,30 @@
       "kind": "complete",
       "by": "ai",
       "at": "2026-10-27T03:57:36.872Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T008",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:04:47.958Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T009",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:04:48.068Z"
+    },
+    {
+      "step": "implement",
+      "substep": null,
+      "task": "T020",
+      "kind": "complete",
+      "by": "ai",
+      "at": "2026-10-27T04:04:48.175Z"
     }
   ],
   "unattended": true,
@@ -373,7 +397,7 @@
     }
   },
   "approach": "A new operator_passkeys table (schema 8) and two settings rows. The connector's WebAuthn verifier and ceremony store are reused with operator purposes. New Admin/OperatorPasskeys.fs handles the ceremonies, remove and the switch; AdminAuth.verify refuses passwords while off.",
-  "currentTask": "T010",
+  "currentTask": "T020",
   "task_summaries": {
     "T002": {
       "status": "DONE",
@@ -436,6 +460,27 @@
         "src/Umbral/Handlers/Admin/OperatorPasskeys.fs",
         "src/Umbral/Umbral.fsproj",
         "src/Umbral/Program.fs"
+      ]
+    },
+    "T008": {
+      "status": "DONE",
+      "did": "OperatorFlows helpers: signed-in operator, add with password or passkey re-check, confirm ceremony, operator passkey sign-in",
+      "files": [
+        "tests/Umbral.Tests/Infrastructure/OperatorFlows.fs"
+      ]
+    },
+    "T009": {
+      "status": "DONE",
+      "did": "13 US1 tests: add both ways, refusals, limit, sign-in, replay/origin/UV/counter, isolation both ways, rate limit, no credential id",
+      "files": [
+        "tests/Umbral.Tests/OperatorPasskeyTests.fs"
+      ]
+    },
+    "T020": {
+      "status": "DONE",
+      "did": "CsrfTests walks the new JSON admin routes as JSON, one address per request, sign-in routes open to a stranger",
+      "files": [
+        "tests/Umbral.Tests/CsrfTests.fs"
       ]
     }
   }
