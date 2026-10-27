@@ -181,7 +181,10 @@ let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
                         ) {
                             ctx.GetAntiforgeryInput()
 
-                            button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                            button(
+                                type' = "submit",
+                                class' = Components.btnSm Components.Ghost + " text-error hover:text-error"
+                            ) {
                                 t.PasskeyRemoveButton
                             }
                         })

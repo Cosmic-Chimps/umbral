@@ -10,6 +10,18 @@ new image. Add to "Unreleased" as you work; a release renames it.
 
 ## Unreleased
 
+### Changed
+- On the **Users** screen, the row of someone who already has a passkey offers **Create a
+  recovery link** instead of **Invite to add a passkey**, with a line saying it is for a lost
+  device, and the link it shows is labelled **Recovery link**. A row without a passkey keeps
+  **Invite to add a passkey**, and its link is labelled **Invitation link**. The link and what it
+  does are unchanged.
+
+### Fixed
+- On the **Users** screen, a passkey's **Remove** is a quiet button in the error colour instead of a
+  second red one beside the user's **Delete**: removing a passkey can be undone by adding another,
+  deleting the user cannot.
+
 ## 0.6.0 - 2026-10-26
 
 ### Added
@@ -25,13 +37,6 @@ new image. Add to "Unreleased" as you work; a release renames it.
   (as `user@server`), `picture` and `profile` under the `profile` scope. A fediverse user has no
   `email`, and allowed email domains do not apply to them.
 - A walkthrough, `docs/connectors/fediverse.md`, and Fediverse in the README.
-
-### Changed
-- On the **Users** screen, the row of someone who already has a passkey offers **Create a
-  recovery link** instead of **Invite to add a passkey**, with a line saying it is for a lost
-  device, and the link it shows is labelled **Recovery link**. A row without a passkey keeps
-  **Invite to add a passkey**, and its link is labelled **Invitation link**. The link and what it
-  does are unchanged.
 
 ### Upgrade
 - The database becomes schema version 7. An older image refuses to start on it: take a backup
