@@ -59,3 +59,13 @@ Don't push the current local `main` as it is: CI's released check would fail on 
   Upgrade. `released` passes against `v0.7.0:CHANGELOG.md` and against GitHub's `main` (`4d7cb2c`),
   and fails against the local `main` (`3a235da`), whose `## 0.7.0` is the wrong one; both outputs are
   in `notes.md`. `check` passes; `unreleased` previews spec 011's notes and this change's note.
+
+## Re-check at `49cedc3` (2026-10-31)
+
+**Clear to merge.**
+
+- **B1, fixed.** `## 0.7.0` is back as tagged. `changelog.sh released` reports every released section unchanged against `v0.7.0:CHANGELOG.md` and against `4d7cb2c:CHANGELOG.md`, GitHub's `main`, which is what CI compares with on the push. Spec 011's six bullets are in `changelog.d/011-operator-passkeys.md` word for word: Added (3), Changed (2), Upgrade (schema 8).
+- `changelog.sh check` passes, and so does `changelog-test.sh` (55 of 55). `unreleased` previews Added, Changed and Upgrade: spec 011's notes and this change's own note, which is what 0.8.0 will say.
+- `49cedc3` touches only `CHANGELOG.md` (the 14 lines out of 0.7.0), the new fragment and the review notes. No script or workflow changed since the first review.
+
+For the maintainer: merging this branch also repairs the local `main` (`3a235da`), whose 0.7.0 held spec 011's notes. Push after merging, then release 0.8.0 (Run workflow, version `0.8.0`), which gathers `changelog.d/` for the first time. Take a backup first: schema 8.
