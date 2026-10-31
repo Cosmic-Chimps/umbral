@@ -129,8 +129,45 @@ changelog: changelog.d/bad-one.md:6: text that is not a "- " bullet or an indent
 exit 1
 ```
 
+## After the code review (B1): the one-time move
+
+The reviewer found that the maintainer's local `main` (`3a235da`, the spec 011 merge after v0.7.0)
+holds spec 011's six bullets inside the released `## 0.7.0` section: the trap this task removes,
+once more. The first `released` run above passed only because it compared with that `main`. GitHub's
+`main` (`4d7cb2c`) is clean. The fix is Frunchy's `e4986d0` move:
+
+- `## 0.7.0` is copied back from `v0.7.0:CHANGELOG.md` (the section is now identical to the tag's:
+  `notes 0.7.0` from both files has no diff);
+- the six bullets are `changelog.d/011-operator-passkeys.md`, word for word: Added (3), Changed (2),
+  Upgrade (schema 8).
+
+`changelog.sh released` against the tag and against GitHub's `main`:
+
+```
+$ git show v0.7.0:CHANGELOG.md > /tmp/v070.md && .github/scripts/changelog.sh released /tmp/v070.md
+changelog: every released section is unchanged
+$ git show origin/main:CHANGELOG.md > /tmp/origin.md && .github/scripts/changelog.sh released /tmp/origin.md
+changelog: every released section is unchanged
+```
+
+Against the maintainer's local `main` (`3a235da`) it now fails, as it must: that file's `## 0.7.0`
+is the wrong one, and this branch corrects it.
+
+```
+$ git show main:CHANGELOG.md > /tmp/main.md && .github/scripts/changelog.sh released /tmp/main.md
+changelog: released sections changed: 0.7.0. Released notes are never edited; put this
+changelog: branch's new notes in a file in changelog.d/ (see its README). To correct a released
+changelog: section on purpose, put "[edit released changelog]" in the commit message or the
+changelog: pull request's title.
+```
+
+CI compares a push with the commit before it, `4d7cb2c` on GitHub, so pushing `main` with this
+branch merged passes; pushing the local `main` as it is would fail. `check` passes, and `unreleased`
+now previews spec 011's notes and this change's note: what 0.8.0 will say.
+
 ## For the maintainer
 
+- Merge this branch before pushing `main`: it carries the corrected `## 0.7.0`.
 - A branch started before this change that still adds bullets under `## Unreleased` will fail CI's
   `check` after the merge (the message says what to do); `released` still catches a bullet that
   lands inside a released section.

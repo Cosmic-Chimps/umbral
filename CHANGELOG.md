@@ -18,12 +18,6 @@ new image.
 - Every page links to the source and the documentation: the footer has **Source on GitHub** and
   **Documentation**, except on an app's branded sign-in page, where **Secured by Umbral** stays
   alone.
-- You can add passkeys to the operator credential, up to 10, on the **Credential** page, and sign
-  in to the admin area with **Sign in with a passkey**. They need no connector, never appear on
-  **Users**, and never sign anyone in to an app.
-- You can turn password sign-in off once you have a passkey. While it is off, no password is
-  accepted, and the stored password comes back unchanged when you turn it on again.
-- `reset-credential --forget-passkeys` also removes every operator passkey, for a stolen device.
 
 ### Changed
 - The home page's **Building an app?** card shows the whole issuer URL, wrapping if it must, with
@@ -36,9 +30,6 @@ new image.
 - The footer line reads **Umbral — self-hosted passwordless sign-in** instead of "self-hosted
   social login", and the home page says that apps can offer a passkey as well as an account at
   Discord, GitHub, Google, a Mastodon-compatible server or any OpenID Connect provider.
-- The **Credential** page has three parts: **Passkeys**, **Password sign-in** and **Password**.
-- `reset-credential` turns password sign-in back on and keeps the operator passkeys. Its output
-  says "password", not "credential".
 
 ### Fixed
 - On the **Users** screen, a passkey's **Remove** is a quiet button in the error colour instead of a
@@ -69,11 +60,6 @@ new image.
   address. The passkey invitation page keeps its stricter `no-referrer`. The page that posts a
   sign-in back to an app that asked for `response_mode=form_post` has no policy, as before, so the
   app still sees where the post comes from.
-
-### Upgrade
-- The database becomes schema version 8. An older image refuses to start on it: take a backup
-  before you upgrade. Nothing else changes until you add a passkey: there is none, and password
-  sign-in stays on.
 
 ## 0.6.0 - 2026-10-26
 
