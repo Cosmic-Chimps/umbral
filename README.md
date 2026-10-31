@@ -1007,9 +1007,10 @@ and keeps the changes you made in the console.
 
 ### Release
 
-While you work, add what changed for the people who run Umbral to
-[`CHANGELOG.md`](CHANGELOG.md), under `## Unreleased` (its top says how: what
-changed in plain words, under Added, Changed, Fixed, Security or Upgrade). To
+While you work, add what changed for the people who run Umbral as one file in
+[`changelog.d/`](changelog.d/README.md) (its README says how: what changed in
+plain words, under Added, Changed, Fixed, Security or Upgrade). Nobody edits
+[`CHANGELOG.md`](CHANGELOG.md) for a change: it holds only released sections. To
 release, use the button: Actions, **release**, **Run workflow**, branch `main`,
 version `1.2.3` (no `v`). From a terminal, the same thing is
 `gh workflow run release.yml --ref main -f version=1.2.3`.
@@ -1018,13 +1019,14 @@ The workflow ([`release.yml`](.github/workflows/release.yml)) then:
 
 1. runs the same tests as CI on the tip of `main`, so a red test never leaves a
    tag;
-2. turns `## Unreleased` into `## 1.2.3 - <today>`
+2. gathers the files in `changelog.d/` into `## 1.2.3 - <today>` in
+   `CHANGELOG.md` and deletes them
    ([`changelog.sh`](.github/scripts/changelog.sh)), commits that to `main` as
    `chore(release): 1.2.3`, tags that commit `v1.2.3` and pushes both in one
    atomic push, so the tag always contains its own changelog section. It stops
-   here, before anything is built, if there is nothing under `## Unreleased`
-   (no empty releases), if the tag already exists, or if `main` moved while the
-   tests ran (run it again);
+   here, before anything is built, if `changelog.d/` has no notes (no empty
+   releases) or a malformed one, if the tag already exists, or if `main` moved
+   while the tests ran (run it again);
 3. builds `linux/amd64` and `linux/arm64` and pushes `ghcr.io/<owner>/umbral:1.2.3`
    and `:latest`;
 4. deploys the exact image digest it just built through Caravana's API, with
@@ -1043,14 +1045,13 @@ The workflow ([`release.yml`](.github/workflows/release.yml)) then:
 
 Pushing a tag still works (`git tag v1.2.3 && git push origin v1.2.3`): the
 workflow then prepares the changelog in its own checkout, builds and publishes
-the tag, and afterwards commits the renamed section to `main` as
-`docs(changelog): release 1.2.3`, but only if `main` is still the tagged commit.
-If `main` has moved on, it warns instead, and you run
-`.github/scripts/changelog.sh prepare 1.2.3` on `main` by hand, keeping any
-newer entries under `## Unreleased`. The tag never moves. The button is better:
-it commits the changelog first, so the tag never points at a changelog that
-still says `## Unreleased`, and branches merged after the release cannot put
-entries into the released section.
+the tag, and afterwards commits the gathered section, and the deletion of the
+files it came from, to `main` as `docs(changelog): release 1.2.3`, but only if
+`main` is still the tagged commit. If `main` has moved on, it warns instead,
+and you run `.github/scripts/changelog.sh prepare 1.2.3` on `main` by hand,
+with any files added to `changelog.d/` since the tag set aside and put back
+afterwards. The tag never moves. The button is better: it commits the changelog
+first, so the tag never points at a `CHANGELOG.md` without its section.
 
 Re-running the failed jobs of a release is safe: the same image is deployed
 again as a new deployment, and nothing else changes. Re-running all jobs of a
@@ -1066,13 +1067,14 @@ Things to know:
 - **Prereleases do not deploy.** A version with a hyphen, such as `1.2.0-rc.1`,
   publishes its image but does not move `latest` and does not deploy. The
   button only tags it, on the tested commit of `main`. Pull
-  it by tag to try it. It gets a GitHub prerelease whose notes list what is under
-  `## Unreleased`, and it leaves `CHANGELOG.md` alone, so the real release can
-  still claim those entries.
-- **After merging a released `main` into a feature branch, check your entries.**
-  The merge brings in the renamed section; make sure the entries you added are
-  still under `## Unreleased`, not under a version that has already shipped.
-  Nobody edits a released section.
+  it by tag to try it. It gets a GitHub prerelease whose notes list what is
+  waiting in `changelog.d/`, and it leaves `CHANGELOG.md` and `changelog.d/`
+  alone, so the real release can still claim those notes.
+- **A branch's note is its own file, so a merge cannot misplace it.** Before,
+  every branch wrote under a shared `## Unreleased` heading, and one merged
+  after a release put its entries inside the released section. Now CI fails a
+  push that changes a released section or brings `## Unreleased` back
+  (`changelog.sh released` and `check`). Nobody edits a released section.
 - **Re-running a release is safe for the notes too.** If the GitHub release
   already exists, the run replaces its notes with the changelog section instead
   of failing.
@@ -1409,8 +1411,8 @@ Umbral is built on .NET 10 (F#), [Oxpecker](https://github.com/Lanayx/Oxpecker),
 [OpenIddict](https://documentation.openiddict.com/) and SQLite. The project's
 rules are in [`.specify/memory/constitution.md`](.specify/memory/constitution.md)
 and its specifications are in [`specs/`](specs/), one folder per feature.
-A change people who run Umbral will notice also gets an entry under `## Unreleased`
-in [`CHANGELOG.md`](CHANGELOG.md); [Release](#release) says how it is used.
+A change people who run Umbral will notice also gets a note, one file in
+[`changelog.d/`](changelog.d/README.md); [Release](#release) says how it is used.
 
 The UI loads nothing from third parties: its stylesheet, htmx and its one small
 script are served by Umbral itself, and every page carries a strict

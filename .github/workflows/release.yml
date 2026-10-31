@@ -3,19 +3,23 @@
 #
 #   1. runs the same tests as CI, on the commit the run started from, so red
 #      tests never leave a tag,
-#   2. gets the changelog right, and fails, before anything is built, when there
-#      is nothing under "## Unreleased" (no empty releases):
-#        - Run workflow: it turns "## Unreleased" into "## X.Y.Z - <today>",
-#          commits that to main as github-actions[bot], tags that commit vX.Y.Z
-#          and pushes both in one atomic push. The tag therefore always contains
-#          its own changelog section, and main is renamed before anything else
-#          can merge. If main moved during the tests, the push is refused and
-#          nothing is tagged: run it again.
+#   2. gets the changelog right, and fails, before anything is built, when
+#      changelog.d/ has no notes (no empty releases; each change adds one file
+#      there, see changelog.d/README.md):
+#        - Run workflow: it gathers changelog.d/ into "## X.Y.Z - <today>" in
+#          CHANGELOG.md, deletes those files, commits that to main as
+#          github-actions[bot], tags that commit vX.Y.Z and pushes both in one
+#          atomic push. The tag therefore always contains its own changelog
+#          section, and the notes are gone from changelog.d/ before anything
+#          else can merge (a branch that adds its own file never conflicts).
+#          If main moved during the tests, the push is refused and nothing is
+#          tagged: run it again.
 #        - a pushed tag: the section is prepared in this run's own checkout and
-#          recorded on main afterwards, only if main is still the tagged commit
-#          (job `release`). The tag never moves.
+#          recorded on main afterwards (CHANGELOG.md, and the gathered files
+#          deleted), only if main is still the tagged commit (job `release`).
+#          The tag never moves.
 #      A prerelease such as 1.2.0-rc.1 only gets its tag, on the tested commit,
-#      and leaves the changelog alone,
+#      and leaves CHANGELOG.md and changelog.d/ alone,
 #   3. builds linux/amd64 and linux/arm64 and pushes ghcr.io/<owner>/umbral:1.2.3
 #      (and :latest, unless it is a prerelease),
 #   4. deploys that exact image digest on the Caravana host with the action
@@ -68,11 +72,12 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   # The version, the notes and, on a Run workflow, the release itself. A release
-  # (1.2.3) gets its section of CHANGELOG.md; when the commit has none,
-  # "## Unreleased" is renamed in this checkout, which fails when it is empty.
-  # A prerelease (1.2.3-rc.1) is never prepared: its notes say so and list what
-  # is under Unreleased. The notes (and, for a pushed tag, the prepared
-  # changelog) go to the release job as an artifact.
+  # (1.2.3) gets its section of CHANGELOG.md; when the commit has none, the
+  # notes in changelog.d/ are gathered into it in this checkout and their files
+  # deleted, which fails when there are none. A prerelease (1.2.3-rc.1) is
+  # never prepared: its notes say so and list what changelog.d/ holds. The
+  # notes (and, for a pushed tag, the prepared changelog) go to the release job
+  # as an artifact.
   changelog:
     needs: test
     runs-on: ubuntu-latest
@@ -142,23 +147,28 @@ jobs:
               echo "Prerelease $VERSION: a version to try, not a release. Its image is published by tag only, and \`latest\` and the changelog stay as they were."
               if [ -n "$(.github/scripts/changelog.sh unreleased)" ]; then
                 echo
-                echo "What is on its way, from the changelog's \"Unreleased\" section:"
+                echo "What is on its way, from the notes waiting in changelog.d:"
                 echo
                 .github/scripts/changelog.sh unreleased
               fi
             } > out/notes.md
           else
+            # A commit that already holds its section (a tag prepared by hand)
+            # reuses it; otherwise `prepare` gathers changelog.d/ into it (and
+            # deletes the files, committed below), and it fails the run with
+            # "no notes in changelog.d" when there is nothing to release.
             .github/scripts/changelog.sh notes "$VERSION" >/dev/null 2>&1 ||
-              .github/scripts/changelog.sh prepare "$VERSION"
+              .github/scripts/changelog.sh prepare "$VERSION" ||
+              { echo "::error::Nothing to release: no notes in changelog.d (each change adds a file there; see changelog.d/README.md), or a note file is malformed (.github/scripts/changelog.sh check)."; exit 1; }
             .github/scripts/changelog.sh notes "$VERSION" > out/notes.md
             cp CHANGELOG.md out/CHANGELOG.md
           fi
           { echo "### Release notes"; echo; cat out/notes.md; } >> "$GITHUB_STEP_SUMMARY"
 
-      # Run workflow only: commit the renamed changelog to main, tag that commit
-      # and push both at once (atomic: if main moved meanwhile, nothing is
-      # pushed and the run fails, so run it again). A prerelease only gets its
-      # tag. A tag pushed with GITHUB_TOKEN does not start another workflow
+      # Run workflow only: commit the gathered changelog to main, tag that
+      # commit and push both at once (atomic: if main moved meanwhile, nothing
+      # is pushed and the run fails, so run it again). A prerelease only gets
+      # its tag. A tag pushed with GITHUB_TOKEN does not start another workflow
       # run (GitHub suppresses it), so there is no second release: this run
       # goes on to build, deploy and publish the tag it just made.
       - name: Commit the changelog, tag and push
@@ -170,8 +180,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ "$PRERELEASE" != "true" ] && ! git diff --quiet -- CHANGELOG.md; then
-            git commit -m "chore(release): $VERSION" -- CHANGELOG.md
+          if [ "$PRERELEASE" != "true" ]; then
+            # `prepare` rewrote CHANGELOG.md and deleted the fragments in
+            # changelog.d/: stage both (-A takes the deletions), then ask the
+            # index, so a deleted file counts as a change. Nothing else is
+            # staged.
+            git add -A -- CHANGELOG.md changelog.d
+            if ! git diff --cached --quiet -- CHANGELOG.md changelog.d; then
+              git commit -m "chore(release): $VERSION"
+            fi
           fi
           git tag -a "$TAG" -m "$TAG"
           if [ "$PRERELEASE" = "true" ]; then
@@ -434,12 +451,13 @@ jobs:
             gh release create "$TAG" --notes-file out/notes.md --generate-notes --verify-tag "${args[@]}"
           fi
 
-      # A pushed tag whose changelog was prepared above: main gets the rename, so
-      # the next release starts from an empty "Unreleased". Only when main is
-      # still the tagged commit; otherwise its "Unreleased" may hold newer
-      # entries, which a rename would wrongly claim. The release is out either
-      # way, so this step warns rather than fails. The tag never moves. A Run
-      # workflow skips this: it committed the rename to main before tagging.
+      # A pushed tag whose changelog was prepared above: main gets the gathered
+      # section and loses the gathered files, so the next release starts from
+      # an empty changelog.d/. Only when main is still the tagged commit;
+      # otherwise its changelog.d/ may hold newer files, which this would
+      # wrongly delete. The release is out either way, so this step warns
+      # rather than fails. The tag never moves. A Run workflow skips this: it
+      # committed the section to main before tagging.
       - name: Record the changelog on main
         if: ${{ github.event_name == 'push' }}
         run: |
@@ -448,16 +466,22 @@ jobs:
           fi
           cp out/CHANGELOG.md CHANGELOG.md
           if git diff --quiet -- CHANGELOG.md; then
-            exit 0 # the tagged commit had its section already
+            exit 0 # the tagged commit had its section already; nothing was gathered
           fi
+          # `prepare` ran in the changelog job, on this same commit: the files
+          # it gathered and deleted are every note file here (never the README)
+          for f in changelog.d/*.md; do
+            [ "${f##*/}" = "README.md" ] || rm -f "$f"
+          done
+          git add -A -- CHANGELOG.md changelog.d
           git fetch -q origin main
           if [ "$(git rev-parse origin/main)" != "$(git rev-parse HEAD)" ]; then
-            echo "::warning::main has moved past $TAG, so its CHANGELOG.md still lists $VERSION's entries under \"## Unreleased\". On main, run .github/scripts/changelog.sh prepare $VERSION and keep any newer entries under Unreleased."
+            echo "::warning::main has moved past $TAG, so its CHANGELOG.md has no \"## $VERSION\" section and its changelog.d/ still holds $VERSION's notes. On main, set aside the files added to changelog.d/ after $TAG, run .github/scripts/changelog.sh prepare $VERSION, put them back and commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "docs(changelog): release $VERSION" -- CHANGELOG.md
+          git commit -m "docs(changelog): release $VERSION"
           if ! git push origin HEAD:main; then
             echo "::warning::Couldn't push the changelog to main. On main, run .github/scripts/changelog.sh prepare $VERSION and commit it."
           fi

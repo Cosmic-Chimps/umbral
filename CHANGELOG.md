@@ -1,14 +1,16 @@
 # Changelog
 
 What changed in each release, for people who run Umbral. Newest first. A release's notes on
-GitHub are its section here: `.github/scripts/changelog.sh notes <version>` prints it, and the
-release workflow refuses a tag when there is nothing under Unreleased to release.
+GitHub are its section here: `.github/scripts/changelog.sh notes <version>` prints it.
+
+Notes are not written here. Each change adds one file in `changelog.d/` (see
+[its README](changelog.d/README.md)), and the release gathers those files into the new version's
+section below and deletes them, so this file holds released sections only. The release workflow
+refuses to release when `changelog.d/` has no notes.
 
 Each section has the changes that matter to whoever runs Umbral, in this order and only as
 needed: Added, Changed, Fixed, Security, then Upgrade when an upgrade needs more than pulling the
-new image. Add to "Unreleased" as you work; a release renames it.
-
-## Unreleased
+new image.
 
 ## 0.7.0 - 2026-10-27
 
