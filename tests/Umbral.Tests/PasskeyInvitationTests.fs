@@ -202,6 +202,7 @@ module private Recovery =
 
 open Recovery
 open System.Net
+open System.Net.Http
 open System.Text.RegularExpressions
 open Umbral.Tests.Infrastructure.Journeys
 open Umbral.Tests.Infrastructure.Flows
@@ -285,6 +286,47 @@ let ``registering through it adds a second passkey to the same person, who can t
         let! exchanged = exchangeCode app clientId clientSecret code
         let! tokens = json exchanged
         Assert.Equal(anaId, strOf (segmentOf 1 (strOf tokens "id_token")) "sub")
+    }
+
+[<Fact>]
+let ``a passkey-only user's tokens carry no email`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! operator, clientId, clientSecret = prepareRecovery app
+        let! anaId, authn = enrolAna app operator
+
+        let browser = Browser(app.Client)
+        let! returnUrl, _, token = startPasskeySignIn browser clientId "openid email profile"
+        let! _, signInBody = signInWithPasskey browser authn (List.head authn.Credentials).Id returnUrl token
+        let! code = codeFromRedirect browser (strOf signInBody "redirect")
+        let! exchanged = exchangeCode app clientId clientSecret code
+        let! tokens = json exchanged
+
+        let message = new HttpRequestMessage(HttpMethod.Get, "/connect/userinfo")
+        message.Headers.Add("Authorization", "Bearer " + strOf tokens "access_token")
+        let! infoResponse = app.Client.SendAsync message
+        let! info = json infoResponse
+
+        let payload = segmentOf 1 (strOf tokens "id_token")
+
+        // Asking for the email scope gets nothing extra: a passkey has no
+        // address, so email and email_verified are absent rather than empty.
+        let identityClaims =
+            [ "sub"; "name"; "email"; "email_verified"; "picture"; "preferred_username"; "profile"; "idp" ]
+
+        for claims in [ payload; info ] do
+            Assert.Equal(anaId, strOf claims "sub")
+            Assert.Equal("Ana", strOf claims "name")
+            Assert.Equal("passkey", strOf claims "idp")
+
+            let present =
+                claims.EnumerateObject()
+                |> Seq.map (fun p -> p.Name)
+                |> Seq.filter (fun name -> List.contains name identityClaims)
+                |> Seq.sort
+                |> List.ofSeq
+
+            Assert.Equal<string list>([ "idp"; "name"; "sub" ], present)
     }
 
 [<Fact>]

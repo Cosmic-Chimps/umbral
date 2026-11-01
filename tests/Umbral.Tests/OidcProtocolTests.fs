@@ -163,8 +163,14 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
         return field "client-id-[^\"]+", field "revealed-secret"
     }
 
-/// Sign in through the fake provider and return the URL the app is redirected to.
-let private authorizationRedirect (client: Client) (clientId: string) (scope: string) =
+/// Sign in through the fake provider, posting `profile` as the provider form's
+/// fields, and return the URL the app is redirected to.
+let private authorizationRedirectAs
+    (client: Client)
+    (clientId: string)
+    (scope: string)
+    (profile: (string * string) list)
+    =
     task {
         let authorizeUrl =
             "/connect/authorize?client_id=" + Uri.EscapeDataString clientId
@@ -186,18 +192,24 @@ let private authorizationRedirect (client: Client) (clientId: string) (scope: st
             client.PostForm(
                 providerUrl,
                 "/dev/fake-provider/authorize",
-                [ "redirect_uri", redirect
-                  "state", state
-                  "subject", "fake-user-1"
-                  "email", "sam@example.com"
-                  "displayName", "Sam Rivera"
-                  "emailVerified", "on" ]
+                ([ "redirect_uri", redirect; "state", state ] @ profile)
             )
 
         let! back = client.Get(approved.Headers.Location |> string)
         let! issued = client.Get(back.Headers.Location |> string)
         return issued.Headers.Location |> string
     }
+
+/// Sign in as the default fake user and return the URL the app is redirected to.
+let private authorizationRedirect (client: Client) (clientId: string) (scope: string) =
+    authorizationRedirectAs
+        client
+        clientId
+        scope
+        [ "subject", "fake-user-1"
+          "email", "sam@example.com"
+          "displayName", "Sam Rivera"
+          "emailVerified", "on" ]
 
 /// Sign in through the fake provider and return the authorization code.
 let private authorizationCode (client: Client) (clientId: string) (scope: string) =
@@ -495,6 +507,58 @@ let private userInfo (app: Fixtures.TestApp) (accessToken: string) =
         message.Headers.Add("Authorization", "Bearer " + accessToken)
         let! response = app.Client.SendAsync message
         return! json response
+    }
+
+/// The identity claims the README promises apps. A token carries others too
+/// (iss, aud, exp, ...); filtering on this list keeps the assertion about the
+/// promised set, so adding or dropping one of these fails a test.
+let private identityClaims =
+    [ "sub"; "name"; "email"; "email_verified"; "picture"; "preferred_username"; "profile"; "idp" ]
+
+let private identityClaimsIn (element: JsonElement) =
+    element.EnumerateObject()
+    |> Seq.map (fun p -> p.Name)
+    |> Seq.filter (fun name -> List.contains name identityClaims)
+    |> Seq.sort
+    |> List.ofSeq
+
+[<Fact>]
+let ``a provider user with an unverified email gets email_verified false, and the fallback name`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let client = Client(app.Client)
+        let! clientId, secret = prepare app client
+
+        // An empty display name reads as "none given", and no emailVerified
+        // field is a checkbox left unticked: the provider vouched for neither.
+        let! final =
+            authorizationRedirectAs
+                client
+                clientId
+                "openid email profile"
+                [ "subject", "fake-user-2"; "email", "kim@example.com"; "displayName", "" ]
+
+        let code = Regex.Match(final, "code=([^&]+)").Groups[1].Value
+        let! tokenResponse = exchange app clientId secret code
+        let! tokens = json tokenResponse
+        let payload = payloadOf (strOf tokens "id_token")
+        let! info = userInfo app (strOf tokens "access_token")
+
+        let expected =
+            [ "sub"; "name"; "email"; "email_verified"; "idp" ] |> List.sort
+
+        for claims in [ payload; info ] do
+            Assert.Equal("kim@example.com", strOf claims "email")
+            Assert.Equal(JsonValueKind.False, claims.GetProperty("email_verified").ValueKind)
+            Assert.Equal("Fake (development) user", strOf claims "name")
+            Assert.Equal("fake", strOf claims "idp")
+            Assert.False(String.IsNullOrEmpty(strOf claims "sub"))
+            Assert.Equal<string list>(expected, identityClaimsIn claims)
+
+        Assert.Equal(strOf payload "sub", strOf info "sub")
+
+        // userinfo has no protocol claims beside these, so its whole shape is pinned.
+        Assert.Equal<string list>(expected, info.EnumerateObject() |> Seq.map (fun p -> p.Name) |> Seq.sort |> List.ofSeq)
     }
 
 [<Fact>]
