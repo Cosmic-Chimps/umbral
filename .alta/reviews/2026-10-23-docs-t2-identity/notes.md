@@ -215,3 +215,12 @@ the README states what the code does now and should change with the fix.
    so the app treats them as "sign in again", and that a disabled person who
    does is told why on Umbral's page (`Callback.fs:93-98`, `Texts.fs:703`).
    "Sign in again" alone would suggest a disabled person can get back in.
+
+## Answers to the code review (code-review.md, clear at f11e915)
+
+- M1, changelog format: noted for the merge. On 2026-11-01 `changelog.d/`
+  (cl6d, `alta/zippy-kenya-3qj9`) is not on `main`, so the bullet stays under
+  `## Unreleased`. If cl6d merges first, move it into
+  `changelog.d/docs-t2-identity.md` under `### Fixed` before merging this branch.
+- N1, the `email_verified` finding: nothing changes here. It is task h762, and
+  that task rewrites the README's "can go from `false` to `true`" sentence.
