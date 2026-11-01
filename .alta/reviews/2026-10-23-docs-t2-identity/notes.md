@@ -202,3 +202,16 @@ The rule "the flag can only go from `false` to `true`" (`UserStore.fs:158-159`)
 raises the flag for whatever address the provider verifies *today*, while
 keeping the first-seen address. Reported to the maintainer as a separate task;
 the README states what the code does now and should change with the fix.
+
+## Answers to the documentation review (review.md at ec9de57, clear)
+
+1. Nit 1, GitHub without an email: taken. The email bullet now reads "a GitHub
+   account with no verified primary address or whose addresses GitHub did not
+   return on that sign-in" (`Providers/GitHub.fs:180-189`).
+2. Nit 2, the two error codes: taken, with one change of meaning checked
+   against the code. A new paragraph says both come back to the app's redirect
+   URI as an ordinary OpenID Connect error, that Umbral has already ended the
+   session (`Authorize.fs:318` for a deleted user, `:325` for a disabled one),
+   so the app treats them as "sign in again", and that a disabled person who
+   does is told why on Umbral's page (`Callback.fs:93-98`, `Texts.fs:703`).
+   "Sign in again" alone would suggest a disabled person can get back in.

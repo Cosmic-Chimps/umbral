@@ -345,7 +345,8 @@ What an app can count on:
   *different* `sub`.
 - **`email` and `email_verified`** come with the `email` scope, both or
   neither. Neither, when Umbral has no address for the person: a fediverse or
-  passkey-only user, or a GitHub account with no verified primary address. When
+  passkey-only user, or a GitHub account with no verified primary address or
+  whose addresses GitHub did not return on that sign-in. When
   they are there, `email_verified` is a JSON boolean and can be **`false`**:
   Discord, Google and your own OpenID Connect provider can give an address they
   have not verified, and Umbral passes it on as unverified. Trust the address
@@ -430,6 +431,10 @@ Deleting someone revokes their tokens the same way and removes the user and
 the provider accounts linked to it. An authorization request on a session they
 still have comes back with `error=login_required`. If they sign in again, they
 are a new user, with a new `sub`.
+
+Both errors come back to your app's redirect URI as an ordinary OpenID Connect
+error, not a fault: Umbral has already ended the session, so treat them as
+"sign in again". A disabled person who does is told why on Umbral's page.
 
 ### Naming the provider's application
 
