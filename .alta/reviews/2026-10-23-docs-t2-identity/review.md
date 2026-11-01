@@ -95,3 +95,14 @@ the audit with the runs that show it, the two tests and the full-suite result,
 the link check, and the reason for the CHANGELOG entry. The throwaway-run
 transcript is the most useful piece of evidence a notes file in this series has
 carried. Agreed on all of it.
+
+---
+
+## Addendum, 2026-11-01, at `ad824f6`
+
+**Still clear.** Both nits taken. The GitHub clause is in the email bullet. The
+error-code sentence is better than the one I proposed: Umbral ends the session
+before answering either error (`Authorize.fs:318,325`, `Sessions.signOut`), so
+the app treats both as "sign in again", and the README adds that a disabled
+person who does is told why on Umbral's page, which closes the reading that
+they could get back in. Link check: 187 links in 14 files, all resolve.
