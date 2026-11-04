@@ -164,3 +164,102 @@ let ``concurrent first sign-ins create exactly one user`` () =
 
             Assert.Single distinct |> ignore
         })
+
+let private userOf (config: Database.DbConfig) (id: string) =
+    task {
+        match! Users.findById config id with
+        | Some user -> return user
+        | None -> return failwith "the user vanished"
+    }
+
+// ---------------------------------------------------------------------------
+// Task h762: the verified flag speaks for the stored address, the first one seen.
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a verified address the provider asserts later does not verify the stored first address`` () =
+    withDb (fun config ->
+        task {
+            // The three-step attack: the first address is never proved, a later
+            // sign-in of the same account asserts another address as verified,
+            // and the real owner of the first address then signs in elsewhere.
+            let! first = UserStore.resolve config clock Discord (profile "disc-x" (Some "victim@example.com") false)
+            Assert.Equal(Linking.CreateNew, first.Decision)
+            let! user1 = userOf config first.User.Id
+            Assert.False user1.EmailVerified
+
+            let! second = UserStore.resolve config clock Discord (profile "disc-x" (Some "attacker@example.com") true)
+            Assert.Equal<string>(first.User.Id, second.User.Id)
+            let! user2 = userOf config first.User.Id
+            Assert.Equal(Some "victim@example.com", user2.Email)
+            Assert.False user2.EmailVerified
+
+            let! owner = UserStore.resolve config clock Google (profile "goo-v" (Some "victim@example.com") true)
+            Assert.Equal(Linking.CreateNew, owner.Decision)
+            Assert.NotEqual<string>(first.User.Id, owner.User.Id)
+        })
+
+[<Fact>]
+let ``a verified address that differs only in case verifies the stored address`` () =
+    withDb (fun config ->
+        task {
+            let! first = UserStore.resolve config clock Discord (profile "disc-1" (Some "Sam@Example.com") false)
+            let! user1 = userOf config first.User.Id
+            Assert.False user1.EmailVerified
+
+            let! _ = UserStore.resolve config clock Discord (profile "disc-1" (Some "sam@example.com") true)
+            let! user2 = userOf config first.User.Id
+            Assert.True user2.EmailVerified
+        })
+
+[<Fact>]
+let ``a user created with no address takes the first address later, verified`` () =
+    withDb (fun config ->
+        task {
+            let! first = UserStore.resolve config clock Discord (profile "disc-1" None false)
+
+            let! _ = UserStore.resolve config clock Discord (profile "disc-1" (Some "sam@example.com") true)
+            let! user = userOf config first.User.Id
+            Assert.Equal(Some "sam@example.com", user.Email)
+            Assert.True user.EmailVerified
+
+            let! github = UserStore.resolve config clock GitHub (profile "gh-9" (Some "sam@example.com") true)
+            Assert.Equal(Linking.LinkToExisting first.User.Id, github.Decision)
+        })
+
+[<Fact>]
+let ``the same address verified later raises the flag and then links`` () =
+    withDb (fun config ->
+        task {
+            let! first = UserStore.resolve config clock Discord (profile "disc-1" (Some "sam@example.com") false)
+            let! user1 = userOf config first.User.Id
+            Assert.False user1.EmailVerified
+
+            let! _ = UserStore.resolve config clock Discord (profile "disc-1" (Some "sam@example.com") true)
+            let! user2 = userOf config first.User.Id
+            Assert.True user2.EmailVerified
+
+            let! google = UserStore.resolve config clock Google (profile "goo-1" (Some "sam@example.com") true)
+            Assert.Equal(Linking.LinkToExisting first.User.Id, google.Decision)
+        })
+
+[<Fact>]
+let ``a provider that stops asserting an address leaves the stored address and flag alone`` () =
+    withDb (fun config ->
+        task {
+            let! first = UserStore.resolve config clock Discord (profile "disc-1" (Some "sam@example.com") true)
+
+            let! _ = UserStore.resolve config clock Discord (profile "disc-1" None false)
+            let! user = userOf config first.User.Id
+            Assert.Equal(Some "sam@example.com", user.Email)
+            Assert.True user.EmailVerified
+        })
+
+[<Fact>]
+let ``a provider that says verified with no address creates an unverified user`` () =
+    withDb (fun config ->
+        task {
+            let! r = UserStore.resolve config clock Google (profile "goo-1" None true)
+            let! user = userOf config r.User.Id
+            Assert.False user.EmailVerified
+        })

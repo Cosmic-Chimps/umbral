@@ -346,6 +346,11 @@ What an app can count on:
 - **`email` and `email_verified` may be missing.** A GitHub user can keep their
   email private, a Discord account can be unverified, and a passkey-only user has
   none. Handle all three.
+- **`email_verified` speaks for the address in `email`.** It becomes `true`
+  only when a provider verifies **that same** address, and it does not go back
+  to `false` afterwards. There is one exception: the upgrade to schema version 9
+  may set it back to `false` once, for a user whose stored address no provider
+  has verified.
 - **`name` and `picture`** come with the `profile` scope when the provider
   supplied them; a fediverse sign-in adds **`preferred_username`**
   (`user@server`) and **`profile`** (the person's page). **`idp`** is Umbral's one extra claim: the
@@ -410,7 +415,9 @@ leave an app with no way to sign in, Umbral warns first and names the apps.
 Signing in with the same provider account always gives the same Umbral user. If
 someone then signs in through a **second provider** and both providers assert
 the **same, verified email address**, Umbral links the two to one user. An email
-a provider has not verified is never used to link anyone. If no email is
+a provider has not verified is never used to link anyone. The address Umbral
+keeps for a user is the first one a provider gave, and it counts as verified
+only once a provider has verified that address, not another one. If no email is
 available, a new user is created. For an OpenID Connect provider you added, a
 person is identified by that provider's issuer address together with their id
 there, so two providers never merge people, and adding a provider back with the
@@ -1204,12 +1211,14 @@ second one its own prefix.
 
 ### Upgrading
 
-The database is at **schema version 8**. Umbral upgrades an older database by
+The database is at **schema version 9**. Umbral upgrades an older database by
 itself when it starts, and nothing changes until you use what the upgrade
 added: for example, every app starts with no branding, nobody can use a
 passkey until you enable the passkey connector, and the operator has no
 passkey, and password sign-in stays on until you turn it off under
-**Credential**. It does not work the other way: an older
+**Credential**. The one exception is version 9: it sets `email_verified` back
+to `false` for every user whose stored address no provider verifies, and the
+log says how many (see the [CHANGELOG](CHANGELOG.md)). It does not work the other way: an older
 image refuses to start on a newer database, and says so in `docker logs umbral`
 (*...written by a newer Umbral. Run the newer image, or restore the backup of
 the data directory taken before the upgrade.*). Take a
@@ -1393,6 +1402,35 @@ sqlite3 -readonly /path/to/umbral.db \
 With a named Docker volume on Linux the path is usually
 `/var/lib/docker/volumes/umbral-data/_data/umbral.db` (needs `sudo`); on Docker
 Desktop, [copy the directory out](#your-data-back-it-up) and open the copy.
+
+**A user may hold someone else's provider account.**
+Before schema version 9, an address a person never proved could count as
+verified, and the real owner of that address was then linked into that
+person's user when they signed in through another provider (see the
+[CHANGELOG](CHANGELOG.md)). The upgrade stops new joins of this kind but does
+not undo old ones. This read-only query lists every user with more than one
+provider account where at least one account does not, today, assert the user's
+address as verified:
+
+```bash
+sqlite3 -readonly /path/to/umbral.db \
+  "select u.id, u.display_name, u.email, la.provider_kind, la.asserted_email,
+          la.asserted_email_verified, la.linked_utc
+     from linked_accounts la join users u on u.id = la.user_id
+    where la.user_id in (
+            select l.user_id from linked_accounts l join users v on v.id = l.user_id
+             group by l.user_id
+            having count(*) > 1
+               and coalesce(sum(l.asserted_email_verified = 1
+                                and l.asserted_email = v.email collate nocase), 0) < count(*))
+    order by u.id, la.linked_utc;"
+```
+
+A row is not proof of anything: a person may simply have changed their address
+at one provider. Look at the order the accounts were linked in and at their
+addresses. If a user holds the accounts of two different people, disable it on
+**Users** at once. Deleting it gives each person a new user, with a new `sub`,
+the next time they sign in, so apps see them as new people.
 
 **After a restore or a lost volume, connectors or apps stop working.**
 If `/data/keys` did not come back, stored secrets cannot be decrypted and tokens
