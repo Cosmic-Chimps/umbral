@@ -15,7 +15,7 @@ Branch `alta/royal-tiber-52ft`, merged into `main` as `f856d2d` (code `d6f20af`,
 - **The version 9 step.** It runs inside `upgradeSchema`'s transaction, guarded by the stored version, and only sets the flag to 0 where no linked account asserts the stored address as verified. It never raises. `upgradeSchema` returns the count, and `ensureSchema` logs it (a warning when it isn't 0) from every command that opens the database, so it runs once whichever starts first.
 - **Tests.** `UserStoreTests` has the three-step attack ("a verified address the provider asserts later does not verify the stored first address"), the case-only difference, the `NULL` stored address filled later, the same address verified later (which then links), a provider that stops asserting, and "verified" with no address. `DatabaseTests` has the 8 → 9 upgrade lowering only unproved flags, the step running once, and a fresh database reporting no step.
 - **README.** "Integrate an app" and "How people are identified" say the rule, "Upgrading" says the one exception, and Troubleshooting has the read-only `sqlite3` query for joins that already happened, with the right caution that a row proves nothing by itself.
-- **Full suite:** the reviewer's own run on `main` at `f856d2d` is recorded below.
+- **Full suite:** the reviewer's own `dotnet test` on `main` at `f856d2d` (the fix merged, before T2): **1793 passed, 0 failed, 0 skipped**.
 
 ## Nits
 
