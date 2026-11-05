@@ -85,3 +85,11 @@ The theme control in the captures shows "Following your system" because the them
   the design contract's "Later" sketch.
 - **Nit, "Send them the Recovery link".** Taken: "Send them the link shown under **Recovery
   link**."
+
+## Design and code reviews
+
+Both clear with no blocking items and no nits: `review.md` (`umbral-designer`, 214 User and
+Passkey tests, `build-css.sh --check` clean) and `code-review.md` (`umbral`, full suite at
+`acb35eb`, 1689 passed). Nothing to answer. The designer's one finding outside this task, two red
+fills on a user card, is the follow-up task `…-grbb`. The branch was merged into `main` as
+`245d298` before these two files were committed; they follow in this commit.
