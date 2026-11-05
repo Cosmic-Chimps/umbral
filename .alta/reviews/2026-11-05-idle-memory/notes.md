@@ -144,3 +144,14 @@ runtimeconfig.json ignores it, so it cannot be set in `Umbral.fsproj` the way `T
 - **The comparison with `DOTNET_TieredCompilation=1`** (the gen0 budget still set) reads operator passkey 152.6–153.9 (x64) and 155.9–157.8 (arm64). The CI job's comparison step is `continue-on-error`, so those over-ceiling figures fail nothing.
 - **Full suite on macOS:** 1797 of 1797 pass, one more than before because of the new fact.
 - **The throwaway branches** `diag/idle-memory-m3m0` and `diag/idle-memory-m3m0-final` hold the diagnostic harness and are deleted once this is reviewed.
+
+## Answers to the code review (2026-11-05)
+
+- **N1, taken.** The drift check is now in `MetaTests.fs`, as section 5, "The idle-memory test measures the process the image runs". It runs in the `test` job that blocks every push, and it uses MetaTests' own `repoRoot`.
+  - The list is in `tests/Umbral.Tests/Infrastructure/ImageEnvironment.fs` (`imageEnvironment`), compiled after the other helpers. `IdleMemoryTests` and `MetaTests` both open it.
+  - The fact, `repoRoot` and the private list are gone from `IdleMemoryTests`.
+  - The Dockerfile comment now names MetaTests as the check.
+  - Checked: deleting the `ENV DOTNET_GCgen0size` line makes the fact fail ("Not found: ENV DOTNET_GCgen0size=0x200000"). Restored afterwards.
+- **N2, taken.** The bullet's last sentence now reads: "It is set in the image, so a container gets it without any setting of yours; running the app outside the image is not supported, and would not get it." `changelog.sh check` passes.
+- **N3, after the merge.** `diag/idle-memory-m3m0` and `diag/idle-memory-m3m0-final` are still on GitHub, to be deleted once the maintainer has merged this branch.
+- **After N1:** the build is clean, MetaTests passes 46 of 46, the IdleMemoryTests class 5 of 5, and the full suite 1797 of 1797 (macOS). N1 moved one fact and added one shared list. No behaviour changed, so no new runner run.

@@ -86,6 +86,7 @@ open Xunit
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
 open Umbral.Tests.Infrastructure
+open Umbral.Tests.Infrastructure.ImageEnvironment
 
 /// The SC-007 ceiling for the default (local store), "150 MB" read the way a
 /// container limit (`--memory=150m`) and every memory tool reads it: mebibytes.
@@ -96,11 +97,6 @@ let private LocalStoreCeilingBytes = 157_286_400L
 /// comment for why it is separate.
 [<Literal>]
 let private ExternalStoreCeilingBytes = 167_772_160L
-
-/// The GC settings the image sets with `ENV` (Dockerfile), given to the measured
-/// process so that it runs as the container does. A test below checks that the
-/// Dockerfile says the same, so the two cannot drift apart.
-let private imageEnvironment = [ "DOTNET_gcServer", "0"; "DOTNET_GCgen0size", "0x200000" ]
 
 /// Off Linux: only a runaway fails. See the module comment.
 [<Literal>]
@@ -333,23 +329,6 @@ let private assertIdleUnderCeilingWith
             with _ ->
                 ()
     }
-
-/// The directory holding Umbral.slnx, found by walking up from the test binary.
-let private repoRoot () =
-    let rec up (dir: DirectoryInfo | null) =
-        match dir with
-        | null -> failwith "Umbral.slnx was not found above the test binary, so the repository root is unknown."
-        | d when File.Exists(Path.Combine(d.FullName, "Umbral.slnx")) -> d.FullName
-        | d -> up d.Parent
-
-    up (DirectoryInfo AppContext.BaseDirectory)
-
-[<Fact>]
-let ``the measured process gets the GC environment the image sets``() =
-    let dockerfile = File.ReadAllLines(Path.Combine(repoRoot (), "Dockerfile"))
-
-    for name, value in imageEnvironment do
-        Assert.Contains($"ENV {name}={value}", dockerfile)
 
 let private assertIdleUnderCeiling label rule linuxCeiling extraEnvironment =
     assertIdleUnderCeilingWith label rule linuxCeiling extraEnvironment (fun _ -> Task.FromResult()) (fun _ -> Task.FromResult())

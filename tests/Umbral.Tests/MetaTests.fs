@@ -17,6 +17,7 @@ open System.Text.RegularExpressions
 open Oxpecker
 open Xunit
 open YamlDotNet.RepresentationModel
+open Umbral.Tests.Infrastructure.ImageEnvironment
 
 /// The directory holding Umbral.slnx, found by walking up from the test binary.
 let private repoRoot =
@@ -597,3 +598,19 @@ let ``the Texts check flags a field nothing reads`` () =
     let fields = [ "Used"; "Orphan" ]
     Assert.Equal<string list>([ "Orphan" ], unreadFields fields [ "let x = t.Used" ])
     Assert.Empty(unreadFields fields [ "t.Used + t.Orphan" ])
+
+// ---------------------------------------------------------------------------
+// 5. The idle-memory test measures the process the image runs
+//
+// SC-007's GC settings are `ENV` lines of the Dockerfile (DOTNET_GCgen0size has
+// no runtimeconfig.json name), and IdleMemoryTests gives its child the same
+// list. Here, in the job that blocks every push, so a Dockerfile that drops or
+// changes one fails before the memory figures quietly measure something else.
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``the Dockerfile sets the GC environment the idle-memory test measures with``() =
+    let dockerfile = File.ReadAllLines(Path.Combine(repoRoot.Value, "Dockerfile"))
+
+    for name, value in imageEnvironment do
+        Assert.Contains($"ENV {name}={value}", dockerfile)

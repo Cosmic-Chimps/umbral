@@ -88,8 +88,8 @@ ENV DOTNET_gcServer=0
 # more frequent, smaller gen0 collections, which a sign-in service does not
 # notice. It is an environment setting only: runtimeconfig.json ignores it under
 # both System.GC.Gen0Size and GCgen0size (measured), so it cannot live in
-# Umbral.fsproj. IdleMemoryTests gives the measured process the same value and
-# checks that it matches this line.
+# Umbral.fsproj. IdleMemoryTests gives the measured process the same value, and
+# MetaTests checks that it matches this line.
 ENV DOTNET_GCgen0size=0x200000
 
 # The base image already sets ASPNETCORE_HTTP_PORTS=8080. Plain http inside the
