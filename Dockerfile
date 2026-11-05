@@ -81,6 +81,17 @@ ENV UMBRAL__DATA_DIRECTORY=/data
 # already sets it, and this keeps an inherited environment from changing it.
 ENV DOTNET_gcServer=0
 
+# Also SC-007: a 2 MiB gen0 budget. By default the GC sizes gen0 from the CPU's
+# cache, so the same image idles bigger on a server with a large L3: on GitHub's
+# runners this saves about 4 MiB in every configuration (operator passkey in
+# use: 148.7 -> 145.0 MiB on arm64, 146.1 -> 142.1 MiB on amd64). The cost is
+# more frequent, smaller gen0 collections, which a sign-in service does not
+# notice. It is an environment setting only: runtimeconfig.json ignores it under
+# both System.GC.Gen0Size and GCgen0size (measured), so it cannot live in
+# Umbral.fsproj. IdleMemoryTests gives the measured process the same value and
+# checks that it matches this line.
+ENV DOTNET_GCgen0size=0x200000
+
 # The base image already sets ASPNETCORE_HTTP_PORTS=8080. Plain http inside the
 # container is deliberate: TLS belongs to the reverse proxy in front of it, and
 # UMBRAL__PUBLIC_ORIGIN (required, https) says where people reach it from.

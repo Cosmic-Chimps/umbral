@@ -27,6 +27,8 @@
       low-traffic sign-in service does not notice. Lands in Umbral.runtimeconfig.json, so the
       container and the idle-memory test's child process both get it. DOTNET_TieredCompilation=1
       in the environment overrides it (CI uses that to show what the setting saves).
+      The gen0 budget, the other GC setting SC-007 relies on, is in the Dockerfile
+      (DOTNET_GCgen0size): runtimeconfig.json ignores it, so it cannot be set here.
     -->
     <TieredCompilation>false</TieredCompilation>
   </PropertyGroup>

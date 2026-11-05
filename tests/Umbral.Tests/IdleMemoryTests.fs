@@ -9,7 +9,8 @@
 /// process on a TestServer, where the number would be the test runner's — xUnit,
 /// the TestServer and every other test's garbage. This starts Umbral as its OWN
 /// process, exactly as a container does: the built `Umbral.dll` that sits next
-/// to this assembly, `DOTNET_gcServer=0`, a fresh data directory and a free
+/// to this assembly, the GC environment of the image (`DOTNET_gcServer=0` and
+/// `DOTNET_GCgen0size`, see `imageEnvironment`), a fresh data directory and a free
 /// port. It waits until the app answers, makes a few requests so the pipeline,
 /// the views and the database have all been touched, lets it sit idle for a few
 /// seconds, and reads its resident set.
@@ -52,11 +53,20 @@
 /// operator credential, and a sign-in with it from a fresh browser. It is the
 /// same WebAuthn library the connector run loads on its first ceremony, but here
 /// nothing else is enabled, and spec 011 holds the operator's use of it to the
-/// 150 MiB of Principle II, not the connector's 160.
+/// 150 MiB of Principle II, not the connector's 160. Either use costs about
+/// 7 MiB over the local store, paid by the first ceremony: about 3.3 MiB of JIT'd
+/// code, 2 MiB of heap and 1.4 MiB of assembly pages (libsodium is never loaded).
 ///
-/// Umbral.fsproj sets TieredCompilation=false (measured on linux/arm64: local
-/// 144.0 -> 137.7 MiB, aws 154.8 -> 147.6 MiB), and the child process reads it
-/// from Umbral.runtimeconfig.json like the container does.
+/// Two settings keep these runs under their ceilings. Umbral.fsproj sets
+/// TieredCompilation=false, and the child reads it from Umbral.runtimeconfig.json
+/// like the container does: on GitHub's runners it saves about 6.5 MiB (amd64)
+/// and 7.3 MiB (arm64) on the local store, and 7 to 9 MiB on the passkey runs.
+/// The CI comparison step (DOTNET_TieredCompilation=1) keeps showing it, and its
+/// figures are the tiered-on ones, not the gated ones. The Dockerfile sets
+/// DOTNET_GCgen0size, an environment setting runtimeconfig.json ignores, and the
+/// child gets the same value: about 4 MiB in every run. With both, the
+/// operator-passkey run idles at about 142 MiB (amd64) and 145 MiB (arm64)
+/// (task m3m0, 2026-11-05; .alta/reviews/2026-11-05-idle-memory/notes.md).
 module Umbral.Tests.IdleMemoryTests
 
 open System
@@ -86,6 +96,11 @@ let private LocalStoreCeilingBytes = 157_286_400L
 /// comment for why it is separate.
 [<Literal>]
 let private ExternalStoreCeilingBytes = 167_772_160L
+
+/// The GC settings the image sets with `ENV` (Dockerfile), given to the measured
+/// process so that it runs as the container does. A test below checks that the
+/// Dockerfile says the same, so the two cannot drift apart.
+let private imageEnvironment = [ "DOTNET_gcServer", "0"; "DOTNET_GCgen0size", "0x200000" ]
 
 /// Off Linux: only a runaway fails. See the module comment.
 [<Literal>]
@@ -211,7 +226,9 @@ let private assertIdleUnderCeilingWith
         start.Environment["ASPNETCORE_URLS"] <- $"http://127.0.0.1:{port}"
         start.Environment["UMBRAL__PUBLIC_ORIGIN"] <- "https://umbral.test"
         start.Environment["UMBRAL__DATA_DIRECTORY"] <- dataDirectory
-        start.Environment["DOTNET_gcServer"] <- "0"
+
+        for name, value in imageEnvironment do
+            start.Environment[name] <- value
 
         for name, value in extraEnvironment do
             start.Environment[name] <- value
@@ -316,6 +333,23 @@ let private assertIdleUnderCeilingWith
             with _ ->
                 ()
     }
+
+/// The directory holding Umbral.slnx, found by walking up from the test binary.
+let private repoRoot () =
+    let rec up (dir: DirectoryInfo | null) =
+        match dir with
+        | null -> failwith "Umbral.slnx was not found above the test binary, so the repository root is unknown."
+        | d when File.Exists(Path.Combine(d.FullName, "Umbral.slnx")) -> d.FullName
+        | d -> up d.Parent
+
+    up (DirectoryInfo AppContext.BaseDirectory)
+
+[<Fact>]
+let ``the measured process gets the GC environment the image sets``() =
+    let dockerfile = File.ReadAllLines(Path.Combine(repoRoot (), "Dockerfile"))
+
+    for name, value in imageEnvironment do
+        Assert.Contains($"ENV {name}={value}", dockerfile)
 
 let private assertIdleUnderCeiling label rule linuxCeiling extraEnvironment =
     assertIdleUnderCeilingWith label rule linuxCeiling extraEnvironment (fun _ -> Task.FromResult()) (fun _ -> Task.FromResult())
