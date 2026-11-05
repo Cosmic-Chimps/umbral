@@ -12,6 +12,59 @@ Each section has the changes that matter to whoever runs Umbral, in this order a
 needed: Added, Changed, Fixed, Security, then Upgrade when an upgrade needs more than pulling the
 new image.
 
+## 0.8.0 - 2026-11-05
+
+### Added
+
+- You can add passkeys to the operator credential, up to 10, on the **Credential** page, and sign
+  in to the admin area with **Sign in with a passkey**. They need no connector, never appear on
+  **Users**, and never sign anyone in to an app.
+- You can turn password sign-in off once you have a passkey. While it is off, no password is
+  accepted, and the stored password comes back unchanged when you turn it on again.
+- `reset-credential --forget-passkeys` also removes every operator passkey, for a stolen device.
+
+### Changed
+
+- The **Credential** page has three parts: **Passkeys**, **Password sign-in** and **Password**.
+- `reset-credential` turns password sign-in back on and keeps the operator passkeys. Its output
+  says "password", not "credential".
+- Release notes are now written as one file per change in `changelog.d/`, and the release gathers them
+  into the new version's section of `CHANGELOG.md`. Nothing changes for running Umbral.
+
+### Fixed
+
+- The README's **Integrate an app** said an app gets no `email` when the provider had not
+  verified it. Umbral has always sent such an address with `email_verified: false`; the README
+  now says so, and that the email is the first one Umbral saw. It also said that two OpenID
+  Connect providers never bring people together: a verified email links them as it does for
+  every other connector. The section now lists the endpoints, what signing out does, and what an
+  app sees when someone is disabled or deleted.
+
+### Security
+
+- An email address a person never proved could be marked as verified, and the real owner of that
+  address could then be joined into that person's account. Umbral keeps the first address a
+  provider gives for a user, but it set `email_verified` whenever the provider verified *any*
+  address. So someone could sign in through Discord with another person's address, unverified,
+  then change their Discord address to one of their own and verify it. Umbral then sent apps the
+  first address with `email_verified: true`. When the real owner of that address later signed in
+  through another provider that verifies it, Umbral linked them into the first person's user,
+  which could then sign in to every app as them. `email_verified` now becomes `true` only when a
+  provider verifies the address Umbral stores for the user. Every version from 0.1.0 has this.
+
+### Upgrade
+
+- Operator passkeys need nothing at upgrade: there is none yet, and password sign-in stays on
+  until you turn it off.
+- The database becomes schema version 9. An older image refuses to start on it: take a backup
+  before you upgrade.
+- On its first start, Umbral sets `email_verified` back to `false` for every user whose stored
+  address no linked provider account asserts as verified today, and logs how many users that
+  was, as a warning when it is not 0. Nobody is linked to those users by email any more, and
+  apps see `email_verified: false` for them until a provider verifies that address again.
+- Joins that already happened are not undone. To look for one, run the query in the README's
+  Troubleshooting entry **A user may hold someone else's provider account**.
+
 ## 0.7.0 - 2026-10-27
 
 ### Added
