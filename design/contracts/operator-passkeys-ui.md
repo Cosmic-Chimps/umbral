@@ -130,8 +130,9 @@ Success notices:
   on.* / *Password replaced.* (today's).
 
 Operator sign-in page (`/admin/signin`):
-- Title *Sign in* (today's). Lead with both: *Use your password, or a passkey.* Lead with a
-  passkey only: *Sign in with your passkey.*
+- Title *Sign in* (today's). Lead before any passkey exists: *Use your password.* Lead with
+  both: *Use your password, or a passkey.* Lead with a passkey only: *Sign in with your
+  passkey.*
 - Passkey button: *Sign in with a passkey* (the existing `SignInWithPasskey`).
 - No-JavaScript line (passkey only, or under the password form when both): *A passkey needs
   JavaScript. Turn it on for this page, or sign in with your password.* and, when password
@@ -143,9 +144,13 @@ instances apart.
 
 ## 5. The operator sign-in page
 
-Card `max-w-sm` as today. **With both**: the password form first (field, primary full-width
-**Sign in**), then `.um-or` ("or"), then **Sign in with a passkey** as a full-width secondary
-button with the Key icon. The password form keeps focus and the primary fill because it is
+Card `max-w-sm` as today. Three states, decided by what the operator credential holds.
+**Before any passkey exists**: the password form alone, as before spec 011: no passkey
+button, no divider, no passkey line in `noscript`. A "Sign in with a passkey" button on an
+instance with no passkey reads as an invitation to make one, which it is not (added
+2026-11-04 after the maintainer saw it on the live page). **With both**: the password form
+first (field, primary full-width **Sign in**), then `.um-or` ("or"), then **Sign in with a
+passkey** as a full-width secondary button with the Key icon. The password form keeps focus and the primary fill because it is
 what every existing operator reaches for; the passkey button is one press away and needs no
 focus. **With a passkey only**: the passkey button alone, primary, full width; no field, no
 divider. The no-JavaScript line sits at the bottom of the card in both cases, in `noscript`.
@@ -172,6 +177,7 @@ In `.alta/reviews/2026-10-24-operator-passkeys/`, `<state>-<width>-<theme>.png` 
 360, both themes: `credential-no-passkey`, `credential-with-passkeys` (three rows, one never
 used), `add-passkey` (the form with the Current password field and Use a passkey instead),
 `remove-confirm` (a row expanded), `switch-off-confirm`, `password-off` (two cards, no password
-anywhere), `switch-on-confirm`, `remove-last-refused`, `signin-both`, `signin-passkey-only`,
-`signin-no-js` (1280 only), `focus-confirm` (1280 dark only: focus in the confirm block).
+anywhere), `switch-on-confirm`, `remove-last-refused`, `signin-password-only` (no passkey yet: the form
+alone), `signin-both`, `signin-passkey-only`, `signin-no-js` (1280 only), `focus-confirm`
+(1280 dark only: focus in the confirm block).
 Plus `notes.md` with every new string and the detector output if the CLI is at hand.
