@@ -154,6 +154,9 @@ jobs:
       # breach above, since that is when the comparison is most worth reading.
       - name: Idle memory with DOTNET_TieredCompilation=1 (comparison)
         if: always()
+        # Its ceilings are the real runs', which tiered compilation is meant
+        # to exceed: the numbers are the point, not the pass.
+        continue-on-error: true
         env:
           DOTNET_TieredCompilation: "1"
         run: |
