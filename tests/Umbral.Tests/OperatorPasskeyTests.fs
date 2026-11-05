@@ -347,10 +347,26 @@ let private switchPasswordOff (app: Fixtures.TestApp) =
     }
 
 [<Fact>]
+let ``before any operator passkey exists the page offers the password alone`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! claimOperator app (Browser app.Client)
+
+        let! html = Browser(app.Client).GetHtml "/admin/signin"
+        Assert.Contains("type=\"password\"", html)
+        Assert.Contains("Use your password.", html)
+        Assert.DoesNotContain("Use your password, or a passkey.", html)
+        Assert.DoesNotContain("data-operator-passkey-signin", html)
+        Assert.DoesNotContain("um-or", html)
+        Assert.DoesNotContain("A passkey needs JavaScript", html)
+    }
+
+[<Fact>]
 let ``while password sign-in is on the page offers both, the passkey button hidden until scripted`` () =
     task {
         use! app = Fixtures.createApp ()
         do! claimOperator app (Browser app.Client)
+        do! storeOnePasskey app
 
         let! html = Browser(app.Client).GetHtml "/admin/signin"
         Assert.Contains("type=\"password\"", html)

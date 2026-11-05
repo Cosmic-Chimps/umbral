@@ -14,7 +14,7 @@ open Umbral.Views
 let private scripted (element: #HtmlTag) =
     element.attr("hidden", "").data("scripted", "")
 
-let private view (ctx: HttpContext) (t: Texts.Texts) (passwordOn: bool) (error: string option) =
+let private view (ctx: HttpContext) (t: Texts.Texts) (passwordOn: bool) (hasPasskeys: bool) (error: string option) =
     let passkeyButton =
         // Primary when it is the only way in, one press away otherwise.
         let kind = if passwordOn then Components.Secondary else Components.Primary
@@ -29,9 +29,19 @@ let private view (ctx: HttpContext) (t: Texts.Texts) (passwordOn: bool) (error: 
                 t.SignInWithPasskey
             }
 
+    // No operator passkey yet: the button would open the browser's picker to
+    // find nothing, so the page offers the password alone until one is added
+    // on the Credential page. Off implies at least one, which keeps a way in.
+    let showPasskey = hasPasskeys || not passwordOn
+
+    let lead =
+        if not passwordOn then t.SignInLeadPasskeyOnly
+        elif hasPasskeys then t.SignInLeadBoth
+        else t.SignInLeadPassword
+
     div(class' = "flex min-h-[70vh] items-center justify-center") {
         div(class' = "um-card w-full max-w-sm space-y-5").data("screen", "operator-signin") {
-            Components.pageHeading t.SignInTitle (Some(if passwordOn then t.SignInLeadBoth else t.SignInLeadPasskeyOnly))
+            Components.pageHeading t.SignInTitle (Some lead)
 
             match error with
             | Some message -> Components.alert Components.Failure message :> HtmlElement
@@ -52,15 +62,18 @@ let private view (ctx: HttpContext) (t: Texts.Texts) (passwordOn: bool) (error: 
                     }
                 }
 
-                div(class' = "um-or") { t.PickerOr } |> scripted
 
-            passkeyButton
+            if showPasskey then
+                if passwordOn then
+                    div(class' = "um-or") { t.PickerOr } |> scripted
 
-            noscript().data("javascript-required", "") {
-                p(class' = "text-body-md text-on-surface-variant") {
-                    if passwordOn then t.OperatorPasskeyNeedsJavaScript else t.OperatorPasskeyNeedsJavaScriptOnly
+                passkeyButton
+
+                noscript().data("javascript-required", "") {
+                    p(class' = "text-body-md text-on-surface-variant") {
+                        if passwordOn then t.OperatorPasskeyNeedsJavaScript else t.OperatorPasskeyNeedsJavaScriptOnly
+                    }
                 }
-            }
         }
     }
     |> Layout.pageWithScripts [ Assets.passkeys ] ctx t t.SignInTitle
@@ -77,8 +90,9 @@ let page: EndpointHandler =
                 return ()
             else
                 let! passwordOn = OperatorPasskeys.passwordSignInEnabled config
+                let! passkeys = OperatorPasskeys.count config
                 let error = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice |> Option.map (Texts.current ()).Notice
-                return! ctx.WriteHtmlView(view ctx (Texts.current ()) passwordOn error)
+                return! ctx.WriteHtmlView(view ctx (Texts.current ()) passwordOn (passkeys > 0) error)
         }
 
 let submit: EndpointHandler =

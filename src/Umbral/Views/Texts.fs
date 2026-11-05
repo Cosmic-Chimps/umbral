@@ -103,6 +103,8 @@ type Texts =
       PasswordReplaceButton: string
       SignInLeadBoth: string
       SignInLeadPasskeyOnly: string
+      /// Before any operator passkey exists: the password alone.
+      SignInLeadPassword: string
       OperatorPasskeyNeedsJavaScript: string
       OperatorPasskeyNeedsJavaScriptOnly: string
       OperatorPasskeyUserName: string
@@ -951,6 +953,7 @@ let en: Texts =
       PasswordReplaceButton = "Replace the password"
       SignInLeadBoth = "Use your password, or a passkey."
       SignInLeadPasskeyOnly = "Sign in with your passkey."
+      SignInLeadPassword = "Use your password."
       OperatorPasskeyNeedsJavaScript = "A passkey needs JavaScript. Turn it on for this page, or sign in with your password."
       OperatorPasskeyNeedsJavaScriptOnly = "A passkey needs JavaScript. Turn it on for this page."
       OperatorPasskeyUserName = "operator"
