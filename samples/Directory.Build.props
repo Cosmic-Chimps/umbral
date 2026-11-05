@@ -1,0 +1,7 @@
+<!--
+  Stops MSBuild from importing the repository's Directory.Build.props into the
+  samples. A sample is a stand-alone project, built as anyone's app would be,
+  not with Umbral's F# warning settings.
+-->
+<Project>
+</Project>

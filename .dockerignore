@@ -8,6 +8,7 @@
 specs
 docs
 tests
+samples
 *.md
 .gitignore
 .dockerignore

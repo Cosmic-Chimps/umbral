@@ -151,7 +151,17 @@ def main(args):
             print(f"check-links: no such file: {', '.join(missing)}", file=sys.stderr)
             return 2
     else:
-        files = [ROOT / "README.md", *sorted((ROOT / "docs").rglob("*.md"))]
+        files = [
+            ROOT / "README.md",
+            *sorted((ROOT / "docs").rglob("*.md")),
+            # The samples' READMEs are documentation too. A sample's build output
+            # and a harness's node_modules are not.
+            *sorted(
+                p
+                for p in (ROOT / "samples").rglob("*.md")
+                if not {"node_modules", "bin", "obj"} & set(p.relative_to(ROOT).parts)
+            ),
+        ]
 
     dead, total = [], 0
     for path in files:
