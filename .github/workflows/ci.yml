@@ -96,17 +96,64 @@ jobs:
           global-json-file: global.json
 
       # Release, because that is what the container runs and what SC-007 is a
-      # promise about; a Debug build is a few MiB bigger.
-      - name: Test
+      # promise about; a Debug build is a few MiB bigger. Built once, then tested
+      # without rebuilding, as the memory job below does with its own build.
+      - name: Build
+        run: dotnet build -c Release
+
+      # Everything but the idle-memory measurements, which the `memory` job runs
+      # on its own: a ceiling read on a busy runner never hides a failing test
+      # here, and a failing test never hides a memory figure there.
+      - name: Tests
+        run: dotnet test -c Release --no-build --filter-not-class "Umbral.Tests.IdleMemoryTests"
+
+  # The idle resident set (Principle II: SC-007 and the per-run ceilings in
+  # tests/Umbral.Tests/IdleMemoryTests.fs), one job per architecture, so its
+  # result has its own name in the checks and in a release run, as Bella Baxter
+  # splits its test groups. A measurement depends on the runner as much as on
+  # the code, so this job gates a pull request, where a regression is caught
+  # before it merges, and only reports on a push to main and in a release
+  # (continue-on-error): the figures and any breach are in the job summary and
+  # in a warning on the run, and the task that owns the budget decides.
+  memory:
+    name: memory (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ github.event_name != 'pull_request' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Idle resident set
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           echo "### Idle resident set (SC-007)" >> "$GITHUB_STEP_SUMMARY"
-          dotnet test -c Release
+          if ! dotnet test -c Release --no-build --filter-class "Umbral.Tests.IdleMemoryTests"; then
+            echo "::warning title=Idle memory over a ceiling ($ARCH)::See the memory ($ARCH) job's summary for the figures. A gate on pull requests; a report on a push and in a release."
+            exit 1
+          fi
 
       # Not a gate: the same test again with tiered compilation back on (the .NET
       # default; Umbral.fsproj turns it off), to keep showing what the setting
       # saves on this architecture. The environment overrides runtimeconfig.json
-      # and the app inherits it, so nothing in the test changes.
+      # and the app inherits it, so nothing in the test changes. Runs even after a
+      # breach above, since that is when the comparison is most worth reading.
       - name: Idle memory with DOTNET_TieredCompilation=1 (comparison)
+        if: always()
         env:
           DOTNET_TieredCompilation: "1"
         run: |
