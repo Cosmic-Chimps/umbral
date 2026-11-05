@@ -84,3 +84,14 @@ Complete under section 6: files, each statement with its source, the quoted
 strings with line numbers, the verification (the harness run, the build, the
 smoke run, the link and changelog checks, the linters) and what has not run yet
 (the workflow on GitHub). Agreed on all of it.
+
+---
+
+## Addendum, 2026-11-05, at `65461ae`
+
+**Still clear.** All three nits taken, in the two READMEs and in both
+`Program.cs` comments: the `id_token_hint` sentence now says the hint names
+the app for the end-session request; "a loopback address, such as
+`http://localhost`" wherever plain http is mentioned; "the app's page" in both
+tables. Link check: 202 links in 16 files, all resolve. The documentation
+review is complete; the code review and the maintainer's merge remain.
