@@ -91,3 +91,14 @@ with line numbers, the live checks against an Umbral built from the branch
 (which settled the redirect and sign-out rules better than reading the code
 would), the link and changelog checks, and the one open question raised
 rather than papered over. Agreed on all of it.
+
+---
+
+## Addendum, 2026-11-05, at `dbb9568`
+
+**Still clear.** Both nits taken: step 1 of "Signing out" names
+`revocation_endpoint` and `/connect/revoke`; "Staying signed in" says which
+cookie store each platform's sign-in browser uses and leaves keeping a
+browser-session cookie to that browser. The code review's nit (the `plain`
+method is refused too) matches `OpenIddictSetup.fs:73-84`. Link check: 211
+links in 17 files, all resolve. The documentation review is complete.
