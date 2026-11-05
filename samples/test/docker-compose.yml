@@ -1,0 +1,56 @@
+# Umbral, one sample and a browser, sharing ONE network namespace.
+#
+# `umbral` owns the namespace; `sample` and `browser` join it with
+# `network_mode: "service:umbral"`. Everything is therefore `localhost`, as in
+# the README's quick start: Umbral accepts plain http only for localhost, and
+# the sample's redirect URIs and the browser's addresses must say the same
+# thing. No host networking, so it behaves the same on Linux and macOS. Ports
+# are published on `umbral` only, to look at it from the host while debugging.
+#
+# The fake connector signs in anyone as whoever they claim to be. It exists
+# only when the container has BOTH ASPNETCORE_ENVIRONMENT=Development and
+# UMBRAL__ALLOW_FAKE_CONNECTOR=true, and that pair must appear nowhere else in
+# this repository (see samples/README.md, "The harness").
+#
+# Run it through run.sh, which sets SAMPLE, SAMPLE_PORT and the rest.
+services:
+  umbral:
+    build: ../..
+    image: umbral:samples
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      UMBRAL__ALLOW_FAKE_CONNECTOR: "true"
+      UMBRAL__INSECURE_ALLOW_HTTP: "true"
+      UMBRAL__PUBLIC_ORIGIN: http://localhost:8080
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${SAMPLE_PORT}:${SAMPLE_PORT}"
+    # No named volume: /data is the image's anonymous volume, and
+    # `docker compose down -v` clears it.
+
+  sample:
+    build: ../${SAMPLE}
+    network_mode: "service:umbral"
+    depends_on:
+      umbral:
+        condition: service_healthy
+    environment:
+      UMBRAL_ISSUER: http://localhost:8080
+      UMBRAL_CLIENT_ID: ${UMBRAL_CLIENT_ID}
+      UMBRAL_CLIENT_SECRET: ${UMBRAL_CLIENT_SECRET:-}
+      PORT: ${SAMPLE_PORT}
+
+  browser:
+    build: .
+    network_mode: "service:umbral"
+    profiles: [tools]
+    environment:
+      SAMPLE:
+      SAMPLE_PORT:
+      APP_TYPE:
+      REDIRECT_PATH:
+      POST_LOGOUT_PATH:
+      ADMIN_PASSWORD:
+      UMBRAL_URL: http://localhost:8080
+    volumes:
+      - ./out:/work/out

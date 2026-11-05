@@ -1,0 +1,8 @@
+{
+  "name": "umbral-samples-harness",
+  "private": true,
+  "description": "Playwright scripts that register a sample in a real Umbral and walk it (see run.sh)",
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}

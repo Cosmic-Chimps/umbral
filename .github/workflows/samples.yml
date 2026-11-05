@@ -1,0 +1,76 @@
+# The samples against a real Umbral.
+#
+# Every sample under samples/ is built from its own Dockerfile and walked in a
+# headless browser against an Umbral built from this commit (samples/test/run.sh
+# does the work; samples/README.md, "The harness", says what it checks). One job
+# per line of samples/test/samples.conf, so adding a sample adds a job.
+#
+# The release workflow calls this one, so a failing sample blocks a release.
+#
+# The walk signs in with the fake connector, which exists only when Umbral runs
+# with ASPNETCORE_ENVIRONMENT=Development and UMBRAL__ALLOW_FAKE_CONNECTOR=true.
+# That pair lives in samples/test/docker-compose.yml and nowhere else.
+name: samples
+
+on:
+  push:
+    branches: [main]
+    paths: ['samples/**', '.github/workflows/samples.yml']
+  pull_request:
+    paths: ['samples/**', '.github/workflows/samples.yml']
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # The matrix is the list of names in samples.conf (comments and blank lines
+  # skipped), so the file stays the one place a sample is declared.
+  list:
+    runs-on: ubuntu-24.04
+    outputs:
+      samples: ${{ steps.names.outputs.samples }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Names in samples.conf
+        id: names
+        run: |
+          names=$(awk '$1 !~ /^#/ && NF { print $1 }' samples/test/samples.conf | jq -R . | jq -sc .)
+          echo "samples=$names" >> "$GITHUB_OUTPUT"
+
+  sample:
+    name: sample (${{ matrix.sample }})
+    needs: list
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sample: ${{ fromJson(needs.list.outputs.samples) }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Umbral is built here, so the harness's compose finds umbral:samples and
+      # does not build it again.
+      - name: Build Umbral
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: umbral:samples
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Walk the sample
+        run: samples/test/run.sh ${{ matrix.sample }}
+
+      - name: Traces of the failed run
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: samples-${{ matrix.sample }}
+          path: samples/test/out/test-results
+          if-no-files-found: ignore

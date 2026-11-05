@@ -1,8 +1,8 @@
 # Release: start it from the Actions tab (release > Run workflow > branch main >
 # version X.Y.Z), or push a tag like v1.2.3. Either way this workflow
 #
-#   1. runs the same tests as CI, on the commit the run started from, so red
-#      tests never leave a tag,
+#   1. runs the same tests as CI, and the samples against a real Umbral, on the
+#      commit the run started from, so red tests never leave a tag,
 #   2. gets the changelog right, and fails, before anything is built, when
 #      changelog.d/ has no notes (no empty releases; each change adds one file
 #      there, see changelog.d/README.md):
@@ -71,6 +71,11 @@ jobs:
   test:
     uses: ./.github/workflows/ci.yml
 
+  # Every sample is walked against this commit's Umbral; a failing one leaves
+  # no tag.
+  samples:
+    uses: ./.github/workflows/samples.yml
+
   # The version, the notes and, on a Run workflow, the release itself. A release
   # (1.2.3) gets its section of CHANGELOG.md; when the commit has none, the
   # notes in changelog.d/ are gathered into it in this checkout and their files
@@ -79,7 +84,7 @@ jobs:
   # notes (and, for a pushed tag, the prepared changelog) go to the release job
   # as an artifact.
   changelog:
-    needs: test
+    needs: [test, samples]
     runs-on: ubuntu-latest
     permissions:
       contents: write # a Run workflow pushes the changelog commit and the tag
