@@ -284,7 +284,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 8
+let SchemaVersion = 9
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -417,6 +417,23 @@ let private UpgradeToVersion8 =
          last_used_utc  TEXT        NULL
      );"
 
+/// Task h762. `users.email_verified` used to be raised by any verified address
+/// a provider asserted, so a first address nobody proved could read as verified,
+/// and the linking query would join the real owner of that address into the
+/// wrong user. The flag now rises only for the stored address, so this recomputes
+/// it once for the rows written before: it stays set only where a linked account
+/// verifies the stored address (case-insensitively). It only lowers and never
+/// raises. A user who falls to unverified is the safe direction: linking by
+/// email stops matching that row until a provider verifies the address again.
+[<Literal>]
+let private UpgradeToVersion9 =
+    "UPDATE users SET email_verified = 0
+      WHERE email_verified = 1
+        AND NOT EXISTS (SELECT 1 FROM linked_accounts la
+                         WHERE la.user_id = users.id
+                           AND la.asserted_email_verified = 1
+                           AND la.asserted_email = users.email COLLATE NOCASE);"
+
 /// What takes a database from the version before to the version named. Applied
 /// in order, inside `initializeSchema`'s transaction, to a database stamped
 /// lower than `SchemaVersion`; a fresh database skips them, because `schema`
@@ -436,9 +453,18 @@ let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
       5, (fun command -> command.CommandText <- UpgradeToVersion5)
       6, (fun command -> command.CommandText <- UpgradeToVersion6)
       7, (fun command -> command.CommandText <- UpgradeToVersion7)
-      8, (fun command -> command.CommandText <- UpgradeToVersion8) ]
+      8, (fun command -> command.CommandText <- UpgradeToVersion8)
+      9, (fun command -> command.CommandText <- UpgradeToVersion9) ]
 
-let initializeSchema (config: DbConfig) : Task<unit> =
+/// What `upgradeSchema` did. `EmailVerifiedLowered` is the number of users the
+/// version 9 step set back to unverified, or `None` when that step did not run
+/// (a fresh database, or one already at version 9 or later).
+type SchemaUpgrade =
+    { FromVersion: int
+      ToVersion: int
+      EmailVerifiedLowered: int option }
+
+let upgradeSchema (config: DbConfig) : Task<SchemaUpgrade> =
     task {
         use! connection = openConnection config
         use transaction = connection.BeginTransaction()
@@ -475,13 +501,17 @@ let initializeSchema (config: DbConfig) : Task<unit> =
                 + "the backup of the data directory taken before the upgrade."
             )
 
+        let emailVerifiedLowered = ref None
+
         for version, describe in upgradeSteps do
             if version > storedVersion then
                 use step = connection.CreateCommand()
                 step.Transaction <- transaction
                 describe step
-                let! _ = step.ExecuteNonQueryAsync()
-                ()
+                let! changed = step.ExecuteNonQueryAsync()
+
+                if version = 9 then
+                    emailVerifiedLowered.Value <- Some changed
 
         use index = connection.CreateCommand()
         index.Transaction <- transaction
@@ -503,4 +533,15 @@ let initializeSchema (config: DbConfig) : Task<unit> =
         let! _ = version.ExecuteNonQueryAsync()
 
         do! transaction.CommitAsync()
+
+        return
+            { FromVersion = storedVersion
+              ToVersion = SchemaVersion
+              EmailVerifiedLowered = emailVerifiedLowered.Value }
+    }
+
+let initializeSchema (config: DbConfig) : Task<unit> =
+    task {
+        let! _ = upgradeSchema config
+        ()
     }

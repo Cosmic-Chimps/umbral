@@ -484,6 +484,29 @@ let private probeSecretStore (app: WebApplication) (dbConfig: Database.DbConfig)
                     .LogWarning("The startup check of the secret store failed with {Exception}.", ex.GetType().Name)
     }
 
+/// Brings the schema up to date and, when the version 9 step ran (task h762),
+/// says what it did. Every command that opens the database goes through here,
+/// so the step runs once, whichever starts first. A warning when it lowered
+/// anything, because those users now read as unverified to the apps.
+let private ensureSchema (app: WebApplication) (dbConfig: Database.DbConfig) =
+    task {
+        let! upgrade = Database.upgradeSchema dbConfig
+
+        match upgrade.EmailVerifiedLowered with
+        | None -> ()
+        | Some count ->
+            let logger =
+                app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Umbral.Startup")
+
+            let message =
+                "Schema upgrade {From} -> {To}: {Count} users had email_verified set back to false, because no linked account verifies their stored address. Apps see email_verified false for them until a provider verifies that address again. To look for accounts already joined this way, see \"A user may hold someone else's provider account\" under Troubleshooting in the README."
+
+            if count > 0 then
+                logger.LogWarning(message, upgrade.FromVersion, upgrade.ToVersion, count)
+            else
+                logger.LogInformation(message, upgrade.FromVersion, upgrade.ToVersion, count)
+    }
+
 /// Everything that must happen before the first request: the schema Umbral owns,
 /// OpenIddict's migrations, and the key material.
 ///
@@ -493,7 +516,7 @@ let initialize (app: WebApplication) =
     task {
         let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
 
-        do! Database.initializeSchema dbConfig
+        do! ensureSchema app dbConfig
         do! probeSecretStore app dbConfig
 
         // One line, at Information, whichever way it is set: an operator who
@@ -580,7 +603,7 @@ let resetCredential (app: WebApplication) (forgetPasskeys: bool) (write: string 
         let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
         let clock = app.Services.GetRequiredService<TimeProvider>()
 
-        do! Database.initializeSchema dbConfig
+        do! ensureSchema app dbConfig
         let! wasConfigured = AdminAuth.isConfigured dbConfig
 
         // Generated rather than prompted: a reset run non-interactively through
@@ -708,7 +731,7 @@ let resetCredential (app: WebApplication) (forgetPasskeys: bool) (write: string 
 let moveSecrets (app: WebApplication) (dryRun: bool) (write: string -> unit) =
     task {
         let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
-        do! Database.initializeSchema dbConfig
+        do! ensureSchema app dbConfig
 
         return!
             Umbral.Infrastructure.SecretMove.run

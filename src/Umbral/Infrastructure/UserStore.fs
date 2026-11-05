@@ -108,6 +108,16 @@ let resolve
             | Some s -> s :> obj
             | None -> DBNull.Value :> obj
 
+        // The users row's flag speaks for its address, so it needs one: a
+        // provider that says "verified" with no address (or a blank one) has
+        // verified nothing Umbral stores. The linked account keeps the raw
+        // assertion below.
+        let verifiesAnAddress =
+            profile.EmailVerified
+            && (match profile.Email with
+                | Some e -> not (String.IsNullOrWhiteSpace e)
+                | None -> false)
+
         let userId =
             match outcome.Decision with
             | Linking.ExistingLink id
@@ -133,7 +143,7 @@ let resolve
             |> ignore
 
             insert.Parameters.AddWithValue("@email", optional profile.Email) |> ignore
-            insert.Parameters.AddWithValue("@verified", (if profile.EmailVerified then 1 else 0)) |> ignore
+            insert.Parameters.AddWithValue("@verified", (if verifiesAnAddress then 1 else 0)) |> ignore
             insert.Parameters.AddWithValue("@avatar", optional profile.AvatarUrl) |> ignore
             insert.Parameters.AddWithValue("@username", optional profile.Username) |> ignore
             insert.Parameters.AddWithValue("@profile", optional profile.ProfileUrl) |> ignore
@@ -149,6 +159,15 @@ let resolve
             // Refresh the display fields, but never the email's verified flag
             // downwards on an existing user: a provider that stops asserting
             // verification must not silently unpick an earlier link.
+            //
+            // The address is the first one seen, so the flag goes up only when
+            // the provider verifies THAT address (or none is stored yet and this
+            // one fills it in). Raising it for whatever address the provider
+            // verifies today would mark a never-proved first address as
+            // verified, and the linking query would then join that address's
+            // real owner into this user (task h762). The comparison is the
+            // linking query's own, COLLATE NOCASE. In an UPDATE, `email` on the
+            // right-hand side is the stored value, before this statement.
             update.CommandText <-
                 "UPDATE users
                  SET display_name  = COALESCE(@name, display_name),
@@ -156,7 +175,8 @@ let resolve
                      preferred_username = COALESCE(@username, preferred_username),
                      profile_url   = COALESCE(@profile, profile_url),
                      email         = COALESCE(email, @email),
-                     email_verified= CASE WHEN @verified = 1 THEN 1 ELSE email_verified END,
+                     email_verified= CASE WHEN @verified = 1 AND (email IS NULL OR email = @email COLLATE NOCASE)
+                                          THEN 1 ELSE email_verified END,
                      last_seen_utc = @now
                  WHERE id = @id"
 
@@ -165,7 +185,7 @@ let resolve
             update.Parameters.AddWithValue("@username", optional profile.Username) |> ignore
             update.Parameters.AddWithValue("@profile", optional profile.ProfileUrl) |> ignore
             update.Parameters.AddWithValue("@email", optional profile.Email) |> ignore
-            update.Parameters.AddWithValue("@verified", (if profile.EmailVerified then 1 else 0)) |> ignore
+            update.Parameters.AddWithValue("@verified", (if verifiesAnAddress then 1 else 0)) |> ignore
             update.Parameters.AddWithValue("@now", nowText) |> ignore
             update.Parameters.AddWithValue("@id", userId) |> ignore
             let! _ = update.ExecuteNonQueryAsync()
