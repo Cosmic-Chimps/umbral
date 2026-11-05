@@ -306,7 +306,8 @@ Working examples are in [`samples/`](samples/README.md): one small app per
 stack, each signing in with its stack's ordinary OpenID Connect library and
 showing the claims on a private page. Today there is one,
 [ASP.NET Core](samples/aspnetcore/README.md) (a **Web application**). CI runs
-each sample against a real Umbral before every release.
+each sample against a real Umbral before every release. For an iPhone, Android or
+desktop app, see [Native and mobile apps](docs/native-apps.md).
 
 And register one thing in Umbral: the app's **redirect URI**. Which one that is
 depends on the library. ASP.NET Core's OpenID Connect handler uses
