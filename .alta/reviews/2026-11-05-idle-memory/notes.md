@@ -101,3 +101,46 @@ The run is under its ceiling with the shipped settings, so the task's premise do
    - The operator-passkey run goes to about 142 MiB (x64) and 145 MiB (arm64), 5 MiB to spare. Every run gains about 4 MiB, the local store included.
    - An operator outside the image does not get it unless the docs say so: the deployment docs would gain a line, and a `changelog.d/` fragment, since it changes what an operator runs.
 3. **The ceiling.** The operator-passkey run shares `ExternalStoreCeilingBytes` (160 MiB) with the connector run. Spec 011 SC-005 and specs/008's note are updated to say the library's cost is paid once, whichever use loads it. The default instance stays under 150.
+
+## The maintainer's choice: option 2 (2026-11-05)
+
+### Where the setting lives
+
+Round 3 on the runners (`actions/runs/41972164687`) put the budget in the child's `Umbral.runtimeconfig.json` as a configProperty, under each of the two names, and measured the operator-passkey run:
+
+| How it is set | x64 | arm64 |
+| --- | ---: | ---: |
+| Not set | 146.3–146.9 | 148.3 |
+| `System.GC.Gen0Size` in runtimeconfig.json | 145.9–146.3 | 148.5–148.7 |
+| `GCgen0size` in runtimeconfig.json | 145.4–145.9 | 148.5 |
+| `DOTNET_GCgen0size=0x200000` in the environment | 142.2 | 144.8–145.2 |
+
+runtimeconfig.json ignores it, so it cannot be set in `Umbral.fsproj` the way `TieredCompilation` is. A local Docker container on an Apple laptop could not tell, because there the default gen0 budget is already small. The setting is an `ENV` of the image. README's requirements say Docker is the only supported way to run Umbral, so every operator gets it, and no docs line is needed.
+
+### The change (`f3629dc`)
+
+- `Dockerfile`: `ENV DOTNET_GCgen0size=0x200000`, next to `DOTNET_gcServer=0`, with what it saves, what it costs, and why it is not in the project file.
+- `IdleMemoryTests.fs`:
+  - `imageEnvironment` gives the measured process the image's GC environment (`DOTNET_gcServer=0`, `DOTNET_GCgen0size=0x200000`).
+  - A new fact checks that the Dockerfile has the same `ENV` lines, so the test cannot measure a process the image does not run. Changing the Dockerfile's value fails it (checked).
+  - The module comment now gives the WebAuthn library's cost, what tiered compilation off still saves on the runners, the gen0 budget, and the note that the CI comparison step's figures are tiered-on.
+- `Umbral.fsproj`: one sentence in the comment, pointing to the Dockerfile for the gen0 budget.
+- `changelog.d/idle-memory-gen0.md`: a `Changed` bullet, because the image's environment and its idle figure change.
+- No change to any ceiling. Spec 011's SC-005 (150 MiB) and specs/008's note stand as written.
+
+### Verification
+
+- **Runner check of `f3629dc`** (`actions/runs/41973097144`, the gated class run twice per architecture, `diag/idle-memory-m3m0-final`). All 6 tests pass in each run.
+
+  | Run | x64 | arm64 | Ceiling |
+  | --- | ---: | ---: | ---: |
+  | Local store | 135.9–136.3 | 138.9–140.7 | 150 |
+  | Operator passkey | 142.0–142.1 | **144.5–144.6** | 150 |
+  | Passkey connector | 141.6–141.9 | 144.4–145.2 | 160 |
+  | Fediverse connector | 137.4–137.6 | 140.2–140.3 | 150 |
+  | AWS store | 144.9–145.0 | 147.9–148.2 | 160 |
+
+- **The operator-passkey run has 5.4 MiB to spare on arm64**, against 1.2 to 1.7 before.
+- **The comparison with `DOTNET_TieredCompilation=1`** (the gen0 budget still set) reads operator passkey 152.6–153.9 (x64) and 155.9–157.8 (arm64). The CI job's comparison step is `continue-on-error`, so those over-ceiling figures fail nothing.
+- **Full suite on macOS:** 1797 of 1797 pass, one more than before because of the new fact.
+- **The throwaway branches** `diag/idle-memory-m3m0` and `diag/idle-memory-m3m0-final` hold the diagnostic harness and are deleted once this is reviewed.
