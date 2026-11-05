@@ -28,3 +28,8 @@ The task's premise was wrong, and the finding in `notes.md` is right: every figu
 ## Observation, not a finding
 
 A 2 MiB gen0 budget means a gen0 collection about every 2 MiB of allocation, each sub-millisecond; a sign-in service will not notice, and the notes say so. It was not measured under load, and nothing requires that now. If a latency complaint ever comes, this is the first knob to look at, which is a good reason for the Dockerfile comment to say what it costs, as it does.
+
+## Tests and the nits, 2026-11-05
+
+- The reviewer's own run at `ded4af1`: `dotnet test -c Release --filter-not-class Umbral.Tests.IdleMemoryTests`, **1791 passed, 0 failed**, and the memory class on its own, 6 of 6 (macOS, sanity ceiling), which together match the implementer's 1797/1797.
+- `0864cad` takes N1 and N2 as asked: the list is `tests/Umbral.Tests/Infrastructure/ImageEnvironment.fs`, opened by both files; the drift fact is MetaTests' section 5, on MetaTests' `repoRoot`, in the job that blocks every push; the duplicate helper is gone from `IdleMemoryTests`; the changelog bullet uses the proposed sentence. N3 (the two `diag/` branches) waits for the merge. Still clear.
