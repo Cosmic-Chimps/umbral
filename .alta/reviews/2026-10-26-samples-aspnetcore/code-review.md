@@ -27,3 +27,12 @@ Branch `alta/vibrant-regulus-bmdk`, `674e441..f8b5b18` on `main` at `3c57932`. R
 ## Observation, not a finding
 
 `POST /signout` has no antiforgery token. In the sample the worst case is a forced sign-out, and adding `AddAntiforgery` would complicate the one file people read; the contract could say in one line that a real app adds it.
+
+## Re-check at `26ca569` (2026-11-05)
+
+**Clear to merge.**
+
+- **N1, fixed.** `samples/test/docker-compose.yml` publishes no port; `docker-compose.debug.yml` adds the two, bound to `127.0.0.1`, with its header saying how to use it and why it isn't the default, and `run.sh`'s header points at it. Proof: `samples/test/run.sh aspnetcore` on the stock files passed end to end on this Mac while `127.0.0.1:8080` was held by another process, the case that failed before.
+- **N2, fixed.** `plainHttpOnLoopback` is computed once from the issuer and drives both `RequireHttpsMetadata` and the cookie's `SecurePolicy` (`Always`, `SameAsRequest` only for the plain-http loopback trial); the sample README's Cookie bullet says so.
+- The observation is taken: the contract says a real app adds an anti-forgery token to Sign out.
+- The documentation review's commits (`2135879`, `65461ae`, `8181228`) are on the branch and clear. N3 is for the maintainer: the samples workflow's first run is the merge push, and it should be green before a release.
