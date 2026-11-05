@@ -26,15 +26,17 @@ builder.Services
     {
         o.Cookie.HttpOnly = true;
         o.Cookie.SameSite = SameSiteMode.Lax;
-        // Secure on every https address; only http://localhost goes without,
-        // the one place Umbral accepts plain http.
+        // Secure on every https address; only plain http on a loopback address,
+        // such as http://localhost, goes without, which is the only plain http
+        // Umbral accepts.
         o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     })
     .AddOpenIdConnect(o =>
     {
         // Discovery only: the endpoints are read from the issuer, never set by hand.
         o.Authority = issuer;
-        // The handler wants https. Plain http is for http://localhost only, the one place Umbral accepts it.
+        // The handler wants https. Plain http is allowed on a loopback address only,
+        // the only place Umbral accepts it (the quick start's http://localhost:8080).
         o.RequireHttpsMetadata = !(Uri.TryCreate(issuer, UriKind.Absolute, out var uri) && uri.Scheme == "http" && uri.IsLoopback);
         o.ClientId = clientId;
         o.ClientSecret = clientSecret;
@@ -47,8 +49,8 @@ builder.Services
         o.MapInboundClaims = false; // so sub, name and idp keep their names
         o.TokenValidationParameters.NameClaimType = "name";
         o.GetClaimsFromUserInfoEndpoint = false; // Umbral's id_token already carries the same claims as userinfo
-        // Sign-out sends the saved id_token as id_token_hint, which is how Umbral
-        // knows which app's post-logout redirect URI to honour.
+        // Sign-out sends the saved id_token as id_token_hint, which the end-session
+        // request uses to name the app whose post-logout redirect URI it asks for.
         o.SaveTokens = true;
         o.SignedOutRedirectUri = "/";
     });

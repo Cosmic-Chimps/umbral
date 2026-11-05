@@ -52,7 +52,7 @@ Three environment variables, and the port:
 
 | Variable | What it is |
 | --- | --- |
-| `UMBRAL_ISSUER` | The issuer, the **Issuer URL** on the app's card: your `UMBRAL__PUBLIC_ORIGIN`, for example `https://auth.example.com`. |
+| `UMBRAL_ISSUER` | The issuer, the **Issuer URL** on the app's page: your `UMBRAL__PUBLIC_ORIGIN`, for example `https://auth.example.com`. |
 | `UMBRAL_CLIENT_ID` | The app's **Client ID**. |
 | `UMBRAL_CLIENT_SECRET` | The app's **Client secret**. A sample that is a **Single-page or native app** has none and does not read it. |
 | `PORT` | The port the sample listens on. Each sample has its own default, named in its README. |
@@ -74,8 +74,9 @@ Three environment variables, and the port:
 ### Cookies
 
 The app's session cookie is `HttpOnly` and `SameSite=Lax`, and `Secure` on
-every https address. Only `http://localhost` goes without `Secure`, and
-Umbral itself only accepts plain http there.
+every https address. Only plain http on a loopback address, such as
+`http://localhost`, goes without `Secure`, and that is the only plain http
+Umbral itself accepts.
 
 ### Markup
 

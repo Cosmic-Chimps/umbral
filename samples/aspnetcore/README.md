@@ -27,7 +27,7 @@ The sample reads three variables, and the port:
 
 | Variable | What it is |
 | --- | --- |
-| `UMBRAL_ISSUER` | The **Issuer URL** on the app's card, for example `https://auth.example.com`. |
+| `UMBRAL_ISSUER` | The **Issuer URL** on the app's page, for example `https://auth.example.com`. |
 | `UMBRAL_CLIENT_ID` | The app's **Client ID**. |
 | `UMBRAL_CLIENT_SECRET` | The app's **Client secret**. |
 | `PORT` | The port to listen on. Default `5000`. |
@@ -78,12 +78,13 @@ All of it is in [`Program.cs`](Program.cs).
 - **`GetClaimsFromUserInfoEndpoint = false`.** Umbral's `id_token` already
   carries the same claims as userinfo, so there is no second call.
 - **`SaveTokens = true`.** On sign-out the handler sends the saved `id_token` as
-  `id_token_hint`, which is how Umbral knows which app's post-logout redirect
-  URI to honour.
+  `id_token_hint`, which the end-session request uses to name the app, so the
+  post-logout redirect URI registered for it is honoured.
 - **Sign-out on both schemes.** It ends the app's cookie session, then goes to
   Umbral's end-session endpoint. It is a POST, so a stray `<img src>` cannot
   sign anyone out.
 - **Cookie.** `HttpOnly`, `SameSite=Lax`, and `Secure` on every https address.
-  Only `http://localhost` goes without.
+  Only plain http on a loopback address, such as `http://localhost`, goes
+  without, and that is the only plain http Umbral accepts.
 
 For what each claim means, see [Integrate an app](../../README.md#integrate-an-app).

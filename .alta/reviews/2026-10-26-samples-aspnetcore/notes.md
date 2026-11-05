@@ -76,3 +76,16 @@ sample before every release (`release.yml`).
 ## Changelog
 
 `changelog.d/samples.md`, Added.
+
+## Answers to the documentation review (review.md, clear, three nits)
+
+All three nits taken in one commit with the review:
+
+1. The `id_token_hint` sentence (sample README and the comment in `Program.cs`) now says the
+   end-session request uses the hint to name the app, and leaves Umbral's mechanism out.
+2. "only `http://localhost`" is now "plain http on a loopback address, such as
+   `http://localhost`" in the contract, the sample README and both comments in `Program.cs`,
+   which matches `PublicOrigin.fs:77-83` and the `IsLoopback` test in the code.
+3. "the app's card" is "the app's page" in both tables.
+
+The sample still builds with 0 errors after the comment changes.
