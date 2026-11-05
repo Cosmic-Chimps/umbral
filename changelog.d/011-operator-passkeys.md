@@ -15,6 +15,5 @@
 
 ### Upgrade
 
-- The database becomes schema version 8. An older image refuses to start on it: take a backup
-  before you upgrade. Nothing else changes until you add a passkey: there is none, and password
-  sign-in stays on.
+- Operator passkeys need nothing at upgrade: there is none yet, and password sign-in stays on
+  until you turn it off.
