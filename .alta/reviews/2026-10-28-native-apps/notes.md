@@ -62,3 +62,19 @@ separate task; it changes how long a browser stays signed in for every app, not 
 ## Changelog
 
 `changelog.d/native-apps.md`, Added.
+
+## Answers to the reviews
+
+Documentation review (review.md, clear, two nits), both taken:
+
+1. "Signing out" step 1 names the revocation endpoint both ways (`revocation_endpoint`,
+   `/connect/revoke`).
+2. "Staying signed in" says which cookie store each platform's sign-in browser uses (Safari's
+   for a non-ephemeral `ASWebAuthenticationSession`, the default browser's for a Custom Tab) and
+   that keeping a browser-session cookie is up to that browser. Still hedged, since the
+   persistence decision (task c5hn) may change the paragraph; that task carries the doc change.
+
+Code review (code-review.md, clear, one optional nit), taken: the PKCE sentence says the
+`plain` method is refused too (`OpenIddictSetup.fs:73-84`).
+
+All three are wording changes inside sentences already reviewed. The link check still passes.

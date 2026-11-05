@@ -68,8 +68,8 @@ On the **Apps** screen, click **Create app** and pick the app type
 That is why there is no secret: anything inside an app on a phone can be read by
 whoever has the app, so a secret there would be no secret. Umbral makes the app
 a public client, and PKCE is what proves that the app redeeming a code is the one
-that asked for it. Umbral requires PKCE with `S256` for every app, and refuses an
-authorization request without it.
+that asked for it. Umbral requires PKCE with `S256` for every app: it refuses an authorization
+request without it, and one that uses the `plain` method.
 
 Fill in the **Redirect URI** (next section) and, for signing out, the
 **Post-logout redirect URI (optional)**. The app needs the **Issuer URL** and
@@ -113,9 +113,10 @@ sheet open and close.
 Two things decide whether that happens:
 
 - **Umbral's session cookie lasts as long as the browser's own session** (it is
-  not a persistent cookie), and at most 14 days without use. The system's
-  sign-in browser may not keep such a cookie from one sign-in to the next, or
-  between two apps. Plan for the person seeing Umbral's page again, which costs
+  not a persistent cookie), and at most 14 days without use. A non-ephemeral
+  `ASWebAuthenticationSession` uses Safari's cookie store, and a Custom Tab uses
+  the default browser's; whether that browser keeps a browser-session cookie
+  from one sign-in to the next, or between two apps, is up to it. Plan for the person seeing Umbral's page again, which costs
   them a tap when they are still signed in at the provider.
 - **The app can ask for a private browser session.** On iOS,
   `prefersEphemeralWebBrowserSession` gives the sign-in a browser session of its
@@ -136,7 +137,8 @@ app stays signed in without opening the browser at all.
 Sign-out has two parts, and an app usually wants both:
 
 1. **Forget the tokens** the app holds, and revoke the refresh token at the
-   revocation endpoint so that it stops working at once.
+   revocation endpoint (`revocation_endpoint` in discovery, `/connect/revoke`)
+   so that it stops working at once.
 2. **End Umbral's session** in the browser, so the next sign-in shows Umbral's
    page: open the end-session endpoint (`end_session_endpoint` in discovery,
    `/connect/logout`) in the same system browser the app signed in with, with
