@@ -89,3 +89,24 @@ All three nits taken in one commit with the review:
 3. "the app's card" is "the app's page" in both tables.
 
 The sample still builds with 0 errors after the comment changes.
+
+## Answers to the code review (code-review.md, clear, three nits)
+
+- **N1, taken.** `samples/test/docker-compose.yml` publishes no port. The two `ports` lines moved
+  to `samples/test/docker-compose.debug.yml`, which its header and `run.sh`'s header explain
+  (`docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d umbral`, bound to
+  127.0.0.1). CI and `run.sh` never use it.
+- **N2, taken.** `Program.cs` computes `plainHttpOnLoopback` once, from the issuer, and uses it
+  for both `RequireHttpsMetadata` and the cookie: `SecurePolicy` is `Always` unless the issuer
+  is plain http on a loopback address, where it is `SameAsRequest`. The sample README's
+  "Cookie" bullet says so.
+- **N3, for the maintainer.** Noted in the final report: after the merge, wait for the first
+  `samples` run on `main` to be green before starting a release, since `release.yml` now needs
+  it.
+- **The observation** (no anti-forgery token on `POST /signout`): the contract's "Markup"
+  section now says in one line that a real app adds one and the samples leave it out to stay
+  short.
+
+Verified after the changes: `dotnet build -c Release` of the sample succeeds, shellcheck on
+`run.sh` is clean, the merged compose config with the debug file shows the ports and the
+default one none, and `samples/test/run.sh aspnetcore` passed again end to end.

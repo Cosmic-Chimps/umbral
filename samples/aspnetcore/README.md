@@ -83,8 +83,10 @@ All of it is in [`Program.cs`](Program.cs).
 - **Sign-out on both schemes.** It ends the app's cookie session, then goes to
   Umbral's end-session endpoint. It is a POST, so a stray `<img src>` cannot
   sign anyone out.
-- **Cookie.** `HttpOnly`, `SameSite=Lax`, and `Secure` on every https address.
-  Only plain http on a loopback address, such as `http://localhost`, goes
-  without, and that is the only plain http Umbral accepts.
+- **Cookie.** `HttpOnly`, `SameSite=Lax`, and `Secure` always, so a proxy that
+  terminates TLS and speaks http to the app cannot leave it without. Only the
+  trial with an issuer on plain http at a loopback address, such as
+  `http://localhost`, goes without, and that is the only plain http Umbral
+  accepts.
 
 For what each claim means, see [Integrate an app](../../README.md#integrate-an-app).

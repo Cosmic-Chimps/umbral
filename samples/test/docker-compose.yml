@@ -5,7 +5,9 @@
 # the README's quick start: Umbral accepts plain http only for localhost, and
 # the sample's redirect URIs and the browser's addresses must say the same
 # thing. No host networking, so it behaves the same on Linux and macOS. Ports
-# are published on `umbral` only, to look at it from the host while debugging.
+# No port is published: the walk needs none, and a published 8080 would refuse
+# to start wherever the host already uses it. To look at Umbral and the sample
+# from the host while debugging, add docker-compose.debug.yml.
 #
 # The fake connector signs in anyone as whoever they claim to be. It exists
 # only when the container has BOTH ASPNETCORE_ENVIRONMENT=Development and
@@ -22,9 +24,6 @@ services:
       UMBRAL__ALLOW_FAKE_CONNECTOR: "true"
       UMBRAL__INSECURE_ALLOW_HTTP: "true"
       UMBRAL__PUBLIC_ORIGIN: http://localhost:8080
-    ports:
-      - "127.0.0.1:8080:8080"
-      - "127.0.0.1:${SAMPLE_PORT}:${SAMPLE_PORT}"
     # No named volume: /data is the image's anonymous volume, and
     # `docker compose down -v` clears it.
 

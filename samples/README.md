@@ -86,7 +86,8 @@ this much markup, and no more:
 - `/`: an `<h1>`, a link whose text is `Public`, a link whose text is
   `Private`, and either a link whose text is `Sign in` or a form with a button
   whose text is `Sign out` (a POST, so a stray `<img src>` cannot sign anyone
-  out).
+  out; a real app also protects it with an anti-forgery token, which the
+  samples leave out to stay short).
 - `/public`: an `<h1>` whose text is `Public`.
 - `/private`: an `<h1>` whose text is `Private` and a `<table>` with one row
   per claim, the claim's name in a `<th>` and its value in a `<td>`.

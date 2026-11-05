@@ -1,0 +1,16 @@
+# Adds the host ports, to look at the harness's Umbral and the sample from a
+# browser on the host while debugging:
+#
+#   cd samples/test
+#   export SAMPLE=aspnetcore SAMPLE_PORT=5000 UMBRAL_CLIENT_ID= UMBRAL_CLIENT_SECRET=
+#   docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d umbral
+#
+# Not used by run.sh or CI: the walk shares Umbral's network namespace and
+# needs no port, and a published 8080 refuses to start wherever the host
+# already uses it. Bound to 127.0.0.1, since this Umbral has the fake
+# connector on.
+services:
+  umbral:
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${SAMPLE_PORT}:${SAMPLE_PORT}"

@@ -13,6 +13,8 @@
 # torn down at the end, pass or fail.
 #
 # Needs Docker with Compose and nothing else; Node runs in the browser image.
+# No host port is published; docker-compose.debug.yml adds them for a look
+# from the host (see its header).
 # `out/` (git-ignored) holds the traces of a failed run, in out/test-results.
 # On a failure the logs of Umbral and the sample are printed. The password and
 # the app's secret are never printed, and out/app.env (the secret, for the sample)

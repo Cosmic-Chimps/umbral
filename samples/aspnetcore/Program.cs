@@ -13,6 +13,12 @@ var clientId = Required("UMBRAL_CLIENT_ID");
 var clientSecret = Required("UMBRAL_CLIENT_SECRET"); // a Web application is a confidential client
 var port = Environment.GetEnvironmentVariable("PORT") is { Length: > 0 } p ? p : "5000";
 
+// Plain http is allowed on a loopback address only, the one place Umbral
+// accepts it (the quick start's http://localhost:8080). Everywhere else the
+// issuer is https and so is the app.
+var plainHttpOnLoopback =
+    Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri) && issuerUri.Scheme == "http" && issuerUri.IsLoopback;
+
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://*:{port}");
 
@@ -26,18 +32,16 @@ builder.Services
     {
         o.Cookie.HttpOnly = true;
         o.Cookie.SameSite = SameSiteMode.Lax;
-        // Secure on every https address; only plain http on a loopback address,
-        // such as http://localhost, goes without, which is the only plain http
-        // Umbral accepts.
-        o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        // Secure always, so a proxy that terminates TLS and speaks http to the
+        // app cannot leave the cookie without it; only the plain-http loopback
+        // trial goes without.
+        o.Cookie.SecurePolicy = plainHttpOnLoopback ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
     })
     .AddOpenIdConnect(o =>
     {
         // Discovery only: the endpoints are read from the issuer, never set by hand.
         o.Authority = issuer;
-        // The handler wants https. Plain http is allowed on a loopback address only,
-        // the only place Umbral accepts it (the quick start's http://localhost:8080).
-        o.RequireHttpsMetadata = !(Uri.TryCreate(issuer, UriKind.Absolute, out var uri) && uri.Scheme == "http" && uri.IsLoopback);
+        o.RequireHttpsMetadata = !plainHttpOnLoopback; // the handler wants https, except for that trial
         o.ClientId = clientId;
         o.ClientSecret = clientSecret;
         o.ResponseType = "code";
