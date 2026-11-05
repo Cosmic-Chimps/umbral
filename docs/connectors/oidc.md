@@ -201,13 +201,18 @@ Two connectors cannot share one issuer.
 - **Identity** is the pair of your provider's issuer and the person's `sub`
   (their stable id at your provider). A person who changes their username or
   email is still the same Umbral user. Two providers that happen to give out the
-  same `sub` are two different people in Umbral.
+  same `sub` are two different accounts in Umbral; only a verified email, below,
+  can bring them to one user.
 - **Name** is the `name` claim, or `preferred_username` if there is no `name`.
   **Avatar** is `picture`. If the identity token lacks an email or a name, and
   your provider has a userinfo endpoint, Umbral asks it, and refuses the sign-in
   if the answer is about a different person.
-- **Email** is the `email` claim. It can link to the same person's account from
-  another provider only when **`email_verified` is the JSON value `true`**.
+- **Email** is the `email` claim. The first time someone signs in through your
+  provider, it links them to an existing Umbral user only when
+  **`email_verified` is the JSON value `true`** and exactly one user already has
+  that address, also verified; otherwise they become a new user. It is the same
+  rule as for every other connector
+  ([How people are identified](../../README.md#how-people-are-identified)).
   A string `"true"`, a `1`, a missing flag and `false` all count as unverified.
   Some providers send the string form; for those, the account is created but
   never linked by email.

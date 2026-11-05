@@ -343,21 +343,31 @@ What an app can count on:
 - **`sub`** is stable for a user and opaque: it is not derived from any
   provider's ID. If you delete a user and they sign in again, they get a
   *different* `sub`.
-- **`email` and `email_verified` may be missing.** A GitHub user can keep their
-  email private, a Discord account can be unverified, and a passkey-only user has
-  none. Handle all three.
-- **`email_verified` speaks for the address in `email`.** It becomes `true`
-  only when a provider verifies **that same** address, and it does not go back
-  to `false` afterwards. There is one exception: the upgrade to schema version 9
-  may set it back to `false` once, for a user whose stored address no provider
-  has verified.
-- **`name` and `picture`** come with the `profile` scope when the provider
-  supplied them; a fediverse sign-in adds **`preferred_username`**
-  (`user@server`) and **`profile`** (the person's page). **`idp`** is Umbral's one extra claim: the
-  provider the person used (`github`, `discord`, `google`, `oidc` for any
-  OpenID Connect provider you added, `passkey`, or `fediverse`). It is the provider's
-  kind, never a connector's identifier: with several Discord connectors it is
-  still `discord`. Ignore it freely.
+- **`email` and `email_verified`** come with the `email` scope, both or
+  neither. Neither, when Umbral has no address for the person: a fediverse or
+  passkey-only user, or a GitHub account with no verified primary address or
+  whose addresses GitHub did not return on that sign-in. When
+  they are there, `email_verified` is a JSON boolean and can be **`false`**:
+  Discord, Google and your own OpenID Connect provider can give an address they
+  have not verified, and Umbral passes it on as unverified. Trust the address
+  only when the flag is `true`.
+- **The email is the first one Umbral saw.** A person who changes their address
+  at the provider keeps the old one in Umbral, so `email` does not change.
+  `email_verified` becomes `true` only when a provider verifies **that same** address,
+  and it does not go back to `false` afterwards. There is one exception: the upgrade to
+  schema version 9 may set it back to `false` once, for a user whose stored address no
+  provider has verified.
+- **`name`** comes with the `profile` scope and is always there: the name the
+  provider gave, the name a passkey user typed, or, when a provider gave none, a
+  placeholder such as `OpenID Connect user`. **`picture`** comes with it when the
+  provider gave one. A fediverse sign-in adds **`preferred_username`**
+  (`user@server`) and **`profile`** (the person's page); the other providers send
+  neither.
+- **`idp`** is always there, and is Umbral's one extra claim: the provider the
+  person used (`github`, `discord`, `google`, `oidc` for any OpenID Connect
+  provider you added, `passkey`, or `fediverse`). It is the provider's kind,
+  never a connector's identifier: with several Discord connectors it is still
+  `discord`. Ignore it freely.
 - **Access tokens are opaque.** They are not JWTs: do not try to decode them.
   Validate them by calling `/connect/userinfo`. Disabling a user cuts their
   tokens off immediately.
@@ -372,6 +382,62 @@ generated. To change a redirect URI, delete the app and register it again. You
 get a new client ID and secret. The app's **Sign-in methods** are different: you
 can change them at any time on its card, without touching the client ID or the
 secret.
+
+### Endpoints
+
+Your library reads these from the discovery document; they are listed here so
+you know what each one does.
+
+| Endpoint | What it does |
+| --- | --- |
+| `/.well-known/openid-configuration` | The discovery document. |
+| `/.well-known/jwks` | The public keys that sign the `id_token`. |
+| `/connect/authorize` | Starts a sign-in (GET or POST). Umbral shows its sign-in page, or, when the person already has an Umbral session through a connector the app offers, sends the code straight back. |
+| `/connect/token` | Exchanges a code for tokens, or a refresh token for new ones. A refresh reads the person again: a changed name or avatar shows in the new `id_token`, and a disabled or deleted person gets `invalid_grant`. |
+| `/connect/userinfo` | GET or POST, with the access token as a Bearer token. Reads the person from Umbral at every call. |
+| `/connect/revoke` | Revokes an access token or a refresh token. |
+| `/connect/logout` | Ends the person's Umbral session; see [Signing out](#signing-out). |
+
+**Introspection** (`/connect/introspect`) is in the discovery document, but no
+app is allowed to call it: it answers `unauthorized_client`. To check an access
+token, call `/connect/userinfo` with it.
+
+**The `id_token` and userinfo carry the same claims**, under the same scopes:
+`sub` and `idp` always, `name`, `picture`, `preferred_username` and `profile` with
+`profile`, `email` and `email_verified` with `email`. The `id_token` describes the
+person when it was issued (or last refreshed); userinfo describes them now, and
+answers `401` with `invalid_token` once they are disabled or deleted.
+
+### Signing out
+
+Send the person to `/connect/logout` (GET or POST). It ends their **Umbral**
+session and nothing else: they stay signed in at Discord, GitHub or whichever
+provider they used, and the tokens your app already holds keep working until
+they expire. Revoke the refresh token at `/connect/revoke` if you want it gone.
+
+To bring them back to your app afterwards, pass `post_logout_redirect_uri` with
+the post-logout URI registered for the app on the **Apps** screen (and `state`,
+which comes back with it). Umbral redirects only to that one: without it, or
+with any other address, the person is still signed out and lands on Umbral's own
+home page.
+
+### When a person is disabled or deleted
+
+Disabling someone on the **Users** screen revokes every token issued to them,
+at once: userinfo answers `401` with `invalid_token` and a refresh gets
+`invalid_grant`. When they next try to sign in through a provider or a passkey,
+Umbral's sign-in page says "This account has been disabled. Contact whoever runs
+this Umbral." If they still have an Umbral session, your app's next
+authorization request comes back with `error=access_denied`.
+
+Deleting someone revokes their tokens the same way and removes the user and
+the provider accounts linked to it. An authorization request on a session they
+still have comes back with `error=login_required`. If they sign in again, they
+are a new user, with a new `sub`.
+
+Both errors come back to your app's redirect URI as an ordinary OpenID Connect
+error, not a fault: Umbral has already ended the session, so treat them as
+"sign in again". A disabled person who does is told why on Umbral's page.
 
 ### Naming the provider's application
 
@@ -412,17 +478,29 @@ leave an app with no way to sign in, Umbral warns first and names the apps.
 
 ### How people are identified
 
-Signing in with the same provider account always gives the same Umbral user. If
-someone then signs in through a **second provider** and both providers assert
-the **same, verified email address**, Umbral links the two to one user. An email
-a provider has not verified is never used to link anyone. The address Umbral
-keeps for a user is the first one a provider gave, and it counts as verified
-only once a provider has verified that address, not another one. If no email is
-available, a new user is created. For an OpenID Connect provider you added, a
-person is identified by that provider's issuer address together with their id
-there, so two providers never merge people, and adding a provider back with the
-same issuer returns everyone to the same user. You can disable or delete users on
-the **Users** screen.
+Signing in with the same provider account always gives the same Umbral user. The
+account is recognised by the provider's own id for the person, never by a
+username or an email, so someone who changes either at the provider is still the
+same user. For an OpenID Connect provider you added, that id is the provider's
+issuer together with the person's `sub` there: two issuers are never the same
+account, and adding a provider back with the same issuer returns everyone to the
+same user.
+
+A provider account Umbral has not seen before is **linked** to an existing user
+when the provider asserts a **verified** email address and exactly **one**
+existing user has that same address, also verified. The address Umbral keeps for a user
+is the first one a provider gave, and it counts as verified only once a provider has
+verified that address, not another one. This holds for every kind of
+connector, OpenID Connect providers you added included, which is why the form
+for adding one asks you to add only a provider you trust. Otherwise Umbral
+creates a new user:
+
+- the provider gave no email, or one it has not verified;
+- no existing user has that address verified;
+- more than one user has it. Umbral does not guess between them: it creates a
+  new user and leaves the others for you to delete.
+
+You can disable or delete users on the **Users** screen.
 
 A person who enrols with a passkey has no email, so nothing can link them to a
 provider account later: they are their own user, and signing in with a provider
@@ -1449,6 +1527,7 @@ Umbral is built on .NET 10 (F#), [Oxpecker](https://github.com/Lanayx/Oxpecker),
 [OpenIddict](https://documentation.openiddict.com/) and SQLite. The project's
 rules are in [`.specify/memory/constitution.md`](.specify/memory/constitution.md)
 and its specifications are in [`specs/`](specs/), one folder per feature.
+The vision is in [docs/vision.md](docs/vision.md).
 A change people who run Umbral will notice also gets a note, one file in
 [`changelog.d/`](changelog.d/README.md); [Release](#release) says how it is used.
 
