@@ -50,6 +50,8 @@ services:
       REDIRECT_PATH:
       POST_LOGOUT_PATH:
       ADMIN_PASSWORD:
+      HOST_UID:
+      HOST_GID:
       UMBRAL_URL: http://localhost:8080
     volumes:
       - ./out:/work/out

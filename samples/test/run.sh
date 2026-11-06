@@ -86,6 +86,12 @@ fi
 export ADMIN_PASSWORD
 
 echo "== Register $sample in Umbral"
+# setup.spec.ts writes out/app.env as root inside the container; with these it
+# hands the file to this user, or on Linux the file's 0600 would keep this
+# script from reading it.
+HOST_UID=$(id -u)
+HOST_GID=$(id -g)
+export HOST_UID HOST_GID
 docker compose run --rm browser npx playwright test setup.spec.ts
 
 if [ ! -s out/app.env ]; then

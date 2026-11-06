@@ -3,7 +3,7 @@
 // an app and writes its client ID and secret to out/app.env for run.sh to hand
 // to the sample. Neither the password nor the secret is ever logged.
 import { test, expect } from '@playwright/test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { chownSync, mkdirSync, writeFileSync } from 'node:fs';
 
 function need(name: string): string {
   const value = process.env[name];
@@ -75,4 +75,18 @@ test('claim, add the fake connector, register the app', async ({ page }) => {
     `UMBRAL_CLIENT_ID=${clientId}\nUMBRAL_CLIENT_SECRET=${clientSecret}\n`,
     { mode: 0o600 },
   );
+
+  // This container runs as root, so on Linux the file belongs to root on the
+  // host too, and its 0600 keeps run.sh (the host user) from reading it. Hand
+  // it to the host user, whose ids run.sh passes in. Docker Desktop already
+  // maps ownership to the host user and may refuse the chown: nothing to do.
+  const uid = process.env.HOST_UID;
+  const gid = process.env.HOST_GID;
+  if (uid && gid) {
+    try {
+      chownSync('out/app.env', Number(uid), Number(gid));
+    } catch {
+      // Docker Desktop: ownership is the host user's already.
+    }
+  }
 });
