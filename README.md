@@ -1312,7 +1312,7 @@ passkey until you enable the passkey connector, and the operator has no
 passkey, and password sign-in stays on until you turn it off under
 **Credential**. The one exception is version 9: it sets `email_verified` back
 to `false` for every user whose stored address no provider verifies, and the
-log says how many (see the [CHANGELOG](CHANGELOG.md)). It does not work the other way: an older
+log says how many (see the 0.8.0 notes in the [CHANGELOG](CHANGELOG.md)). It does not work the other way: an older
 image refuses to start on a newer database, and says so in `docker logs umbral`
 (*...written by a newer Umbral. Run the newer image, or restore the backup of
 the data directory taken before the upgrade.*). Take a
@@ -1500,8 +1500,8 @@ Desktop, [copy the directory out](#your-data-back-it-up) and open the copy.
 **A user may hold someone else's provider account.**
 Before schema version 9, an address a person never proved could count as
 verified, and the real owner of that address was then linked into that
-person's user when they signed in through another provider (see the
-[CHANGELOG](CHANGELOG.md)). The upgrade stops new joins of this kind but does
+person's user when they signed in through another provider (see the 0.8.0
+notes in the [CHANGELOG](CHANGELOG.md)). The upgrade stops new joins of this kind but does
 not undo old ones. This read-only query lists every user with more than one
 provider account where at least one account does not, today, assert the user's
 address as verified:
@@ -1521,7 +1521,8 @@ sqlite3 -readonly /path/to/umbral.db \
 ```
 
 A row is not proof of anything: a person may simply have changed their address
-at one provider. Look at the order the accounts were linked in and at their
+at one provider, or a provider may not have returned an address the last time
+they signed in (GitHub, when its email lookup fails). Look at the order the accounts were linked in and at their
 addresses. If a user holds the accounts of two different people, disable it on
 **Users** at once. Deleting it gives each person a new user, with a new `sub`,
 the next time they sign in, so apps see them as new people.
