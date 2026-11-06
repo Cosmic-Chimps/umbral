@@ -12,6 +12,41 @@ Each section has the changes that matter to whoever runs Umbral, in this order a
 needed: Added, Changed, Fixed, Security, then Upgrade when an upgrade needs more than pulling the
 new image.
 
+## 0.9.0 - 2026-11-06
+
+### Added
+
+- A browser-only app (a single-page app with no server of its own) can now sign in through
+  Umbral: the discovery document, the keys and the token, userinfo and revocation endpoints
+  answer cross-origin requests from any origin, preflight included. There is nothing to
+  configure.
+- A page on signing people in from an iPhone, Android or desktop app:
+  `docs/native-apps.md`. It covers the system browser (never an embedded WebView),
+  the **Single-page or native app** type, custom-scheme and claimed `https://`
+  redirect URIs, staying signed in, signing out, passkeys and loopback redirects.
+- Samples: a browser-only app (public client) sample in `samples/spa/`: a single-page app
+  with no server of its own, signing in through Umbral with `oidc-client-ts` as a
+  **Single-page or native app**, with no client secret. The samples workflow walks it too.
+- Samples: `samples/` has one small app per stack that signs in through Umbral with the
+  stack's ordinary OpenID Connect library, starting with ASP.NET Core. Every sample has the
+  same three pages (home, public, private with the claims) and signs out through Umbral, and
+  CI runs each one against a real Umbral in a headless browser before every release.
+
+### Changed
+
+- The image sets `DOTNET_GCgen0size=0x200000`, a smaller first-generation budget for the .NET
+  garbage collector. Every configuration idles about 4 MB lower, so an instance with an operator
+  passkey in use now idles around 145 MB instead of 149 MB on arm64. It is set in the image, so a
+  container gets it without any setting of yours; running the app outside the image is not
+  supported, and would not get it.
+- A person's Umbral session now survives the browser closing: its cookie is persistent and
+  lasts 14 days from the last use, as the session already did. Signing in to a second app
+  after a browser restart no longer shows Umbral's page again, and a second app on the same
+  phone can now find the session the first one left. Closing the browser no longer signs anyone out: on a shared computer, people
+  sign out at `/connect/logout`. Disabling or deleting someone still ends their session at
+  their next sign-in. A session from before the upgrade keeps its browser-session cookie
+  until the person next signs in through a connector.
+
 ## 0.8.1 - 2026-11-05
 
 ### Changed
