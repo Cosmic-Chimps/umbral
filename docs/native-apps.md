@@ -112,7 +112,8 @@ sheet open and close.
 
 Two things decide whether that happens:
 
-- **Umbral's session cookie lasts 14 days, renewed each time it is used.** It
+- **Umbral's session cookie lasts 14 days, renewed when it is used after the
+  first week, so it never runs out while in regular use.** It
   is a persistent cookie, so it survives the browser closing. A non-ephemeral
   `ASWebAuthenticationSession` uses Safari's cookie store, and a Custom Tab uses
   the default browser's, so a second app on the same device can find the session
