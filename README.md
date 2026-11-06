@@ -304,9 +304,10 @@ https://auth.example.com/.well-known/openid-configuration
 
 Working examples are in [`samples/`](samples/README.md): one small app per
 stack, each signing in with its stack's ordinary OpenID Connect library and
-showing the claims on a private page. Today there is one,
-[ASP.NET Core](samples/aspnetcore/README.md) (a **Web application**). CI runs
-each sample against a real Umbral before every release.
+showing the claims on a private page. Today there are two:
+[ASP.NET Core](samples/aspnetcore/README.md) (a **Web application**) and a
+[browser-only app](samples/spa/README.md) (a **Single-page or native app**,
+with no secret). CI runs each sample against a real Umbral before every release.
 
 And register one thing in Umbral: the app's **redirect URI**. Which one that is
 depends on the library. ASP.NET Core's OpenID Connect handler uses

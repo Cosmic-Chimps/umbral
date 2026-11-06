@@ -1,0 +1,12 @@
+# The values come from your shell or from a .env file next to this one
+# (.env is git-ignored at the repository root). There is no client secret:
+# a browser app is a public client.
+services:
+  sample:
+    build: .
+    ports:
+      - "127.0.0.1:${PORT:-5173}:${PORT:-5173}"
+    environment:
+      UMBRAL_ISSUER: ${UMBRAL_ISSUER:?set UMBRAL_ISSUER to your Umbral's issuer URL}
+      UMBRAL_CLIENT_ID: ${UMBRAL_CLIENT_ID:?set UMBRAL_CLIENT_ID to the app's Client ID}
+      PORT: ${PORT:-5173}
