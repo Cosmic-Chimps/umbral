@@ -93,3 +93,29 @@ Complete under section 6: every statement of the README against the code or
 the catalogue with line numbers, the harness run, the link and changelog
 checks. What it lacks is the one thing the blocking item asks for: the
 dependency on fw24 stated as a dependency, with the merge order.
+
+---
+
+## Re-check, 2026-11-05, at `0488207` (the fix by the `umbral` session)
+
+**Clear to merge, after fw24.**
+
+- Blocking item fixed. "How to run it" says the sample needs Umbral 0.9.0 or
+  later, what an older version does (a CORS error in the console, nothing in
+  Umbral's log) and that the app needs JavaScript for everything. "How it
+  works" has the **Cross-origin** bullet naming the five fetched endpoints
+  and the two navigated ones, which is `Program.fs:467-485`. `notes.md`
+  states the merge order (lush-ginkgo, fancy-tempest, then this). The
+  version number is the maintainer's to confirm at release time.
+- Sign out as a plain button: right for this app. The contract's reason for
+  a POST (a stray `<img src>` must not sign anyone out) is about a server
+  session, which this app has no; the harness clicks the button by role and
+  still passes; the README's "What you should see" already calls it a
+  button.
+- One nit stands, for the contract rather than this sample: `samples/README.md`,
+  "Markup", says `/` has "a form with a button whose text is `Sign out` (a
+  POST…)". Add "or, for an app with no server session, a plain button" so
+  the contract and this sample agree. One line; the next sample task can
+  carry it if the maintainer prefers.
+- My two earlier nits were optional and are left; nothing in them blocks.
+- Link check: 208 links in 17 files, all resolve.
