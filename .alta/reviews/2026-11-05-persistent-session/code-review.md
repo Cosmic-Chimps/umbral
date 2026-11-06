@@ -13,4 +13,4 @@ Commit `409f97b` on `alta/faithful-clove-gx3r`, stacked on the native-apps page.
 - **Ending a session early stays where it was.** `Authorize.fs` re-checks the user against the database on every authorization (FR-022) and signs the cookie out for a disabled or deleted user (`:262`, `:277`, `:318`, `:325`), and `/connect/logout` deletes it; both are tested (`a disabled person's persistent session is deleted at the next authorization`, `signing out deletes the persistent session cookie`).
 - **Scope.** The operator's admin cookie is another scheme and is untouched.
 - **Docs.** `docs/native-apps.md` "Staying signed in" and the README's "Signing out" say the new behaviour, including the shared-computer consequence, and `changelog.d/persistent-session.md` is a `Changed` note that names it and the one-time note that an existing session keeps its old cookie until the next sign-in.
-- **Tests:** the reviewer's full run on `409f97b` is recorded below.
+- **Tests:** the reviewer's full run on `409f97b` (`dotnet test -c Release`, the memory class excluded as CI's `test` job does): every test passed, 0 failed, 0 skipped.
