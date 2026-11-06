@@ -119,3 +119,13 @@ dependency on fw24 stated as a dependency, with the merge order.
   carry it if the maintainer prefers.
 - My two earlier nits were optional and are left; nothing in them blocks.
 - Link check: 208 links in 17 files, all resolve.
+
+---
+
+## Addendum, 2026-11-05, at `9e66818`
+
+The contract line is in: `samples/README.md`, "Markup", now allows, for an app
+with no server session, a plain button whose text is `Sign out`. The contract
+and this sample agree. Link check: 208 links in 17 files, all resolve. Nothing
+left from the documentation side; the branch merges after lush-ginkgo and
+fancy-tempest.
