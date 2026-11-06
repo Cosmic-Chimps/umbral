@@ -43,6 +43,11 @@ The sample reads two variables, and the port:
 
 There is no `UMBRAL_CLIENT_SECRET`.
 
+**It needs Umbral 0.9.0 or later.** Earlier versions answer no cross-origin
+request on the token endpoint, so the browser refuses the exchange with a CORS
+error in its console, and Umbral's log shows nothing. This app also needs
+JavaScript for everything: without it there is no page.
+
 **Without Docker**, from this folder. This is the way to try it against the
 Umbral of the [quick start](../../README.md#quick-start-a-first-login-on-your-own-machine)
 on `http://localhost:8080`:
@@ -98,5 +103,11 @@ All of it is in [`src/main.ts`](src/main.ts).
   configuration. Then `/signout-callback` cleans up and lands on `/`.
 - **No cookie.** This app has no session cookie at all. The cookie rules of the
   contract concern a server-side session, and this app has none.
+- **Cross-origin.** The browser fetches five of Umbral's endpoints directly,
+  from this app's origin: the discovery document, the keys, `/connect/token`,
+  `/connect/userinfo` and `/connect/revoke`. Umbral answers those from any
+  origin, preflight included, which is what makes a browser-only app possible.
+  The sign-in page and the end-session endpoint are navigated to, not fetched,
+  and answer no cross-origin request.
 
 For what each claim means, see [Integrate an app](../../README.md#integrate-an-app).

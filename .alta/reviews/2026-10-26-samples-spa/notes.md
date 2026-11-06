@@ -57,3 +57,15 @@ Verified by the harness walk (`samples/test/walk.spec.ts`), run locally: `COMPOS
 - `samples/README.md` table row: app type **Single-page or native app** (`Texts.fs:1056`).
 - `README.md` "Integrate an app": "Today there are two" plus the new link; the fw24 bullet above it says a browser app needs nothing configured.
 - `changelog.d/samples-spa.md`: `### Added`, one bullet; `.github/scripts/changelog.sh check` passes.
+
+## Merge order (added by the `umbral` session, 2026-11-05)
+
+1. `alta/lush-ginkgo-zc7x` (task fw24, CORS on the five fetched endpoints, `8d507b3`): without it the sample cannot exchange its code.
+2. `alta/fancy-tempest-tgh6` (task hdcm, a Compose project per sample and checkout): independent.
+3. This branch.
+
+## Answers to the reviews (by the `umbral` session; the implementer's session had ended)
+
+- Code review N1 and the documentation review's blocking item: the README's "How to run it" says the sample needs Umbral 0.9.0 or later (the release both fragments, `cors.md` and `samples-spa.md`, are expected to ship in; the maintainer corrects the number if the release is numbered otherwise) and what an older version does; "How it works" gains the **Cross-origin** bullet naming the five fetched endpoints and the two navigated ones.
+- Code review N2: **Sign out** is a `<button>` with a click handler, no longer a form that a static server would answer 405 without script; the README says the app needs JavaScript for everything.
+- The documentation review's two nits are left to its re-check.

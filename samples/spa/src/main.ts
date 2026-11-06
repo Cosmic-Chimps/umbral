@@ -84,16 +84,16 @@ async function homePage() {
   const user = await currentUser();
   const session = el('p');
   if (user) {
-    const form = el('form', undefined, { method: 'post', action: '/signout' });
-    form.append(el('button', 'Sign out', { type: 'submit' }));
-    // Ends the local session and goes to Umbral's end-session endpoint with
-    // the id_token as hint, so Umbral knows which app's post-logout redirect
-    // URI to honour. The endpoint comes from discovery.
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
+    // A button, not a form: this app needs script for everything, and a form
+    // posting to the static server would only get a 405 without it. The click
+    // ends the local session and goes to Umbral's end-session endpoint with the
+    // id_token as hint, so Umbral knows which app's post-logout redirect URI to
+    // honour. The endpoint comes from discovery.
+    const button = el('button', 'Sign out', { type: 'button' });
+    button.addEventListener('click', () => {
       void userManager.signoutRedirect();
     });
-    session.append(form);
+    session.append(button);
   } else {
     const a = link('/signin', 'Sign in');
     a.addEventListener('click', (e) => {
