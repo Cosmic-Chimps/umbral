@@ -12,6 +12,10 @@
 # connector, sign out. Everything starts from a clean slate (`down -v`) and is
 # torn down at the end, pass or fail.
 #
+# Each sample in each checkout runs as a Compose project of its own, printed on
+# the first line, so runs from two worktrees, or of two samples, can run at the
+# same time without tearing each other down.
+#
 # Needs Docker with Compose and nothing else; Node runs in the browser image.
 # No host port is published; docker-compose.debug.yml adds them for a look
 # from the host (see its header).
@@ -38,6 +42,16 @@ fi
 export SAMPLE SAMPLE_PORT APP_TYPE REDIRECT_PATH POST_LOGOUT_PATH
 # Compose reads these for the sample's service, before they are known.
 export UMBRAL_CLIENT_ID=${UMBRAL_CLIENT_ID:-} UMBRAL_CLIENT_SECRET=${UMBRAL_CLIENT_SECRET:-}
+
+# A Compose project of its own for this sample in this checkout. Left to
+# Compose, the project is the folder's name (`test`) in every worktree, and the
+# `down -v` below would tear down a run started from another one. Deterministic,
+# so a rerun still cleans up after a run that was killed. umbral:samples stays
+# shared; the sample and browser images are named after the project.
+project_sample=$(printf '%s' "$SAMPLE" | tr '[:upper:]' '[:lower:]' | tr -c '[:lower:][:digit:]_-' '-')
+project_path=$(pwd -P | cksum | cut -d ' ' -f 1)
+export COMPOSE_PROJECT_NAME="umbral-samples-$project_sample-$project_path"
+echo "== Compose project $COMPOSE_PROJECT_NAME"
 
 mkdir -p out
 rm -f out/app.env
