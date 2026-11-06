@@ -307,7 +307,8 @@ stack, each signing in with its stack's ordinary OpenID Connect library and
 showing the claims on a private page. Today there are two:
 [ASP.NET Core](samples/aspnetcore/README.md) (a **Web application**) and a
 [browser-only app](samples/spa/README.md) (a **Single-page or native app**,
-with no secret). CI runs each sample against a real Umbral before every release.
+with no secret). CI runs each sample against a real Umbral before every release. For an iPhone, Android or
+desktop app, see [Native and mobile apps](docs/native-apps.md).
 
 And register one thing in Umbral: the app's **redirect URI**. Which one that is
 depends on the library. ASP.NET Core's OpenID Connect handler uses
@@ -428,6 +429,11 @@ Send the person to `/connect/logout` (GET or POST). It ends their **Umbral**
 session and nothing else: they stay signed in at Discord, GitHub or whichever
 provider they used, and the tokens your app already holds keep working until
 they expire. Revoke the refresh token at `/connect/revoke` if you want it gone.
+
+An Umbral session lasts 14 days from its last use and survives the browser
+closing, so closing the browser does not sign anyone out: on a shared computer,
+signing out is how a person leaves. Disabling or deleting them on the **Users**
+screen ends it too, at their next sign-in (see below).
 
 To bring them back to your app afterwards, pass `post_logout_redirect_uri` with
 the post-logout URI registered for the app on the **Apps** screen (and `state`,
