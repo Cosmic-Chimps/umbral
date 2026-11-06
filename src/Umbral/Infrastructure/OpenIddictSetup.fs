@@ -39,6 +39,14 @@ let RevocationEndpoint = "connect/revoke"
 [<Literal>]
 let IntrospectionEndpoint = "connect/introspect"
 
+// Not configured above: OpenIddict's own default paths, written here so the CORS
+// middleware (Program.fs) can name them.
+[<Literal>]
+let DiscoveryEndpoint = ".well-known/openid-configuration"
+
+[<Literal>]
+let JsonWebKeySetEndpoint = ".well-known/jwks"
+
 /// Umbral's one non-standard claim: which connector authenticated this
 /// sign-in. Additive and safe for a client to ignore, and the only honest way
 /// for an app to show "signed in with Discord".

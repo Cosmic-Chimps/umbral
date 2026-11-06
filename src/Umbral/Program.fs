@@ -26,6 +26,11 @@ open Umbral.Migrations
 
 module SecretStoreSettings = Umbral.Infrastructure.SecretStores.Settings
 
+/// The name of the CORS policy for the endpoints a browser-only app calls with
+/// `fetch` (see `configureApp` for which ones).
+[<Literal>]
+let BrowserCorsPolicy = "oidc-browser"
+
 // ---------------------------------------------------------------------------
 // Endpoints
 //
@@ -341,6 +346,30 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
                 |> ValueTask)
     |> ignore
 
+    // Any origin, on the few endpoints a browser-only app calls (the path list
+    // is in configureApp). Why `*` is safe even on the token endpoint: PKCE
+    // (S256, required) and the exact redirect URI already bind the exchange to
+    // the app, so the response is readable only by whoever already holds both
+    // the code and the verifier; and a secret cannot leak through CORS, which
+    // gates reading a response, not sending a request. Auth0 does the same.
+    // Per-client origins (Keycloak's "Web origins") would mean reading
+    // `client_id` from the form before OpenIddict runs, for no gain. No
+    // credentials and no `Vary: Origin`, because the answer never depends on
+    // the origin. WWW-Authenticate is exposed so an app can read userinfo's
+    // `invalid_token`.
+    services.AddCors(fun options ->
+        options.AddPolicy(
+            BrowserCorsPolicy,
+            fun policy ->
+                policy
+                    .AllowAnyOrigin()
+                    .WithMethods("GET", "POST")
+                    .AllowAnyHeader()
+                    .WithExposedHeaders("WWW-Authenticate")
+                    .SetPreflightMaxAge(TimeSpan.FromHours 1.0)
+                |> ignore))
+    |> ignore
+
     // A passkey page's script posts JSON, so the token comes in a header; forms
     // keep using the hidden field.
     services.AddAntiforgery(fun options -> options.HeaderName <- "RequestVerificationToken") |> ignore
@@ -392,6 +421,11 @@ let private errorHandler (ctx: HttpContext) (next: RequestDelegate) =
 
 /// Middleware order is load-bearing. Each line is here for a reason:
 ///   UseForwardedHeaders  first, so scheme and client IP are right before anything reads them
+///   UseCors              after routing, before authentication: OpenIddict answers
+///                        discovery, keys and revocation inside UseAuthentication, so
+///                        the CORS middleware must answer a preflight (204) before
+///                        OpenIddict sees it and answers 400; before the rate limiter,
+///                        so a 429 carries the header and a browser app can read it
 ///   UseRateLimiter       after routing, because the limits are endpoint metadata and
 ///                        there is nothing to read until a route has been chosen; before
 ///                        authentication and antiforgery, so a refused request costs no
@@ -430,6 +464,26 @@ let configureApp (app: WebApplication) =
 
             next.Invoke ctx)
         .UseRouting()
+        // CORS for exactly five paths and nothing else: the ones a browser-only
+        // app fetches (discovery, keys, token, userinfo, revocation). The
+        // others (/connect/authorize, /connect/logout, the admin and passkey
+        // pages) are navigated to, never fetched cross-origin. It is a path
+        // match and not endpoint metadata because discovery, keys and
+        // revocation are not Oxpecker routes: OpenIddict answers them inside
+        // UseAuthentication. `Request.Path` excludes the PathBase, like the
+        // endpoint constants, which are relative.
+        .UseWhen(
+            (fun ctx ->
+                let path = ctx.Request.Path
+
+                [ OpenIddictSetup.DiscoveryEndpoint
+                  OpenIddictSetup.JsonWebKeySetEndpoint
+                  OpenIddictSetup.TokenEndpoint
+                  OpenIddictSetup.UserInfoEndpoint
+                  OpenIddictSetup.RevocationEndpoint ]
+                |> List.exists (fun endpoint -> path = PathString("/" + endpoint))),
+            fun branch -> branch.UseCors BrowserCorsPolicy |> ignore
+        )
         .UseRateLimiter()
         .UseAuthentication()
         // No UseAuthorization. Umbral has no authorization model by design

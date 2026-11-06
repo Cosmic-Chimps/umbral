@@ -110,6 +110,7 @@
     <Compile Include="OperatorConfirmBindingTests.fs" />
     <Compile Include="FooterTests.fs" />
     <Compile Include="ReferrerPolicyTests.fs" />
+    <Compile Include="CorsTests.fs" />
     <Compile Include="SmokeTests.fs" />
   </ItemGroup>
 

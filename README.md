@@ -346,6 +346,13 @@ What an app can count on:
   the registered string is answered with an Umbral error page, not a redirect.
 - **The token endpoint** (`/connect/token`) accepts the secret as HTTP Basic or
   as a form field (`client_secret_basic` or `client_secret_post`).
+- **A browser-only app can call Umbral directly.** The discovery document, the
+  keys, `/connect/token`, `/connect/userinfo` and `/connect/revoke` answer a
+  request from any origin (`Access-Control-Allow-Origin: *`), and the preflight
+  a browser sends first. There is nothing to set: PKCE and the exact redirect
+  URI tie the exchange to the app, and a browser app has no secret to protect.
+  The sign-in and admin pages are not reachable that way: a browser navigates
+  to them.
 - **`sub`** is stable for a user and opaque: it is not derived from any
   provider's ID. If you delete a user and they sign in again, they get a
   *different* `sub`.
