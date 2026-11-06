@@ -3,7 +3,13 @@
 #
 #   cd samples/test
 #   export SAMPLE=aspnetcore SAMPLE_PORT=5000 UMBRAL_CLIENT_ID= UMBRAL_CLIENT_SECRET=
-#   docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d umbral
+#   docker compose -p <project> -f docker-compose.yml -f docker-compose.debug.yml up -d umbral
+#
+# <project> is the Compose project run.sh prints on its first line,
+# umbral-samples-<sample>-<checksum of this folder's path>, one per sample and
+# checkout. Use that same name for every `docker compose` command you run here
+# by hand (`ps`, `logs`, `down -v`): without it Compose takes the folder's
+# name, `test`, and sees none of the harness's containers.
 #
 # Not used by run.sh or CI: the walk shares Umbral's network namespace and
 # needs no port, and a published 8080 refuses to start wherever the host
