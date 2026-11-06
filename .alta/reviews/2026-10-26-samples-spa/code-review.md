@@ -35,3 +35,7 @@ The nginx configuration sends no `Content-Security-Policy`. A sample that people
 3. This branch.
 
 The three ship in one release, and the samples workflow will walk both samples on the merge push.
+
+## Re-check at `0488207` (2026-11-05)
+
+**Clear to merge, after `alta/lush-ginkgo-zc7x`.** Both nits were taken by the reviewer, since the implementer's session had ended: the README names the minimum Umbral (0.9.0, the maintainer's to confirm at release time) and the cross-origin endpoints, and Sign out is a button. The harness walk at `0488207` passed end to end (`COMPOSE_PROJECT_NAME=umbral-samples-spa-review`, the sample rebuilt from the commit). The documentation review is clear at the same commit, and the contract's Markup line now allows a plain button for an app with no server session.

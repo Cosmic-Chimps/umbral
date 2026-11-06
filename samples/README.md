@@ -88,7 +88,8 @@ this much markup, and no more:
   `Private`, and either a link whose text is `Sign in` or a form with a button
   whose text is `Sign out` (a POST, so a stray `<img src>` cannot sign anyone
   out; a real app also protects it with an anti-forgery token, which the
-  samples leave out to stay short).
+  samples leave out to stay short), or, for an app with no server session, a
+  plain button whose text is `Sign out`.
 - `/public`: an `<h1>` whose text is `Public`.
 - `/private`: an `<h1>` whose text is `Private` and a `<table>` with one row
   per claim, the claim's name in a `<th>` and its value in a `<td>`.
