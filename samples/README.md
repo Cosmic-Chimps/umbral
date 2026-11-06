@@ -8,6 +8,7 @@ behaves the same way, so the one for your stack is the one to read.
 | Sample | Stack and library | App type in Umbral |
 | --- | --- | --- |
 | [ASP.NET Core](aspnetcore/README.md) | .NET 10 minimal APIs, `Microsoft.AspNetCore.Authentication.OpenIdConnect` | **Web application** (a server keeps the secret) |
+| [Browser-only app](spa/README.md) | Vite and plain TypeScript, `oidc-client-ts` | **Single-page or native app** (no secret: PKCE alone) |
 
 CI runs each sample against a real Umbral, built from this repository, and
 walks through it in a headless browser: see [The harness](#the-harness). The

@@ -1,0 +1,23 @@
+# Serves the built app as static files. The nginx image's entrypoint runs
+# envsubst on this template for the variables present in the environment
+# (PORT, UMBRAL_ISSUER, UMBRAL_CLIENT_ID), and $uri is left alone.
+#
+# The configuration reaches the browser through /config.json, answered below
+# from the environment, and never through the bundle: the image is the same for
+# every Umbral. There is no client secret to serve: a browser app has none.
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+
+    location = /config.json {
+        default_type application/json;
+        add_header Cache-Control "no-store";
+        return 200 '{"issuer":"${UMBRAL_ISSUER}","clientId":"${UMBRAL_CLIENT_ID}"}';
+    }
+
+    # Every client-side route gets index.html.
+    location / {
+        try_files $uri /index.html;
+    }
+}
