@@ -112,12 +112,13 @@ sheet open and close.
 
 Two things decide whether that happens:
 
-- **Umbral's session cookie lasts as long as the browser's own session** (it is
-  not a persistent cookie), and at most 14 days without use. A non-ephemeral
+- **Umbral's session cookie lasts 14 days, renewed each time it is used.** It
+  is a persistent cookie, so it survives the browser closing. A non-ephemeral
   `ASWebAuthenticationSession` uses Safari's cookie store, and a Custom Tab uses
-  the default browser's; whether that browser keeps a browser-session cookie
-  from one sign-in to the next, or between two apps, is up to it. Plan for the person seeing Umbral's page again, which costs
-  them a tap when they are still signed in at the provider.
+  the default browser's, so a second app on the same device can find the session
+  the first one left. After 14 days without use, or once the person signs out or
+  clears the browser's data, they see Umbral's page again, which costs them a
+  tap when they are still signed in at the provider.
 - **The app can ask for a private browser session.** On iOS,
   `prefersEphemeralWebBrowserSession` gives the sign-in a browser session of its
   own, shared with nothing and thrown away afterwards. The person then always

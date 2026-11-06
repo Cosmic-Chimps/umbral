@@ -58,6 +58,8 @@ let configure (options: CookieAuthenticationOptions) =
     // and on http://localhost without a second configuration knob.
     options.Cookie.SecurePolicy <- CookieSecurePolicy.SameAsRequest
 
+    // The cookie's own lifetime too, since `signIn` makes it persistent: it is
+    // renewed, with a new expiry, on a request past half of it.
     options.SlidingExpiration <- true
     options.ExpireTimeSpan <- System.TimeSpan.FromDays 14.0
 
@@ -87,7 +89,13 @@ let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) (em
     // place the "last used" hint is written (specs/009, research R1).
     BrowserCookies.rememberConnector ctx slug
 
-    ctx.SignInAsync(Scheme, ClaimsPrincipal identity)
+    // Persistent, so the session outlives a browser restart for its 14 sliding
+    // days, and so that iOS can share it between Safari and
+    // ASWebAuthenticationSession, as it reportedly does for persistent cookies
+    // only (docs/native-apps.md). Ending it early is not the cookie's job:
+    // authorize re-checks the user against the database on every request
+    // (FR-022), and /connect/logout deletes it.
+    ctx.SignInAsync(Scheme, ClaimsPrincipal identity, AuthenticationProperties(IsPersistent = true))
 
 let signOut (ctx: HttpContext) : Task = ctx.SignOutAsync Scheme
 

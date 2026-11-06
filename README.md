@@ -422,6 +422,11 @@ session and nothing else: they stay signed in at Discord, GitHub or whichever
 provider they used, and the tokens your app already holds keep working until
 they expire. Revoke the refresh token at `/connect/revoke` if you want it gone.
 
+An Umbral session lasts 14 days from its last use and survives the browser
+closing, so closing the browser does not sign anyone out: on a shared computer,
+signing out is how a person leaves. Disabling or deleting them on the **Users**
+screen ends it too, at their next sign-in (see below).
+
 To bring them back to your app afterwards, pass `post_logout_redirect_uri` with
 the post-logout URI registered for the app on the **Apps** screen (and `state`,
 which comes back with it). Umbral redirects only to that one: without it, or

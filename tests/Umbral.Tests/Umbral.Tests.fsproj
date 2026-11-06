@@ -103,6 +103,7 @@
     <Compile Include="PasskeyInvitationTests.fs" />
     <Compile Include="PasskeyAccountTests.fs" />
     <Compile Include="LastUsedConnectorTests.fs" />
+    <Compile Include="SessionCookieTests.fs" />
     <Compile Include="PasskeyAdminTests.fs" />
     <Compile Include="OperatorPasskeyTests.fs" />
     <Compile Include="OperatorPasswordSwitchTests.fs" />
