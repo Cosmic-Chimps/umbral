@@ -22,7 +22,7 @@ run the sample on another port or host, register those URIs instead.
 
 ## How to run it
 
-The sample reads three variables, and the port:
+The sample reads three variables, the port, and one optional variable of its own:
 
 | Variable | What it is |
 | --- | --- |
@@ -30,6 +30,7 @@ The sample reads three variables, and the port:
 | `UMBRAL_CLIENT_ID` | The app's **Client ID**. |
 | `UMBRAL_CLIENT_SECRET` | The app's **Client secret**. |
 | `PORT` | The port to listen on. Default `8000`. |
+| `SESSION_SECRET` | Optional. The key that signs the session cookie (below). |
 
 `SESSION_SECRET` is optional: the key that signs the session cookie. Without
 it a random one is made at every start, so a restart ends the sessions.
@@ -56,7 +57,9 @@ for the trial on your laptop.
 
 Behind a reverse proxy that terminates TLS, set `FORWARDED_ALLOW_IPS` to the
 proxy's address (uvicorn trusts `X-Forwarded-*` from loopback only by default)
-so the app knows it is on https.
+so the app knows it is on https. Without it the app builds an `http://`
+redirect URI, and Umbral refuses the sign-in because that URI is not the one
+registered.
 
 ## What you should see
 

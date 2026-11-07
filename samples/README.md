@@ -59,6 +59,9 @@ Three environment variables, and the port:
 | `UMBRAL_CLIENT_SECRET` | The app's **Client secret**. A sample that is a **Single-page or native app** has none and does not read it. |
 | `PORT` | The port the sample listens on. Each sample has its own default, named in its README. |
 
+A sample may read optional variables of its own stack (a session key, say), as
+long as it runs without them and its README names each one.
+
 ### The protocol
 
 - **Authorization code with PKCE (S256)**, the only flow Umbral offers. The
