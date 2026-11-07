@@ -93,3 +93,17 @@ the choices set out with their reasons. Agreed on all of it.
 2. **Taken.** "Only plain http on a loopback address, such as `http://localhost`, goes without".
 
 Also in the same commit, from the code review's nit: the session lasts 14 days (`maxAge` in `auth.ts`), and the "Session cookie" bullet says so.
+
+---
+
+## Addendum (documentation reviewer), 2026-11-07, at `263d2bf`
+
+**Still clear.** Both nits taken: the Logs bullet covers what `npm run dev`
+logs, with the FastAPI sample's reasoning; the cookie bullet says "plain http
+on a loopback address, such as `http://localhost`". The same commit adds one
+sentence I had not seen, checked here: the session "lasts 14 days, as in the
+other samples (Auth.js's default is 30)". `auth.ts:43` sets `maxAge` to 14
+days, `@auth/core/lib/init.js:38` defaults to 30, Starlette's
+`SessionMiddleware` defaults to 14 days, and the ASP.NET Core sample sets no
+lifetime, so it has the cookie handler's 14-day default. Right. Link check:
+233 links in 20 files, all resolve.
