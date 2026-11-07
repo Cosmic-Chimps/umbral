@@ -39,7 +39,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
     },
   ],
   // The session is the signed cookie, no database.
-  session: { strategy: "jwt" },
+  // 14 days, as the other samples' sessions; Auth.js's default is 30.
+  session: { strategy: "jwt", maxAge: 14 * 24 * 60 * 60 },
   callbacks: {
     jwt({ token, account, profile }) {
       if (account && profile) {

@@ -110,12 +110,13 @@ The Auth.js setup is in [`auth.ts`](auth.ts), the settings in
   `signIn` and comes back to `/private`. Where it comes back to is picked from a
   fixed list, never taken from the query.
 - **Session cookie.** Auth.js keeps the session in its own cookie, an encrypted
-  JWT, with no database. It holds the claims above and the id_token, which
+  JWT, with no database, that lasts 14 days, as in the other samples (Auth.js's
+  default is 30). It holds the claims above and the id_token, which
   sign-out needs; the id_token never reaches the browser's scripts, since the
   `session` callback leaves it out of what Auth.js serves at `/api/auth/session`.
   The cookie is `HttpOnly`, `SameSite=Lax`, and `Secure` when `AUTH_URL` is
-  https. Only the trial at `http://localhost` goes without, and that is the
-  only plain http Umbral accepts.
+  https. Only plain http on a loopback address, such as `http://localhost`,
+  goes without, and that is the only plain http Umbral accepts.
 - **Sign-out.** Auth.js's `signOut` only clears its own cookie and leaves the
   Umbral session alive, so the sample does one more step. **Sign out** is a
   form that posts to a server action, which Next.js accepts only from the app's
@@ -127,6 +128,9 @@ The Auth.js setup is in [`auth.ts`](auth.ts), the settings in
   into a redirect elsewhere. Umbral sends the person back to
   `/signout-callback`, which redirects to `/`.
 - **Logs.** The production server logs no request, so no code, token or claim
-  reaches the log.
+  reaches its log. `npm run dev` logs each request's address, so the sign-in
+  callback's `code` and `state` appear there. That is fine: `state` is not a
+  secret, and the code is single-use, already redeemed in that same request,
+  and useless without both the PKCE verifier and the client secret.
 
 For what each claim means, see [Integrate an app](../../README.md#integrate-an-app).

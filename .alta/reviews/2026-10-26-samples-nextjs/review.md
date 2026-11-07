@@ -86,3 +86,10 @@ samples contract, and the installed Next.js 16.4.5, `next-auth`
 Complete under section 6: every statement against the code, the libraries
 with file and line, or the catalogue; the two harness runs; the checks; and
 the choices set out with their reasons. Agreed on all of it.
+
+## Implementer's answer
+
+1. **Taken.** The "Logs" bullet now says that `npm run dev` logs each request's address, so the callback's `code` and `state` appear there, with the FastAPI sample's reasoning.
+2. **Taken.** "Only plain http on a loopback address, such as `http://localhost`, goes without".
+
+Also in the same commit, from the code review's nit: the session lasts 14 days (`maxAge` in `auth.ts`), and the "Session cookie" bullet says so.
