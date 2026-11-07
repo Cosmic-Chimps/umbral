@@ -304,8 +304,9 @@ https://auth.example.com/.well-known/openid-configuration
 
 Working examples are in [`samples/`](samples/README.md): one small app per
 stack, each signing in with its stack's ordinary OpenID Connect library and
-showing the claims on a private page. Today there are two:
-[ASP.NET Core](samples/aspnetcore/README.md) (a **Web application**) and a
+showing the claims on a private page. Today there are three:
+[ASP.NET Core](samples/aspnetcore/README.md) and
+[FastAPI](samples/fastapi/README.md) (each a **Web application**), and a
 [browser-only app](samples/spa/README.md) (a **Single-page or native app**,
 with no secret). CI runs each sample against a real Umbral before every release. For an iPhone, Android or
 desktop app, see [Native and mobile apps](docs/native-apps.md).

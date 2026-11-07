@@ -9,6 +9,7 @@ behaves the same way, so the one for your stack is the one to read.
 | --- | --- | --- |
 | [ASP.NET Core](aspnetcore/README.md) | .NET 10 minimal APIs, `Microsoft.AspNetCore.Authentication.OpenIdConnect` | **Web application** (a server keeps the secret) |
 | [Browser-only app](spa/README.md) | Vite and plain TypeScript, `oidc-client-ts` | **Single-page or native app** (no secret: PKCE alone) |
+| [FastAPI](fastapi/README.md) | Python 3.13, FastAPI, Authlib's Starlette client | **Web application** (a server keeps the secret) |
 
 CI runs each sample against a real Umbral, built from this repository, and
 walks through it in a headless browser: see [The harness](#the-harness). The
