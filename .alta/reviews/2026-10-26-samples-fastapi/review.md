@@ -81,3 +81,21 @@ start is the safe default for a sample. Two small things follow from it:
 `notes.md` is complete under section 6: every statement with its code or
 catalogue reference, the harness runs, the checks. The code review is clear,
 and its added bullet is accurate.
+
+---
+
+## Addendum, 2026-11-07, at `ffdd715`
+
+**Still clear.** Both nits taken: the README says "three variables, the port,
+and one optional variable of its own" with `SESSION_SECRET` as an optional
+table row; the contract's Settings allows optional stack variables, provided
+the sample runs without them and its README names each one; the reverse-proxy
+paragraph names the `http://` redirect-URI symptom. Link check: 224 links in
+19 files, all resolve.
+
+One leftover, not worth a round: the sentence after the table
+("`SESSION_SECRET` is optional: the key that signs the session cookie…") now
+repeats the new row, and the "Session cookie" bullet says the same a third
+time. Trimming the sentence to its second half ("Without it a random key is
+made at every start, so a restart ends the sessions.") would do, whenever the
+README is next touched.
