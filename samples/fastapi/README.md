@@ -32,8 +32,8 @@ The sample reads three variables, the port, and one optional variable of its own
 | `PORT` | The port to listen on. Default `8000`. |
 | `SESSION_SECRET` | Optional. The key that signs the session cookie (below). |
 
-`SESSION_SECRET` is optional: the key that signs the session cookie. Without
-it a random one is made at every start, so a restart ends the sessions.
+Without `SESSION_SECRET` a random key is made at every start, so a restart
+ends the sessions.
 
 **Without Docker**, from this folder. This is the way to try it against the
 Umbral of the [quick start](../../README.md#quick-start-a-first-login-on-your-own-machine)
