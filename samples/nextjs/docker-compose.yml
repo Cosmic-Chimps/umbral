@@ -1,0 +1,16 @@
+# The values come from your shell or from a .env file next to this one
+# (.env is git-ignored at the repository root).
+services:
+  sample:
+    build: .
+    ports:
+      - "127.0.0.1:${PORT:-3000}:${PORT:-3000}"
+    environment:
+      UMBRAL_ISSUER: ${UMBRAL_ISSUER:?set UMBRAL_ISSUER to your Umbral's issuer URL}
+      UMBRAL_CLIENT_ID: ${UMBRAL_CLIENT_ID:?set UMBRAL_CLIENT_ID to the app's Client ID}
+      UMBRAL_CLIENT_SECRET: ${UMBRAL_CLIENT_SECRET:?set UMBRAL_CLIENT_SECRET to the app's Client secret}
+      PORT: ${PORT:-3000}
+      # Optional: the app's public address. Without it, http://localhost:PORT; set it to your https address behind a proxy.
+      AUTH_URL: ${AUTH_URL:-}
+      # Optional: keeps sessions across restarts. Without it a random key is made at every start.
+      AUTH_SECRET: ${AUTH_SECRET:-}
