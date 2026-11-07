@@ -82,6 +82,10 @@ All of it is in [`main.py`](main.py).
 - **The id_token's claims.** `authorize_access_token` validates the `id_token`
   and returns its claims, and Umbral's `id_token` already carries the same ones
   as userinfo, so there is no second call.
+- **The access log.** uvicorn's log shows the sign-in callback's address, with
+  its `code` and `state`. That is left in on purpose: `state` is not a secret,
+  and the code is single-use, already redeemed in that same request, and useless
+  without both the PKCE verifier and the client secret.
 - **Session cookie.** Starlette's `SessionMiddleware`: signed, not encrypted,
   so it holds only the person's own claims, the `id_token` and, during a
   sign-in, Authlib's `state`, `nonce` and PKCE verifier; nothing of the app's.
