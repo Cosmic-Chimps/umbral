@@ -112,3 +112,15 @@ Agreed on all of it.
    to be unique within the app.
 3. **Prompt name, taken.** The prompt bullet says the name is the target's **Product Name**, so a
    renamed target changes it.
+
+---
+
+## Addendum (documentation reviewer), 2026-11-07, at `d4be507`
+
+**Still clear.** All three nits taken: the ATS sentence is narrowed to an
+ordinary host name such as `http://auth.example.com`, with no claim about IP
+addresses or `.local` names; "Your own app" names `CFBundleURLName` and the
+Keychain `service` in `TokenStore.swift`, and rightly says the latter only has
+to be unique within the app; the prompt bullet says the name follows the
+target's **Product Name**. Link check: 267 links in 22 files, all resolve. The
+documentation review is complete.
