@@ -17,16 +17,18 @@ enum TokenStore {
         ]
     }
 
-    static func save(_ state: OIDAuthState) {
-        guard let data = try? NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: true) else {
-            clear()
-            return
-        }
+    /// Returns `errSecSuccess`, or the status of the failed Keychain write (`errSecParam` when the
+    /// state cannot be archived). On failure nothing is stored.
+    @discardableResult
+    static func save(_ state: OIDAuthState) -> OSStatus {
         clear()
+        guard let data = try? NSKeyedArchiver.archivedData(withRootObject: state, requiringSecureCoding: true) else {
+            return errSecParam
+        }
         var item = query
         item[kSecValueData as String] = data
         item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        SecItemAdd(item as CFDictionary, nil)
+        return SecItemAdd(item as CFDictionary, nil)
     }
 
     /// Nil when there is nothing stored or it cannot be read; an unreadable item is deleted.

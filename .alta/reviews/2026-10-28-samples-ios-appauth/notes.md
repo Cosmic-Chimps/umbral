@@ -44,7 +44,7 @@ say otherwise; AppAuth paths are relative to the AppAuth-iOS repository.
   `simctl install booted` / `launch` are standard. The walk itself installed the app through `xcodebuild test`.
 - On an iPhone: not walked (no phone here). Free personal-team signing, **Developer Mode** under
   **Privacy & Security**: Apple's documentation for running on a device.
-- Plain http only on loopback: `UmbralAuth.swift:173-186` (`checkedIssuer`, before any request).
+- Plain http only on loopback: `UmbralAuth.swift:181-194` (`checkedIssuer`, before any request).
 
 ## What you should see
 
@@ -62,7 +62,7 @@ All seen in the walk below (screenshots taken, not committed):
 
 | README says | Where |
 | --- | --- |
-| Discovery only, end-session endpoint included | `UmbralAuth.swift:81` `discoverConfiguration(forIssuer:)`; sign-out reads `endSessionEndpoint` from the stored configuration (`:137-141`) |
+| Discovery only, end-session endpoint included | `UmbralAuth.swift:81` `discoverConfiguration(forIssuer:)`; sign-out reads `endSessionEndpoint` from the stored configuration (`:145-149`) |
 | `ASWebAuthenticationSession`, no `WKWebView` | AppAuth `Sources/AppAuth/iOS/OIDExternalUserAgentIOS.m:106-108`; `grep -rn WKWebView samples/ios` finds only comments |
 | no fallback to Safari when the session cannot start | AppAuth `CHANGELOG.md`, 2.1.0: "Removed external browser (Safari) fallback from `OIDExternalUserAgentIOS`" |
 | PKCE S256, `state`, `nonce` generated, never turned off | AppAuth `Sources/AppAuthCore/OIDAuthorizationRequest.m:172-181` (the initializer `UmbralAuth.swift:95-102` uses) |
@@ -72,15 +72,15 @@ All seen in the walk below (screenshots taken, not committed):
 | Scopes `openid profile email` | `UmbralAuth.swift:99` (AppAuth's `OIDScopeOpenID`, `OIDScopeProfile`, `OIDScopeEmail`) |
 | the session catches the redirect; scheme in `CFBundleURLTypes`; `onOpenURL` | AppAuth passes the redirect's scheme as `callbackURLScheme` (`OIDExternalUserAgentIOS.m:107-108`); `Info.plist:6-18`; `UmbralSampleApp.swift:12` |
 | No secret | `clientSecret: nil` (`UmbralAuth.swift:98`), no other mention |
-| Keychain, `WhenUnlockedThisDeviceOnly`, not `UserDefaults` | `TokenStore.swift:21-29`; `grep -rn UserDefaults samples/ios/UmbralSample` finds only the comment. Not synced and not restored onto another device: Apple's documentation of `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` |
+| Keychain, `WhenUnlockedThisDeviceOnly`, not `UserDefaults` | `TokenStore.swift:20-32`; `grep -rn UserDefaults samples/ios/UmbralSample` finds only the comment. Not synced and not restored onto another device: Apple's documentation of `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` |
 | No refresh token; expired `id_token` means signed out | no `offline_access`; `UmbralAuth.swift:44-46` |
-| Sign-out: tokens forgotten first, then `OIDEndSessionRequest` with `id_token_hint`, post-logout URI, `state` | `UmbralAuth.swift:136-160` (`discard()` at `:139`, before the request); AppAuth's initializer generates `state` (`OIDEndSessionRequest.m`) |
+| Sign-out: tokens forgotten first, then `OIDEndSessionRequest` with `id_token_hint`, post-logout URI, `state` | `UmbralAuth.swift:144-168` (`discard()` at `:147`, before the request); AppAuth's initializer generates `state` (`OIDEndSessionRequest.m`) |
 | Plain http: the issuer check, and ATS for the rest | `checkedIssuer`; `Info.plist:20-23` `NSAllowsLocalNetworking` (no `NSAllowsArbitraryLoads`) |
 
 ## A private browser session, Universal Links
 
 - `prefersEphemeralSession`: `UmbralAuth.swift:20-23`, passed to sign-in (`:103-106`) and to the
-  sign-out user agent (`:143-145`). What `true` changes: Apple's `prefersEphemeralWebBrowserSession`
+  sign-out user agent (`:150-151`). What `true` changes: Apple's `prefersEphemeralWebBrowserSession`
   (header `ASWebAuthenticationSession.h:83`) and `docs/native-apps.md`, "Staying signed in". Not walked
   with `true`.
 - Universal Links: the `https(host:path:)` callback and its requirement are from the SDK header
@@ -119,7 +119,7 @@ Safari started with no Umbral session.
 7. Back, **Sign out** (prompt, sheet), then **Sign in** from Home: the prompt, Umbral's page again,
    the fake connector → back on Home, which now shows **Sign out**.
 8. **Sign out**, then **Sign in** and **Cancel** on the prompt → Home shows **Sign-in cancelled** in
-   red and nothing else happens (AppAuth's `userCanceledAuthorizationFlow`, `UmbralAuth.swift:189-193`).
+   red and nothing else happens (AppAuth's `userCanceledAuthorizationFlow`, `UmbralAuth.swift:197-201`).
 
 The prompt appeared before every sign-in and every sign-out (seven times in the run), each reading
 "UmbralSample" Wants to Use "localhost" to Sign In. Earlier runs of the same script failed only on the

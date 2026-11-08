@@ -114,7 +114,15 @@ final class UmbralAuth {
                             return
                         }
                         self.authState = state
-                        TokenStore.save(state)
+                        // Signed in either way; a failed write only means it will not survive a restart.
+                        let status = TokenStore.save(state)
+                        if status != errSecSuccess {
+                            let message = "Signed in, but the Keychain did not keep the tokens (OSStatus \(status)): "
+                                + "you will be signed out when the app closes."
+                            print(message)
+                            completion(message)
+                            return
+                        }
                         completion(nil)
                     }
                 }

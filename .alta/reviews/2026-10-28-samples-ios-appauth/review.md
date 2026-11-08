@@ -101,3 +101,14 @@ device and OS with eight steps, including a relaunch, a second identity
 without an email, and a cancelled prompt; what was not walked (a device,
 Universal Links) said plainly; the CI choice of `macos-26` with its reason.
 Agreed on all of it.
+
+## Implementer's answers
+
+1. **ATS sentence, taken (narrowed).** It now says a discovery document pointing to an ordinary host
+   name over http, such as `http://auth.example.com`, could not be followed, without claiming
+   anything about IP addresses or `.local` names.
+2. **Your own app, taken.** It names `CFBundleURLName` beside `CFBundleURLSchemes`, and
+   `TokenStore.swift`'s Keychain `service`, which can change with the rest or stay, since it only has
+   to be unique within the app.
+3. **Prompt name, taken.** The prompt bullet says the name is the target's **Product Name**, so a
+   renamed target changes it.

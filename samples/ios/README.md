@@ -105,9 +105,10 @@ Then open **Umbral sample** on the device, if Xcode has not already.
   **Sign in**.
 - **Public** opens for anyone.
 - **Private** first shows iOS's own prompt, **"UmbralSample" Wants to Use
-  "localhost" to Sign In** (iOS names the app by its bundle name there, and
-  shows your Umbral's host name in place of `localhost`): tap **Continue**. A browser sheet then opens on Umbral's
-  sign-in page, titled **Sign in to** and the app's name. After you sign in,
+  "localhost" to Sign In** (iOS names the app by its bundle name there, the
+  target's **Product Name**, so a renamed target changes it, and shows your
+  Umbral's host name in place of `localhost`): tap **Continue**. A browser
+  sheet then opens on Umbral's sign-in page, titled **Sign in to** and the app's name. After you sign in,
   the sheet closes and the private screen shows a table with `sub`, `name` and
   `idp`, and `email` and `email_verified` when Umbral has an address for you.
 - **Sign out** shows the same prompt (iOS asks before any page of the issuer
@@ -176,7 +177,8 @@ scheme and the plain-http rule).
   host but `localhost` and `127.0.0.1`, before it sends anything. Below that,
   App Transport Security blocks plain http for the whole app except to local
   addresses (`NSAllowsLocalNetworking` in `Info.plist`), so a discovery document
-  that pointed elsewhere over http could not be followed either.
+  that pointed to an ordinary host name over http, such as
+  `http://auth.example.com`, could not be followed either.
 
 For what each claim means, see [Integrate an app](../../README.md#integrate-an-app).
 
@@ -242,6 +244,9 @@ on it.
 
 To start from this sample, change the bundle ID and the scheme together: the
 target's **Bundle Identifier** in Xcode, the scheme in `Info.plist`
-(`CFBundleURLSchemes`), and the two URIs in `UmbralAuth.swift`. Use the reverse
+(`CFBundleURLSchemes`, and `CFBundleURLName` beside it), and the two URIs in
+`UmbralAuth.swift`. `TokenStore.swift` names its Keychain item after the bundle
+ID too (`service`): change it with the rest, or keep it, since it only has to
+be unique within the app. Use the reverse
 of a domain you own as the scheme, so that no other app is likely to pick it,
 and register the new URIs in Umbral.
