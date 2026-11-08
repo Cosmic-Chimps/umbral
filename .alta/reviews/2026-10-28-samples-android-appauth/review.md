@@ -173,3 +173,31 @@ Still clear to merge; one re-check after the nits.
    closing the sheet by hand leaves Umbral's browser session alive, said in the same bullet. The
    `::1` point was already fixed at 1403b20.
 6. **Taken.** The two `update-index` commands are in two blocks, the second introduced as the undo.
+
+---
+
+## Re-check, 2026-11-07, at `88140bf`
+
+**Clear to merge.**
+
+- Nits 1 to 3 (the contract): the sign-in browser names `ASWebAuthenticationSession`
+  and MAUI's `WebAuthenticator` beside Custom Tabs; redirect URIs allow a
+  claimed `https://` link; the secure store names the Keystore and the
+  Keychain; "How to run it" for a phone app covers a device and an emulator;
+  the hand walk is recorded in the review folder's `notes.md`. The iOS and
+  MAUI tasks can follow the section as written.
+- Nit 4 (App Links): built rather than reasoned, and the measurement corrects
+  my expectation. With `tools:node="replace"` the merged manifest has the
+  `https://` filter only and builds without `appAuthRedirectScheme`; without
+  `replace` both filters merge and the placeholder must stay. The README says
+  both, names the merged manifest's path, and adds the Play app signing
+  fingerprint. `notes.md` records the two builds.
+- Nit 5: "allows" for "asks", the no-TLS caveat on the loopback trial, and
+  Umbral's browser session surviving a sheet closed by hand.
+- Nit 6: the two `skip-worktree` commands are now two blocks, the second
+  introduced as the undo.
+- Link check: 243 links in 20 files, all resolve; `changelog.sh check` in
+  order.
+
+The merge-order note above stands: this branch and the Next.js branch both
+say "Today there are four".
