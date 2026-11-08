@@ -35,7 +35,7 @@ Each statement of the sample's README, against the code (the code is normative),
 - `adb reverse tcp:8080 tcp:8080` / `./gradlew installDebug`: what the hand walk below did (with
   `tcp:18080` on the host side, since 8080 was taken on this machine).
 - Plain http only on loopback: `UmbralAuth.kt:162` (the connection builder refuses http for any
-  host but `localhost`, `127.0.0.1`, `::1`) and `app/src/main/res/xml/network_security_config.xml`
+  host but `localhost` and `127.0.0.1`, since N1 of the code review) and `app/src/main/res/xml/network_security_config.xml`
   (cleartext only for `localhost` and `127.0.0.1`).
 - JDK 17 or later: AGP 9.5.1 requires it; Gradle 9.9.0 (wrapper, `distributionSha256Sum` checked
   against services.gradle.org; `gradle-wrapper.jar` matches Gradle's published

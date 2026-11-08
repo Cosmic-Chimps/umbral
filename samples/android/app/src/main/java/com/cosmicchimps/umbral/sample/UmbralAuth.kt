@@ -147,7 +147,8 @@ class UmbralAuth(context: Context) {
         val REDIRECT_URI: Uri = Uri.parse("com.cosmicchimps.umbral.sample:/callback")
         val POST_LOGOUT_REDIRECT_URI: Uri = Uri.parse("com.cosmicchimps.umbral.sample:/signout-callback")
 
-        fun isLoopback(host: String?) = host in setOf("localhost", "127.0.0.1", "::1", "[::1]")
+        // The same two hosts as res/xml/network_security_config.xml allows cleartext to.
+        fun isLoopback(host: String?) = host in setOf("localhost", "127.0.0.1")
     }
 }
 

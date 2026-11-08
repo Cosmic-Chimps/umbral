@@ -41,6 +41,15 @@ There is no `UMBRAL_CLIENT_SECRET` and no port. The settings are built into the
 app, so build it again after changing them. With no client ID, **Sign in** and
 **Private** say so instead of opening Umbral.
 
+The file is part of the repository, so your own issuer and client ID would show
+up in `git status`. To keep them out of your commits, tell Git to leave your copy
+alone, and undo it before you pull a change to the file:
+
+```sh
+git update-index --skip-worktree umbral.properties
+git update-index --no-skip-worktree umbral.properties
+```
+
 You need the Android SDK and a JDK 17 or later: [Android Studio](https://developer.android.com/studio)
 brings both. There is no Docker way to run an app; the app runs on a phone or an
 emulator.
