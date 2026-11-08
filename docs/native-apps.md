@@ -184,3 +184,5 @@ Native samples are listed here as they are added, each following the shared
 
 - [Android](../samples/android/README.md): Kotlin, Jetpack Compose and
   AppAuth-Android, in a Custom Tab, with a custom-scheme redirect URI.
+- [iOS](../samples/ios/README.md): Swift, SwiftUI and AppAuth-iOS, in an
+  `ASWebAuthenticationSession`, with a custom-scheme redirect URI.

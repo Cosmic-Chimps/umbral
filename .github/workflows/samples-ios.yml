@@ -1,0 +1,54 @@
+# The iOS sample, built.
+#
+# samples/ios/ is an app, not a web server, so the harness of samples.yml
+# (which walks each sample in a headless browser) cannot walk it, and a
+# Simulator walk on a CI runner is slow and flaky. This job only builds the app
+# for the Simulator, with warnings as errors, so a change that breaks the build
+# or the project file is caught. The sign-in itself is walked by hand on a
+# device or in the Simulator: samples/ios/README.md says how, and the task's
+# review notes record it.
+name: samples-ios
+
+on:
+  push:
+    branches: [main]
+    paths: ['samples/ios/**', '.github/workflows/samples-ios.yml']
+  pull_request:
+    paths: ['samples/ios/**', '.github/workflows/samples-ios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # macos-14 was retired on 2026-11-02.
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      # The Xcode of the build is pinned, so a new default on the runner image
+      # does not change it.
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    defaults:
+      run:
+        working-directory: samples/ios
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      # AppAuth is built at the version in Package.resolved: no resolution
+      # happens here, so the build cannot pick up another version.
+      - name: Build
+        run: >-
+          xcodebuild
+          -project UmbralSample.xcodeproj
+          -scheme UmbralSample
+          -configuration Debug
+          -destination 'generic/platform=iOS Simulator'
+          -onlyUsePackageVersionsFromResolvedFile
+          CODE_SIGNING_ALLOWED=NO
+          build

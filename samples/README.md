@@ -12,6 +12,7 @@ behaves the same way, so the one for your stack is the one to read.
 | [FastAPI](fastapi/README.md) | Python 3.13, FastAPI, Authlib's Starlette client | **Web application** (a server keeps the secret) |
 | [Next.js](nextjs/README.md) | Next.js 16 (App Router), Auth.js (`next-auth` v5) | **Web application** (a server keeps the secret) |
 | [Android](android/README.md) | Kotlin, Jetpack Compose, AppAuth-Android | **Single-page or native app** (no secret: PKCE alone) |
+| [iOS](ios/README.md) | Swift, SwiftUI, AppAuth-iOS | **Single-page or native app** (no secret: PKCE alone) |
 
 CI runs each web sample against a real Umbral, built from this repository, and
 walks through it in a headless browser: see [The harness](#the-harness). A
@@ -113,9 +114,9 @@ Each sample's README has, in this order:
 
 ## A phone app
 
-The [Android sample](android/README.md) follows the same contract, adapted to
-an app, and [Native and mobile apps](../docs/native-apps.md) explains the
-pattern it shows:
+The [Android](android/README.md) and [iOS](ios/README.md) samples follow the
+same contract, adapted to an app, and
+[Native and mobile apps](../docs/native-apps.md) explains the pattern they show:
 
 - **Screens instead of pages.** A home screen with **Public**, **Private** and
   **Sign in** or **Sign out**, a public screen, and a private screen that starts
@@ -135,7 +136,8 @@ pattern it shows:
   `openid profile email`, endpoints from discovery, and sign-out through
   Umbral's end-session endpoint.
 - **How to run it** covers a device and an emulator instead of `docker compose
-  up`, and says how the app reaches a local Umbral (`adb reverse` on Android).
+  up`, and says how the app reaches a local Umbral (`adb reverse` on Android;
+  the iOS Simulator shares the computer's `localhost`).
 
 A phone app has no line in `test/samples.conf`: the harness walks web pages in
 a headless browser and cannot drive an app. Its own workflow builds it and runs
