@@ -179,6 +179,8 @@ unusual fixed port, or use a custom scheme.
 ## Samples
 
 Native samples are listed here as they are added, each following the shared
-[sample contract](../samples/README.md). Until then, the
-[ASP.NET Core sample](../samples/aspnetcore/README.md) shows the same protocol
-from a web app's side.
+[sample contract](../samples/README.md), adapted to an app (see
+[A phone app](../samples/README.md#a-phone-app)):
+
+- [Android](../samples/android/README.md): Kotlin, Jetpack Compose and
+  AppAuth-Android, in a Custom Tab, with a custom-scheme redirect URI.

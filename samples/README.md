@@ -10,9 +10,11 @@ behaves the same way, so the one for your stack is the one to read.
 | [ASP.NET Core](aspnetcore/README.md) | .NET 10 minimal APIs, `Microsoft.AspNetCore.Authentication.OpenIdConnect` | **Web application** (a server keeps the secret) |
 | [Browser-only app](spa/README.md) | Vite and plain TypeScript, `oidc-client-ts` | **Single-page or native app** (no secret: PKCE alone) |
 | [FastAPI](fastapi/README.md) | Python 3.13, FastAPI, Authlib's Starlette client | **Web application** (a server keeps the secret) |
+| [Android](android/README.md) | Kotlin, Jetpack Compose, AppAuth-Android | **Single-page or native app** (no secret: PKCE alone) |
 
-CI runs each sample against a real Umbral, built from this repository, and
-walks through it in a headless browser: see [The harness](#the-harness). The
+CI runs each web sample against a real Umbral, built from this repository, and
+walks through it in a headless browser: see [The harness](#the-harness). A
+phone app is built in CI and walked by hand: see [A phone app](#a-phone-app). The
 samples are also where the claims an app receives are tested from the app's
 side, so they say the same thing as [Integrate an app](../README.md#integrate-an-app).
 
@@ -108,6 +110,32 @@ Each sample's README has, in this order:
 2. **How to run it**, with `docker compose up` and without Docker.
 3. **What you should see**, page by page.
 
+## A phone app
+
+The [Android sample](android/README.md) follows the same contract, adapted to
+an app, and [Native and mobile apps](../docs/native-apps.md) explains the
+pattern it shows:
+
+- **Screens instead of pages.** A home screen with **Public**, **Private** and
+  **Sign in** or **Sign out**, a public screen, and a private screen that starts
+  the sign-in when you are signed out and shows the same claims as `/private`.
+- **The system's sign-in browser,** a Custom Tab on Android, never a WebView.
+- **A configuration file instead of environment variables.** `UMBRAL_ISSUER`
+  and `UMBRAL_CLIENT_ID` are set in one file the sample's README names, and
+  built into the app. There is no secret and no port.
+- **Custom-scheme redirect URIs,** which the README names, since they are what
+  you register in Umbral.
+- **Tokens in the platform's secure store** instead of a cookie, so the
+  [Cookies](#cookies) rules do not apply.
+- **The same protocol:** PKCE, `state` and `nonce` checked by the library,
+  `openid profile email`, endpoints from discovery, and sign-out through
+  Umbral's end-session endpoint.
+
+A phone app has no line in `test/samples.conf`: the harness walks web pages in
+a headless browser and cannot drive an app. Its own workflow builds it and runs
+the platform's lint on every change to its folder, and its sign-in is walked by
+hand, on a device or an emulator, before it is merged.
+
 ## The harness
 
 `test/` runs a sample against a real Umbral. `test/run.sh <sample>` builds
@@ -140,3 +168,7 @@ blocks the release.
    the two redirect paths. The workflow's matrix reads the same file.
 3. A row in the table at the top of this page, and a name in the list under
    [Integrate an app](../README.md#integrate-an-app).
+
+A phone app replaces step 2 with a workflow of its own that builds it (see
+[A phone app](#a-phone-app)), and adds a line to the samples list of
+[Native and mobile apps](../docs/native-apps.md#samples).
