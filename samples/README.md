@@ -119,22 +119,28 @@ pattern it shows:
 - **Screens instead of pages.** A home screen with **Public**, **Private** and
   **Sign in** or **Sign out**, a public screen, and a private screen that starts
   the sign-in when you are signed out and shows the same claims as `/private`.
-- **The system's sign-in browser,** a Custom Tab on Android, never a WebView.
+- **The system's sign-in browser,** a Custom Tab on Android and
+  `ASWebAuthenticationSession` on iOS (.NET MAUI's `WebAuthenticator` uses the
+  same two), never a WebView.
 - **A configuration file instead of environment variables.** `UMBRAL_ISSUER`
   and `UMBRAL_CLIENT_ID` are set in one file the sample's README names, and
   built into the app. There is no secret and no port.
-- **Custom-scheme redirect URIs,** which the README names, since they are what
-  you register in Umbral.
-- **Tokens in the platform's secure store** instead of a cookie, so the
+- **Redirect URIs with a custom scheme or a claimed `https://` link,** which
+  the README names, since they are what you register in Umbral.
+- **Tokens in the platform's secure store** (the Android Keystore, the iOS
+  Keychain) instead of a cookie, so the
   [Cookies](#cookies) rules do not apply.
 - **The same protocol:** PKCE, `state` and `nonce` checked by the library,
   `openid profile email`, endpoints from discovery, and sign-out through
   Umbral's end-session endpoint.
+- **How to run it** covers a device and an emulator instead of `docker compose
+  up`, and says how the app reaches a local Umbral (`adb reverse` on Android).
 
 A phone app has no line in `test/samples.conf`: the harness walks web pages in
 a headless browser and cannot drive an app. Its own workflow builds it and runs
 the platform's lint on every change to its folder, and its sign-in is walked by
-hand, on a device or an emulator, before it is merged.
+hand, on a device or an emulator, before it is merged; the walk is recorded in
+the task's review folder, in `notes.md`.
 
 ## The harness
 

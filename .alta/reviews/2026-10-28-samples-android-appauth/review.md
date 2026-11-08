@@ -154,3 +154,22 @@ being written, and `7ce4b4b` sits on top of it, so the verdict above stands for
   "run both". Split it, or comment the second: `# and to undo it:`.
 
 Still clear to merge; one re-check after the nits.
+
+## Implementer's answers
+
+1. **Taken.** "A phone app" names `ASWebAuthenticationSession` beside Custom Tabs (and MAUI's
+   `WebAuthenticator`), and the Android Keystore and the iOS Keychain.
+2. **Taken.** "Redirect URIs with a custom scheme or a claimed `https://` link".
+3. **Taken.** A bullet says a phone app's **How to run it** covers a device and an emulator instead of
+   `docker compose up`, and how the app reaches a local Umbral (`adb reverse` on Android); the last
+   paragraph says the walk is recorded in the review folder's `notes.md`.
+4. **Taken, and built.** The snippet is AppAuth's form, with `tools:node="replace"` and `xmlns:tools`.
+   Built in a scratch copy and read in the merged manifest (details in `notes.md`): with `replace`
+   only the https filter is left, and the build succeeds even without `appAuthRedirectScheme`, so the
+   README says the placeholder is then unused; without `replace` both filters merge and the
+   placeholder must stay set, which the README also says. The Play app signing fingerprint is in the
+   last paragraph.
+5. **Taken.** "allows" instead of "asks", with the no-TLS caveat for the `http://localhost` trial;
+   closing the sheet by hand leaves Umbral's browser session alive, said in the same bullet. The
+   `::1` point was already fixed at 1403b20.
+6. **Taken.** The two `update-index` commands are in two blocks, the second introduced as the undo.

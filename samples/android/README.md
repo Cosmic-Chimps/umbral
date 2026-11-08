@@ -43,10 +43,15 @@ app, so build it again after changing them. With no client ID, **Sign in** and
 
 The file is part of the repository, so your own issuer and client ID would show
 up in `git status`. To keep them out of your commits, tell Git to leave your copy
-alone, and undo it before you pull a change to the file:
+alone:
 
 ```sh
 git update-index --skip-worktree umbral.properties
+```
+
+Undo it before you pull a change to the file:
+
+```sh
 git update-index --no-skip-worktree umbral.properties
 ```
 
@@ -115,8 +120,10 @@ The code is in [`app/src/main/java/com/cosmicchimps/umbral/sample/`](app/src/mai
   browser hands the redirect back, and checks the `id_token` (its issuer,
   audience, expiry and `nonce`) after the code exchange. The sample reads the
   claims from that `id_token`. AppAuth does not check its signature: the token
-  comes straight from the token endpoint over the connection the app opened,
-  which is what OpenID Connect asks of a client that does that.
+  comes straight from the token endpoint over the TLS connection the app opened,
+  and OpenID Connect allows a client to rely on that instead. On the
+  `http://localhost` trial there is no TLS either, which is acceptable only
+  because Umbral and the app are on one machine.
 - **Scopes.** `openid`, `profile` and `email`.
 - **The redirect.** `manifestPlaceholders["appAuthRedirectScheme"]` in
   [`app/build.gradle.kts`](app/build.gradle.kts) gives the scheme to AppAuth's
@@ -139,7 +146,9 @@ The code is in [`app/src/main/java/com/cosmicchimps/umbral/sample/`](app/src/mai
   `id_token_hint`, the post-logout redirect URI and a `state`
   (`EndSessionRequest`), so that Umbral's session in that browser ends too.
   Umbral redirects to the registered post-logout URI, and the sheet closes.
-  If you close the sheet by hand instead, the app is still signed out.
+  If you close the sheet by hand instead, the app is still signed out, but
+  Umbral's session in the browser is still alive, so the next sign-in may come
+  back without showing Umbral's page.
 - **Plain http on loopback only.** The app's network security configuration
   allows cleartext only to `localhost` and `127.0.0.1`, and the connection
   AppAuth uses refuses `http://` for any other host, so a mistyped issuer cannot
@@ -162,13 +171,16 @@ that proves it belongs to that domain. It needs:
 1. A domain you control, serving
    `https://app.example.com/.well-known/assetlinks.json`, which names the app's
    package and the SHA-256 fingerprint of its signing certificate.
-2. In the app's manifest, AppAuth's `RedirectUriReceiverActivity` declared with
-   an intent filter for that address and `android:autoVerify="true"`:
+2. In the app's manifest, AppAuth's `RedirectUriReceiverActivity` declared
+   again, as AppAuth's README does, with `tools:node="replace"` (and
+   `xmlns:tools="http://schemas.android.com/tools"` on `<manifest>`) and an
+   intent filter for that address with `android:autoVerify="true"`:
 
    ```xml
    <activity
        android:name="net.openid.appauth.RedirectUriReceiverActivity"
-       android:exported="true">
+       android:exported="true"
+       tools:node="replace">
        <intent-filter android:autoVerify="true">
            <action android:name="android.intent.action.VIEW" />
            <category android:name="android.intent.category.DEFAULT" />
@@ -183,10 +195,22 @@ that proves it belongs to that domain. It needs:
 3. That `https://` address as the redirect URI in the code and as the
    **Redirect URI** in Umbral, character for character.
 
+`tools:node="replace"` puts this declaration in place of the library's own,
+whose intent filter catches the custom scheme from `appAuthRedirectScheme`. The
+merged manifest then has the `https://` filter only, and the placeholder is no
+longer used. Without `replace`, the two declarations merge: both filters stay,
+the custom scheme included, and `appAuthRedirectScheme` must stay set in
+`app/build.gradle.kts`, since the library's manifest refers to it. Either way,
+`./gradlew assembleDebug` and the merged manifest
+(`app/build/intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml`)
+show what the app will catch, without a domain.
+
 Android checks the association when the app is installed. If the check fails,
 or the address is opened before it has run, the link opens in the browser
-instead of the app, and the sign-in stays there. Test it on a real install of
-a release build before you rely on it.
+instead of the app, and the sign-in stays there. The most common cause is the
+wrong fingerprint: an app signed through Google Play's app signing needs Play's
+signing certificate fingerprint in `assetlinks.json` (in Play Console), not the
+upload key's. Test it on a real install of a release build before you rely on it.
 
 ## Your own app
 

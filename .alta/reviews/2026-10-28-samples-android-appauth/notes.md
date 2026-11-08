@@ -71,7 +71,15 @@ Private opening a Custom Tab on **Sign in to android**, the table with `sub`, `n
 
 - The App Links section follows Android's App Links documentation (`assetlinks.json` at
   `/.well-known/`, `autoVerify`) and AppAuth-Android's README (declare `RedirectUriReceiverActivity`
-  with the https intent filter). Not exercised in the walk: it needs a domain.
+  with the https intent filter, `tools:node="replace"`). Not exercised on a device: that needs a domain.
+  The manifest part was built (docs nit 4), in a scratch copy of the sample with the README's snippet
+  added, by `./gradlew processDebugMainManifest` and a look at
+  `app/build/intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml`:
+  - with `tools:node="replace"`: `RedirectUriReceiverActivity` has the `https://app.example.com/oauth/callback`
+    filter (`autoVerify="true"`) only; the custom-scheme filter is gone; the build also succeeds with
+    `appAuthRedirectScheme` removed from `build.gradle.kts` (the placeholder is then unused);
+  - without `replace`, placeholder set: both filters, the https one and `com.cosmicchimps.umbral.sample`.
+  The README says exactly that.
 - "Your own app": `applicationId` and `appAuthRedirectScheme` in `app/build.gradle.kts:24,34`, the
   URIs in `UmbralAuth.kt:147-148`.
 
