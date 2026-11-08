@@ -134,3 +134,23 @@ it is a textual conflict git will show, so it will not slip through silently.
 Complete under section 6: every statement against the code, AppAuth or the
 catalogue, the hand walk on a named emulator image with what it saw, the CI
 job, and what was not exercised (App Links) said plainly. Agreed on all of it.
+
+---
+
+## Addendum, 2026-11-07: the review is of `1403b20`
+
+The code review's commit `1403b20` reached the worktree while this review was
+being written, and `7ce4b4b` sits on top of it, so the verdict above stands for
+`1403b20`. Two things it changed:
+
+- **The `::1` sub-nit in nit 5 is already fixed.** `isLoopback` now accepts
+  `localhost` and `127.0.0.1` only (`UmbralAuth.kt:151`), and
+  `umbral.properties` says the same, matching the network security config.
+  Drop that line from nit 5.
+- **The new `skip-worktree` paragraph** in "How to run it" is right: the file
+  is tracked, and a pull that changes it fails while the flag is set, so "undo
+  it before you pull a change to the file" is the right warning. One nit, the
+  sixth: the code block shows both commands one after the other, which reads as
+  "run both". Split it, or comment the second: `# and to undo it:`.
+
+Still clear to merge; one re-check after the nits.
