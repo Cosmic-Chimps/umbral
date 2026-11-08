@@ -7,6 +7,10 @@
 #
 # The release workflow calls this one, so a failing sample blocks a release.
 #
+# The Android sample is an app, not a web server: it has no line in
+# samples.conf, and samples-android.yml builds it instead. A change under
+# samples/android/ alone does not start this workflow.
+#
 # The walk signs in with the fake connector, which exists only when Umbral runs
 # with ASPNETCORE_ENVIRONMENT=Development and UMBRAL__ALLOW_FAKE_CONNECTOR=true.
 # That pair lives in samples/test/docker-compose.yml and nowhere else.
@@ -15,9 +19,9 @@ name: samples
 on:
   push:
     branches: [main]
-    paths: ['samples/**', '.github/workflows/samples.yml']
+    paths: ['samples/**', '!samples/android/**', '.github/workflows/samples.yml']
   pull_request:
-    paths: ['samples/**', '.github/workflows/samples.yml']
+    paths: ['samples/**', '!samples/android/**', '.github/workflows/samples.yml']
   workflow_dispatch:
   workflow_call:
 

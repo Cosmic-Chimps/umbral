@@ -1,0 +1,56 @@
+# The Android sample, built.
+#
+# samples/android/ is an app, not a web server, so the harness of samples.yml
+# (which walks each sample in a headless browser) cannot walk it, and an
+# emulator on a CI runner is slow and flaky. This job only builds the debug APK
+# and runs Android lint, so a change that breaks the build or the manifest is
+# caught. The sign-in itself is walked by hand on a device or an emulator:
+# samples/android/README.md says how, and the task's review notes record it.
+name: samples-android
+
+on:
+  push:
+    branches: [main]
+    paths: ['samples/android/**', '.github/workflows/samples-android.yml']
+  pull_request:
+    paths: ['samples/android/**', '.github/workflows/samples-android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: samples/android
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      # The Android Gradle Plugin needs JDK 17 or later.
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Checks gradle-wrapper.jar against Gradle's published checksums before
+      # anything runs it, and caches Gradle's downloads (read-only on pull
+      # requests).
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      # The runner image has the Android SDK (ANDROID_HOME) with its licences
+      # accepted, so the plugin fetches a missing platform by itself.
+      - name: Build and lint
+        run: ./gradlew --no-daemon assembleDebug lintDebug
+
+      - name: Lint report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: samples-android-lint
+          path: samples/android/app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
