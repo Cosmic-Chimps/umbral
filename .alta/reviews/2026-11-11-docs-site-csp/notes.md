@@ -167,6 +167,10 @@ Checked again on the merged build:
 - The probe: the same table as above in the three engines.
 - `.github/scripts/changelog.sh check` passes.
 
+**Both reviews are clear.** The code re-check at `5e96adc` says clear to merge (`code-review.md`,
+`e4fa84b`). What remains is the maintainer's: merge this branch, which brings the link preview with
+it, and repeat the walk once on the deployed site.
+
 ## For the design review (`umbral-designer`)
 
 Nothing is meant to look different. `captures/` holds Chrome under the final policy,
