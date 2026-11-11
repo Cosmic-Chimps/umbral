@@ -133,3 +133,8 @@ Things you would otherwise have to find:
 - PKCE is sent to Apple although Apple's documents do not mention it (research R5). It is the one thing no test with a fake Apple can confirm.
 - `is_private_email` is read by `claimIsTrue` into the adapter's private record and acted on nowhere (spec Clarifications).
 - `Apple.ExchangeAndFetch` maps `HttpRequestException` to `ProviderUnreachable ex.Message`, as `OidcAdapter` does.
+
+## After the reviews
+
+- The follow-up for Apple's logo artwork was first proposed as task `pqzq`, which `review.md` names. On the maintainer's word it was replaced the same day by one task for every provider's mark: `b6d7`, "Sign-in page: provider logos on the sign-in buttons, for every connector (Apple's included)". Apple's rules and the licence question are a section of it.
+- The code review's B1 changed `OAuthRoundTrip.complete` for every provider, not only Apple: `state` is compared before a provider's `error` is believed.
