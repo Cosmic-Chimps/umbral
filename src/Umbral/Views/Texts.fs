@@ -504,6 +504,9 @@ type Texts =
       // asks the person to do something says what.
       /// The picker's button and the passkey sign-in page's heading and button.
       SignInWithPasskey: string
+      /// The Apple connector's button, whatever the connector is named: Apple's
+      /// rules for a Sign in with Apple button fix its title (spec 013, FR-022).
+      SignInWithApple: string
       // The sign-in page, the invitation page and the passkeys page
       PasskeySignInLead: string
       PasskeyContinue: string
@@ -1384,6 +1387,7 @@ let en: Texts =
       MoveNoSecret = fun slug -> moveLine "skipped" slug "has no secret to move"
 
       SignInWithPasskey = "Sign in with a passkey"
+      SignInWithApple = "Sign in with Apple"
       PasskeySignInLead = "Your phone, laptop or security key will ask you to confirm it is you."
       PasskeyContinue = "Continue with your passkey"
       PasskeyDisplayNameLabel = "Your name"
