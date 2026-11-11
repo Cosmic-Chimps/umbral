@@ -91,3 +91,16 @@ Branch `alta/roaming-foxglove-m2q5`, `3c87b72..65a2f69` (the site is `ca96f84`).
 ## Not a finding
 
 GitHub Pages can't send headers, but a `<meta http-equiv="Content-Security-Policy">` in Starlight's `head` would make "nothing from another host" enforced by the browser, not only checked at build. It needs `'unsafe-inline'` for Starlight's theme script and `'wasm-unsafe-eval'` for Pagefind, and search would need testing under it. That is worth a follow-up task if you want it, but not for this branch.
+
+## Re-check at `5155151` (2026-11-11)
+
+**Clear to merge.** Both blocking items and all five nits are in, as written in "After the reviews" in `notes.md`. I read the diff of `pages.yml`, `check-dist.mjs`, `collect.mjs`, `.nvmrc` and `package.json` since `65a2f69`, and rebuilt from `git archive 5155151` on Node 22.23.4: 28 pages, 127 links to pages, validator clean, `check-dist: 51 files read (29 html, 6 css, 13 js, 3 svg)`.
+
+- **B1, B2.** One concurrency group per ref, where a pull request cancels only its own older runs. `workflow_run` runs after `release`: its `github.ref` is `refs/heads/main`, so it shares main's group and passes the deploy's and the upload's conditions.
+- **N1.** I injected my three cases into the built `dist/` again (a `//host` fetch in a script, `image-set` in a stylesheet, `<image href>` in `favicon.svg`). Each is now a problem in its own file, exit 1.
+- **N2 to N5.** As described. `node-version-file: site/.nvmrc` with `22.23.4` exactly.
+- **The navigation paragraph (new since the review).** `navigationParagraph()` finds the paragraph correctly: line numbers start at 1, so `lines[to]` is the next line. Both segments come from one source, so the setext check isn't repeated. I tried two edits to `docs/connectors/discord.md`:
+  - a sentence after the links: refused with file and line, nothing written;
+  - words before "Other providers:": the pattern no longer matches and the paragraph is kept whole.
+
+  Either way, no text is dropped. `native-apps.md` keeps its paragraph, and the discord page leaves its paragraph out.
