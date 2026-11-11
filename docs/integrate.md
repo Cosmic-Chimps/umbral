@@ -16,6 +16,8 @@ how people are identified.
   refresh token.
 - **Redirect URIs are matched exactly.** A request whose `redirect_uri` is not
   the registered string is answered with an Umbral error page, not a redirect.
+  The one exception is a desktop app's loopback address, registered with no
+  port and used on any port (see [Desktop apps](native-apps.md#desktop-apps)).
 - **The token endpoint** (`/connect/token`) accepts the secret as HTTP Basic or
   as a form field (`client_secret_basic` or `client_secret_post`).
 - **A browser-only app can call Umbral directly.** The discovery document, the
