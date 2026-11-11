@@ -1,8 +1,11 @@
 # Deploying on Caravana
 
-Caravana is a self-hosted PaaS on Nomad. Its Traefik already terminates TLS
-and routes by domain, so on a Caravana host you use neither Caddy nor the
-repository's compose file. You create the app in Caravana by name and the release
+[Caravana](https://github.com/Cosmic-Chimps/caravana) is a self-hosted platform
+for running apps (a PaaS) on your own servers, built on
+[Nomad](https://www.nomadproject.io/). This page is for you if you already run
+it; if you do not, [Run it for real, behind HTTPS](https.md) is the way to
+deploy Umbral. Caravana's Traefik already terminates TLS and routes by domain,
+so on a Caravana host you use neither Caddy nor the repository's compose file. You create the app in Caravana by name and the release
 workflow does the rest: pushing a tag builds the image, defines the app the
 first time, and deploys that image through Caravana's API.
 
@@ -21,7 +24,8 @@ The first release defines the app from
 settings. It sets:
 
 - the image: `ghcr.io/<owner>/umbral` (`<owner>` is the GitHub user or
-  organization that owns the repository, in lowercase), tag `latest`;
+  organization that owns the repository, in lowercase: `cosmic-chimps` for this
+  one, or yours if you run the workflow from a fork), tag `latest`;
 - container port `8080`, with an HTTP health check on `/healthz`;
 - one volume, `umbral-data`, mounted at `/data`;
 - your domain (the Bella Baxter secret `CARAVANA_DOMAIN`, for example
