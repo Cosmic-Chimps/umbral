@@ -66,3 +66,11 @@ The docs commit is small and each statement maps to the spec and the code above.
 3. Taken. The paragraph is rewrapped to the file's width. On the merge: noted in the spec
    (research R3) and in the merge notes. Keep spgx's Desktop apps text, and drop the
    two-or-three-ports tip.
+
+## Addendum (documentation reviewer), 2026-11-11, at `8336440`
+
+**Still clear.** All three nits taken. The new event sentence is right, including the part I had
+not checked: `AppRedirectUris.fs:109` writes the detail as `<change>;uri=<the address, escaped>`,
+so "with the URI" holds. The Next.js line says "one of those registered", and the native-apps
+paragraph is rewrapped. Link check: 286 links in 35 files, all resolve. The documentation review
+is complete.
