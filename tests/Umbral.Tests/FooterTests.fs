@@ -40,7 +40,12 @@ let private pickerFor (clientId: string) =
 [<Fact>]
 let ``the repository and documentation addresses are the project's`` () =
     Assert.Equal("https://github.com/Cosmic-Chimps/umbral", Texts.RepositoryUrl)
-    Assert.Equal("https://github.com/Cosmic-Chimps/umbral#readme", Texts.DocumentationUrl)
+    Assert.Equal("https://cosmic-chimps.github.io/umbral", Texts.DocsUrl)
+    // The site's first page, with the slash GitHub Pages would redirect to.
+    Assert.Equal("https://cosmic-chimps.github.io/umbral/", Texts.DocumentationUrl)
+    // The pages the messages name, at the site's routes (`site/sidebar.mjs`).
+    Assert.Equal("https://cosmic-chimps.github.io/umbral/run/troubleshooting/", Texts.TroubleshootingUrl)
+    Assert.Equal("https://cosmic-chimps.github.io/umbral/run/secret-stores/", Texts.SecretStoresUrl)
 
 [<Fact>]
 let ``the home page's footer links to the source and the documentation`` () =

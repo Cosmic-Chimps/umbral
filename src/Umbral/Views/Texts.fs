@@ -11,14 +11,30 @@ open Umbral.Infrastructure.Secrets
 open Umbral.Domains
 
 /// Where Umbral's source lives: the project's repository, not the operator's
-/// copy, so it is a constant and not a setting. Every link to the source or the
-/// documentation starts from it.
+/// copy, so it is a constant and not a setting. Every link to the source
+/// starts from it.
 [<Literal>]
 let RepositoryUrl = "https://github.com/Cosmic-Chimps/umbral"
 
-/// The documentation, the README on GitHub until a docs site exists.
+/// Where Umbral's documentation is published: the site built from `docs/`
+/// (`site/`, on GitHub Pages). The project's, like `RepositoryUrl`, so a
+/// constant. No trailing slash: a page is `DocsUrl + "/run/settings/"`, and
+/// every message that sends someone to the documentation starts from it.
 [<Literal>]
-let DocumentationUrl = RepositoryUrl + "#readme"
+let DocsUrl = "https://cosmic-chimps.github.io/umbral"
+
+/// The documentation's first page: the footer's "Documentation" link.
+[<Literal>]
+let DocumentationUrl = DocsUrl + "/"
+
+/// The Troubleshooting page, which the schema upgrade's warning in the log
+/// names (`Program.fs`).
+[<Literal>]
+let TroubleshootingUrl = DocsUrl + "/run/troubleshooting/"
+
+/// The secret stores' overview page, which lists each store's own page.
+[<Literal>]
+let SecretStoresUrl = DocsUrl + "/run/secret-stores/"
 
 type Texts =
     { SiteName: string
@@ -575,6 +591,18 @@ let private secretStoreNameEn (storeId: string) : string =
     | "bellabaxter" -> "BellaBaxter"
     | other -> other
 
+/// The address of a store's page on the documentation site (its settings,
+/// its permissions, its walkthrough), by the id a `SecretRef` carries; the
+/// overview page for a store with no page of its own. An address and not a
+/// `docs/` path: the image has no `docs/` folder for an operator to open.
+let private secretStoreDocsEn (storeId: string) : string =
+    match storeId with
+    | "aws"
+    | "gcp"
+    | "azure"
+    | "bellabaxter" -> $"{DocsUrl}/secret-stores/{storeId}/"
+    | _ -> SecretStoresUrl
+
 /// What a failure says about the store, in a clause that follows its name.
 let private causeEn (failure: StoreFailure) : string =
     match failure with
@@ -599,11 +627,11 @@ let private reachHintEn (storeId: string) : string =
 let private whatToCheckEn (storeId: string) (failure: StoreFailure) : string =
     match failure with
     | AccessDenied ->
-        "Check that the credentials Umbral was given are valid and that they may read and write secrets, following the permissions in docs/secret-stores/."
+        $"Check that the credentials Umbral was given are valid and that they may read and write secrets, following the permissions in {secretStoreDocsEn storeId}."
     | NotConfigured ->
-        "Check the settings and credentials for it in the environment, following docs/secret-stores/."
-    | Unreachable -> $"Check the network between this host and it, and that Umbral's credentials for it are valid ({reachHintEn storeId}), following docs/secret-stores/."
-    | _ -> "Check its settings and the permissions Umbral was given, following docs/secret-stores/."
+        $"Check the settings and credentials for it in the environment, following {secretStoreDocsEn storeId}."
+    | Unreachable -> $"Check the network between this host and it, and that Umbral's credentials for it are valid ({reachHintEn storeId}), following {secretStoreDocsEn storeId}."
+    | _ -> $"Check its settings and the permissions Umbral was given, following {secretStoreDocsEn storeId}."
 
 /// The failures that have a remedy of their own, by their closed code. `None`
 /// for every other failure, whose `Rejected` reason, if any, stays unprinted.
@@ -621,7 +649,7 @@ let private specificFailureEn (storeId: string) (failure: StoreFailure) : string
             $"{name} has no project, environment or provider by the configured name. Check BELLA_BAXTER_PROJECT, BELLA_BAXTER_ENV and UMBRAL__BELLABAXTER_PROVIDER."
     | NotFound ->
         Some
-            $"{name} does not have the secret or location Umbral asked for. Check its settings (region, project, vault) and the permissions Umbral was given, following docs/secret-stores/."
+            $"{name} does not have the secret or location Umbral asked for. Check its settings (region, project, vault) and the permissions Umbral was given, following {secretStoreDocsEn storeId}."
     | _ -> None
 
 /// What is wrong with a store and what to do about it, from the store's id and
@@ -649,7 +677,7 @@ let private secretStoreLabelEn (storeId: string) : string =
     $"Kept in {secretStoreNameEn storeId}"
 
 let private secretUnreadableEn (storeId: string) : string =
-    $"This connector's secret is kept in {secretStoreNameEn storeId}, which this instance cannot read, so signing in with it will fail. Enter the secret again under Settings to keep it in the active store, or set up {secretStoreNameEn storeId} on this instance again as described in docs/secret-stores/."
+    $"This connector's secret is kept in {secretStoreNameEn storeId}, which this instance cannot read, so signing in with it will fail. Enter the secret again under Settings to keep it in the active store, or set up {secretStoreNameEn storeId} on this instance again as described in {secretStoreDocsEn storeId}."
 
 /// A report line: the word the line is matched on, padded so that the slugs
 /// line up in a terminal, then what it says.
@@ -728,7 +756,7 @@ let private noticeEn (code: string) : string option =
     // The fallbacks for a notice that arrives without its server-side detail
     // (a refresh, a link): the same advice, without the store's name.
     | "connector-secret-store-failed" ->
-        Some "The client secret could not be saved to its secret store, so nothing was saved. Check that Umbral's credentials for the store are valid, that they may write secrets, and that the store is reachable from this host, following the walkthrough in docs/secret-stores/. Then enter the secret again."
+        Some $"The client secret could not be saved to its secret store, so nothing was saved. Check that Umbral's credentials for the store are valid, that they may write secrets, and that the store is reachable from this host, following the store's walkthrough, linked from {SecretStoresUrl}. Then enter the secret again."
     | "connector-secret-left-behind" ->
         Some "The connector was deleted, but its client secret could not be removed from its secret store. Remove it there by hand: it is named after the connector, under the prefix umbral by default."
     | "connector-secret-replaced-left-behind" ->

@@ -26,6 +26,9 @@ open Umbral.Tests.Infrastructure.InMemorySecretStore
 open Umbral.Tests.Infrastructure.Journeys
 open Umbral.Tests.Infrastructure.StubOidcProvider
 
+/// The documentation site, where a store's failure sends the operator.
+let private docsUrl = Umbral.Views.Texts.DocsUrl
+
 let private awsSettings =
     [ "UMBRAL:SECRET_STORE", "aws"
       "AWS_REGION", "eu-west-1" ]
@@ -939,7 +942,8 @@ let ``a pane whose reference names a store this instance cannot build warns, wit
         Assert.Contains("data-secret-unreadable", github)
         Assert.Contains("Azure Key Vault", github)
         Assert.Contains("cannot read", github)
-        Assert.Contains("docs/secret-stores", github)
+        Assert.Contains(docsUrl + "/secret-stores/azure/", github)
+        Assert.DoesNotContain("docs/secret-stores", github)
         Assert.Contains("role=\"note\"", github)
 
         // The warning is the unreadable pane's, not every pane's.
@@ -1010,7 +1014,7 @@ let ``a failing probe at startup starts anyway, warns, records the event and sho
         Assert.Equal($"system|failure||store=aws;op=probe;cause={cause}", recorded)
 
         let warnings = logs.Entries |> Array.filter (fun e -> e.Level = LogLevel.Warning)
-        Assert.Contains(warnings, fun e -> e.Everything.Contains "AWS Secrets Manager" && e.Everything.Contains "docs/secret-stores")
+        Assert.Contains(warnings, fun e -> e.Everything.Contains "AWS Secrets Manager" && e.Everything.Contains(docsUrl + "/secret-stores/aws/"))
     }
 
 [<Fact>]
@@ -1054,7 +1058,7 @@ let ``a probe succeeding shows no notice and records nothing`` () =
 
             let! recorded = events app "secret_store_failed"
             Assert.Equal("", recorded)
-            Assert.DoesNotContain(logs.Entries, fun e -> e.Everything.Contains "docs/secret-stores")
+            Assert.DoesNotContain(logs.Entries, fun e -> e.Everything.Contains docsUrl)
             // One probe, and nothing else asked of the store.
             Assert.Equal<string list>([ "probe" ], store.Calls |> List.map (fun c -> c.Op))
     }
@@ -1073,7 +1077,7 @@ let ``a probe answering not found is a failure: the adapters map the probe's own
 
         let! recorded = events app "secret_store_failed"
         Assert.Equal("system|failure||store=aws;op=probe;cause=not_found", recorded)
-        Assert.Contains(logs.Entries, fun e -> e.Level = LogLevel.Warning && e.Everything.Contains "docs/secret-stores")
+        Assert.Contains(logs.Entries, fun e -> e.Level = LogLevel.Warning && e.Everything.Contains(docsUrl + "/secret-stores/aws/"))
     }
 
 [<Fact>]
@@ -1174,3 +1178,25 @@ let ``with the local store nothing is probed and no notice is shown`` () =
         Assert.DoesNotContain(problemMarker, html)
         Assert.Equal(0, store.CallCount)
     }
+
+[<Fact>]
+let ``a store's failure names the store's page on the documentation site, never a docs path`` () =
+    let texts = Umbral.Views.Texts.current ()
+
+    for id in [ "aws"; "gcp"; "azure"; "bellabaxter" ] do
+        let page = $"{docsUrl}/secret-stores/{id}/."
+
+        for failure in [ Unreachable; AccessDenied; NotConfigured; NotFound; Rejected "anything" ] do
+            let text = Umbral.Views.Texts.storeFailureText id failure
+            Assert.Contains(page, text)
+            Assert.DoesNotContain(" docs/", text)
+
+        Assert.Contains(page, texts.SecretUnreadable id)
+        Assert.DoesNotContain(" docs/", texts.SecretUnreadable id)
+
+    // A store with no page of its own, and the notice that arrives without the
+    // store's name, get the overview page, which lists the four.
+    Assert.Contains(Umbral.Views.Texts.SecretStoresUrl + ".", Umbral.Views.Texts.storeFailureText "local" Unreachable)
+    let fallback = texts.Notice "connector-secret-store-failed"
+    Assert.Contains(Umbral.Views.Texts.SecretStoresUrl + ".", fallback)
+    Assert.DoesNotContain(" docs/", fallback)

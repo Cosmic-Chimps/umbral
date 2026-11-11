@@ -553,7 +553,9 @@ let private ensureSchema (app: WebApplication) (dbConfig: Database.DbConfig) =
                 app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Umbral.Startup")
 
             let message =
-                "Schema upgrade {From} -> {To}: {Count} users had email_verified set back to false, because no linked account verifies their stored address. Apps see email_verified false for them until a provider verifies that address again. To look for accounts already joined this way, see \"A user may hold someone else's provider account\" under Troubleshooting in the README."
+                "Schema upgrade {From} -> {To}: {Count} users had email_verified set back to false, because no linked account verifies their stored address. Apps see email_verified false for them until a provider verifies that address again. To look for accounts already joined this way, see \"A user may hold someone else's provider account\" on the Troubleshooting page of the documentation, "
+                + Texts.TroubleshootingUrl
+                + "."
 
             if count > 0 then
                 logger.LogWarning(message, upgrade.FromVersion, upgrade.ToVersion, count)
