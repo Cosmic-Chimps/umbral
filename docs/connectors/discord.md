@@ -94,7 +94,7 @@ the shared one. A person who signs in to both apps with the same Discord account
 is still **one** Umbral user. Disabling or deleting a connector, or changing an
 app's choice, warns you first if an app would be left with no way to sign in. A
 connector that is not shared and that no app has chosen is offered nowhere. See
-[Troubleshooting](../../README.md#troubleshooting).
+[Troubleshooting](../run/troubleshooting.md).
 
 ## Scopes Umbral requests
 
@@ -129,7 +129,7 @@ Umbral sends PKCE (`S256`) with the request.
 
 On the Connectors screen you can limit who can sign in by email domain, for the
 whole instance or for one connector (see
-[Who can sign in](../../README.md#who-can-sign-in)). While a rule applies, only
+[Who can sign in](../who-can-sign-in.md)). While a rule applies, only
 an email Discord reports as verified counts, and the domain must match exactly.
 
 - Discord lets an account exist with an unverified email, or with none. While a
@@ -140,7 +140,7 @@ To limit one app, create a connector for it with the domain rule and offer only
 that connector to the app. For example, add a second Discord connector, "Discord (Acme)",
 with your domain in **Allowed email domains**, then on **Apps** set the app's
 **Sign-in methods** to **Only the connectors I choose** and tick only that
-connector. See [Who can sign in](../../README.md#who-can-sign-in).
+connector. See [Who can sign in](../who-can-sign-in.md).
 
 ## Gotchas
 

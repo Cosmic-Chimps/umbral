@@ -4,7 +4,9 @@ Lets people sign in to your apps with a passkey, and no account at any provider.
 A passkey is a key that a person's phone, laptop or security key holds, unlocked
 by their fingerprint, face or PIN. Nothing is typed, there is nothing to phish,
 and no third party learns who signed in. Umbral is the provider: it keeps only
-the public half of the key, which is not a secret.
+the public half of the key, which is not a secret. In Umbral a passkey is a
+connector, and a person's passkeys belong to their user, like the provider
+accounts they sign in with.
 
 Phones, recent laptops and tablets hold passkeys (the platform's own keychain or
 password manager syncs them), and so do hardware security keys such as a YubiKey.
@@ -148,7 +150,7 @@ They do not apply: passkeys carry no email, so there is nothing to judge. Who ca
 create an account is the enrolment mode, set on its page. The **Apps** screen
 warns about an app that offers a passkey connector set to **Anyone can sign up**,
 the way it warns about a connector without a domain rule, and does not warn when
-it is invitations only. See [Who can sign in](../../README.md#who-can-sign-in).
+it is invitations only. See [Who can sign in](../who-can-sign-in.md).
 
 ## Gotchas
 
@@ -184,5 +186,12 @@ it is invitations only. See [Who can sign in](../../README.md#who-can-sign-in).
   `security_events` as `passkey_refused;reason=invitation_…`.
 - **The security log** records `passkey_registered`, `passkey_removed`,
   `passkey_invitation_created` and `passkey_invitation_revoked`, and refusals as
-  `sign_in_failed` with `passkey_refused;reason=…`. See
-  [Troubleshooting](../../README.md#troubleshooting).
+  `sign_in_failed` with `passkey_refused;reason=…`. No challenge, credential id,
+  key or invitation link is ever logged. See
+  [Troubleshooting](../run/troubleshooting.md).
+- **Memory.** An instance with the passkey connector in use idles under 160 MB (a
+  ceiling, as with an external secret store; the figure is confirmed by the
+  idle-memory test). Without the connector it stays under 150 MB.
+- **Passkeys for the admin area are separate.** The operator's own passkeys,
+  for signing in to the admin area, do not need this connector: see
+  [Passkeys for the admin area](../run/operator-passkeys.md).

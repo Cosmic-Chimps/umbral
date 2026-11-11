@@ -9,6 +9,7 @@ specs
 docs
 tests
 samples
+site
 *.md
 .gitignore
 .dockerignore

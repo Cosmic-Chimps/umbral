@@ -28,7 +28,7 @@ Back to the [README](../../README.md). Other providers:
 > in through it and it says their email address is verified, Umbral treats that
 > person as the owner of that address and links them to anyone who already signed
 > in with the same verified address through another provider (see
-> [How people are identified](../../README.md#how-people-are-identified)). Add
+> [How people are identified](../integrate.md#how-people-are-identified)). Add
 > only a provider you run or trust. One that lets people claim an address they do
 > not control would let them sign in as someone else. Umbral cannot detect that:
 > there is no per-provider switch, so the decision is yours when you add it.
@@ -212,7 +212,7 @@ Two connectors cannot share one issuer.
   **`email_verified` is the JSON value `true`** and exactly one user already has
   that address, also verified; otherwise they become a new user. It is the same
   rule as for every other connector
-  ([How people are identified](../../README.md#how-people-are-identified)).
+  ([How people are identified](../integrate.md#how-people-are-identified)).
   A string `"true"`, a `1`, a missing flag and `false` all count as unverified.
   Some providers send the string form; for those, the account is created but
   never linked by email.
@@ -312,7 +312,7 @@ the provider generates one.
 
 **Someone clicks the provider and sees "Sign-in didn't complete"**
 They see nothing technical; the cause is in Umbral's security log. Open it as
-the README describes in [Troubleshooting](../../README.md#troubleshooting) and
+the README describes in [Troubleshooting](../run/troubleshooting.md) and
 look at the `detail` of the latest `sign_in_failed` row for this connector:
 
 | `detail` | What it means and what to do |
@@ -336,7 +336,7 @@ The URL registered in the provider is not byte-identical to the one on Umbral's
 page. Copy it again from **Redirect URI to register with the provider**, and
 check `http` against `https`, the port, a trailing slash and upper/lower case.
 Also check `UMBRAL__PUBLIC_ORIGIN`. See
-[Troubleshooting](../../README.md#troubleshooting).
+[Troubleshooting](../run/troubleshooting.md).
 
 **Signing in works, but people are not linked to their other accounts**
 Linking needs an email your provider marks `email_verified: true`, as a real
@@ -348,7 +348,7 @@ only mark an address verified once the person or an admin has confirmed it.
 
 On the Connectors screen you can limit who can sign in by email domain, for the
 whole instance or for one connector (see
-[Who can sign in](../../README.md#who-can-sign-in)). While a rule applies, only
+[Who can sign in](../who-can-sign-in.md)). While a rule applies, only
 an email your provider marks `email_verified: true` counts, and the domain must match exactly.
 
 - A provider that does not send `email_verified` as the JSON value `true`
@@ -370,7 +370,7 @@ connector for the same provider. Instead, either:
   Keycloak, Zitadel) can say which of their users may use a client, and that is
   the right place for a rule about one app.
 
-See [Who can sign in](../../README.md#who-can-sign-in).
+See [Who can sign in](../who-can-sign-in.md).
 
 ## Gotchas
 
