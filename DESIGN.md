@@ -467,6 +467,13 @@ the brand lockup.
 Material Symbols path data (viewBox `0 -960 960 960`) inlined as SVG, 1.25em
 square, in `currentColor`, never from an icon font or a remote sheet.
 
+A sign-in button leads with one mark: a provider's own mark only when its terms
+let Umbral ship it and its rules fit the button as it is (today GitHub's, pure
+white in the dark theme and pure black in the light theme, or the label's black
+or white on an accent), the Key icon for a passkey, and the link icon for every
+other provider. The uneven set is deliberate: it shows which providers allow
+their mark to be used this way (`design/contracts/provider-marks.md`).
+
 ## Do's and Don'ts
 
 ### Do:
