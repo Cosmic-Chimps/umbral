@@ -153,3 +153,17 @@ paragraph out of the generated page. That changes no source file, so the task's 
 for existing pages holds, and every connector and store page reads cleanly on the site. Do it in
 this branch if it is quick, so the code review still out sees it; otherwise a one-line follow-up
 task. Not a condition for merging.
+
+---
+
+## Addendum, 2026-11-11, at `5155151`
+
+**Still clear.** The walkthrough's opening has "a person's passkeys belong to their user". The
+"Back to the README. Other providers: …" paragraph stays in all eleven sources and is left out of
+the ten connector and store pages on the site; rebuilt here, only `native-apps/` still carries
+"Back to the", by design. The narrower rule (before the first `##`, starting "Back to the
+[README](…). Other providers:" or "Other stores:", nothing but links, and a build stop if one ever
+gains a sentence) is better than the first-paragraph rule I suggested. Keep `docs/native-apps.md`
+whole: its second sentence is content, and splitting the source for one link is not worth it.
+Build: 29 pages, all internal links valid, nothing requested from another host. Nothing more from
+the documentation review.
