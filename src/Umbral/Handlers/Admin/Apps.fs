@@ -786,11 +786,13 @@ let private uriList (ctx: HttpContext) (t: Texts.Texts) (row: Row) (spec: UriLis
             // would push the pane wider than the screen.
             (ul(class' = "space-y-1 text-body-md text-on-surface-variant") {
                 for uri in uris do
-                    li(class' = "flex flex-wrap items-center justify-between gap-x-3 gap-y-1").data("uri", uri) {
-                        span(class' = "um-mono [overflow-wrap:anywhere]") { uri }
+                    // The address takes the room and wraps; Remove keeps its
+                    // place at the end of the row, even beside a long one.
+                    li(class' = "flex items-center justify-between gap-3").data("uri", uri) {
+                        span(class' = "um-mono [overflow-wrap:anywhere] min-w-0 flex-1") { uri }
 
                         if not isLast then
-                            (form(method = "post", action = $"/admin/apps/{row.ClientId}/{spec.Route}/remove", class' = "inline") {
+                            (form(method = "post", action = $"/admin/apps/{row.ClientId}/{spec.Route}/remove", class' = "inline shrink-0") {
                                 ctx.GetAntiforgeryInput()
                                 input(type' = "hidden", name = "uri", value = uri)
 
