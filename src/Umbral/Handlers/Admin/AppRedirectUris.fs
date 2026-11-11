@@ -16,7 +16,10 @@ open Umbral.Handlers.Admin
 
 /// What differs between the two lists.
 type private Kind =
-    { /// The list as stored on the application.
+    { /// The list's route, `redirect-uris` or `post-logout-uris`: names the list
+      /// an address was typed in when a refused one is kept for the field.
+      Route: string
+      /// The list as stored on the application.
       Read: IOpenIddictApplicationManager -> obj -> System.Threading.Tasks.ValueTask<System.Collections.Immutable.ImmutableArray<string>>
       /// The one set on the descriptor that holds this list.
       Set: OpenIddictApplicationDescriptor -> Collections.Generic.HashSet<Uri>
@@ -29,7 +32,8 @@ type private Kind =
       RemovedNotice: string }
 
 let private redirect: Kind =
-    { Read = fun m app -> m.GetRedirectUrisAsync app
+    { Route = "redirect-uris"
+      Read = fun m app -> m.GetRedirectUrisAsync app
       Set = fun d -> d.RedirectUris
       KeepOne = true
       AddedDetail = "redirect_uri_added"
@@ -38,7 +42,8 @@ let private redirect: Kind =
       RemovedNotice = "app-redirect-uri-removed" }
 
 let private postLogout: Kind =
-    { Read = fun m app -> m.GetPostLogoutRedirectUrisAsync app
+    { Route = "post-logout-uris"
+      Read = fun m app -> m.GetPostLogoutRedirectUrisAsync app
       Set = fun d -> d.PostLogoutRedirectUris
       KeepOne = false
       AddedDetail = "post_logout_redirect_uri_added"
@@ -84,7 +89,15 @@ let private change (kind: Kind) (isAdd: bool) (clientId: string) : EndpointHandl
                     | Error RedirectUris.NotRegistered -> Error "app-redirect-uri-not-registered"
 
             match outcome with
-            | Error notice -> return! WebForms.redirectWithNotice ctx (Apps.detailPath clientId) notice
+            | Error notice ->
+                // An address refused as invalid goes back to the field it was
+                // typed in, through the single-use cookie, never the URL.
+                if isAdd && notice = "app-redirect-uri-invalid" then
+                    match Apps.KeptAddress.encode kind.Route value with
+                    | Some reason -> WebForms.NoticeReason.stash ctx notice "app" clientId reason
+                    | None -> ()
+
+                return! WebForms.redirectWithNotice ctx (Apps.detailPath clientId) notice
             | Ok(newList, detail, changed, notice) ->
 
             // The overload that takes a descriptor leaves the secret alone when

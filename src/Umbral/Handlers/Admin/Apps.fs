@@ -750,6 +750,42 @@ let private secretReveal (t: Texts.Texts) (revealed: RevealedSecret) =
         Components.copyField t.Copy t.Copied t.AppSecretLabel "revealed-secret" revealed.Secret ignore
     }
 
+/// The address an operator typed for a list, carried back through the
+/// Data-Protected notice cookie when it was refused as invalid, so the add
+/// field can show it again and one character can be fixed instead of the whole
+/// address retyped. Only the cookie carries it, never the URL.
+module KeptAddress =
+    /// The most characters of an encoded reason carried. Browsers silently drop
+    /// a cookie over about 4 KB and the Data-Protected payload is larger than the
+    /// reason, so above this nothing is carried and the field stays empty.
+    [<Literal>]
+    let MaxLength = 2000
+
+    /// The reason for `uri` typed in `list` (`redirect-uris` or
+    /// `post-logout-uris`), or `None` when there is nothing to keep or it is too
+    /// long. The address is percent-encoded so `;` and `=` cannot split the pairs.
+    let encode (list: string) (uri: string) : string option =
+        if String.IsNullOrEmpty uri || uri.Length > MaxLength then
+            None
+        else
+            let reason =
+                WebForms.NoticeReason.encodePairs [ "list", list; "uri", Uri.EscapeDataString uri ]
+
+            if reason.Length > MaxLength then None else Some reason
+
+    /// The address a reason keeps for `list`; `None` for another list's, a
+    /// missing or empty one, or anything this module did not write.
+    let decode (list: string) (reason: string) : string option =
+        let pairs = WebForms.NoticeReason.parsePairs reason
+
+        match Map.tryFind "list" pairs, Map.tryFind "uri" pairs with
+        | Some l, Some u when l = list && u <> "" ->
+            try
+                Some(Uri.UnescapeDataString u)
+            with _ ->
+                None
+        | _ -> None
+
 /// What differs between an app's two lists of addresses (spec 012): the route,
 /// the words, and whether the list may be left empty.
 type private UriListSpec =
@@ -768,7 +804,10 @@ type private UriListSpec =
       /// Shown instead of an empty list; a list that may not be empty has none.
       Empty: string option
       /// The `data-` attribute that marks the block, for tests.
-      Marker: string }
+      Marker: string
+      /// The address an invalid add was refused for, drawn back in this list's
+      /// field only.
+      Kept: string option }
 
 /// One list of addresses in the Connection section: its label, the rows with a
 /// Remove each, the hint, and the add form (or the note that the list is full).
@@ -825,7 +864,15 @@ let private uriList (ctx: HttpContext) (t: Texts.Texts) (row: Row) (spec: UriLis
                 label(for' = addId, class' = "um-label") { spec.AddLabel }
 
                 div(class' = "flex flex-col gap-2 sm:flex-row sm:items-center") {
-                    input(type' = "text", id = addId, name = "uri", class' = "um-input um-mono sm:flex-1")
+                    // What was typed comes back, marked invalid, so it can be corrected.
+                    let field =
+                        match spec.Kept with
+                        | Some kept ->
+                            input(type' = "text", id = addId, name = "uri", value = kept, class' = "um-input um-mono sm:flex-1")
+                                .attr("aria-invalid", "true")
+                        | None -> input(type' = "text", id = addId, name = "uri", class' = "um-input um-mono sm:flex-1")
+
+                    field
                         .attr("autocomplete", "off")
                         .attr("spellcheck", "false")
                         .attr("aria-describedby", $"{addId}-hint")
@@ -856,6 +903,17 @@ let private appPane
     let isPublic = row.ClientType = ClientTypes.Public
 
     let accent = row.Branding |> Option.bind (fun b -> b.Accent)
+
+    // The address an invalid add was refused for, from the single-use cookie
+    // (read once: a refresh shows empty fields), for the field of the list it
+    // was typed in.
+    let reason =
+        match notice with
+        | Some "app-redirect-uri-invalid" ->
+            WebForms.NoticeReason.consume ctx "app-redirect-uri-invalid" "app" row.ClientId
+        | _ -> None
+
+    let kept (list: string) = reason |> Option.bind (KeptAddress.decode list)
 
     (Components.framePane
         view
@@ -916,7 +974,8 @@ let private appPane
                         // The only one stays: an app with none cannot sign anyone in.
                         KeepOne = true
                         Empty = None
-                        Marker = "redirect-uris" }
+                        Marker = "redirect-uris"
+                        Kept = kept "redirect-uris" }
 
                   uriList
                       ctx
@@ -931,7 +990,8 @@ let private appPane
                         Uris = row.PostLogoutRedirectUris
                         KeepOne = false
                         Empty = Some t.AppPostLogoutUrisNone
-                        Marker = "post-logout-uris" }
+                        Marker = "post-logout-uris"
+                        Kept = kept "post-logout-uris" }
               })
 
           // FR-009: which connectors this app offers, readable at a glance, with

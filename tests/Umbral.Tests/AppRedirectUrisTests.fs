@@ -207,6 +207,194 @@ let ``an invalid address is refused and the list is unchanged`` () =
         Assert.Empty postLogouts
     }
 
+// An invalid add keeps what was typed: it comes back, through the single-use
+// cookie, in the field of the list it was typed in.
+
+/// The add field of a list on an app's page: its HTML-decoded `value` (None
+/// when it has no value attribute) and whether it is marked `aria-invalid`.
+/// Found by its id and read attribute by attribute, so attribute order does
+/// not matter.
+let private addField (html: string) (prefix: string) (clientId: string) =
+    let tag =
+        Regex.Match(html, "<input[^>]*id=\"" + Regex.Escape($"{prefix}-{clientId}") + "\"[^>]*>")
+
+    Assert.True(tag.Success, $"the pane has the {prefix} field")
+
+    let attribute (name: string) =
+        let m = Regex.Match(tag.Value, "\\s" + name + "=\"([^\"]*)\"")
+        if m.Success then Some(string (WebUtility.HtmlDecode m.Groups[1].Value)) else None
+
+    attribute "value", attribute "aria-invalid" = Some "true"
+
+let private redirectField html clientId = addField html "redirect-uri-add" clientId
+let private postLogoutField html clientId = addField html "post-logout-uri-add" clientId
+
+/// The refused address and what the page is after it, for a list.
+let private refusedThenPage (operator: Browser) clientId (add: Browser -> string -> string -> _) (typed: string) =
+    task {
+        let! refused = add operator clientId typed
+        assertNotice clientId "app-redirect-uri-invalid" refused
+        let! html = operator.GetHtml(location refused)
+        return refused, html
+    }
+
+[<Fact>]
+let ``a refused redirect URI comes back in its own field and not in the other`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+        let typed = "https://*.example.com/cb"
+
+        let! _, html = refusedThenPage operator clientId addRedirect typed
+        Assert.Equal((Some typed, true), redirectField html clientId)
+        Assert.Equal((None, false), postLogoutField html clientId)
+    }
+
+[<Fact>]
+let ``a refused post-logout URI comes back in its own field and not in the other`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+        let typed = "/not-absolute"
+
+        let! _, html = refusedThenPage operator clientId addPostLogout typed
+        Assert.Equal((Some typed, true), postLogoutField html clientId)
+        Assert.Equal((None, false), redirectField html clientId)
+    }
+
+[<Fact>]
+let ``the refused address is not in the Location or readable in a Set-Cookie`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+        let typed = "https://*.example.com/secret-path"
+
+        let! refused = addRedirect operator clientId typed
+        assertNotice clientId "app-redirect-uri-invalid" refused
+        Assert.DoesNotContain("secret-path", location refused)
+
+        let cookies =
+            match refused.Headers.TryGetValues "Set-Cookie" with
+            | true, values -> List.ofSeq (Option.defaultValue Seq.empty (Option.ofObj values))
+            | _ -> []
+
+        Assert.NotEmpty cookies
+
+        for cookie in cookies do
+            Assert.DoesNotContain("secret-path", cookie)
+            Assert.DoesNotContain("example.com", cookie)
+    }
+
+[<Fact>]
+let ``a second visit to the page shows the field empty`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+        let! refused, first = refusedThenPage operator clientId addRedirect "https://*.example.com/cb"
+        Assert.Equal((Some "https://*.example.com/cb", true), redirectField first clientId)
+
+        // The cookie was read once: a refresh of the same address has nothing left.
+        let! again = operator.GetHtml(location refused)
+        Assert.Equal((None, false), redirectField again clientId)
+        Assert.Equal((None, false), postLogoutField again clientId)
+    }
+
+[<Fact>]
+let ``an address with separators and quotes comes back whole and escaped`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+        let typed = "https://*.example.com/cb?a=1;b=\"x\" <y>'z"
+
+        let! _, html = refusedThenPage operator clientId addRedirect typed
+        Assert.Equal((Some typed, true), redirectField html clientId)
+
+        let raw = Regex.Match(html, "<input[^>]*id=\"redirect-uri-add-" + Regex.Escape clientId + "\"[^>]*>").Value
+        Assert.DoesNotContain("\"x\"", raw)
+        Assert.DoesNotContain("<y>", raw)
+    }
+
+[<Fact>]
+let ``an address over the bound is refused and not kept`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+        let typed = "https://*.example.com/" + String('a', 2100)
+
+        let! _, html = refusedThenPage operator clientId addRedirect typed
+        Assert.Equal((None, false), redirectField html clientId)
+        Assert.Equal((None, false), postLogoutField html clientId)
+    }
+
+[<Fact>]
+let ``an address just under the bound comes back, in a cookie a browser keeps`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+        // `list=redirect-uris;uri=` and the escaped prefix take 57 characters:
+        // the reason is 1,997, just under `MaxLength`.
+        let typed = "https://*.example.com/" + String('a', 1940)
+        let reason = Umbral.Handlers.Admin.Apps.KeptAddress.encode "redirect-uris" typed
+        Assert.True(reason.IsSome && reason.Value.Length > 1990)
+
+        let! refused = addRedirect operator clientId typed
+
+        // Browsers drop a cookie whose name and value pass 4,096 bytes, silently.
+        let noticeCookie =
+            match refused.Headers.TryGetValues "Set-Cookie" with
+            | true, values ->
+                Option.ofObj values
+                |> Option.bind (Seq.tryFind (fun c -> c.StartsWith "umbral_notice_reason="))
+            | _ -> None
+
+        Assert.True(noticeCookie.IsSome, "the refusal writes the notice cookie")
+        let nameAndValue = noticeCookie.Value.Split(';').[0]
+        Assert.True(nameAndValue.Length < 4096, $"the cookie fits a browser ({nameAndValue.Length})")
+
+        let! html = operator.GetHtml(location refused)
+        Assert.Equal((Some typed, true), redirectField html clientId)
+    }
+
+[<Fact>]
+let ``a kept address is for its own app only`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+        let! otherId, _ = registerApp operator "Other"
+
+        let! _ = addRedirect operator clientId "https://*.example.com/cb"
+
+        // Another app's page, asked for the same notice, ignores the cookie.
+        let! html = operator.GetHtml($"{pageOf otherId}?msg=app-redirect-uri-invalid")
+        Assert.Equal((None, false), redirectField html otherId)
+        Assert.Equal((None, false), postLogoutField html otherId)
+    }
+
+[<Fact>]
+let ``KeptAddress round-trips what it carries`` () =
+    for typed in [ "https://*.example.com/cb?a=1;b=2"; "100%/é/日本"; "a=b;c=d"; "%41%zz" ] do
+        let reason = Umbral.Handlers.Admin.Apps.KeptAddress.encode "redirect-uris" typed
+        Assert.True(reason.IsSome, typed)
+        Assert.Equal(Some typed, Umbral.Handlers.Admin.Apps.KeptAddress.decode "redirect-uris" reason.Value)
+
+[<Fact>]
+let ``KeptAddress carries nothing for another list, an empty address, too much or garbage`` () =
+    let open' = Umbral.Handlers.Admin.Apps.KeptAddress.encode
+    let decode = Umbral.Handlers.Admin.Apps.KeptAddress.decode
+    let max = Umbral.Handlers.Admin.Apps.KeptAddress.MaxLength
+
+    let reason = (open' "redirect-uris" "https://*.example.com/cb").Value
+    Assert.Equal(None, decode "post-logout-uris" reason)
+    Assert.Equal(None, open' "redirect-uris" "")
+    Assert.Equal(None, open' "redirect-uris" (String('a', max + 1)))
+    // Short enough as typed, too long once percent-encoded.
+    Assert.Equal(None, open' "redirect-uris" (String('/', max - 100)))
+    Assert.Equal(None, decode "redirect-uris" "")
+    Assert.Equal(None, decode "redirect-uris" "garbage")
+    Assert.Equal(None, decode "redirect-uris" "list=redirect-uris")
+    Assert.Equal(None, decode "redirect-uris" "list=redirect-uris;uri=")
+    Assert.Equal(None, decode "redirect-uris" "uri=x")
+
 [<Theory>]
 [<InlineData("https://grafana.example.com/callback")>]
 // Only the host's case differs: the same address to a provider.
