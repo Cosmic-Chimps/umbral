@@ -163,7 +163,7 @@ removed from …** with the secret's name there: remove it by hand.
 Two instances that use the same prefix in the same account and region share
 their secrets. Give the second instance its own `UMBRAL__SECRET_STORE_PREFIX`.
 A restore of `/data` needs the same AWS account to read the secrets back; see
-[Your data: back it up](../../README.md#your-data-back-it-up).
+[Your data: back it up](../run/backup.md).
 
 ## The cache and the grace period
 

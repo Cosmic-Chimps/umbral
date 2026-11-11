@@ -202,7 +202,7 @@ verified email, so allowed email domains do not apply to it and it never joins
 another account by email.* Who can sign in is the choice between **Any server**
 and **Only these servers**. The **Apps** screen treats a Fediverse connector as
 limited exactly when it is on **Only these servers**. See
-[Who can sign in](../../README.md#who-can-sign-in).
+[Who can sign in](../who-can-sign-in.md).
 
 ## Troubleshooting
 
@@ -269,4 +269,4 @@ then save again.* appears if the choice is missing; choose one and save.
   failed sign-in is a `sign_in_failed` event whose detail starts with
   `fediverse:` and a reason, then `server=<host>` when the server is known. No
   token, code or secret is recorded. See
-  [Troubleshooting](../../README.md#troubleshooting).
+  [Troubleshooting](../run/troubleshooting.md).

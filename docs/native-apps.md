@@ -53,7 +53,7 @@ way for a phone app, for these reasons:
 
 To make the sign-in page look like your app, brand it: an app's logo and accent
 colour go on its own sign-in page (see
-[Brand an app's sign-in page](../README.md#brand-an-apps-sign-in-page)).
+[Brand an app's sign-in page](branding.md)).
 
 ## In Umbral: create the app
 
@@ -153,7 +153,7 @@ matched exactly as the redirect URI is. Without one, or with any other address,
 the person is still signed out of Umbral, but lands on Umbral's home page in the
 browser sheet, and the app has to close it. A sign-out ends Umbral's session
 only: the person stays signed in at Google, GitHub or whichever provider they
-used (see [Signing out](../README.md#signing-out)).
+used (see [Signing out](integrate.md#signing-out)).
 
 With a private browser session (above) there is no Umbral session left in the
 browser, so step 1 is all there is to do.

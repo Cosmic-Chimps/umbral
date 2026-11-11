@@ -26,7 +26,7 @@ Google's.
 What to do, best first:
 
 1. **Use a real domain name with HTTPS.** This is the way to run Umbral anyway
-   (see [Run it for real](../../README.md#run-it-for-real-behind-https)). A
+   (see [Run it for real](../run/https.md)). A
    free dynamic-DNS name from a service such as DuckDNS works, as does a domain
    you buy. Point the name at the machine, put the reverse proxy with a
    certificate in front of Umbral (the repository's `docker-compose.yml` does
@@ -139,7 +139,7 @@ the shared one. A person who signs in to both apps with the same Google account
 is still **one** Umbral user. Disabling or deleting a connector, or changing an
 app's choice, warns you first if an app would be left with no way to sign in. A
 connector that is not shared and that no app has chosen is offered nowhere. See
-[Troubleshooting](../../README.md#troubleshooting).
+[Troubleshooting](../run/troubleshooting.md).
 
 ## Scopes Umbral requests
 
@@ -193,13 +193,13 @@ them is fine.
   `email_verified: true`. If the flag is false or missing, that person is
   created as a new user and is **not** linked to an existing account with the
   same address (see
-  [How people are identified](../../README.md#how-people-are-identified)).
+  [How people are identified](../integrate.md#how-people-are-identified)).
 
 ## Allowed email domains
 
 On the Connectors screen you can limit who can sign in by email domain, for the
 whole instance or for one connector (see
-[Who can sign in](../../README.md#who-can-sign-in)). While a rule applies, only
+[Who can sign in](../who-can-sign-in.md)). While a rule applies, only
 an email Google reports as verified counts, and the domain must match exactly.
 
 - A Google Workspace domain is owned by the company, so an address there was
@@ -216,7 +216,7 @@ To limit one app, create a connector for it with the domain rule and offer only
 that connector to the app. For example, add a second Google connector, "Google (Acme)",
 with your domain in **Allowed email domains**, then on **Apps** set the app's
 **Sign-in methods** to **Only the connectors I choose** and tick only that
-connector. See [Who can sign in](../../README.md#who-can-sign-in).
+connector. See [Who can sign in](../who-can-sign-in.md).
 
 ## Gotchas
 

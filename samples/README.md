@@ -50,7 +50,7 @@ A sample shows the claims as they come, without interpreting them.
   post-logout redirect URI, so that Umbral's session ends too and the person
   lands back on `/`. The post-logout redirect URI is registered on the app in
   Umbral, which redirects only to it (see
-  [Signing out](../README.md#signing-out)).
+  [Signing out](../docs/integrate.md#signing-out)).
 
 ### Settings
 

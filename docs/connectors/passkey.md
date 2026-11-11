@@ -148,7 +148,7 @@ They do not apply: passkeys carry no email, so there is nothing to judge. Who ca
 create an account is the enrolment mode, set on its page. The **Apps** screen
 warns about an app that offers a passkey connector set to **Anyone can sign up**,
 the way it warns about a connector without a domain rule, and does not warn when
-it is invitations only. See [Who can sign in](../../README.md#who-can-sign-in).
+it is invitations only. See [Who can sign in](../who-can-sign-in.md).
 
 ## Gotchas
 
@@ -185,4 +185,4 @@ it is invitations only. See [Who can sign in](../../README.md#who-can-sign-in).
 - **The security log** records `passkey_registered`, `passkey_removed`,
   `passkey_invitation_created` and `passkey_invitation_revoked`, and refusals as
   `sign_in_failed` with `passkey_refused;reason=…`. See
-  [Troubleshooting](../../README.md#troubleshooting).
+  [Troubleshooting](../run/troubleshooting.md).
