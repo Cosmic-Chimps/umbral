@@ -80,7 +80,8 @@ the **Client ID** from the app's page, and nothing else.
 An app has one redirect URI, and Umbral matches it **exactly**, character for
 character: scheme, host, port, path and a trailing slash all count, and
 wildcards are refused. A request with any other value gets an Umbral error page,
-not a redirect. Two kinds work for a phone app:
+not a redirect. The one exception is the port of a desktop app's loopback
+address, under [Desktop apps](#desktop-apps). Two kinds work for a phone app:
 
 - **A custom scheme**, such as `com.example.app:/callback`. Use the reverse of a
   domain you own, so no other app is likely to pick the same scheme. It is the
@@ -169,12 +170,35 @@ the person's other devices where their passkeys sync.
 ## Desktop apps
 
 A desktop app can use a custom scheme, as a phone app does, or a loopback
-redirect: it listens on a port of the computer itself and registers
-`http://127.0.0.1:<port>/callback`. Umbral matches that exactly too, **port
-included**, and `127.0.0.1` and `localhost` are different addresses to it. So
-the app must listen on the port it registered, and cannot pick a free port at
-random as RFC 8252 allows. If that port is taken, the sign-in fails. Pick an
-unusual fixed port, or use a custom scheme.
+redirect: it listens on a port of the computer itself, opens the system
+browser, and the browser comes back to that port with the code.
+
+Register the loopback address **without a port**, on a **Single-page or native
+app**: `http://127.0.0.1/callback`, or `http://[::1]/callback` for IPv6. The app
+then picks any free port when it starts a sign-in and sends it in the
+`redirect_uri`, such as `http://127.0.0.1:53124/callback`. Umbral accepts any
+port from 1 to 65535 there, as RFC 8252 §7.3 asks, and the token request sends
+the same `redirect_uri`, port included. Everything else is still matched
+exactly:
+
+- **The scheme is `http`.** A loopback `https://` address is matched exactly,
+  port included: no browser trusts a certificate for it anyway.
+- **The host is the address `127.0.0.1` or `[::1]`.** `localhost` is matched
+  exactly, port included. RFC 8252 §8.3 advises against it: it is a name, which
+  can resolve to the other IP version than the one the app listens on, or be
+  pointed elsewhere.
+- **The path and the query** are matched character for character.
+- **A loopback address registered with a port**, such as
+  `http://127.0.0.1:8400/callback`, accepts only that port.
+- **A Web application** gets no exception: the rule is for an app that runs on
+  the person's computer and holds no secret.
+
+The post-logout redirect URI follows the same rule: register
+`http://127.0.0.1/signed-out` and send it with the port the app is listening on.
+
+Have the app listen on the loopback address it registered only, not on every
+network interface of the computer, and stop listening once the code has
+arrived.
 
 ## Samples
 

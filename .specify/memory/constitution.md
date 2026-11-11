@@ -1,6 +1,44 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 3.0.1 → 3.1.0
+Rationale: MINOR, existing guidance materially expanded. Principle IV said
+"Redirect URIs MUST be matched exactly", and RFC 8252 §7.3 asks a server to
+accept any port on a loopback IP redirect, so that a desktop app can listen on
+a free port. A bullet now admits that one exception and bounds it: public apps
+only, `http` only, the literals `127.0.0.1` and `[::1]` only (never `localhost`,
+RFC 8252 §8.3), registered with no port, path and query exact. Not MAJOR: the
+principle still forbids sending anyone to an address the operator did not
+register, and still refuses wildcards; the port of a listener on the person's
+own computer is chosen at run time and was never part of what an operator could
+register for it.
+Found while doing this: OpenIddict 7.7.1 already applied a looser form of the
+rule to every public app (it also took `localhost` and `https`, and compared
+normalised paths), so the code was not following the old wording either. The
+same change replaces OpenIddict's rule with this one (task spgx).
+
+Principles:
+  IV. Secure by Default, Not by Configuration     EXPANDED (the loopback exception to exact redirect matching)
+  All others                                      unchanged
+
+Sections changed:
+  - Principle IV: one bullet after the exact-match bullet.
+  - Version line: 3.1.0, Last Amended 2026-11-11.
+
+Templates requiring updates:
+  ✅ .specify/templates/plan-template.md: no edit required.
+  ✅ .specify/templates/spec-template.md: no edit required.
+  ✅ .specify/templates/tasks-template.md: no edit required.
+  ✅ specs/001-umbral-mvp/spec.md (FR-003, exact match): history, not edited.
+  ✅ specs/012-several-redirect-uris/research.md R3 named this follow-up; it is
+     history and is not edited.
+
+Plans invalidated: none.
+
+Deferred items: none.
+
+Previous report (3.0.1) follows.
+==================
 Version change: 3.0.0 → 3.0.1
 Rationale: PATCH, a clarification with no change in meaning. Spec 001 noted
 that its single operator credential (FR-017) "sits awkwardly" with Principle
@@ -187,6 +225,13 @@ depend on the operator reading a hardening guide.
   the provider returns an `id_token`.
 - Redirect URIs MUST be matched exactly against registration. Wildcards MUST NOT
   be accepted.
+- The one exception is the loopback redirect of RFC 8252 §7.3, for public apps
+  only: a URI registered as `http://127.0.0.1` or `http://[::1]` with no port,
+  then its path and query, also matches the same text with a port inserted
+  after the host, since a desktop app picks a free port at run time. Nothing
+  else may differ. `localhost`, `https`, a URI registered with a port, and an
+  app that holds a secret keep the exact match. Post-logout redirect URIs
+  follow the same rule.
 - Authentication failures, credential changes, app registration changes, and
   admin logins MUST be recorded in a structured security log. Adding or removing
   a passkey is a credential change.
@@ -341,4 +386,4 @@ time and re-evaluated after design. Violations are either removed from the
 feature or recorded in the plan's Complexity Tracking table with an explicit
 justification; an unjustified violation blocks the plan.
 
-**Version**: 3.0.1 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-26
+**Version**: 3.1.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-11-11

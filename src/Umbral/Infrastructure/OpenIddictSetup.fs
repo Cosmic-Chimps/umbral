@@ -247,6 +247,56 @@ type RecordAuthorizationCodeReplay() =
             .Build()
 
 // ---------------------------------------------------------------------------
+// Redirect URI matching
+// ---------------------------------------------------------------------------
+
+/// OpenIddict's application manager with its redirect matching replaced.
+///
+/// For a native application OpenIddict already lets a loopback redirect choose
+/// its port (RFC 8252 §7.3), but its rule is looser than Umbral wants: it
+/// accepts `localhost` and `https`, and compares normalised paths rather than
+/// the text that was registered. So both validators are overridden, and
+/// `base` is never called, because calling it would bring that rule back.
+///
+/// The rule here is exact text first; then, for a native (public) app only,
+/// `RedirectUris.loopbackOnAnyPort`: `http://127.0.0.1` or `http://[::1]`
+/// registered without a port, requested with one, nothing else different. A
+/// web app registered on loopback gets no such latitude.
+///
+/// The token endpoint needs nothing: OpenIddict compares the token request's
+/// redirect_uri, character for character, to the one bound into the code.
+type UmbralApplicationManager<'TApplication when 'TApplication: not struct and 'TApplication: not null>
+    (
+        cache: IOpenIddictApplicationCache<'TApplication>,
+        logger: Microsoft.Extensions.Logging.ILogger<OpenIddict.Core.OpenIddictApplicationManager<'TApplication>>,
+        options: Microsoft.Extensions.Options.IOptionsMonitor<OpenIddict.Core.OpenIddictCoreOptions>,
+        store: IOpenIddictApplicationStore<'TApplication>
+    ) =
+    inherit OpenIddict.Core.OpenIddictApplicationManager<'TApplication>(cache, logger, options, store)
+
+    let matches (registered: System.Collections.Immutable.ImmutableArray<string>) (isNative: bool) (uri: string) =
+        registered |> Seq.exists (fun value -> String.Equals(value, uri, StringComparison.Ordinal))
+        || (isNative && registered |> Seq.exists (fun value -> Umbral.Domains.RedirectUris.loopbackOnAnyPort value uri))
+
+    override this.ValidateRedirectUriAsync(application, uri, cancellationToken) =
+        ValueTask<bool>(
+            task {
+                let! registered = this.GetRedirectUrisAsync(application, cancellationToken)
+                let! isNative = this.HasApplicationTypeAsync(application, ApplicationTypes.Native, cancellationToken)
+                return matches registered isNative uri
+            }
+        )
+
+    override this.ValidatePostLogoutRedirectUriAsync(application, uri, cancellationToken) =
+        ValueTask<bool>(
+            task {
+                let! registered = this.GetPostLogoutRedirectUrisAsync(application, cancellationToken)
+                let! isNative = this.HasApplicationTypeAsync(application, ApplicationTypes.Native, cancellationToken)
+                return matches registered isNative uri
+            }
+        )
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -267,7 +317,10 @@ let addOpenIddict (options: Options) (services: IServiceCollection) =
             // Reference tokens (below) write a row per issuance, so the token
             // table grows faster than it would otherwise. Pruning is not
             // optional on a device with an SD card.
-            core.UseQuartz() |> ignore)
+            core.UseQuartz() |> ignore
+
+            // Redirect matching: see UmbralApplicationManager.
+            core.ReplaceApplicationManager(typedefof<UmbralApplicationManager<_>>) |> ignore)
 
         .AddServer(fun server ->
             // Relative, with no leading slash: they resolve against PathBase.
