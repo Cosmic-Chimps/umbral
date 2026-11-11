@@ -92,6 +92,56 @@ let findBySlug (config: Database.DbConfig) (slug: string) =
         return List.tryHead rows
     }
 
+/// The slug of the one Apple connector (`Apple.Value`): there is at most one.
+[<Literal>]
+let private AppleSlug = "apple"
+
+/// The sign-in button's logo, read back through `AppleLogo.parse`: the stored
+/// text is parsed again with the rules that accepted it (specs/014 FR-012). None
+/// when there is no Apple connector, no logo, or a stored text that no longer
+/// parses (a hand-edited row): the button is then the plain one. Never throws.
+let appleLogo (config: Database.DbConfig) : Task<AppleLogo.AppleLogo option> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+        command.CommandText <- "SELECT apple_logo FROM connectors WHERE slug = @slug AND kind = 'apple'"
+        command.Parameters.AddWithValue("@slug", AppleSlug) |> ignore
+        let! value = command.ExecuteScalarAsync()
+
+        match value with
+        | :? string as text ->
+            match AppleLogo.parse text with
+            | Ok logo -> return Some logo
+            | Error _ -> return None
+        | _ -> return None
+    }
+
+let private writeAppleLogo (config: Database.DbConfig) (clock: TimeProvider) (logo: obj) : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+
+        command.CommandText <-
+            "UPDATE connectors SET apple_logo = @logo, updated_utc = @now WHERE slug = @slug AND kind = 'apple'"
+
+        command.Parameters.AddWithValue("@logo", logo) |> ignore
+        command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+        command.Parameters.AddWithValue("@slug", AppleSlug) |> ignore
+        let! changed = command.ExecuteNonQueryAsync()
+        return changed > 0
+    }
+
+/// Stores the logo as `AppleLogo.render` wrote it: the validated values and
+/// nothing else of what was pasted. Returns false when there is no Apple
+/// connector.
+let setAppleLogo (config: Database.DbConfig) (clock: TimeProvider) (logo: AppleLogo.AppleLogo) : Task<bool> =
+    writeAppleLogo config clock (AppleLogo.render logo :> obj)
+
+/// Removes the logo: the button is the plain one again. Returns false when there
+/// is no Apple connector.
+let clearAppleLogo (config: Database.DbConfig) (clock: TimeProvider) : Task<bool> =
+    writeAppleLogo config clock (DBNull.Value :> obj)
+
 /// The connector configured for an issuer, if any. `issuer` is the normalised
 /// form (`normaliseIssuer`), which is also what is stored: two spellings of one
 /// address must not become two connectors.

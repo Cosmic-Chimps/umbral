@@ -36,7 +36,7 @@ because Apple's artwork could not be bundled without checking its licence.
 - **FR-005** Every mark is inline SVG served by Umbral, `aria-hidden`, 1.25em like every icon;
   every button keeps its size, order, badge and focus ring.
 
-## Part B: Apple's logo, supplied by the operator (needs the maintainer's yes)
+## Part B: Apple's logo, supplied by the operator
 
 Umbral cannot bundle Apple's logo (R1). The design contract describes the alternative: an
 optional **Sign-in button logo** section in the Apple pane where the operator pastes the SVG
@@ -57,5 +57,24 @@ parsed to an allowlist (the `viewBox` and path data only) before it is stored an
 values reach the page, or it is served as an `<img>` from an Umbral route with its own CSP and
 `nosniff`. Tests include a hostile SVG.
 
-**Status:** waiting for the maintainer. Until then the Apple button stays title-only and the
-walkthrough keeps both warnings.
+**Decision:** the maintainer said yes on 2026-11-11.
+
+- **FR-010** The Apple pane has a section **Sign-in button logo** (design contract, answer 3)
+  once the Apple connector exists, with its own form: a textarea, Save logo, and, once a logo
+  is saved, a preview of the button, Replace, and Remove logo (a red ghost with a confirm).
+- **FR-011** Umbral accepts pasted text of at most 32 KiB that parses as XML with an `svg` root
+  and no DTD, whose elements are only `svg`, `g`, `path`, `rect`, `title`, `desc` and `defs`
+  (empty), and in which no attribute is an event handler (`on…`) or a reference (`href`,
+  `xlink:href`). Anything else is refused with the contract's reason, under the field, at 422,
+  and the pasted text is never drawn back.
+- **FR-012** What is stored is rebuilt by Umbral: the `viewBox` (four numbers) and each path's
+  `d` (path-data characters only), `fill-rule` (`nonzero` or `evenodd`) and `transform` (only
+  `translate`, `scale` and `matrix` with numbers). `rect` elements are the file's background
+  and are dropped; `title`, `desc`, ids, styles and colours are dropped. The stored text is
+  parsed again with the same rules before it reaches a page.
+- **FR-013** On the sign-in page the logo fills the Apple button's slot at the button's full
+  height, in `currentColor`, with no gap to the title; without a logo the button is unchanged.
+- **FR-014** The logo goes with the Apple connector: deleting the connector deletes it. Schema
+  version 11 adds `connectors.apple_logo` (NULL for every existing row).
+- **FR-015** Saving and removing the logo is operator-only and antiforgery-checked like every
+  admin form, and is recorded like the other changes to a connector.

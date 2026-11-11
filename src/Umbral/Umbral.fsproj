@@ -56,6 +56,7 @@
     <Compile Include="Domains/RedirectUris.fs" />
     <Compile Include="Domains/Branding.fs" />
     <Compile Include="Domains/PngLogo.fs" />
+    <Compile Include="Domains/AppleLogo.fs" />
     <Compile Include="Infrastructure/PublicOrigin.fs" />
     <Compile Include="Infrastructure/DataDirectory.fs" />
     <Compile Include="Infrastructure/TrustedProxies.fs" />
