@@ -109,3 +109,47 @@ Complete under section 6 and more: the README line ranges to their new homes, th
 its exceptions, the passkey table, every new sentence, the six decisions put as questions, the
 acceptance item by item with what was not checked said plainly, the T4 map for when it runs, and
 the maintainer's steps. My own check found the same exceptions and nothing else.
+
+---
+
+## Re-check, 2026-11-11, at `cb75872`
+
+**Clear to merge.**
+
+- **Blocking item, routed.** c36q was removed and recreated as **hhww**
+  (`.alta/tasks/2026-11-11-ui-and-log-point-the-documentation-link-and-every-message-th-hhww.md`):
+  its "Why" quotes `Program.fs:556` and this finding, its "What to do" points the warning at
+  `DocsUrl + "/run/troubleshooting/"` and greps `src/` for any other message naming a moved README
+  section, and its "Where" lists `Program.fs`. `notes.md` says so. Nothing in this branch had to
+  change for it.
+- **Nit 1:** `release.yml`'s comment names `docs/run/caravana.md`.
+- **Nit 2, taken in full:** `docs/run/operator-passkeys.md`, titled as its sidebar row, holds the
+  admin-area section alone plus a pointer to the walkthrough; the walkthrough's Gotchas gain the
+  "nothing is ever logged" sentence, the memory bullet verbatim, and a pointer to the admin page.
+  No reference to the old `docs/passkeys.md` or `/passkeys/` route is left.
+- **Nit 3:** recorded in `notes.md` beside the maintainer's step 4, for the PR description.
+- **Nit 4:** the README's sentence takes the suggested wording.
+- **Loss check, rerun.** The only change from the first run is the README's old passkey opening
+  (759–764), no longer kept as such. Against the walkthrough's opening, every statement is there
+  ("nothing to phish", "no third party learns who signed in", the public half, Umbral as the
+  provider) except one: "a person's passkeys belong to their user". See the nit below.
+- `check-links.py`: 270 links in 34 files, all resolve.
+
+### One nit from the re-check
+
+- **`docs/connectors/passkey.md`, the opening.** Add the one statement that no longer appears
+  anywhere: "In Umbral a passkey is a connector, and a person's passkeys belong to their user,
+  like the provider accounts they sign in with." It is the constitution's Principle I wording
+  for why passkeys are not a fourth concept, and the README's concepts table does not say it.
+  One sentence; no re-check needed.
+
+### The designer's question: "Back to the README. Other providers: …"
+
+Keep the line in the source: on GitHub it is the reader's only way back and sideways. On the site
+the sidebar does both jobs, and "the README" lands on the site's start page, which is not where
+the reader came from, so the line is noise there. **Drop it on the site, in the collect script:**
+when a page's first paragraph after the title starts with "Back to the [README]", leave that
+paragraph out of the generated page. That changes no source file, so the task's links-only rule
+for existing pages holds, and every connector and store page reads cleanly on the site. Do it in
+this branch if it is quick, so the code review still out sees it; otherwise a one-line follow-up
+task. Not a condition for merging.
