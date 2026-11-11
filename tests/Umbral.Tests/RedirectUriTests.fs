@@ -47,11 +47,11 @@ let ``an acceptable address is appended after the existing ones`` () =
     | Error e -> failwith $"should be added: {e}"
 
 [<Fact>]
-let ``an unacceptable address passes the reason of acceptable through`` () =
+let ``an unacceptable address passes the problem of check through`` () =
     let value = "https://*.example.com/cb"
 
-    match RedirectUris.add [] value, RedirectUris.acceptable value with
-    | Error(RedirectUris.Invalid why), Error expected -> Assert.Equal(expected, why)
+    match RedirectUris.add [] value, RedirectUris.check value with
+    | Error(RedirectUris.Invalid problem), Error expected -> Assert.Equal(expected, problem)
     | other -> failwith $"expected Invalid, got {other}"
 
 [<Theory>]
@@ -175,3 +175,35 @@ let ``a loopback registration accepts the same address on any port`` (registered
 [<InlineData("https://app.example.com/cb", "https://app.example.com:8443/cb")>]
 let ``a loopback registration refuses everything else`` (registered: string) (requested: string) =
     Assert.False(RedirectUris.loopbackOnAnyPort registered requested)
+
+// ---------------------------------------------------------------------------
+// The problem behind a refusal
+// ---------------------------------------------------------------------------
+
+[<Theory>]
+[<InlineData("", "empty")>]
+[<InlineData("https://*.example.com/cb", "wildcard")>]
+// On Unix a leading slash is a file URI, and is not an absolute URL for us.
+[<InlineData("/cb", "not-absolute")>]
+[<InlineData("not a url", "not-absolute")>]
+[<InlineData("https:///cb", "not-absolute")>]
+[<InlineData("https://a.example.com/cb#x", "fragment")>]
+let ``check names the problem of an unacceptable address`` (value: string) (code: string) =
+    match RedirectUris.check value with
+    | Error problem -> Assert.Equal(code, RedirectUris.problemCode problem)
+    | Ok _ -> failwith $"{value} should be refused"
+
+[<Fact>]
+let ``every problem round-trips through its code, and an unknown code is none`` () =
+    let all =
+        [ RedirectUris.Empty
+          RedirectUris.Wildcard
+          RedirectUris.NotAbsolute
+          RedirectUris.NoHost
+          RedirectUris.Fragment ]
+
+    for problem in all do
+        Assert.Equal(Some problem, RedirectUris.problemOfCode (RedirectUris.problemCode problem))
+
+    Assert.Equal(None, RedirectUris.problemOfCode "nope")
+    Assert.Equal(all.Length, all |> List.map RedirectUris.problemCode |> List.distinct |> List.length)

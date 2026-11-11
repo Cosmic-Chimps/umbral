@@ -173,6 +173,8 @@ type Texts =
       AppRedirectUriLastHint: string
       /// Shown in place of the add form when a list holds the maximum.
       AppUriListFull: string
+      /// Why an address was refused, under the add field it was typed in.
+      AppUriProblem: RedirectUris.Problem -> string
       AppRedirectUriAddLabel: string
       AppPostLogoutUriAddLabel: string
       AppUriAddButton: string
@@ -758,7 +760,7 @@ let private noticeEn (code: string) : string option =
     | "app-created" -> Some "App registered."
     | "app-name-required" -> Some "Give the app a name, then save again."
     | "app-redirect-uri-invalid" ->
-        Some "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
+        Some "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then try again."
     | "app-redirect-uri-added" -> Some "Redirect URI added."
     | "app-redirect-uri-removed" -> Some "Redirect URI removed. Sign-ins that send it are refused from now on."
     | "app-post-logout-uri-added" -> Some "Post-logout redirect URI added."
@@ -1048,6 +1050,14 @@ let en: Texts =
       AppPostLogoutUrisNone = "None. After signing out, people land on Umbral's home page."
       AppRedirectUriLastHint = "An app needs at least one redirect URI. Add the new one before you remove this one."
       AppUriListFull = $"This list is full ({RedirectUris.maxPerApp}). Remove one to add another."
+      AppUriProblem =
+        function
+        | RedirectUris.Wildcard -> "This address has a wildcard. Addresses are matched exactly, so list each one."
+        | RedirectUris.NotAbsolute ->
+            "This is not a full address. Include the scheme and host, for example https://app.example.com/callback."
+        | RedirectUris.NoHost -> "This address has no host."
+        | RedirectUris.Fragment -> "This address has a fragment (the part after #), which is never sent back. Remove it."
+        | RedirectUris.Empty -> "Enter an address."
       AppRedirectUriAddLabel = "Add a redirect URI"
       AppPostLogoutUriAddLabel = "Add a post-logout redirect URI"
       AppUriAddButton = "Add"

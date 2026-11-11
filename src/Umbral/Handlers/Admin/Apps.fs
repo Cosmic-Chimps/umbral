@@ -761,27 +761,39 @@ module KeptAddress =
     [<Literal>]
     let MaxLength = 2000
 
+    /// An address kept for a field, and why it was refused when that is known.
+    type Kept =
+        { Address: string
+          /// `None` for a cookie without a problem this code knows.
+          Why: RedirectUris.Problem option }
+
     /// The reason for `uri` typed in `list` (`redirect-uris` or
-    /// `post-logout-uris`), or `None` when there is nothing to keep or it is too
-    /// long. The address is percent-encoded so `;` and `=` cannot split the pairs.
-    let encode (list: string) (uri: string) : string option =
+    /// `post-logout-uris`) and refused for `problem`, or `None` when there is
+    /// nothing to keep or it is too long. The address is percent-encoded so `;`
+    /// and `=` cannot split the pairs; the problem travels as its code.
+    let encode (list: string) (problem: RedirectUris.Problem) (uri: string) : string option =
         if String.IsNullOrEmpty uri || uri.Length > MaxLength then
             None
         else
             let reason =
-                WebForms.NoticeReason.encodePairs [ "list", list; "uri", Uri.EscapeDataString uri ]
+                WebForms.NoticeReason.encodePairs
+                    [ "list", list
+                      "why", RedirectUris.problemCode problem
+                      "uri", Uri.EscapeDataString uri ]
 
             if reason.Length > MaxLength then None else Some reason
 
     /// The address a reason keeps for `list`; `None` for another list's, a
     /// missing or empty one, or anything this module did not write.
-    let decode (list: string) (reason: string) : string option =
+    let decode (list: string) (reason: string) : Kept option =
         let pairs = WebForms.NoticeReason.parsePairs reason
 
         match Map.tryFind "list" pairs, Map.tryFind "uri" pairs with
         | Some l, Some u when l = list && u <> "" ->
             try
-                Some(Uri.UnescapeDataString u)
+                Some
+                    { Address = Uri.UnescapeDataString u
+                      Why = Map.tryFind "why" pairs |> Option.bind RedirectUris.problemOfCode }
             with _ ->
                 None
         | _ -> None
@@ -807,13 +819,15 @@ type private UriListSpec =
       Marker: string
       /// The address an invalid add was refused for, drawn back in this list's
       /// field only.
-      Kept: string option }
+      Kept: KeptAddress.Kept option }
 
 /// One list of addresses in the Connection section: its label, the rows with a
 /// Remove each, the hint, and the add form (or the note that the list is full).
 let private uriList (ctx: HttpContext) (t: Texts.Texts) (row: Row) (spec: UriListSpec) =
     let isLast = spec.KeepOne && spec.Uris.Length = 1
     let addId = $"{spec.Id}-{row.ClientId}"
+    let problem = spec.Kept |> Option.bind (fun kept -> kept.Why)
+    let describedBy = if problem.IsSome then $"{addId}-hint {addId}-error" else $"{addId}-hint"
 
     div(class' = "space-y-2").data(spec.Marker, "") {
         p(class' = "um-label") { spec.Label }
@@ -868,14 +882,14 @@ let private uriList (ctx: HttpContext) (t: Texts.Texts) (row: Row) (spec: UriLis
                     let field =
                         match spec.Kept with
                         | Some kept ->
-                            input(type' = "text", id = addId, name = "uri", value = kept, class' = "um-input um-mono sm:flex-1")
+                            input(type' = "text", id = addId, name = "uri", value = kept.Address, class' = "um-input um-mono sm:flex-1")
                                 .attr("aria-invalid", "true")
                         | None -> input(type' = "text", id = addId, name = "uri", class' = "um-input um-mono sm:flex-1")
 
                     field
                         .attr("autocomplete", "off")
                         .attr("spellcheck", "false")
-                        .attr("aria-describedby", $"{addId}-hint")
+                        .attr("aria-describedby", describedBy)
 
                     // Its own width on a narrow screen, like the pane's other small buttons.
                     button(type' = "submit", class' = Components.btnSm Components.Secondary + " self-start sm:self-auto") {
@@ -885,6 +899,16 @@ let private uriList (ctx: HttpContext) (t: Texts.Texts) (row: Row) (spec: UriLis
                 }
 
                 p(id = $"{addId}-hint", class' = "um-hint") { spec.Hint }
+
+                // Why it was refused, under the hint, as a field's error is.
+                match problem with
+                | Some problem ->
+                    (p(id = $"{addId}-error", class' = "um-field-error") {
+                        Components.icon Theme.ErrorMark
+                        span() { t.AppUriProblem problem }
+                    })
+                    :> HtmlElement
+                | None -> Fragment() :> HtmlElement
             }
     }
 

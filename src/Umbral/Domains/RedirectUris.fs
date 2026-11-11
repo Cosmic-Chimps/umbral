@@ -8,45 +8,88 @@ module Umbral.Domains.RedirectUris
 
 open System
 
-/// Whether a string may be used as a redirect URI, and why not if not.
+/// Why a string may not be used as a redirect URI. A value with no words, so a
+/// screen can say it in its own language and the reason can travel as a code.
+type Problem =
+    | Empty
+    | Wildcard
+    | NotAbsolute
+    | NoHost
+    | Fragment
+
+/// The code of a problem: stable text for a cookie or a test, never shown.
+let problemCode (problem: Problem) : string =
+    match problem with
+    | Empty -> "empty"
+    | Wildcard -> "wildcard"
+    | NotAbsolute -> "not-absolute"
+    | NoHost -> "no-host"
+    | Fragment -> "fragment"
+
+/// The problem a code names, or `None` for anything else.
+let problemOfCode (code: string) : Problem option =
+    match code with
+    | "empty" -> Some Empty
+    | "wildcard" -> Some Wildcard
+    | "not-absolute" -> Some NotAbsolute
+    | "no-host" -> Some NoHost
+    | "fragment" -> Some Fragment
+    | _ -> None
+
+/// Whether a string may be used as a redirect URI, and the problem if not.
 ///
 /// One rule in one place. It used to be written twice, and the second copy was
 /// missing the file-scheme case below — which is how a rule written twice
 /// always ends.
-let acceptable (value: string) : Result<Uri, string> =
+let check (value: string) : Result<Uri, Problem> =
     // The wildcard check comes FIRST. A URL with a `*` in the host does not
     // parse as a Uri at all, so leaving it to the parser produces "is not an
     // absolute URL" — true, but it names the wrong cause for an operator who
     // deliberately wrote a wildcard and needs to be told Umbral matches exactly.
     if String.IsNullOrWhiteSpace value then
-        Error "is empty."
+        Error Empty
     elif value.Contains '*' then
-        Error $"\"{value}\" contains a wildcard. Redirect URIs are matched exactly."
+        Error Wildcard
     else
         match Uri.TryCreate(value, UriKind.Absolute) with
-        | false, _ -> Error $"\"{value}\" is not an absolute URL."
+        | false, _ -> Error NotAbsolute
         | true, uri ->
             match Option.ofObj uri with
-            | None -> Error $"\"{value}\" is not an absolute URL."
+            | None -> Error NotAbsolute
 
             // On Unix a leading slash parses as an absolute FILE uri, so
             // "/callback" would otherwise pass as an absolute URL and be stored
             // as a redirect target no provider could ever send anyone to.
-            | Some uri when uri.Scheme = Uri.UriSchemeFile ->
-                Error
-                    $"\"{value}\" is not an absolute URL. Include the scheme and host, \
-                      for example https://app.example.com/callback."
+            | Some uri when uri.Scheme = Uri.UriSchemeFile -> Error NotAbsolute
 
             | Some uri when
                 (uri.Scheme = Uri.UriSchemeHttp || uri.Scheme = Uri.UriSchemeHttps)
                 && String.IsNullOrEmpty uri.Host
                 ->
-                Error $"\"{value}\" has no host."
+                Error NoHost
 
-            | Some uri when uri.Fragment <> "" ->
-                Error $"\"{value}\" contains a fragment, which a provider will never send back."
+            | Some uri when uri.Fragment <> "" -> Error Fragment
 
             | Some uri -> Ok uri
+
+/// `check` with its problem in words, naming the value.
+let acceptable (value: string) : Result<Uri, string> =
+    match check value with
+    | Ok uri -> Ok uri
+    | Error Empty -> Error "is empty."
+    | Error Wildcard -> Error $"\"{value}\" contains a wildcard. Redirect URIs are matched exactly."
+    | Error NotAbsolute ->
+        match Uri.TryCreate(value, UriKind.Absolute) with
+        // A file uri is what a leading slash parses as: it has its own advice.
+        | true, uri when (match Option.ofObj uri with
+                          | Some u -> u.Scheme = Uri.UriSchemeFile
+                          | None -> false) ->
+            Error
+                $"\"{value}\" is not an absolute URL. Include the scheme and host, \
+                  for example https://app.example.com/callback."
+        | _ -> Error $"\"{value}\" is not an absolute URL."
+    | Error NoHost -> Error $"\"{value}\" has no host."
+    | Error Fragment -> Error $"\"{value}\" contains a fragment, which a provider will never send back."
 
 /// RFC 8252 §7.3: whether `requested` is `registered` with a port added, for a
 /// registration on a loopback IP address.
@@ -98,8 +141,8 @@ let maxPerApp = 10
 
 /// Why a candidate was not added to a list.
 type AddRefusal =
-    /// `acceptable` refused it; carries its reason, so the screen can name it.
-    | Invalid of string
+    /// `check` refused it; carries the problem, so the screen can name it.
+    | Invalid of Problem
     | AlreadyRegistered
     | Full
 
@@ -114,8 +157,8 @@ type AddRefusal =
 let add (registered: string list) (candidate: string) : Result<string list, AddRefusal> =
     let trimmed = candidate.Trim()
 
-    match acceptable trimmed with
-    | Error why -> Error(Invalid why)
+    match check trimmed with
+    | Error problem -> Error(Invalid problem)
     | Ok uri ->
         // A port-less loopback address accepts any port, the same one with a
         // port only that port, so the two are different registrations even

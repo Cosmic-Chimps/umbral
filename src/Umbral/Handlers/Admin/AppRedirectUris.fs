@@ -72,30 +72,33 @@ let private change (kind: Kind) (isAdd: bool) (clientId: string) : EndpointHandl
             let! stored = kind.Read applications application
             let current = List.ofSeq stored
 
-            // The outcome: the new list and what to log, or the notice that says no.
+            // The outcome: the new list and what to log, or the notice that says no
+            // (with the problem, for an address refused as invalid).
             let outcome =
                 if isAdd then
                     match RedirectUris.add current value with
                     | Ok list ->
                         // The stored form of the address, which `add` appended last.
                         Ok(list, kind.AddedDetail, List.last list, kind.AddedNotice)
-                    | Error(RedirectUris.Invalid _) -> Error "app-redirect-uri-invalid"
-                    | Error RedirectUris.AlreadyRegistered -> Error "app-redirect-uri-duplicate"
-                    | Error RedirectUris.Full -> Error "app-redirect-uri-limit"
+                    | Error(RedirectUris.Invalid problem) -> Error("app-redirect-uri-invalid", Some problem)
+                    | Error RedirectUris.AlreadyRegistered -> Error("app-redirect-uri-duplicate", None)
+                    | Error RedirectUris.Full -> Error("app-redirect-uri-limit", None)
                 else
                     match RedirectUris.remove current value kind.KeepOne with
                     | Ok list -> Ok(list, kind.RemovedDetail, value, kind.RemovedNotice)
-                    | Error RedirectUris.LastOne -> Error "app-redirect-uri-last"
-                    | Error RedirectUris.NotRegistered -> Error "app-redirect-uri-not-registered"
+                    | Error RedirectUris.LastOne -> Error("app-redirect-uri-last", None)
+                    | Error RedirectUris.NotRegistered -> Error("app-redirect-uri-not-registered", None)
 
             match outcome with
-            | Error notice ->
+            | Error(notice, problem) ->
                 // An address refused as invalid goes back to the field it was
-                // typed in, through the single-use cookie, never the URL.
-                if isAdd && notice = "app-redirect-uri-invalid" then
-                    match Apps.KeptAddress.encode kind.Route value with
+                // typed in, with why, through the single-use cookie, never the URL.
+                match problem with
+                | Some problem when isAdd ->
+                    match Apps.KeptAddress.encode kind.Route problem value with
                     | Some reason -> WebForms.NoticeReason.stash ctx notice "app" clientId reason
                     | None -> ()
+                | _ -> ()
 
                 return! WebForms.redirectWithNotice ctx (Apps.detailPath clientId) notice
             | Ok(newList, detail, changed, notice) ->

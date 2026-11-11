@@ -12,6 +12,7 @@ open System
 open System.Net
 open System.Text.RegularExpressions
 open Xunit
+open Umbral.Domains
 open Umbral.Infrastructure
 open Umbral.Tests.Infrastructure
 open Umbral.Tests.Infrastructure.Flows
@@ -331,10 +332,10 @@ let ``an address just under the bound comes back, in a cookie a browser keeps`` 
     task {
         let! app, operator, clientId, _ = setup ()
         use _ = app
-        // `list=redirect-uris;uri=` and the escaped prefix take 57 characters:
-        // the reason is 1,997, just under `MaxLength`.
-        let typed = "https://*.example.com/" + String('a', 1940)
-        let reason = Umbral.Handlers.Admin.Apps.KeptAddress.encode "redirect-uris" typed
+        // `list=redirect-uris;why=wildcard;uri=` and the escaped prefix take 70
+        // characters: the reason is 1,995, just under `MaxLength`.
+        let typed = "https://*.example.com/" + String('a', 1925)
+        let reason = Umbral.Handlers.Admin.Apps.KeptAddress.encode "redirect-uris" RedirectUris.Wildcard typed
         Assert.True(reason.IsSome && reason.Value.Length > 1990)
 
         let! refused = addRedirect operator clientId typed
@@ -355,6 +356,51 @@ let ``an address just under the bound comes back, in a cookie a browser keeps`` 
         Assert.Equal((Some typed, true), redirectField html clientId)
     }
 
+/// The `-error` element of a list's add field, and the field's `aria-describedby`.
+let private errorOf (html: string) (prefix: string) (clientId: string) =
+    let id = $"{prefix}-{clientId}-error"
+    let has = html.Contains($"id=\"{id}\"")
+
+    let tag = Regex.Match(html, "<input[^>]*id=\"" + Regex.Escape($"{prefix}-{clientId}") + "\"[^>]*>")
+    let describedBy = Regex.Match(tag.Value, "\\saria-describedby=\"([^\"]*)\"")
+    has, describedBy.Groups[1].Value.Split(' ') |> Array.contains id
+
+[<Fact>]
+let ``a refused wildcard redirect URI is explained under its field only`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+
+        let! _, html = refusedThenPage operator clientId addRedirect "https://*.example.com/cb"
+        Assert.Equal((true, true), errorOf html "redirect-uri-add" clientId)
+        Assert.Equal((false, false), errorOf html "post-logout-uri-add" clientId)
+    }
+
+[<Fact>]
+let ``a refused fragment post-logout URI is explained under the post-logout field`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+
+        let! _, html = refusedThenPage operator clientId addPostLogout "https://app.example.com/bye#x"
+        Assert.Equal((Some "https://app.example.com/bye#x", true), postLogoutField html clientId)
+        Assert.Equal((true, true), errorOf html "post-logout-uri-add" clientId)
+        Assert.Equal((false, false), errorOf html "redirect-uri-add" clientId)
+    }
+
+[<Fact>]
+let ``a second visit shows no error element`` () =
+    task {
+        let! app, operator, clientId, _ = setup ()
+        use _ = app
+        let! refused, first = refusedThenPage operator clientId addRedirect "https://*.example.com/cb"
+        Assert.Equal((true, true), errorOf first "redirect-uri-add" clientId)
+
+        let! again = operator.GetHtml(location refused)
+        Assert.Equal((false, false), errorOf again "redirect-uri-add" clientId)
+        Assert.Equal((false, false), errorOf again "post-logout-uri-add" clientId)
+    }
+
 [<Fact>]
 let ``a kept address is for its own app only`` () =
     task {
@@ -371,28 +417,45 @@ let ``a kept address is for its own app only`` () =
     }
 
 [<Fact>]
-let ``KeptAddress round-trips what it carries`` () =
-    for typed in [ "https://*.example.com/cb?a=1;b=2"; "100%/é/日本"; "a=b;c=d"; "%41%zz" ] do
-        let reason = Umbral.Handlers.Admin.Apps.KeptAddress.encode "redirect-uris" typed
-        Assert.True(reason.IsSome, typed)
-        Assert.Equal(Some typed, Umbral.Handlers.Admin.Apps.KeptAddress.decode "redirect-uris" reason.Value)
+let ``KeptAddress round-trips what it carries, with the problem`` () =
+    for problem in [ RedirectUris.Wildcard; RedirectUris.NotAbsolute; RedirectUris.NoHost; RedirectUris.Fragment ] do
+        for typed in [ "https://*.example.com/cb?a=1;b=2"; "100%/é/日本"; "a=b;c=d"; "%41%zz" ] do
+            let reason = Umbral.Handlers.Admin.Apps.KeptAddress.encode "redirect-uris" problem typed
+            Assert.True(reason.IsSome, typed)
+
+            match Umbral.Handlers.Admin.Apps.KeptAddress.decode "redirect-uris" reason.Value with
+            | Some kept ->
+                Assert.Equal(typed, kept.Address)
+                Assert.Equal(Some problem, kept.Why)
+            | None -> failwith $"{typed} was not kept"
+
+[<Fact>]
+let ``KeptAddress keeps the address when the problem is unknown or missing`` () =
+    let decode = Umbral.Handlers.Admin.Apps.KeptAddress.decode
+
+    for reason in [ "list=redirect-uris;why=nope;uri=https%3A%2F%2Fa"; "list=redirect-uris;uri=https%3A%2F%2Fa" ] do
+        match decode "redirect-uris" reason with
+        | Some kept ->
+            Assert.Equal("https://a", kept.Address)
+            Assert.Equal(None, kept.Why)
+        | None -> failwith $"{reason} should keep the address"
 
 [<Fact>]
 let ``KeptAddress carries nothing for another list, an empty address, too much or garbage`` () =
-    let open' = Umbral.Handlers.Admin.Apps.KeptAddress.encode
+    let encode = Umbral.Handlers.Admin.Apps.KeptAddress.encode
     let decode = Umbral.Handlers.Admin.Apps.KeptAddress.decode
     let max = Umbral.Handlers.Admin.Apps.KeptAddress.MaxLength
 
-    let reason = (open' "redirect-uris" "https://*.example.com/cb").Value
+    let reason = (encode "redirect-uris" RedirectUris.Wildcard "https://*.example.com/cb").Value
     Assert.Equal(None, decode "post-logout-uris" reason)
-    Assert.Equal(None, open' "redirect-uris" "")
-    Assert.Equal(None, open' "redirect-uris" (String('a', max + 1)))
+    Assert.Equal(None, encode "redirect-uris" RedirectUris.Wildcard "")
+    Assert.Equal(None, encode "redirect-uris" RedirectUris.Wildcard (String('a', max + 1)))
     // Short enough as typed, too long once percent-encoded.
-    Assert.Equal(None, open' "redirect-uris" (String('/', max - 100)))
+    Assert.Equal(None, encode "redirect-uris" RedirectUris.Wildcard (String('/', max - 100)))
     Assert.Equal(None, decode "redirect-uris" "")
     Assert.Equal(None, decode "redirect-uris" "garbage")
     Assert.Equal(None, decode "redirect-uris" "list=redirect-uris")
-    Assert.Equal(None, decode "redirect-uris" "list=redirect-uris;uri=")
+    Assert.Equal(None, decode "redirect-uris" "list=redirect-uris;why=wildcard;uri=")
     Assert.Equal(None, decode "redirect-uris" "uri=x")
 
 [<Theory>]
