@@ -34,3 +34,18 @@ The task's six cases are all tested, plus two good extras: the address can't be 
 ## For the re-check (the designer's follow-up)
 
 Only one thing I'll look at in particular: `why` must be a code from the closed `Problem` set, drawn as Umbral's own text from `Texts.fs`. It must never be text taken from the cookie, so the cookie keeps carrying only what this server chose to say.
+
+## Re-check at `9a8e1c7` (2026-11-11)
+
+**Clear to merge.** It takes the designer's nit: the reason a value was refused is shown under the field.
+- **What I held it to.** `why` travels as a code from the closed `RedirectUris.Problem` set. `problemOfCode` turns any other code into nothing, so a forged or stale code draws no reason line (the address still comes back). The sentence drawn is always `Texts.AppUriProblem problem`, never text from the cookie.
+- **The rule is the same.** `check` makes every decision the old `acceptable` made, in the same order, with the wildcard first. `acceptable` is now only words on top of it, and re-parses solely to keep the file-URI advice apart from the plain "not an absolute URL". No address is accepted or refused differently, and `RedirectUriTests` still checks the messages.
+- **The pane.** `p#{addId}-error.um-field-error` comes after the hint. The input's `aria-describedby` names it only when there is a problem. The handler's refusal now carries `(notice, problem option)`, and only an add with a problem stashes anything.
+- **Tests run by the reviewer**, from a git checkout of `9a8e1c7`'s files: `dotnet build -c Release`, 0 warnings.
+
+  | Class | Passed |
+  | --- | --- |
+  | `AppRedirectUrisTests` | 28 of 28 |
+  | `AppsMasterDetailTests` | 16 of 16 |
+  | `RedirectUriTests` | 63 of 63 |
+  | `MetaTests` | 46 of 46 |
