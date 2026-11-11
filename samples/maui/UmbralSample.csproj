@@ -1,7 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net10.0-android;net10.0-ios</TargetFrameworks>
+    <!-- iOS only on a Mac: its workload exists nowhere else, and a restore reads every target
+         framework even when the build asks for one, so on Linux or Windows the iOS one would
+         stop an Android build (NETSDK1178). -->
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-android;net10.0-ios</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>UmbralSample</RootNamespace>
     <UseMaui>true</UseMaui>
