@@ -86,3 +86,16 @@ All four nits taken, in `docs/connectors/apple.md`:
 Two messages in the table changed with the design review (the display name's refusal ends
 "then try again."; the secret-store notice ends with its next action). Both are again
 verbatim in `Texts.fs`. The link check passes (316 links).
+
+---
+
+## Addendum (documentation reviewer), 2026-11-11, at `49f7fd5`
+
+**Still clear.** All four nits taken: the Work & School statement now uses Apple's own name and
+cites its source in notes.md; "Before you start" says why there is one Apple connector (the
+button's title is fixed, so two would be two identical buttons) and what to do instead; the
+linking gotcha has both halves; Troubleshooting's first sentence no longer nests quotes or points
+at a missing anchor. The two messages that changed for the design review ("then try again."; "Check
+the store, then press Enable again.") are verbatim in `Texts.fs` and in the walkthrough, and the
+old wording is gone from both, checked by script. Link check: 316 links in 36 files, all resolve.
+The documentation review is complete.
