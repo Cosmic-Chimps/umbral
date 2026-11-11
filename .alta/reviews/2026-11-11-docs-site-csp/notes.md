@@ -111,10 +111,31 @@ another host`. `.github/scripts/changelog.sh check` passes.
 
 ## Not tested
 
-- The deployed site: there is none yet (Pages is still the maintainer's to turn on). GitHub Pages
-  adds no Content-Security-Policy header of its own, so the built pages served locally should
-  behave the same; to repeat after the first deploy.
+- The deployed site. It is live from `main`, which does not have the policy yet, so there is
+  nothing deployed to test before the merge. As far as I know GitHub Pages adds no
+  Content-Security-Policy header of its own, so the built pages served locally should behave the
+  same; I did not ask the live site for its headers. To repeat on the deployed site after the merge.
 - Safari itself and a phone: WebKit here is Playwright's build on macOS.
+
+## Merging with the link preview (`alta/roaming-foxglove-m2q5`, `cebbe8e..bbc6b04`)
+
+That branch is clear and not merged, and it also gives the site `head` entries (the `og:image`
+metas and two PNG icon links). The task's "this is the first `head` entry" was written before it,
+and this branch is cut from `main`, where it is still true. A trial merge of the two
+(`git merge-tree`, nothing written) says what the second one to land has to do:
+
+- `site/astro.config.mjs` conflicts. Keep both constants and **one** `head` key:
+  `head: [{ tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: contentSecurityPolicy } }, ...linkPreview]`.
+  Two `head` keys would be valid JavaScript in which the second silently replaces the first.
+- `site/scripts/check-dist.mjs` conflicts. Keep both `checkPreviewImage` and `checkPolicy`, and
+  both branches in the loop over the tags.
+- `site/README.md` merges by itself and is then wrong in two places: the table's "the site's one
+  `head` entry", and the paragraph "It is the `head` entry … and the only one: the site was built
+  without any, and this is the one exception." Both need to name the link preview's entries too.
+
+By reading, not by a build of the merge: the two fit. The link preview's metas are not fetched by
+the page, its two icons come from the site itself (`img-src 'self'`), and Starlight still sorts the
+policy before them. The walk should be run once on the merged build.
 
 ## For the design review (`umbral-designer`)
 
