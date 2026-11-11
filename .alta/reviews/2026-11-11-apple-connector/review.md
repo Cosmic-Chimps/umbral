@@ -83,3 +83,18 @@ The walkthrough's table of messages and the contract follow the new wording. All
 were retaken after the fix; the two you asked for are `pane-not-set-up-1280-dark.png` and
 `pane-not-set-up-360-light.png`. Affected tests pass (113 in the Apple admin, connector and
 meta files); the link check passes.
+
+## Re-check, 2026-11-11, at `49f7fd5`
+
+**Clear to merge.**
+
+- Blocking item taken: the Apple pane's set-up note is the neutral sentence, seen in
+  `pane-not-set-up-360-light`; nothing is claimed about Apple's own screen, and a test holds it.
+- Nits 3 and 4 taken as described in the answers above (read, not captured).
+- Nit 2 done by the reviewer: two value ignores for `design-system-color`, `#000` and `#fff`,
+  scoped to `src/Umbral/Assets/umbral.input.css`, written to `.impeccable/config.json` in this
+  worktree with the reason. The detector now reports only the long-standing crop-shade
+  advisory. The config change is uncommitted; commit it with this file.
+
+Still open, and not this review's: Apple's logo artwork (task pqzq, the maintainer's), and the
+note in the spec that the connector is not ready for an App Store submission until it is in.
