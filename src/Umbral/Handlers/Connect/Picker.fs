@@ -126,10 +126,21 @@ let arrange (last: string option) (offered: Connector list) : Connector option *
         | None -> None, offered
     | _ -> None, offered
 
+/// The slot for Apple's logo on the Apple connector's button. It is empty in this
+/// change and takes no space while it is, so the title stays centred. The artwork
+/// that goes inside as an inline SVG must be Apple's own file from Apple Design
+/// Resources: it must never be drawn by hand or loaded from another host, and
+/// adding it is a follow-up for the maintainer (specs/013, research R8).
+let private appleLogoSlot () =
+    span(class' = "um-apple-logo").data("apple-logo", "").attr("aria-hidden", "true") { }
+
 /// A connector's button. Primary when the app chose an accent colour, so the
 /// colour is what the person sees to press; secondary otherwise, as it always
 /// was (a logo alone does not recolour anything). The one last used carries a
-/// badge, and its accessible name says so after the visible label.
+/// badge, and its accessible name says so after the visible label. The Apple
+/// connector is the exception to all of it: Apple fixes its button's title and
+/// colours, so it keeps its own class whatever `kind` is, and wears its logo
+/// slot where the others have the link icon.
 let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: string) (lastUsed: bool) (connector: Connector) =
     let href =
         $"/connect/{Uri.EscapeDataString connector.Slug}/start?returnUrl={Uri.EscapeDataString returnUrl}"
@@ -137,23 +148,33 @@ let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: st
     let label =
         match connector.Kind with
         | Passkey -> t.SignInWithPasskey
+        | Apple -> t.SignInWithApple
         | _ -> t.SignInWith connector.DisplayName
 
+    let classes =
+        match connector.Kind with
+        | Apple -> "um-btn um-btn-apple w-full justify-center"
+        | _ -> Components.btn kind + " w-full justify-center"
+
+    let leading () : HtmlElement =
+        match connector.Kind with
+        | Apple -> appleLogoSlot () :> HtmlElement
+        | _ -> Components.icon Theme.Link :> HtmlElement
+
     let link =
-        a(href = href, class' = Components.btn kind + " w-full justify-center")
-            .data("connector", connector.Slug)
+        a(href = href, class' = classes).data("connector", connector.Slug)
 
     if lastUsed then
         link
             .data("last-used", "")
             .attr("aria-label", t.PickerLastUsedName label) {
-            Components.icon Theme.Link
+            leading ()
             label
             span(class' = "um-last-used") { t.PickerLastUsed }
         }
     else
         link {
-            Components.icon Theme.Link
+            leading ()
             label
         }
 

@@ -10,8 +10,8 @@ You do not need this if you only want Discord, GitHub or Google. Those have
 walkthroughs of their own, and no provider of your own to run.
 
 Back to the [README](../../README.md). Other providers:
-[Discord](discord.md) · [GitHub](github.md) · [Google](google.md) · [Passkeys](passkey.md) ·
-[Fediverse](fediverse.md).
+[Discord](discord.md) · [GitHub](github.md) · [Google](google.md) · [Apple](apple.md) ·
+[Passkeys](passkey.md) · [Fediverse](fediverse.md).
 
 ## Before you start
 
@@ -47,9 +47,9 @@ its **Identifier** (its slug) there. The identifier is part of the callback URL:
 For example, with the identifier `home` and the origin `https://auth.example.com`:
 `https://auth.example.com/connect/home/callback`. Use lower-case letters, digits
 and hyphens, up to 32 characters, such as `home` or `club-keycloak`. It cannot
-be the name of a kind of connector (`discord`, `github`, `google`, `passkey`,
-`oidc`, or `fake`, which Umbral's own tests use), and it cannot be changed
-later.
+be the name of a kind of connector (`discord`, `github`, `google`, `apple`,
+`passkey`, `oidc`, or `fake`, which Umbral's own tests use), and it cannot be
+changed later.
 
 Because you choose it, you can type the callback URL into your provider's
 console before you add the provider in Umbral. After you add it, the new page

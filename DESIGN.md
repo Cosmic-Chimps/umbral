@@ -237,7 +237,8 @@ Ink and bone with a corona of gold; by day, paper and ink with a darker gold.
 not `primary` / `on-primary`. In the dark theme both pairs are gold on umber. In
 the light theme the fill pair is ink (#17151f) with gold text (#f5c26b) while
 links stay the darker gold (#8a5a00), so a gold fill never has to carry dark text
-at 4.5:1. An app's accent sheet overrides both pairs and nothing else.
+at 4.5:1. An app's accent sheet overrides both pairs and nothing else. The one button
+outside this rule is the Apple connector's (see Buttons).
 
 **The One Red Fill Rule.** On any card, at most one button has the red `danger`
 fill, and it is the action that cannot be undone (Delete app, Delete connector).
@@ -376,6 +377,10 @@ one gold element on a surface is the one to use.
   `text-error`, for a reversible destructive action.
 - **Danger:** the red fill with `on-error` text; hover brightens. One per card,
   for what cannot be undone, always behind a native confirm.
+- **Apple:** the Apple connector's sign-in button (`.um-btn-apple`) is the one
+  button that does not take its colours from tokens: Apple's rules for a Sign in
+  with Apple button fix them to white on black in the light theme and black on
+  white in the dark theme, and it never takes an app's accent.
 - **Disabled:** 50% opacity and `not-allowed`, except the branding sample on an
   app's card, which is a picture of a button and stays at full opacity.
 - **Focus:** the global ring, 2px gold outline offset 2px.

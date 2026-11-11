@@ -192,6 +192,18 @@ type StubOidcProvider(issuer: string) =
     /// The token endpoint omits the `id_token` altogether.
     member val OmitIdToken = false with get, set
 
+    /// Where the token endpoint and the key set are served, below the issuer.
+    /// The defaults are what `defaultDiscovery` publishes; a provider whose
+    /// discovery document names other paths (the fake Apple) sets these to match.
+    member val TokenPath = "/token" with get, set
+    member val JwksPath = "/jwks" with get, set
+
+    /// Judges who is asking at the token endpoint, before any code is redeemed:
+    /// false answers `400 invalid_client` and leaves the code unspent, as a
+    /// provider does for a client it does not know. None (the default) accepts
+    /// every client, which is what every OpenID Connect test relies on.
+    member val ClientCheck: (TokenRequest -> Task<bool>) option = None with get, set
+
     /// Replace the token endpoint's answer with this status and body.
     member val TokenResponse: (HttpStatusCode * string) option = None with get, set
 
@@ -326,6 +338,15 @@ type StubOidcProvider(issuer: string) =
             | Some(status, text) -> return json status text
             | None ->
 
+            let! clientAccepted =
+                match this.ClientCheck, lastToken with
+                | Some check, Some request -> check request
+                | _ -> Task.FromResult true
+
+            if not clientAccepted then
+                return json HttpStatusCode.BadRequest """{"error":"invalid_client"}"""
+            else
+
             let clientId =
                 match basic with
                 | Some(id, _) -> id
@@ -392,8 +413,8 @@ type StubOidcProvider(issuer: string) =
                 | Some(status, body, mediaType) ->
                     return new HttpResponseMessage(status, Content = new StringContent(body, Encoding.UTF8, mediaType))
                 | None -> return json HttpStatusCode.OK (this.Discovery.ToJsonString())
-            | "GET", "/jwks" -> return json HttpStatusCode.OK (this.JwksJson())
-            | "POST", "/token" -> return! this.Token request
+            | "GET", p when p = this.JwksPath -> return json HttpStatusCode.OK (this.JwksJson())
+            | "POST", p when p = this.TokenPath -> return! this.Token request
             | "GET", "/userinfo" -> return json HttpStatusCode.OK (this.UserInfo.ToJsonString())
             | _ -> return json HttpStatusCode.NotFound """{"error":"not_found"}"""
         }

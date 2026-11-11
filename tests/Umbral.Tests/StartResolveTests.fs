@@ -22,7 +22,8 @@ let private endpoints =
       UserInfoUrl = ""
       Scopes = [ "openid" ]
       SupportsPkce = true
-      UsesNonce = true }
+      UsesNonce = true
+      AnswersByFormPost = false }
 
 /// An adapter that answers `Resolve` as told, and remembers the request it was
 /// given to build a URL from.
@@ -50,6 +51,7 @@ let private connector: Connector =
       AllowedEmailDomains = []
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = FediverseAccess.Any
+      AppleKey = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch

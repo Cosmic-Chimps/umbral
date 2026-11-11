@@ -83,6 +83,7 @@ let private testConnector (kind: ProviderKind) : Connector =
       AllowedEmailDomains = []
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = FediverseAccess.Any
+      AppleKey = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch
@@ -103,7 +104,8 @@ let private exchangeRequestFor (connector: Connector) (nonce: string) : Exchange
       RedirectUri = Uri $"https://umbral.test/connect/{connector.Slug}/callback"
       Code = "test-authorization-code"
       CodeVerifier = "test-code-verifier"
-      Nonce = nonce }
+      Nonce = nonce
+      PostedUser = None }
 
 let private expectOk (result: Result<ProviderProfile, ConnectorError>) : ProviderProfile =
     match result with

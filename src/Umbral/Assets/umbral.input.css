@@ -76,6 +76,24 @@
   .um-btn-ghost { @apply text-on-surface-variant; }
   .um-btn-danger { @apply bg-error text-on-error; }
   .um-btn-sm { @apply h-9 px-3.5 text-label-md; }
+  /* The Apple connector's sign-in button, the single exception to token colours.
+     Apple's rules for a "Sign in with Apple" button fix it to white on black or
+     black on white and allow no other colour, so it takes neither a token nor an
+     app's accent. The light theme gets black with white text and the dark theme
+     white with black text, chosen the way tailwind.config.js chooses the tokens:
+     dark on :root, light under data-theme="light" and under "system" when the OS
+     asks for light. No outline and no border. */
+  .um-btn-apple { background-color: #fff; color: #000; }
+  :root[data-theme="light"] .um-btn-apple { background-color: #000; color: #fff; }
+  @media (prefers-color-scheme: light) {
+    :root[data-theme="system"] .um-btn-apple { background-color: #000; color: #fff; }
+  }
+  /* The place for Apple's logo, empty until the maintainer adds Apple's own
+     artwork (Picker.fs). An empty slot takes no space, so the title stays
+     centred; a logo is as tall as the icon the other buttons carry. */
+  .um-apple-logo { display: inline-flex; flex: none; align-items: center; }
+  .um-apple-logo:empty { display: none; }
+  .um-apple-logo > svg { width: auto; height: 1.25em; fill: currentColor; }
   .um-label { @apply block text-label-sm uppercase text-on-surface-variant mb-1.5; }
   /* The title of a section inside a card ("Sign-in page branding"): a step above
      the field labels it groups, and below the card's own headline-md title. */
@@ -103,6 +121,12 @@
   .um-input:focus { @apply border-primary outline-none; }
   .um-input[aria-invalid="true"] { @apply border-error; }
   .um-input[readonly] { @apply text-on-surface-variant; }
+  /* The multi-line sibling of .um-input, for a value pasted whole (a .p8 key): the
+     same surface, border, radius and focus, but its height comes from its rows and
+     the padding is vertical as well, because .um-input is fixed at 44px. */
+  .um-textarea { @apply block w-full resize-y rounded-md bg-surface-container border border-outline px-3.5 py-2.5 text-body-md text-on-surface placeholder:text-on-surface-variant; }
+  .um-textarea:focus { @apply border-primary outline-none; }
+  .um-textarea[aria-invalid="true"] { @apply border-error; }
   /* The native file input's "Choose file" button, dressed as a small secondary button.
      border-style is set here because the base reset that makes every other border
      solid does not reach this pseudo-element, and the browser's own default for it
@@ -154,7 +178,7 @@
   .um-icon { display: inline-block; flex: none; width: 1.25em; height: 1.25em; vertical-align: -0.25em; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .um-btn, .um-input, .um-link, .um-footer-link, .um-choice, .um-check { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
+  .um-btn, .um-input, .um-textarea, .um-link, .um-footer-link, .um-choice, .um-check { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease, opacity 160ms ease; }
 }
 @supports selector(:has(*)) {
   .um-choice-radio:focus-visible { outline: none; }
@@ -163,6 +187,8 @@
 .um-btn-secondary:hover { @apply bg-surface-container-highest; }
 .um-btn-ghost:hover { @apply text-on-surface bg-surface-container; }
 .um-btn-danger:hover { @apply brightness-110; }
+/* A slight fade, not a colour change: the colours are Apple's. */
+.um-btn-apple:hover { opacity: 0.85; }
 
 /*
  * Display type: the page headings and the wordmark use Bricolage Grotesque

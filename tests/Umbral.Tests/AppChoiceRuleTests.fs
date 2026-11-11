@@ -17,6 +17,7 @@ let private connector slug kind enabled shared : Connector =
       AllowedEmailDomains = []
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = FediverseAccess.Any
+      AppleKey = None
       IsEnabled = enabled
       IsShared = shared
       CreatedUtc = DateTimeOffset.UnixEpoch

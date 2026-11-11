@@ -68,7 +68,7 @@ let endpoints: Endpoint list =
       yield! Umbral.Handlers.Admin.UserPasskeys.endpoint
       Umbral.Handlers.Connect.Picker.endpoint
       Umbral.Handlers.Connect.Start.endpoint
-      Umbral.Handlers.Connect.Callback.endpoint
+      yield! Umbral.Handlers.Connect.Callback.endpoint
       yield! Umbral.Handlers.Connect.Fediverse.endpoint
       yield! Umbral.Handlers.Connect.Authorize.endpoint
       Umbral.Handlers.Connect.Token.endpoint
@@ -316,6 +316,16 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
     // else (and a test can move it).
     services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
         Providers.Oidc.OidcAdapter(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName,
+            sp.GetRequiredService<OidcDiscovery.OidcDiscovery>(),
+            sp.GetRequiredService<TimeProvider>())
+        :> ProviderAdapters.IProviderAdapter)
+    |> ignore
+
+    // Sign in with Apple reuses the OpenID Connect discovery cache and the
+    // OpenID Connect adapter's token exchange and validation.
+    services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
+        Providers.Apple.AppleAdapter(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName,
             sp.GetRequiredService<OidcDiscovery.OidcDiscovery>(),
             sp.GetRequiredService<TimeProvider>())

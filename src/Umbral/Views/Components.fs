@@ -158,7 +158,8 @@ let pageHeading (title: string) (lead: string option) =
 /// describing the input (put first in aria-describedby) and the input's own
 /// extra attributes. `.attr` appends, so `configure` must not set type, id,
 /// name, value, class, aria-describedby or aria-invalid again.
-let fieldWith
+let private fieldWithClass
+    (inputClass: string)
     (inputType: string)
     (describedBy: string list)
     (configure: input -> unit)
@@ -177,7 +178,7 @@ let fieldWith
           if error.IsSome then errorId ]
         |> String.concat " "
 
-    let input' = input(type' = inputType, id = name, name = name, value = value, class' = "um-input")
+    let input' = input(type' = inputType, id = name, name = name, value = value, class' = inputClass)
 
     if describedByAttr <> "" then
         input'.attr("aria-describedby", describedByAttr) |> ignore
@@ -205,12 +206,74 @@ let fieldWith
         | None -> Fragment() :> HtmlElement
     }
 
+let fieldWith
+    (inputType: string)
+    (describedBy: string list)
+    (configure: input -> unit)
+    (label': string)
+    (name: string)
+    (value: string)
+    (hint: string option)
+    (error: string option)
+    =
+    fieldWithClass "um-input" inputType describedBy configure label' name value hint error
+
+/// A labelled text input in the monospace face, for an identifier read off
+/// another site character by character (a Team ID, a Key ID).
+let monoField (label': string) (name: string) (value: string) (hint: string option) (error: string option) =
+    fieldWithClass "um-input um-mono" "text" [] (fun i -> i.attr("autocomplete", "off").attr("spellcheck", "false") |> ignore) label' name value hint error
+
 /// A labelled text input with an optional hint and error
 let field label' name value hint error = fieldWith "text" [] ignore label' name value hint error
 
 /// A labelled password input
 let passwordField label' name hint error =
     fieldWith "password" [] (fun i -> i.attr("autocomplete", "new-password") |> ignore) label' name "" hint error
+
+/// A labelled multi-line box for a value that is pasted whole, like a `.p8` key.
+/// Monospace, because the value is characters to compare and not prose, and with
+/// every helper that would rewrite or suggest it turned off. Always drawn empty
+/// (the caller gives no value): what was pasted is a secret and is never put
+/// back on a page. The hint and the error are wired as in `fieldWith`.
+let textareaField (label': string) (name: string) (rows: int) (hint: string option) (error: string option) =
+    let hintId = $"{name}-hint"
+    let errorId = $"{name}-error"
+
+    let describedByAttr =
+        [ if hint.IsSome then hintId
+          if error.IsSome then errorId ]
+        |> String.concat " "
+
+    let area =
+        textarea(id = name, name = name, class' = "um-textarea um-mono")
+            .attr("rows", string rows)
+            .attr("autocomplete", "off")
+            .attr("spellcheck", "false")
+            .attr("autocapitalize", "off")
+
+    if describedByAttr <> "" then
+        area.attr("aria-describedby", describedByAttr) |> ignore
+
+    if error.IsSome then
+        area.attr("aria-invalid", "true") |> ignore
+
+    div() {
+        label(for' = name, class' = "um-label") { label' }
+        area
+
+        match hint with
+        | Some h -> (p(id = hintId, class' = "um-hint") { h }) :> HtmlElement
+        | None -> Fragment() :> HtmlElement
+
+        match error with
+        | Some e ->
+            (p(id = errorId, class' = "um-field-error") {
+                icon ErrorMark
+                span() { e }
+            })
+            :> HtmlElement
+        | None -> Fragment() :> HtmlElement
+    }
 
 /// A labelled password input for a credential that already exists, so a
 /// password manager offers the saved value rather than suggesting a new one.

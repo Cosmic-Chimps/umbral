@@ -142,10 +142,12 @@ let ``after a failed callback the page still names the app`` () =
 
         let! toPicker = visitor.Get(authorizeUrl idA)
         let picker = location toPicker
-        let! _ = visitor.Get(picker.Replace("/signin", "/connect/fake/start"))
+        let! toProvider = visitor.Get(picker.Replace("/signin", "/connect/fake/start"))
+        let state = Regex.Match(Uri.UnescapeDataString(location toProvider), "state=([^&]+)").Groups[1].Value
 
-        // The person pressed cancel at the provider.
-        let! declined = visitor.Get "/connect/fake/callback?error=access_denied"
+        // The person pressed cancel at the provider, which answers with the
+        // `state` it was given (RFC 6749 section 4.1.2.1).
+        let! declined = visitor.Get $"/connect/fake/callback?error=access_denied&state={state}"
         let back = location declined
         Assert.Contains("msg=access-denied", back)
 

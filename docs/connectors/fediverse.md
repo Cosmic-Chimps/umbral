@@ -23,7 +23,7 @@ person picks another account or another connector; nothing is saved and nothing
 is asked of you.
 
 Back to the [README](../../README.md). Other providers:
-[Discord](discord.md) · [GitHub](github.md) · [Google](google.md) ·
+[Discord](discord.md) · [GitHub](github.md) · [Google](google.md) · [Apple](apple.md) ·
 [OpenID Connect](oidc.md) · [Passkeys](passkey.md).
 
 ## Before you start

@@ -41,6 +41,7 @@ let private connector: Connector =
       AllowedEmailDomains = []
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = FediverseAccess.Any
+      AppleKey = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UtcNow
@@ -96,7 +97,8 @@ let private login (rig: Rig) =
                   RedirectUri = redirectUri
                   Code = authorization.Code
                   CodeVerifier = Flows.Verifier
-                  Nonce = nonce }
+                  Nonce = nonce
+                  PostedUser = None }
     }
 
 let private accepted (result: Result<ProviderProfile, ConnectorError>) =

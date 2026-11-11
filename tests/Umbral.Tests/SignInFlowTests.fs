@@ -182,6 +182,7 @@ let private addLabConnector (app: Fixtures.TestApp) =
                   AllowedEmailDomains = []
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
+                  AppleKey = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
@@ -380,10 +381,12 @@ let ``a provider decline with a valid correlation also keeps the returnUrl`` () 
         let authorize = Journeys.authorizeUrl prepared.ClientId "openid"
         let! toPicker = browser.Get authorize
         let picker = toPicker.Headers.Location |> string
-        let! _ = browser.Get(picker.Replace("/signin", "/connect/fake/start"))
+        let! toProvider = browser.Get(picker.Replace("/signin", "/connect/fake/start"))
+        let state = Regex.Match(Uri.UnescapeDataString(string toProvider.Headers.Location), "state=([^&]+)").Groups[1].Value
 
-        // The person pressed cancel at the provider.
-        let! declined = browser.Get "/connect/fake/callback?error=access_denied"
+        // The person pressed cancel at the provider, which answers with the
+        // `state` it was given (RFC 6749 section 4.1.2.1).
+        let! declined = browser.Get $"/connect/fake/callback?error=access_denied&state={state}"
 
         let location = declined.Headers.Location |> string
         Assert.Contains("msg=access-denied", location)

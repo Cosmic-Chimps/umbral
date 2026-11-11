@@ -14,17 +14,83 @@ open Microsoft.AspNetCore.Http
 open Umbral.Domains
 
 [<Literal>]
-let private ProtectorPurpose = "Umbral.Connect.v1"
-
-[<Literal>]
-let private CookieName = "umbral_connect"
-
-[<Literal>]
 let private CookiePath = "/connect"
 
 /// Ten minutes. Matches GitHub's authorization-code lifetime, so a correlation
 /// never outlives the code it is protecting.
 let private Lifetime = TimeSpan.FromMinutes 10.0
+
+/// How the provider sends its answer back to the callback.
+type ResponseMode =
+    /// A redirect: the answer is in the query string of a GET. Every provider but Apple.
+    | Redirect
+    /// `response_mode=form_post`: the answer is the body of a cross-site POST (Apple).
+    | FormPost
+
+/// The two values of the provider's answer this file judges, read by the
+/// caller from wherever the answer came: the query string or the form.
+type Answer =
+    { State: string option
+      Error: string option }
+
+/// The answer of a redirect, read from the query string: the first value of
+/// each, and a null as nothing.
+let answerOfQuery (ctx: HttpContext) : Answer =
+    let first (name: string) =
+        match ctx.Request.Query.TryGetValue name with
+        | true, value when value.Count > 0 -> Option.ofObj (value[0])
+        | _ -> None
+
+    { State = first "state"
+      Error = first "error" }
+
+// ---------------------------------------------------------------------------
+// The cookie of each mode
+//
+// A `SameSite=Lax` cookie is not sent by a browser on a cross-site POST, and
+// Apple answers with exactly that: a form posted from appleid.apple.com. So the
+// form-post mode has a cookie of its own that is `SameSite=None`, which a
+// browser sends on a cross-site POST, and `Secure`, which a browser requires of
+// a `None` cookie and drops it without (Apple accepts only https return URLs
+// anyway). That is what ASP.NET Core's own OpenID Connect handler does for the
+// same reason.
+//
+// `None` is not used for the other providers because a browser does not send it
+// over plain http, which the laptop trial runs on. Their cookie stays `Lax`,
+// exactly as it was.
+//
+// The form-post cookie carries the `__Secure-` prefix. It is always `Secure`, so
+// the prefix costs nothing, and a browser then refuses to let a plain-http
+// response plant or overwrite it: a man in the middle on http cannot give the
+// victim a correlation the attacker minted for their own sign-in. `__Host-`
+// would also stop a sibling subdomain, but it requires `Path=/` and this cookie
+// is limited to `/connect`. The `Lax` cookie cannot take a prefix, because it is
+// used over plain http in development.
+//
+// The two modes differ in cookie name AND in protector purpose, so a
+// correlation minted in one mode cannot be redeemed in the other by
+// construction: the other mode does not look at that cookie, and could not
+// decrypt it if handed the value. No flag inside the payload is trusted for it.
+// ---------------------------------------------------------------------------
+
+type private CookieSettings =
+    { CookieName: string
+      Purpose: string
+      SameSite: SameSiteMode
+      Secure: bool }
+
+let private settingsFor (ctx: HttpContext) (mode: ResponseMode) =
+    match mode with
+    | Redirect ->
+        { CookieName = "umbral_connect"
+          Purpose = "Umbral.Connect.v1"
+          SameSite = SameSiteMode.Lax
+          Secure = ctx.Request.IsHttps }
+    | FormPost ->
+        { CookieName = "__Secure-umbral_connect_post"
+          Purpose = "Umbral.Connect.FormPost.v1"
+          SameSite = SameSiteMode.None
+          Secure = true }
 
 /// What is stashed between the redirect out and the callback back.
 type Correlation =
@@ -41,6 +107,18 @@ type Correlation =
       /// every other kind. The callback exchanges the code there and nowhere
       /// else (specs/010 research R9).
       Server: string }
+
+/// The provider's error word as it may reach the security log: only
+/// `[a-z_]{1,64}`, else the fixed word `other`. The log's `detail` is short and
+/// structured and `;` and `=` separate its fields, so a provider's free text, or
+/// a forger's, must not be able to add fields of its own or fill the log (the
+/// same rule as `safeDomain` in `SecurityEvents.fs`). The words that matter,
+/// `access_denied` and `user_cancelled_authorize`, pass unchanged.
+let private cleanErrorWord (error: string) =
+    if error.Length >= 1 && error.Length <= 64 && error |> Seq.forall (fun c -> (c >= 'a' && c <= 'z') || c = '_') then
+        error
+    else
+        "other"
 
 type RoundTripError =
     | NoCorrelation
@@ -115,12 +193,13 @@ type Started =
     { Correlation: Correlation
       CodeChallenge: string }
 
-/// Mint the correlation and set the cookie. Returns what the adapter needs to
-/// build its authorize URL.
+/// Mint the correlation and set the cookie of `mode`. Returns what the adapter
+/// needs to build its authorize URL.
 let start
     (protectorProvider: IDataProtectionProvider)
     (clock: TimeProvider)
     (ctx: HttpContext)
+    (mode: ResponseMode)
     (slug: string)
     (server: string)
     (returnUrl: string)
@@ -136,22 +215,23 @@ let start
           IssuedAtUtc = clock.GetUtcNow()
           Server = server }
 
-    let protector = protectorProvider.CreateProtector ProtectorPurpose
+    let settings = settingsFor ctx mode
+    let protector = protectorProvider.CreateProtector settings.Purpose
     let payload = protector.Protect(encode correlation)
 
     let options = CookieOptions()
     options.HttpOnly <- true
     options.IsEssential <- true
     options.Path <- CookiePath
-    // Lax, not Strict: the browser returns here on the provider's top-level
-    // redirect, and a Strict cookie is withheld on exactly that navigation, so
-    // every login would fail. Not None either — some browsers drop it over
-    // plain http, which breaks local development.
-    options.SameSite <- SameSiteMode.Lax
-    options.Secure <- ctx.Request.IsHttps
+    // Lax, not Strict, for a redirect: the browser returns here on the
+    // provider's top-level redirect, and a Strict cookie is withheld on exactly
+    // that navigation, so every login would fail. The form-post mode needs
+    // `None`. Why each, and why not `None` everywhere: see the section above.
+    options.SameSite <- settings.SameSite
+    options.Secure <- settings.Secure
     options.MaxAge <- Lifetime
 
-    ctx.Response.Cookies.Append(CookieName, payload, options)
+    ctx.Response.Cookies.Append(settings.CookieName, payload, options)
 
     { Correlation = correlation
       CodeChallenge = Ids.codeChallengeS256 verifier }
@@ -170,11 +250,19 @@ let start
 // one container by design — the bound is "sign-ins in the last ten minutes",
 // which for this audience is single digits.
 //
+// The remembering IS the check, in one atomic step: `TryAdd` succeeds for
+// exactly one of any number of concurrent callbacks that carry the same state,
+// and the rest get `Replayed`. A separate "has it been used" read followed by a
+// later write would let two requests that arrive together both pass the read.
+// Expired entries are pruned before the add, so an entry older than the
+// lifetime never blocks a state.
+//
 // Without this, "single use" was a claim in a comment rather than a property.
 // ---------------------------------------------------------------------------
 
 let private consumed = Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset>()
 
+/// True when this call is the first to use `state`.
 let private rememberConsumed (now: DateTimeOffset) (state: string) =
     // Prune while inserting: no timer, no background service, and the table
     // cannot outgrow the window.
@@ -184,52 +272,72 @@ let private rememberConsumed (now: DateTimeOffset) (state: string) =
 
     consumed.TryAdd(state, now)
 
-let private alreadyConsumed (now: DateTimeOffset) (state: string) =
-    match consumed.TryGetValue state with
-    | true, usedAt -> now - usedAt <= Lifetime
-    | _ -> false
-
 // ---------------------------------------------------------------------------
 // Complete
 // ---------------------------------------------------------------------------
 
-let private deleteCookie (ctx: HttpContext) =
+/// With the attributes the cookie was set with: a browser removes a cookie only
+/// when the deleting one has the same name, path and, for `SameSite=None`, the
+/// same `Secure`.
+let private deleteCookie (ctx: HttpContext) (settings: CookieSettings) =
     let options = CookieOptions()
     options.Path <- CookiePath
-    options.Secure <- ctx.Request.IsHttps
-    options.SameSite <- SameSiteMode.Lax
-    ctx.Response.Cookies.Delete(CookieName, options)
+    options.Secure <- settings.Secure
+    options.SameSite <- settings.SameSite
+    ctx.Response.Cookies.Delete(settings.CookieName, options)
+
+/// The cookie of `mode`, when the request carries a non-empty one.
+let private readCookie (ctx: HttpContext) (settings: CookieSettings) =
+    match ctx.Request.Cookies.TryGetValue settings.CookieName with
+    // A `when` guard does not narrow nullness for the compiler, so the
+    // null case is matched rather than tested.
+    | true, value ->
+        match Option.ofObj value with
+        | Some v when v.Length > 0 -> Some v
+        | _ -> None
+    | _ -> None
 
 /// Validate the callback and surrender the correlation.
+///
+/// `answer` is what the provider sent, read by the caller from the query string
+/// of a redirect or the form of a post; `mode` says which cookie to look for.
 ///
 /// Order matters here and is the whole point of the function:
 ///
 ///   1. read the cookie
 ///   2. DELETE it, before anything else can fail or succeed
-///   3. only then compare
+///   3. decrypt it
+///   4. `state`: missing is `StateMissing`, and one that does not equal the
+///      correlation's (constant time) is `StateMismatch`
+///   5. the slug, then the expiry
+///   6. single use: the last gate, one atomic step
+///   7. only now, for a correlation that passed all of that, the provider's own
+///      `error` is believed
 ///
 /// Deleting first is what makes a replayed callback find nothing. If deletion
 /// happened after a successful exchange, an attacker could replay the callback
 /// until something raced.
+///
+/// `state` comes before the provider's `error` because a page on another site
+/// can post (or link to) any `error` it likes and make the browser send the
+/// cookie along. A real provider returns `state` with its error (RFC 6749
+/// section 4.1.2.1), so an error that does not carry the right `state` is not
+/// the provider's: it is reported as the missing or wrong `state` it is, never
+/// as a person pressing cancel. The correlation is spent either way.
 let complete
     (protectorProvider: IDataProtectionProvider)
     (clock: TimeProvider)
     (ctx: HttpContext)
+    (mode: ResponseMode)
     (slug: string)
+    (answer: Answer)
     : Result<Correlation, RoundTripError> =
 
-    let cookie =
-        match ctx.Request.Cookies.TryGetValue CookieName with
-        // A `when` guard does not narrow nullness for the compiler, so the
-        // null case is matched rather than tested.
-        | true, value ->
-            match Option.ofObj value with
-            | Some v when v.Length > 0 -> Some v
-            | _ -> None
-        | _ -> None
+    let settings = settingsFor ctx mode
+    let cookie = readCookie ctx settings
 
     // Unconditionally, and before any comparison: one callback, one chance.
-    deleteCookie ctx
+    deleteCookie ctx settings
 
     match cookie with
     | None -> Error NoCorrelation
@@ -237,7 +345,7 @@ let complete
 
     let correlation =
         try
-            let protector = protectorProvider.CreateProtector ProtectorPurpose
+            let protector = protectorProvider.CreateProtector settings.Purpose
             decode (protector.Unprotect payload)
         with _ ->
             // A tampered or undecryptable cookie, or a key ring that changed.
@@ -248,23 +356,8 @@ let complete
     | None -> Error Corrupt
     | Some correlation ->
 
-    // The provider's own refusal comes back as a query parameter with no code.
-    // Checked after the cookie is gone so a cancelled attempt cannot be reused.
-    let providerError =
-        match ctx.Request.Query.TryGetValue "error" with
-        | true, value when value.Count > 0 -> Option.ofObj (value[0])
-        | _ -> None
-
-    match providerError with
-    | Some error -> Error(ProviderReturnedError error)
-    | None ->
-
-    let returnedState =
-        match ctx.Request.Query.TryGetValue "state" with
-        | true, value when value.Count > 0 -> Option.ofObj (value[0])
-        | _ -> None
-
-    match returnedState with
+    // An empty state is a missing one: it cannot equal a minted value.
+    match answer.State |> Option.filter (fun s -> s.Length > 0) with
     | None -> Error StateMissing
     | Some returnedState ->
 
@@ -274,10 +367,6 @@ let complete
 
     if not (Ids.constantTimeEquals correlation.State returnedState) then
         Error StateMismatch
-    elif alreadyConsumed now correlation.State then
-        // A second callback carrying a correlation that has already been
-        // redeemed. The cookie deletion did not stop it, so the server does.
-        Error Replayed
     elif correlation.Slug <> slug then
         // The response arrived on a different connector's callback route than
         // the one it was minted for. Distinct routes per provider exist so the
@@ -287,9 +376,17 @@ let complete
         // Checked even though the cookie carries Max-Age: a client controls its
         // own cookie jar, and the server's clock is the one that counts.
         Error Expired
+    elif not (rememberConsumed now correlation.State) then
+        // A second callback carrying a correlation that has already been
+        // redeemed. The cookie deletion did not stop it, so the server does.
+        // This is also what spends a correlation that carried a provider error.
+        Error Replayed
     else
-        rememberConsumed now correlation.State |> ignore
-        Ok correlation
+        // Believed only now: the browser held this correlation and the answer
+        // carried its `state`.
+        match answer.Error with
+        | Some error -> Error(ProviderReturnedError(cleanErrorWord error))
+        | None -> Ok correlation
 
 /// The authorization request this round trip belongs to, read from the
 /// correlation cookie WITHOUT consuming it. `complete` rejects most failures
@@ -301,17 +398,19 @@ let complete
 ///
 /// Reads only. It does not delete the cookie and does not mark anything
 /// consumed, so it cannot weaken `complete`.
-let peek (protectorProvider: IDataProtectionProvider) (clock: TimeProvider) (ctx: HttpContext) : Correlation option =
-    let cookie =
-        match ctx.Request.Cookies.TryGetValue CookieName with
-        | true, value -> Option.ofObj value |> Option.filter (fun v -> v.Length > 0)
-        | _ -> None
+let peek
+    (protectorProvider: IDataProtectionProvider)
+    (clock: TimeProvider)
+    (ctx: HttpContext)
+    (mode: ResponseMode)
+    : Correlation option =
+    let settings = settingsFor ctx mode
 
-    match cookie with
+    match readCookie ctx settings with
     | None -> None
     | Some payload ->
         try
-            let protector = protectorProvider.CreateProtector ProtectorPurpose
+            let protector = protectorProvider.CreateProtector settings.Purpose
 
             match decode (protector.Unprotect payload) with
             | Some correlation when clock.GetUtcNow() - correlation.IssuedAtUtc <= Lifetime ->
@@ -322,5 +421,10 @@ let peek (protectorProvider: IDataProtectionProvider) (clock: TimeProvider) (ctx
 
 /// The authorization request of `peek`'s correlation: where a failed callback
 /// returns the person.
-let returnUrlOf (protectorProvider: IDataProtectionProvider) (clock: TimeProvider) (ctx: HttpContext) : string option =
-    peek protectorProvider clock ctx |> Option.map _.ReturnUrl
+let returnUrlOf
+    (protectorProvider: IDataProtectionProvider)
+    (clock: TimeProvider)
+    (ctx: HttpContext)
+    (mode: ResponseMode)
+    : string option =
+    peek protectorProvider clock ctx mode |> Option.map _.ReturnUrl

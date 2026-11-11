@@ -258,13 +258,13 @@ let ``the list holds the configured connectors, then the kinds not set up, then 
         let! html = operator.GetHtml "/admin/connectors?msg=connector-saved&slug=fake"
         let order = entryOrder html
 
-        Assert.Equal<string list>([ "fake"; "fake-two"; "discord"; "github"; "google"; "fediverse"; "passkey"; "domains" ], order)
+        Assert.Equal<string list>([ "fake"; "fake-two"; "discord"; "github"; "google"; "apple"; "fediverse"; "passkey"; "domains" ], order)
 
         // The configured ones are not muted; the kinds not set up are, and so is passkey.
         for slug in [ "fake"; "fake-two" ] do
             Assert.DoesNotContain("data-entry-muted", entryTag html slug)
 
-        for slug in [ "discord"; "github"; "google"; "passkey" ] do
+        for slug in [ "discord"; "github"; "google"; "apple"; "passkey" ] do
             Assert.Contains("data-entry-muted", entryTag html slug)
 
         // A hairline sits between the entries and the pinned one.
@@ -442,6 +442,7 @@ let private seedLegacy (app: Fixtures.TestApp) (slug: string) =
                   AllowedEmailDomains = []
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
+                  AppleKey = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
@@ -586,8 +587,8 @@ let ``entries, the pinned entry and the add button swap the frame with htmx, and
 
         let links = entryTags html @ [ addButton html ]
 
-        // Two entries, the three kinds not set up, fediverse, passkey, the pinned entry, the add button.
-        Assert.Equal(9, links.Length)
+        // Two entries, the four kinds not set up (Apple among them), fediverse, passkey, the pinned entry, the add button.
+        Assert.Equal(10, links.Length)
 
         for link in links do
             let href = Regex.Match(link, "\\shref=\"([^\"]*)\"").Groups[1].Value

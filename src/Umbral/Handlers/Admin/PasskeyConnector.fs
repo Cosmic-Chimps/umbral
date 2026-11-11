@@ -375,6 +375,7 @@ let save: EndpointHandler =
                               AllowedEmailDomains = []
                               PasskeyEnrolment = enrolment
                               FediverseAccess = FediverseAccess.Any
+                              AppleKey = None
                               IsEnabled = true
                               IsShared = shared
                               CreatedUtc = now
@@ -406,7 +407,7 @@ let save: EndpointHandler =
                         return!
                             WebForms.NoticeReason.redirect ctx (detailPath Slug) "connector-strands-apps" "slug" Slug "unshare"
                     else
-                        let! _ = ConnectorStore.update config clock Slug "Passkey" "" shared None None
+                        let! _ = ConnectorStore.update config clock Slug "Passkey" "" shared None None None
                         let! _ = ConnectorStore.setEnrolment config clock Slug enrolment
                         do! record ctx SecurityEvents.ConnectorUpdated None detail
                         return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-connector-saved"
