@@ -44,7 +44,7 @@ line, and the caveat:
 
 | Field | Name | Notes |
 | --- | --- | --- |
-| Display name | `displayName` | As the other panes. Used on the admin screens only (the sign-in button's title is fixed). |
+| Display name | `displayName` | Hint of its own: "Shown on the admin screens. The sign-in button always says Sign in with Apple." |
 | Services ID | `servicesId` | Hint: "The identifier of the Services ID, like com.example.signin. It is what other providers call the client ID. On Apple's site: Identifiers, Services IDs." |
 | Team ID | `teamId` | Mono, ten characters. Hint: "Ten characters. On Apple's site: Membership details." Side by side with Key ID from `sm`. |
 | Key ID | `keyId` | Mono, ten characters. Hint: "Ten characters. On Apple's site: Keys, then the key's name." |
@@ -78,8 +78,9 @@ secret store refused the write (existing), the slug is taken (existing), and:
 | `connector-enable-apple-unreachable` | "Not enabled: Umbral could not reach Apple (<reason>). Try again in a moment." |
 | `connector-enable-apple-key` | "Not enabled: the stored key cannot sign. Paste the .p8 key again under Replace the private key." |
 
-A secret store that cannot be read at Enable uses the pane's existing warning
-for an unreadable store.
+| `connector-enable-apple-store` | "Not enabled: Umbral could not read the key from the secret store (<store>: <cause>)." |
+
+Several fields can be refused at once; each shows its own message.
 
 ## The sign-in page
 

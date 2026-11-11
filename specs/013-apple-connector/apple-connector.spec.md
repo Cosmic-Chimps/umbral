@@ -122,7 +122,8 @@ nowhere else, and the sign-in page offers the button.
    **Then** the connector is saved disabled and the pane says why.
 5. **Given** a saved connector, **When** the operator saves with the key field
    empty, **Then** the stored key is kept; with a new key pasted, the new key
-   replaces it (and is checked first).
+   replaces it once it is known to sign, and the connector stays enabled or
+   disabled as it was.
 6. **Given** a disabled connector whose stored key cannot sign, or Apple
    unreachable, **When** the operator presses Enable, **Then** it stays disabled
    and the pane says why. Disable never asks Apple anything.
@@ -242,9 +243,12 @@ generic failure, create no session and are recorded.
 - **FR-005**: A refused Save MUST store nothing and redraw the form with status
   422, the reason under the field it is about, and every typed value kept except
   the key.
-- **FR-006**: Saving a new connector, or a new key, MUST run the Enable check
-  (FR-008). If Apple cannot be reached, the connector MUST be saved disabled and
-  the pane MUST say why.
+- **FR-006**: Saving a new connector MUST run the Enable check (FR-008). If
+  Apple cannot be reached, the connector MUST be saved disabled and the pane
+  MUST say why. Replacing the key of an existing connector MUST check that the
+  new key signs and MUST leave the connector enabled or disabled as it was: a
+  moment in which Apple cannot be reached must not switch off a connector that
+  works.
 - **FR-007**: The Apple kind MUST NOT be offered by the add form, and a POST
   that tries to create a second connector of the kind MUST be refused.
 
