@@ -32,6 +32,16 @@ decision (only `http`, only `127.0.0.1` and `[::1]`, never `localhost` per
 §8.3, exact path), its own tests at authorize and end-session, and possibly a
 constitution note. A follow-up task carries it.
 
+Found later the same day by that task (`spgx`, branch `alta/crisp-lark-n2hx`):
+OpenIddict 7.7.1's own `ValidateRedirectUriAsync` and
+`ValidatePostLogoutRedirectUriAsync` already ignore the port of a loopback
+address for an app of type `native` (every "Single-page or native" app here),
+and accept `localhost` and `https` too. So "matched exactly" was already not
+entirely true for those apps before this spec. This spec changes nothing there.
+`spgx` replaces both checks with Umbral's own rule. Until it merges, the claims
+in this spec about exact matching hold for Web applications, and for native
+apps except the loopback port.
+
 ## R4. "Already registered"
 
 OpenIddict's descriptor holds a `HashSet<Uri>`, where `Uri` equality ignores
