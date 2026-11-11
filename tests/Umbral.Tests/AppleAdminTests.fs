@@ -171,6 +171,13 @@ let ``not set up the list has an Apple entry and the pane shows the return URL, 
         Assert.Contains("https://umbral.test/connect/apple/callback", html)
         Assert.Contains("data-setup-caveat=\"apple\"", html)
         Assert.Contains("Apple accepts only an https address on a real domain name", decoded)
+
+        // The set-up note is Apple's own and says nothing of what Apple's screen
+        // shows (design review): the generic advice names the provider's consent
+        // screen, which nobody has confirmed for a Services ID.
+        Assert.Contains("data-naming-advice", html)
+        Assert.Contains("Give the Services ID a description that names this Umbral instance", decoded)
+        Assert.DoesNotContain("consent screen", decoded)
         Assert.Contains("a paid Apple Developer Program membership", decoded)
 
         let t = texts ()

@@ -32,7 +32,11 @@ OIDC adapter's `id_token_invalid: <reason>` apply as they are.
 "Not set up" until saved, like the other built-in kinds. It is not in the add
 form's kind list.
 
-**Pane, Setup section.** As the other providers: the naming advice, the copy
+**Pane, Setup section.** As the other providers, with a note of its own in place
+of the generic naming advice (design review, 2026-11-11: the generic one says
+what Apple's consent screen shows, which is not confirmed): "Give the Services
+ID a description that names this Umbral instance (for example "Umbral — home"),
+so you can tell it apart on Apple's site later." Then the copy
 field with the return URL (`<public origin>/connect/apple/callback`), the rule
 line, and the caveat:
 
@@ -67,7 +71,7 @@ back:
 | Key ID | "A Key ID is ten letters and digits, like ABC123DEFG." |
 | Private key (missing on a new connector) | "Paste the .p8 key Apple let you download." |
 | Private key (unusable) | "That is not a usable .p8 key. Paste the whole file again, including the BEGIN and END lines." |
-| Display name | "Enter a name for this connector, then save again." (the other panes' message speaks of the sign-in button's label, which is fixed here) |
+| Display name | "Enter a name for this connector, then try again." (the other panes' message speaks of the sign-in button's label, which is fixed here) |
 | Allowed domains | The existing messages. |
 
 Refusals that are not about a field stay notices at the top of the pane: the
@@ -79,7 +83,7 @@ secret store refused the write (existing), the slug is taken (existing), and:
 | `connector-enable-apple-unreachable` | "Not enabled: Umbral could not reach Apple (<reason>). Try again in a moment." |
 | `connector-enable-apple-key` | "Not enabled: the stored key cannot sign. Paste the .p8 key again under Replace the private key." |
 
-| `connector-enable-apple-store` | "Not enabled: Umbral could not read the key from the secret store (<store>: <cause>)." |
+| `connector-enable-apple-store` | "Not enabled: Umbral could not read the key from the secret store (<store>: <cause>). Check the store, then press Enable again." |
 
 Several fields can be refused at once; each shows its own message.
 

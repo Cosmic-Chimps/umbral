@@ -43,10 +43,10 @@ The designer's answers of 2026-11-11 (questions 1 to 7) are in `specs/013-apple-
 **Wording that was not in the answers**, for you to judge:
 
 1. Display name hint: "Shown on the admin screens. The sign-in button always says Sign in with Apple."
-2. Display name refused: "Enter a name for this connector, then save again." (the other panes' message speaks of the sign-in button's label).
-3. `connector-enable-apple-store`: "Not enabled: Umbral could not read the key from the secret store (<store>: <cause>)."
+2. Display name refused: "Enter a name for this connector, then try again." (the other panes' message speaks of the sign-in button's label; ending changed after the design review).
+3. `connector-enable-apple-store`: "Not enabled: Umbral could not read the key from the secret store (<store>: <cause>). Check the store, then press Enable again." (the next action added after the design review).
 4. Each of the four notices has a form without its reason, shown when the reason cookie is gone (a refresh).
-5. The naming advice at the top of the Set-up section is the generic one: "Name the application you create in Apple's developer console after this Umbral instance … People see that name on Apple's consent screen". I could not confirm on Apple's pages which name Apple's sign-in page shows for a Services ID, so the walkthrough does not claim it. Say if this pane should word it differently.
+5. The note at the top of the Set-up section. It was the generic naming advice, which says people see the name on the provider's consent screen; that is not confirmed for a Services ID. After the design review the Apple pane has its own: "Give the Services ID a description that names this Umbral instance (for example "Umbral — home"), so you can tell it apart on Apple's site later."
 
 **Two things outside this change that you may want to queue:**
 
@@ -55,7 +55,7 @@ The designer's answers of 2026-11-11 (questions 1 to 7) are in `specs/013-apple-
 
 ### Captures
 
-Taken 2026-11-11 from a Release build on `http://localhost:18080` with Chrome (Playwright), by `capture.mjs` in this folder. `<state>-<width>-<theme>.png`, at 1280 and 360, dark and light, unless said. No state overflows horizontally at 360.
+Retaken 2026-11-11 after the design review's fix (all of them, so every pane capture shows the new set-up note), from a Release build on `http://localhost:18080` with Chrome (Playwright), by `capture.mjs` in this folder. `<state>-<width>-<theme>.png`, at 1280 and 360, dark and light, unless said. No state overflows horizontally at 360.
 
 | State | What it shows |
 | --- | --- |
@@ -96,7 +96,8 @@ Each statement of `docs/connectors/apple.md` and where it comes from:
 | The app gets a stable subject, the email, and the name from the first sign-in on | `Providers/Apple.fs:273` (`identityOf`), `:188` (`nameOf`); `UserStore.fs:173` (`COALESCE`: a later answer without a name keeps the stored one). |
 | A user without a name is "Apple user" | `UserStore.fs:141`. |
 | Stopping Sign in with Apple with the app makes Apple ask again | Apple Support, "Manage your apps with Sign in with Apple" (the iPhone steps and "you'll need to share your name and email again"). |
-| Relay address is the verified email; not joined with a Google or GitHub user | `Apple.fs:148` (`claimIsTrue`), `Domains/Linking.fs` (linking by verified email only). |
+| No email, or an unverified one, can happen with Sign in with Apple at Work & School | `research.md` R1, the `id_token` page: `email` "may be empty for Sign in with Apple at Work & School users", and "The system may not verify email addresses" for them. |
+| Relay address is the verified email; not joined with a Google or GitHub user; a real verified address is joined | `Apple.fs:148` (`claimIsTrue`), `Domains/Linking.fs` (linking by verified email only). |
 | `email_verified` accepted as boolean `true` or text `"true"` and nothing else | `Apple.fs:148`. |
 | A relay address passes a domain rule only if `privaterelay.appleid.com` is listed | `Handlers/Connect/Callback.fs` (`finishSignIn` applies the rule to the email's domain). |
 | A new client secret per sign-in, valid five minutes | `Apple.fs:87`, `:97`. |

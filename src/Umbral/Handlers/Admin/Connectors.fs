@@ -324,7 +324,13 @@ let private providerPane
                       // person asking "what is this app?" on a consent screen.
                       (div(class' = "um-alert um-alert-info").attr("role", "note").data("naming-advice", "") {
                           Components.icon Theme.Info
-                          span() { t.ConnectorNamingAdvice providerName }
+                          // Apple's note claims nothing about Apple's own screen:
+                          // which name it shows for a Services ID is not confirmed.
+                          span() {
+                              match row.Kind with
+                              | Apple -> t.AppleNamingAdvice
+                              | _ -> t.ConnectorNamingAdvice providerName
+                          }
                       })
                       :> HtmlElement
 

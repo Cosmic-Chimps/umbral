@@ -610,6 +610,10 @@ type Texts =
       /// fixed, so it is not a "button label" there.
       AppleDisplayNameLabel: string
       AppleDisplayNameHint: string
+      /// The Set-up note of the Apple pane, in place of `ConnectorNamingAdvice`:
+      /// it says nothing about what Apple's own screen shows, which nobody here
+      /// has confirmed for a Services ID.
+      AppleNamingAdvice: string
       AppleDisplayNameRequired: string
       AppleServicesIdLabel: string
       AppleServicesIdHint: string
@@ -924,7 +928,7 @@ let private noticeEn (code: string) : string option =
     | "connector-enable-apple-key" ->
         Some "Not enabled: the stored key cannot sign. Paste the .p8 key again under Replace the private key."
     | "connector-enable-apple-store" ->
-        Some "Not enabled: Umbral could not read the key from the secret store."
+        Some "Not enabled: Umbral could not read the key from the secret store. Check the store, then press Enable again."
     | "passkey-invitation-created" ->
         Some "Invitation created. Copy the link below and send it to the person; it is not shown again."
     | "passkey-invitation-invalid" -> Some "A note is at most 64 characters. Shorten it, then invite again."
@@ -1496,7 +1500,9 @@ let en: Texts =
       // Apple connector (specs/013)
       AppleDisplayNameLabel = "Display name"
       AppleDisplayNameHint = "Shown on the admin screens. The sign-in button always says Sign in with Apple."
-      AppleDisplayNameRequired = "Enter a name for this connector, then save again."
+      AppleNamingAdvice =
+        "Give the Services ID a description that names this Umbral instance (for example \"Umbral — home\"), so you can tell it apart on Apple's site later."
+      AppleDisplayNameRequired = "Enter a name for this connector, then try again."
       AppleServicesIdLabel = "Services ID"
       AppleServicesIdHint =
         "The identifier of the Services ID, like com.example.signin. It is what other providers call the client ID. On Apple's site: Identifiers, Services IDs."
@@ -1521,7 +1527,8 @@ let en: Texts =
       AppleEnableUnreachable =
         fun reason -> $"Not enabled: Umbral could not reach Apple ({reason}). Try again in a moment."
       AppleEnableStore =
-        fun reason -> $"Not enabled: Umbral could not read the key from the secret store ({reason})." }
+        fun reason ->
+            $"Not enabled: Umbral could not read the key from the secret store ({reason}). Check the store, then press Enable again." }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.

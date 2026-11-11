@@ -21,6 +21,10 @@ Back to the [README](../../README.md). Other providers:
   README's quick start cannot be used with Apple; for trying it on one machine,
   see [Trying it from a laptop](#trying-it-from-a-laptop).
 - **One Apple connector per Umbral instance.** Its identifier is always `apple`.
+  The other providers let you add a second connector to give one app its own
+  name on the button. Apple's rules fix this button's title, so two Apple
+  connectors would be two identical buttons. An app that must have a Services
+  ID of its own needs an Umbral instance of its own.
 - **Why you might need it.** App Store Review Guideline 4.8 (Login Services,
   read on 2026-11-11) says that an app that uses a third-party or social login
   service for the person's primary account "must also offer as an equivalent
@@ -138,7 +142,7 @@ The pane also has **Allowed email domains**, as the other panes do: see
 
 | What the form says | What to do |
 | --- | --- |
-| "Enter a name for this connector, then save again." | The display name is empty. |
+| "Enter a name for this connector, then try again." | The display name is empty. |
 | "Enter the Services ID, like com.example.signin, with no spaces." | The Services ID is empty or has a space in it. |
 | "A Team ID is ten letters and digits, like DEF123GHIJ." | Copy it again from **Membership details**. |
 | "A Key ID is ten letters and digits, like ABC123DEFG." | Copy it again from the key's page, or from the file name. |
@@ -147,7 +151,7 @@ The pane also has **Allowed email domains**, as the other panes do: see
 | "Saved, but not enabled: Umbral could not reach Apple (&lt;reason&gt;). Press Enable to try again." | The connector is saved. Check that the machine can reach `appleid.apple.com`, then press **Enable**. |
 | "Not enabled: Umbral could not reach Apple (&lt;reason&gt;). Try again in a moment." | Same, when you pressed **Enable**. |
 | "Not enabled: the stored key cannot sign. Paste the .p8 key again under Replace the private key." | What the secret store holds is not a usable key. Paste the `.p8` key again. |
-| "Not enabled: Umbral could not read the key from the secret store (&lt;reason&gt;)." | The secret store did not answer or refused. The reason names the store and the cause; see [Secret stores](../run/secret-stores.md). |
+| "Not enabled: Umbral could not read the key from the secret store (&lt;reason&gt;). Check the store, then press Enable again." | The secret store did not answer or refused. The reason names the store and the cause; see [Secret stores](../run/secret-stores.md). |
 
 A refused form shows each message under the field it is about and keeps what
 you typed, except the key, which is never drawn back. The last four messages
@@ -163,9 +167,9 @@ appear at the top of the pane.
 
 The app gets an ordinary OpenID Connect user: a stable subject, the email (their
 own, or a relay address Apple made for them), and the name from the first
-sign-in on. A person whose Apple Account sends no email (this can happen with
-Apple's Work and School accounts) signs in without one, so your app must cope
-with a missing `email`.
+sign-in on. A person whose Apple Account sends no email (Apple says this can
+happen with Sign in with Apple at Work & School) signs in without one, so your
+app must cope with a missing `email`.
 
 ## Trying it from a laptop
 
@@ -199,9 +203,9 @@ an email Apple reports as verified counts, and the domain must match exactly.
   only your company's domain therefore refuses them. Add
   `privaterelay.appleid.com` to the list only if anyone with an Apple Account
   may sign in: that domain says nothing about who the person is.
-- A person with no email, or with one Apple does not report as verified (this
-  can happen with Apple's Work and School accounts), is refused while a rule
-  applies.
+- A person with no email, or with one Apple does not report as verified (Apple
+  says this can happen with Sign in with Apple at Work & School), is refused
+  while a rule applies.
 
 ## Gotchas
 
@@ -218,7 +222,10 @@ an email Apple reports as verified counts, and the domain must match exactly.
   them. Umbral treats it as their verified email. Three things follow. It is not
   the address of their Google or GitHub account, so Umbral does not join the two
   users (see
-  [How people are identified](../integrate.md#how-people-are-identified)). If you
+  [How people are identified](../integrate.md#how-people-are-identified)). A
+  person who shares their real address is joined as with any provider: when
+  Apple reports it as verified and one existing user has that verified address,
+  they are the same user. If you
   limit sign-in to [allowed email domains](#allowed-email-domains), a relay
   address passes only if `privaterelay.appleid.com` is in the list. And if your
   app sends mail to its users, Apple delivers mail to relay addresses only from
@@ -247,9 +254,9 @@ an email Apple reports as verified counts, and the domain must match exactly.
 
 ## Troubleshooting
 
-For a failed sign-in, the cause is in the security log: see how to read it under
-"Someone clicks a provider and sees "Sign-in didn't complete"" in
-[Troubleshooting](../run/troubleshooting.md).
+For a failed sign-in, the cause is in the security log.
+[Troubleshooting](../run/troubleshooting.md) says how to read it, in its entry
+about a person who clicks a provider and sees *Sign-in didn't complete*.
 
 | What you see | Cause and fix |
 | --- | --- |

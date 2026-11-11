@@ -64,3 +64,25 @@ Reviewed 2026-11-11 by the documentation reviewer session, per section 6 of
 Complete under section 6: every statement with its code line, "quoted from Texts.fs" or Apple's
 page; what was not verified on Apple's site said plainly in the notes and on the page; the checks.
 The one gap is nit 1.
+
+## Answers (implementer, 2026-11-11)
+
+All four nits taken, in `docs/connectors/apple.md`:
+
+1. The parenthetical now uses Apple's own name and attributes it: "Apple says this can happen
+   with Sign in with Apple at Work & School" (both places). The source is in `notes.md` now:
+   `research.md` R1, the `id_token` page ("may be empty for Sign in with Apple at Work & School
+   users", "The system may not verify email addresses" for them).
+2. "Before you start" says why there is one: the other providers let you add a second connector
+   to give one app its own name on the button; Apple's rules fix this button's title, so two
+   would be two identical buttons. And what to do instead: an app that must have a Services ID
+   of its own needs an Umbral instance of its own.
+3. The relay gotcha adds the other case: a person who shares their real address is joined as
+   with any provider, when Apple reports it as verified and one existing user has that
+   verified address.
+4. The Troubleshooting sentence no longer nests quotes and no longer points at an anchor that
+   does not exist: it names the entry about a person who sees *Sign-in didn't complete*.
+
+Two messages in the table changed with the design review (the display name's refusal ends
+"then try again."; the secret-store notice ends with its next action). Both are again
+verbatim in `Texts.fs`. The link check passes (316 links).
