@@ -16,6 +16,7 @@
     <Compile Include="Infrastructure/PasskeyFlows.fs" />
     <Compile Include="Infrastructure/OperatorFlows.fs" />
     <Compile Include="Infrastructure/StubOidcProvider.fs" />
+    <Compile Include="Infrastructure/FakeApple.fs" />
     <Compile Include="Infrastructure/StubMastodon.fs" />
     <Compile Include="Infrastructure/PngBuilder.fs" />
     <Compile Include="Infrastructure/ImageEnvironment.fs" />
@@ -23,6 +24,7 @@
     <Compile Include="OidcDomainTests.fs" />
     <Compile Include="AppleDomainTests.fs" />
     <Compile Include="AppleClientSecretTests.fs" />
+    <Compile Include="AppleSignInTests.fs" />
     <Compile Include="OidcDiscoveryTests.fs" />
     <Compile Include="OidcAdapterTests.fs" />
     <Compile Include="StubOidcProviderTests.fs" />
