@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-11
 
-**Status**: Draft
+**Status**: Implemented; design, documentation and code reviews clear on 2026-11-11; not merged
 
 **Input**: Task `2026-11-11-2-connector-sign-in-with-apple-ap1e`: "2. Connector: Sign in with Apple". The second of five tasks; tasks 3 and 4 add connectors too and start after this one merges.
 

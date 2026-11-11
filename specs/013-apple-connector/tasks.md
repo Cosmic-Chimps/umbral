@@ -39,4 +39,4 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 ## Phase 7: Verify
 
-- [ ] **T016** Full suite green, 0 warnings; the site builds; the changelog check passes; the walk at 1280 and 360, dark and light, for the design review; the three reviews
+- [x] **T016** Full suite green, 0 warnings; the site builds; the changelog check passes; the walk at 1280 and 360, dark and light, for the design review; the three reviews
