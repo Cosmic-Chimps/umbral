@@ -135,11 +135,11 @@ function checkPreviewImage(file, which, value) {
   }
 }
 
-// What a source of the Content-Security-Policy may be: something in quotes (a
-// keyword such as 'self' or 'unsafe-inline', a hash, a nonce) or data:. A host or
-// another scheme, which are written without quotes, would let the browser ask
-// another host, which is what the policy is for refusing.
-const POLICY_SOURCE = /^(?:'[^']+'|data:)$/;
+// What a source of the Content-Security-Policy may be: one of these keywords, a
+// hash, a nonce, or data:. Everything else is refused by name: a host or another
+// scheme would let the browser ask another host, and so would a keyword such as
+// 'strict-dynamic', which lets a trusted script load others from anywhere.
+const POLICY_SOURCE = /^(?:'self'|'none'|'unsafe-inline'|'wasm-unsafe-eval'|'sha(?:256|384|512)-[A-Za-z0-9+\/_-]+={0,2}'|'nonce-[A-Za-z0-9+\/_-]+={0,2}'|data:)$/;
 
 /** The page's policy must exist, name no other host, and come before anything the page loads. */
 function checkPolicy(file, policyAt, policy, firstLoadAt) {

@@ -4,7 +4,8 @@
   the code review of the documentation site (`.alta/reviews/2026-11-05-docs-site/code-review.md`,
   "Not a finding").
 - Branch: `alta/shiny-cadence-bmk8`, on `main` at `d6d2373`. One commit for the change, then these
-  notes: `git log d6d2373..`.
+  notes, then the merge of the link preview and the review's nit: `git log d6d2373..`. See "After
+  the reviews".
 - Written by the implementer session on 2026-11-11. The change is small and was made directly, not
   by a child session.
 
@@ -136,6 +137,35 @@ and this branch is cut from `main`, where it is still true. A trial merge of the
 By reading, not by a build of the merge: the two fit. The link preview's metas are not fetched by
 the page, its two icons come from the site itself (`img-src 'self'`), and Starlight still sorts the
 policy before them. The walk should be run once on the merged build.
+
+## After the reviews (2026-11-11)
+
+Design (`review.md`): clear, no items. Code (`code-review.md`): the policy, `'wasm-unsafe-eval'`,
+the check and the worker limit all accepted; one blocking item and one nit, both taken.
+
+- **B1, the merge.** `alta/roaming-foxglove-m2q5` (`bbc6b04`, the link preview) is merged into this
+  branch as `5249e2f`, resolved as the review built it: one `head` key,
+  `[policy, ...linkPreview]`; `checkPreviewImage` and `checkPolicy` both whole in `check-dist.mjs`;
+  the header comment of `astro.config.mjs` and the two README sentences now name both kinds of
+  entry. So this branch carries the link preview: it lands with it, or after it. The section
+  above, "Merging with the link preview", is history.
+- **N1, the keywords.** `POLICY_SOURCE` lists what a source may be: `'self'`, `'none'`,
+  `'unsafe-inline'`, `'wasm-unsafe-eval'`, a `sha256`/`sha384`/`sha512` hash, a nonce, `data:`.
+  The README's bullet says the same.
+
+Checked again on the merged build:
+
+- 29 of 29 pages: the policy is the third element of `head`, before the `og:image` meta, the PNG
+  icon and the first script or stylesheet.
+- The check, on altered copies of `dist/`. Refused, each by name: `'unsafe-eval'`,
+  `'strict-dynamic'`, `'unsafe-hashes'`, a host, `blob:`, `default-src *`, a page without the
+  element, a script before it, and an `og:image` on another host (the link preview's own check).
+  Passed: a `sha256` hash, a nonce, an added `object-src 'none'`.
+- The walk, one engine at a time, Chrome, Firefox, WebKit: 116 visits each, 4 searches with 6
+  links, 56 menus, no violation, no console message, no request to another host, exit 0. The PNG
+  icon loads under `img-src 'self'`.
+- The probe: the same table as above in the three engines.
+- `.github/scripts/changelog.sh check` passes.
 
 ## For the design review (`umbral-designer`)
 

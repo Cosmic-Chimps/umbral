@@ -80,7 +80,8 @@ later, or at once on an address it has not seen (add `?v=2`).
   image, a new URL in the JavaScript that `check-dist.mjs` has not been told about, or a host it
   does not know named in a script, a stylesheet or an SVG file.
 - A page without the Content-Security-Policy element, one where a script or a stylesheet comes
-  before it, or a policy that allows a host or a scheme other than `data:`.
+  before it, or a policy that allows a host, a scheme other than `data:`, or a keyword other than
+  `'self'`, `'none'`, `'unsafe-inline'` and `'wasm-unsafe-eval'`. A hash or a nonce is accepted.
 
 ## The Content-Security-Policy
 
