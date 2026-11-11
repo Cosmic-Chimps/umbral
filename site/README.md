@@ -28,7 +28,8 @@ npm run collect   # the collect script alone
 | `site.config.mjs` | The address of the site and of the repository. The first two lines are the only ones to change if the site moves to a domain of its own. |
 | `sidebar.mjs` | The sidebar, and with it the list of pages. |
 | `scripts/collect.mjs` | Cuts the Markdown into pages, writes their frontmatter and rewrites their links. It leaves out a walkthrough's "Back to the README. Other providers: …" paragraph, which is for readers on GitHub: here the sidebar does that. |
-| `scripts/check-dist.mjs` | Reads the built `dist/` and fails if it asks another host for anything. |
+| `astro.config.mjs` | Starlight's settings, and the site's one `head` entry: the Content-Security-Policy (see below). |
+| `scripts/check-dist.mjs` | Reads the built `dist/` and fails if it asks another host for anything, or if a page is without the policy. |
 | `src/styles/umbra.css` | The look: Umbral's colours and fonts, through Starlight's custom properties. The one stylesheet. |
 | `src/assets/`, `public/favicon.svg` | The mark, for the dark and the light theme, and the favicon. |
 
@@ -47,6 +48,53 @@ The fonts are Umbral's own, copied from `src/Umbral/Assets/fonts/` by the collec
 - Anything in `dist/` that asks another host for a file: an external script, stylesheet, font or
   image, a new URL in the JavaScript that `check-dist.mjs` has not been told about, or a host it
   does not know named in a script, a stylesheet or an SVG file.
+- A page without the Content-Security-Policy element, one where a script or a stylesheet comes
+  before it, or a policy that allows a host or a scheme other than `data:`.
+
+## The Content-Security-Policy
+
+The site asks no other host for anything. `check-dist.mjs` proves that of the built files; the
+policy has the browser refuse it while a page runs, which also covers what a scan of files cannot
+see, such as a URL a script puts together at run time.
+
+GitHub Pages sends no header of ours, so the policy is a `<meta http-equiv="Content-Security-Policy">`
+in every page. It is the `head` entry in `astro.config.mjs`, and the only one: the site was built
+without any, and this is the one exception. A second entry needs as good a reason, and a script or
+a stylesheet from another host would be refused by this one anyway.
+
+```text
+default-src 'self';
+script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data:;
+base-uri 'none';
+form-action 'self'
+```
+
+Each exception to `default-src 'self'` is something a browser refused without it:
+
+| Source | What needs it |
+| --- | --- |
+| `'unsafe-inline'` in `script-src` | Starlight's inline scripts, such as the one that sets the theme before the first paint and the ones that restore the sidebar's state. |
+| `'wasm-unsafe-eval'` in `script-src` | Pagefind, the search, is WebAssembly. It runs in a worker; when the worker cannot start, it runs on the page, and the search finds nothing without this. |
+| `'unsafe-inline'` in `style-src` | The `style` attributes Starlight and the code blocks write (icon sizes, token colours), and the `<style>` elements of the dev server. |
+| `data:` in `img-src` | The icons the stylesheets hold as `data:` URLs. |
+
+`base-uri` and `form-action` are the two directives `default-src` does not cover.
+
+What the policy does not do:
+
+- It does not stop an inline script from running: `'unsafe-inline'` is there. It stops what such a
+  script would load or send to another host.
+- A worker takes its policy from its own response, not from the page, and Pages sends none. Firefox
+  and WebKit follow that, so Pagefind's worker is outside the policy there; Chrome applies the page's
+  policy to what a worker fetches. `check-dist.mjs` reads the worker's file like any other.
+- A `meta` element cannot carry `frame-ancestors`, `sandbox` or a report address. Those need a header.
+
+After a change to the policy, or an update of Starlight, Astro or Pagefind, build, run
+`npm run preview` and look at the site in a browser with the console open: every page in the dark
+and the light theme, the theme select, the menu at a narrow width, and a search. The console must
+show no violation. Do the same once with `npm run dev`.
 
 ## The look in numbers
 

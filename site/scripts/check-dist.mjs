@@ -9,6 +9,11 @@
 // Own host is the host of `site` in site.config.mjs. A link a reader may follow
 // (the href of an <a>) or text may name any host; nothing the browser fetches on
 // its own may.
+//
+// The browser enforces the same thing at run time, through the
+// Content-Security-Policy that astro.config.mjs puts in every page. This script
+// checks that each page carries it, before anything it loads, and that it allows
+// no other host.
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -106,6 +111,32 @@ const FETCHED = new Set(['src', 'srcset', 'poster', 'data', 'action', 'xlink:hre
 
 const externalLinks = new Map(); // host -> count, for <a href>
 
+// What a source of the Content-Security-Policy may be: something in quotes (a
+// keyword such as 'self' or 'unsafe-inline', a hash, a nonce) or data:. A host or
+// another scheme, which are written without quotes, would let the browser ask
+// another host, which is what the policy is for refusing.
+const POLICY_SOURCE = /^(?:'[^']+'|data:)$/;
+
+/** The page's policy must exist, name no other host, and come before anything the page loads. */
+function checkPolicy(file, policyAt, policy, firstLoadAt) {
+  if (policy === null) {
+    problem(file, 'has no <meta http-equiv="Content-Security-Policy">: the browser would not refuse a request to another host');
+    return;
+  }
+  if (firstLoadAt !== -1 && firstLoadAt < policyAt) {
+    problem(file, 'a script or a stylesheet comes before the Content-Security-Policy element, so the policy does not cover it');
+  }
+  const directives = policy.split(';').map((d) => d.trim().split(/\s+/)).filter((d) => d[0] !== '');
+  if (!directives.some(([name, ...sources]) => name === 'default-src' && sources.join(' ') === "'self'")) {
+    problem(file, "the Content-Security-Policy does not start from default-src 'self'");
+  }
+  for (const [name, ...sources] of directives) {
+    for (const source of sources) {
+      if (!POLICY_SOURCE.test(source)) problem(file, `the Content-Security-Policy allows ${source} in ${name}`);
+    }
+  }
+}
+
 function checkHtml(file, html) {
   const scripts = [];
   const styles = [];
@@ -130,10 +161,21 @@ function checkHtml(file, html) {
     for (const u of cssUrls(css)) problem(file, `a <style> element fetches ${u}`);
   }
 
+  let policyAt = -1;
+  let policy = null;
+  let firstLoadAt = -1;
   for (const tag of rest.matchAll(TAG)) {
     const name = tag[1].toLowerCase();
     const attrs = new Map();
     for (const a of tag[2].matchAll(ATTR)) attrs.set(a[1].toLowerCase(), a[2] ?? a[3] ?? a[4] ?? '');
+    if (name === 'meta' && /^content-security-policy$/i.test(attrs.get('http-equiv') ?? '')) {
+      if (policy === null) {
+        policyAt = tag.index;
+        policy = attrs.get('content') ?? '';
+      }
+    } else if (firstLoadAt === -1 && (name === 'script' || name === 'style' || (name === 'link' && /\bstylesheet\b/i.test(attrs.get('rel') ?? '')))) {
+      firstLoadAt = tag.index;
+    }
     for (const [attr, value] of attrs) {
       if (attr === 'xmlns' || attr.startsWith('xmlns:')) continue;
       if (attr === 'href') {
@@ -156,6 +198,7 @@ function checkHtml(file, html) {
       }
     }
   }
+  checkPolicy(file, policyAt, policy, firstLoadAt);
 }
 
 function checkJs(file, js) {
@@ -209,7 +252,7 @@ for (const host of ALLOWED_HOSTS.keys()) {
 
 if (problems.length > 0) {
   for (const line of problems) console.error(line);
-  console.error(`check-dist: ${problems.length} problem${problems.length === 1 ? '' : 's'}: the site would ask another host for something`);
+  console.error(`check-dist: ${problems.length} problem${problems.length === 1 ? '' : 's'}: the site would ask another host for something, or the browser would not refuse it`);
   process.exit(1);
 }
 
