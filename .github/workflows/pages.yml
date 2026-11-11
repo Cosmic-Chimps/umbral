@@ -1,0 +1,93 @@
+# The documentation site, https://cosmic-chimps.github.io/umbral/.
+#
+# The site is built from the Markdown in this repository (README.md, docs/,
+# samples/README.md, CHANGELOG.md) by site/scripts/collect.mjs, then by Astro
+# Starlight; site/README.md says how. The build fails on a dead link, on a page
+# missing from the sidebar, and on anything in the output that would ask another
+# host for a file.
+#
+# A pull request only builds. It deploys nothing, so a broken page or a dead
+# link fails the pull request and no half-finished page is ever published. A
+# push to main builds and then deploys.
+#
+# One manual step, once: in the repository's Settings, Pages, set Source to
+# GitHub Actions. Until then only the deploy job fails; the build job still
+# proves the site on every run.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'samples/README.md'
+      - 'site/**'
+      - 'src/Umbral/Assets/fonts/**'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'samples/README.md'
+      - 'site/**'
+      - 'src/Umbral/Assets/fonts/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two deployments at once would race for the same site; a queued one waits
+# rather than cancelling one that is already publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Astro needs 22.23.4 or later; the runner's cached 22 may be older.
+          node-version: 22
+          check-latest: true
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install
+        working-directory: site
+        run: npm ci
+
+      - name: Build
+        working-directory: site
+        run: npm run build
+
+      - name: Upload the site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Here and not in the build job, so that a repository that has not turned
+      # Pages on yet fails only this job.
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

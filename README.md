@@ -395,6 +395,8 @@ and its specifications are in [`specs/`](specs/), one folder per feature.
 The vision is in [docs/vision.md](docs/vision.md).
 A change people who run Umbral will notice also gets a note, one file in
 [`changelog.d/`](changelog.d/README.md); [Release](docs/run/caravana.md#release) says how it is used.
+The documentation site is built from this README and `docs/` by [`site/`](site/README.md),
+with Node, in CI only: nothing of it is in the image.
 
 The UI loads nothing from third parties: its stylesheet, htmx and its one small
 script are served by Umbral itself, and every page carries a strict
