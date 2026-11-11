@@ -68,7 +68,7 @@ let endpoints: Endpoint list =
       yield! Umbral.Handlers.Admin.UserPasskeys.endpoint
       Umbral.Handlers.Connect.Picker.endpoint
       Umbral.Handlers.Connect.Start.endpoint
-      Umbral.Handlers.Connect.Callback.endpoint
+      yield! Umbral.Handlers.Connect.Callback.endpoint
       yield! Umbral.Handlers.Connect.Fediverse.endpoint
       yield! Umbral.Handlers.Connect.Authorize.endpoint
       Umbral.Handlers.Connect.Token.endpoint

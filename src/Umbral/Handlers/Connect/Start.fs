@@ -62,11 +62,20 @@ let handler (slug: string) : EndpointHandler =
 
                     | Ok endpoints ->
 
+                    // A provider that answers by form post (Apple) gets the
+                    // correlation cookie that a cross-site POST carries.
+                    let mode =
+                        if endpoints.AnswersByFormPost then
+                            OAuthRoundTrip.FormPost
+                        else
+                            OAuthRoundTrip.Redirect
+
                     let started =
                         OAuthRoundTrip.start
                             (ctx.GetService<IDataProtectionProvider>())
                             (ctx.GetService<System.TimeProvider>())
                             ctx
+                            mode
                             connector.Slug
                             ""
                             returnUrl

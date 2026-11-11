@@ -80,7 +80,12 @@ type ExchangeRequest =
       RedirectUri: Uri
       Code: string
       CodeVerifier: string
-      Nonce: string }
+      Nonce: string
+      /// The `user` field of a form-post answer, as posted (Apple sends the
+      /// person's name there, once). Nothing signs it: an adapter may take a
+      /// display name from it and nothing else, and only after the `id_token`
+      /// validated. None for an answer by redirect.
+      PostedUser: string option }
 
 type IProviderAdapter =
     abstract Kind: ProviderKind

@@ -48,16 +48,30 @@ let private cookiesFrom (ctx: HttpContext) =
 
 let private clock () = FakeTimeProvider DateTimeOffset.UtcNow
 
-/// Start a round trip and return the cookies plus the minted correlation.
-let private startOn (clock: TimeProvider) slug server =
+/// Start a round trip in `mode` and return the cookies plus the minted correlation.
+let private startIn (mode: OAuthRoundTrip.ResponseMode) (clock: TimeProvider) slug server =
     let ctx = contextWith [] []
-    let started = OAuthRoundTrip.start protectors clock ctx slug server "/connect/authorize?x=1"
+    let started = OAuthRoundTrip.start protectors clock ctx mode slug server "/connect/authorize?x=1"
     cookiesFrom ctx, started.Correlation
+
+let private startOn (clock: TimeProvider) slug server = startIn OAuthRoundTrip.Redirect clock slug server
 
 let private start (clock: TimeProvider) slug = startOn clock slug ""
 
+/// Complete a round trip that was answered by a redirect: the values are in the
+/// query string.
 let private complete (clock: TimeProvider) cookies slug query =
-    OAuthRoundTrip.complete protectors clock (contextWith cookies query) slug
+    let ctx = contextWith cookies query
+    OAuthRoundTrip.complete protectors clock ctx OAuthRoundTrip.Redirect slug (OAuthRoundTrip.answerOfQuery ctx)
+
+let private answer (state: string option) (error: string option) : OAuthRoundTrip.Answer =
+    { OAuthRoundTrip.Answer.State = state
+      OAuthRoundTrip.Answer.Error = error }
+
+/// Complete a round trip that was answered by a form post: the values come from
+/// the body, which the caller has already read into an `Answer`.
+let private completePost (clock: TimeProvider) cookies slug (answer: OAuthRoundTrip.Answer) =
+    OAuthRoundTrip.complete protectors clock (contextWith cookies []) OAuthRoundTrip.FormPost slug answer
 
 // ---------------------------------------------------------------------------
 
@@ -117,7 +131,8 @@ let ``a REPLAYED callback is refused, because the cookie is gone`` () =
     // Deleting it only stops a cooperating browser; the correlation is
     // stateless, so the server remembers which states it has redeemed.
     let ctx = contextWith cookies query
-    let result = OAuthRoundTrip.complete protectors clock ctx "discord"
+    let result =
+        OAuthRoundTrip.complete protectors clock ctx OAuthRoundTrip.Redirect "discord" (OAuthRoundTrip.answerOfQuery ctx)
 
     match result with
     | Error OAuthRoundTrip.Replayed -> ()
@@ -196,7 +211,7 @@ let ``a cookie from a different key ring is refused`` () =
     let other = DataProtectionProvider.Create "Umbral.Tests.Other"
     let ctx = contextWith cookies [ "code", "abc"; "state", correlation.State ]
 
-    match OAuthRoundTrip.complete other clock ctx "discord" with
+    match OAuthRoundTrip.complete other clock ctx OAuthRoundTrip.Redirect "discord" (OAuthRoundTrip.answerOfQuery ctx) with
     | Error OAuthRoundTrip.Corrupt -> ()
     | other -> failwith $"unexpected: {other}"
 
@@ -204,7 +219,7 @@ let ``a cookie from a different key ring is refused`` () =
 let ``the correlation cookie is HttpOnly, Lax and scoped to connect`` () =
     let clock = clock ()
     let ctx = contextWith [] []
-    OAuthRoundTrip.start protectors clock ctx "discord" "" "/" |> ignore
+    OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.Redirect "discord" "" "/" |> ignore
 
     let header =
         ctx.Response.Headers.SetCookie
@@ -261,3 +276,186 @@ let ``a six-field payload minted before the upgrade still decodes with no server
         Assert.Equal("", recovered.Server)
         Assert.Equal("/connect/authorize?x=1", recovered.ReturnUrl)
     | Error e -> failwith $"expected success, got {e.Detail}"
+
+// ---------------------------------------------------------------------------
+// The form-post mode (specs/013 research R2): a cookie of its own, because a
+// Lax cookie is not sent on the cross-site POST Apple answers with
+// ---------------------------------------------------------------------------
+
+let private setCookies (ctx: HttpContext) =
+    ctx.Response.Headers.SetCookie |> Seq.choose Option.ofObj |> List.ofSeq
+
+let private startFormPost (clock: TimeProvider) slug = startIn OAuthRoundTrip.FormPost clock slug ""
+
+[<Fact>]
+let ``a form-post round trip sets its own cookie, SameSite None and always Secure`` () =
+    let clock = clock ()
+    // Plain http on purpose: the cookie is Secure regardless, because a browser
+    // drops a SameSite=None cookie that is not.
+    let ctx = contextWith [] []
+    ctx.Request.Scheme <- "http"
+    OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.FormPost "apple" "" "/" |> ignore
+
+    let headers = setCookies ctx |> List.map _.ToLowerInvariant()
+    let header = headers |> List.exactlyOne
+
+    Assert.StartsWith("umbral_connect_post=", header)
+    Assert.Contains("samesite=none", header)
+    Assert.Contains("secure", header)
+    Assert.Contains("httponly", header)
+    Assert.Contains("path=/connect", header)
+    Assert.Empty(headers |> List.filter (fun h -> h.StartsWith "umbral_connect="))
+
+[<Fact>]
+let ``a redirect round trip still sets only the Lax cookie, and is not forced Secure over http`` () =
+    let clock = clock ()
+    let ctx = contextWith [] []
+    ctx.Request.Scheme <- "http"
+    OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.Redirect "discord" "" "/" |> ignore
+
+    let header = setCookies ctx |> List.exactlyOne |> _.ToLowerInvariant()
+
+    Assert.StartsWith("umbral_connect=", header)
+    Assert.Contains("samesite=lax", header)
+    Assert.DoesNotContain("secure", header)
+    Assert.DoesNotContain("umbral_connect_post", header)
+
+[<Fact>]
+let ``a well-formed form post completes`` () =
+    let clock = clock ()
+    let cookies, correlation = startFormPost clock "apple"
+
+    match completePost clock cookies "apple" (answer (Some correlation.State) None) with
+    | Ok recovered ->
+        Assert.Equal(correlation.CodeVerifier, recovered.CodeVerifier)
+        Assert.Equal(correlation.Nonce, recovered.Nonce)
+        Assert.Equal("apple", recovered.Slug)
+        Assert.Equal("/connect/authorize?x=1", recovered.ReturnUrl)
+    | Error e -> failwith $"expected success, got {e.Detail}"
+
+[<Fact>]
+let ``a form post with the wrong state is refused and the response deletes the cookie`` () =
+    let clock = clock ()
+    let cookies, _ = startFormPost clock "apple"
+    let ctx = contextWith cookies []
+
+    match OAuthRoundTrip.complete protectors clock ctx OAuthRoundTrip.FormPost "apple" (answer (Some "not-the-state") None) with
+    | Error OAuthRoundTrip.StateMismatch -> ()
+    | other -> failwith $"unexpected: {other}"
+
+    // Spent whatever the outcome, with the attributes it was set with so that a
+    // browser really removes it.
+    let deletion =
+        setCookies ctx
+        |> List.map _.ToLowerInvariant()
+        |> List.find (fun h -> h.StartsWith "umbral_connect_post=")
+
+    Assert.Contains("expires=thu, 01 jan 1970", deletion)
+    Assert.Contains("path=/connect", deletion)
+    Assert.Contains("samesite=none", deletion)
+    Assert.Contains("secure", deletion)
+
+[<Fact>]
+let ``a form post with no state, or an empty one, is refused as missing`` () =
+    let clock = clock ()
+    let cookies, _ = startFormPost clock "apple"
+
+    match completePost clock cookies "apple" (answer None None) with
+    | Error OAuthRoundTrip.StateMissing -> ()
+    | other -> failwith $"unexpected: {other}"
+
+    let cookies, _ = startFormPost clock "apple"
+
+    match completePost clock cookies "apple" (answer (Some "") None) with
+    | Error OAuthRoundTrip.StateMissing -> ()
+    | other -> failwith $"unexpected: {other}"
+
+[<Fact>]
+let ``a form post carrying Apple's cancel is reported as the provider's error`` () =
+    let clock = clock ()
+    let cookies, correlation = startFormPost clock "apple"
+
+    match completePost clock cookies "apple" (answer (Some correlation.State) (Some "user_cancelled_authorize")) with
+    | Error(OAuthRoundTrip.ProviderReturnedError "user_cancelled_authorize") -> ()
+    | other -> failwith $"unexpected: {other}"
+
+[<Fact>]
+let ``a replayed form post is refused`` () =
+    let clock = clock ()
+    let cookies, correlation = startFormPost clock "apple"
+    let posted = answer (Some correlation.State) None
+
+    match completePost clock cookies "apple" posted with
+    | Ok _ -> ()
+    | Error e -> failwith $"the first use should succeed, got {e.Detail}"
+
+    // The client kept the cookie and sent it again: the shared table of
+    // redeemed states refuses it.
+    match completePost clock cookies "apple" posted with
+    | Error OAuthRoundTrip.Replayed -> ()
+    | other -> failwith $"unexpected: {other}"
+
+[<Fact>]
+let ``a form-post correlation expires after ten minutes`` () =
+    let clock = FakeTimeProvider DateTimeOffset.UtcNow
+    let cookies, correlation = startFormPost clock "apple"
+    clock.Advance(TimeSpan.FromMinutes 11.0)
+
+    match completePost clock cookies "apple" (answer (Some correlation.State) None) with
+    | Error OAuthRoundTrip.Expired -> ()
+    | other -> failwith $"unexpected: {other}"
+
+[<Fact>]
+let ``a form post on another connector's route is refused`` () =
+    let clock = clock ()
+    let cookies, correlation = startFormPost clock "apple"
+
+    match completePost clock cookies "discord" (answer (Some correlation.State) None) with
+    | Error(OAuthRoundTrip.SlugMismatch("apple", "discord")) -> ()
+    | other -> failwith $"unexpected: {other}"
+
+let private renamed (name: string) (cookies: (string * string) list) =
+    cookies |> List.map (fun (_, value) -> name, value)
+
+[<Fact>]
+let ``a Lax correlation presented as the form-post cookie is refused as corrupt`` () =
+    let clock = clock ()
+    let cookies, correlation = start clock "apple"
+
+    // A different protector purpose: the value cannot be decrypted under the
+    // other mode's, whatever it is called.
+    match completePost clock (renamed "umbral_connect_post" cookies) "apple" (answer (Some correlation.State) None) with
+    | Error OAuthRoundTrip.Corrupt -> ()
+    | other -> failwith $"unexpected: {other}"
+
+[<Fact>]
+let ``a form-post correlation presented as the Lax cookie is refused as corrupt`` () =
+    let clock = clock ()
+    let cookies, correlation = startFormPost clock "apple"
+
+    match complete clock (renamed "umbral_connect" cookies) "apple" [ "state", correlation.State ] with
+    | Error OAuthRoundTrip.Corrupt -> ()
+    | other -> failwith $"unexpected: {other}"
+
+[<Fact>]
+let ``a request with only the Lax cookie has no form-post correlation`` () =
+    let clock = clock ()
+    let cookies, correlation = start clock "apple"
+
+    match completePost clock cookies "apple" (answer (Some correlation.State) None) with
+    | Error OAuthRoundTrip.NoCorrelation -> ()
+    | other -> failwith $"unexpected: {other}"
+
+[<Fact>]
+let ``peek and returnUrlOf read the cookie of their own mode only`` () =
+    let clock = clock ()
+    let postCookies, _ = startFormPost clock "apple"
+    let laxCookies, _ = start clock "discord"
+
+    let peekIn mode cookies =
+        OAuthRoundTrip.returnUrlOf protectors clock (contextWith cookies []) mode
+
+    Assert.Equal(Some "/connect/authorize?x=1", peekIn OAuthRoundTrip.FormPost postCookies)
+    Assert.Equal(None, peekIn OAuthRoundTrip.Redirect postCookies)
+    Assert.Equal(Some "/connect/authorize?x=1", peekIn OAuthRoundTrip.Redirect laxCookies)
+    Assert.Equal(None, peekIn OAuthRoundTrip.FormPost laxCookies)

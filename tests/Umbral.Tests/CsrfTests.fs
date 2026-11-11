@@ -13,6 +13,11 @@
 ///                `redirect_uri` registration, PKCE, `state`, bearer tokens —
 ///                and a browser form cannot supply an antiforgery token for a
 ///                request an arbitrary third-party app is meant to make.
+///                `POST /connect/{slug}/callback` is among them: a provider's
+///                form-post answer (Sign in with Apple). Its form is written by
+///                the provider's page, so it cannot carry an antiforgery token;
+///                the correlation cookie together with `state` is its check
+///                (specs/013 research R3).
 ///   /dev/*       The Fake provider, a stand-in for somebody else's login page.
 ///                It exists only behind two gates and changes no Umbral state.
 ///

@@ -349,6 +349,7 @@ let private postHandler: EndpointHandler =
                                     (ctx.GetService<IDataProtectionProvider>())
                                     (ctx.GetService<TimeProvider>())
                                     ctx
+                                    OAuthRoundTrip.Redirect
                                     "fediverse"
                                     host
                                     returnUrl
@@ -378,7 +379,7 @@ let private callbackHandler: EndpointHandler =
 
             // Read before `complete` consumes the cookie, so its own failures can
             // still return to the app's page.
-            let early = OAuthRoundTrip.peek protectors clock ctx
+            let early = OAuthRoundTrip.peek protectors clock ctx OAuthRoundTrip.Redirect
             let earlyReturnUrl = early |> Option.map _.ReturnUrl
 
             // Code review N1: the failure names the server when the cookie does.
@@ -387,7 +388,7 @@ let private callbackHandler: EndpointHandler =
                 | Some c when c.Server <> "" -> $";server={c.Server}"
                 | _ -> ""
 
-            match OAuthRoundTrip.complete protectors clock ctx "fediverse" with
+            match OAuthRoundTrip.complete protectors clock ctx OAuthRoundTrip.Redirect "fediverse" (OAuthRoundTrip.answerOfQuery ctx) with
             | Error error ->
                 do! record' ctx config SignInFailed Failure $"fediverse:exchange_failed;{error.Detail}{earlyServer}"
 

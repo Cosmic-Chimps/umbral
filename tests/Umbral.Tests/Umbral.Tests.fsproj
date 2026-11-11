@@ -50,6 +50,7 @@
     <Compile Include="OidcProtocolTests.fs" />
     <Compile Include="LoopbackRedirectTests.fs" />
     <Compile Include="OAuthRoundTripTests.fs" />
+    <Compile Include="FormPostCallbackTests.fs" />
     <Compile Include="RateLimitTests.fs" />
     <Compile Include="TrustedProxiesTests.fs" />
     <Compile Include="AdminLandingTests.fs" />
