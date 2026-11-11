@@ -42,3 +42,11 @@ Each state is at 1280 and 360, dark and light. No state overflows horizontally a
 
 ## Questions for the designer
 1. **The refusal's own reason.** Should it travel in the same cookie and be shown with the notice? `RedirectUris.acceptable` already says why: "is not an absolute URL", "contains a fragment…", "contains a wildcard…". It is not in this change.
+
+## Follow-up for the design nits (`9a8e1c7`)
+
+- **Nit 1, the reason under the field:** the reason travels as a code, `list=..;why=<code>;uri=..`, from the closed set `RedirectUris.Problem`. The page reads it back with `problemOfCode`, so an unknown code shows no reason line, and the text is always Umbral's own `Texts.AppUriProblem` with the designer's four strings. It is drawn as a `um-field-error` after the hint, and the input's `aria-describedby` is `<hint> <error>`. `RedirectUris.check` returns the Problem; `acceptable` keeps its messages word for word on top of it.
+- **NoHost is unreachable on .NET 10:** every http(s) address with no host fails `Uri.TryCreate`, so the operator sees NotAbsolute. The string is kept for completeness.
+- **Nit 2, the notice wording:** the notice ends "then try again."
+- **Tests:** the four affected groups (AppRedirectUris, RedirectUri, AppsMasterDetail, Meta) pass, 158/158. The full suite was 1,908/1,908 on these sources (the child's run).
+- **Captures:** retaken from `9a8e1c7` with the same names, by the same script. The reason line is visible: wildcard on the redirect list, fragment on the post-logout list.
