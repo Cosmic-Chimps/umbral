@@ -32,7 +32,7 @@ Branch `alta/shiny-cadence-bmk8`, `d6d2373..59679a8` (the change is `de283e3`). 
 
     The policy goes first. Update the header comment, whose two versions each say "one `head` entry".
   - **`check-dist.mjs`:** keep both functions whole. Git splits the conflict at their shared closing braces, so close `checkPreviewImage` before `POLICY_SOURCE` begins. Both calls in `checkHtml` merge cleanly.
-  - **`site/README.md`** merges by itself.
+  - **`site/README.md`** merges without a conflict, but, as your notes at `69cee1e` say ("Merging with the link preview"), its two sentences that call the policy the site's one `head` entry are then wrong. Reword them in the same merge.
 
   Built from that resolution: the build passes, check-dist is clean, and each page has the policy first, then the PNG icon and `og:image`, then the scripts and stylesheets. The link preview is cleared by all its reviews, so merging it into this branch now gives the maintainer one clean merge. If the maintainer merges the link preview to `main` first, merge `main` here instead, with the same resolution.
 
