@@ -97,8 +97,9 @@ reads the same here on GitHub.
   [Fediverse walkthrough](docs/connectors/fediverse.md).
 
 The quick start builds the image from this repository, so it works from any
-checkout. Tagged releases are also published to GHCR; see
-[Deploying on Caravana](docs/run/caravana.md).
+checkout. Each release is also published as `ghcr.io/cosmic-chimps/umbral`, for
+`linux/amd64` and `linux/arm64`, tagged `latest` and with its version (for
+example `0.9.0`), so you can pull it instead of building it.
 
 ## Quick start: a first login on your own machine
 
@@ -110,7 +111,7 @@ production setup is [further down](#run-it-for-real-behind-https).
 ### 1. Build the image
 
 ```bash
-git clone <URL of this repository> umbral
+git clone https://github.com/Cosmic-Chimps/umbral.git umbral
 cd umbral
 docker build -t umbral .
 ```

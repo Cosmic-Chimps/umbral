@@ -24,7 +24,8 @@ The first release defines the app from
 settings. It sets:
 
 - the image: `ghcr.io/<owner>/umbral` (`<owner>` is the GitHub user or
-  organization that owns the repository, in lowercase), tag `latest`;
+  organization that owns the repository, in lowercase: `cosmic-chimps` for this
+  one, or yours if you run the workflow from a fork), tag `latest`;
 - container port `8080`, with an HTTP health check on `/healthz`;
 - one volume, `umbral-data`, mounted at `/data`;
 - your domain (the Bella Baxter secret `CARAVANA_DOMAIN`, for example
