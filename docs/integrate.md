@@ -52,7 +52,7 @@ how people are identified.
   (`user@server`) and **`profile`** (the person's page); the other providers send
   neither.
 - **`idp`** is always there, and is Umbral's one extra claim: the provider the
-  person used (`github`, `discord`, `google`, `oidc` for any OpenID Connect
+  person used (`github`, `discord`, `google`, `apple`, `oidc` for any OpenID Connect
   provider you added, `passkey`, or `fediverse`). It is the provider's kind,
   never a connector's identifier: with several Discord connectors it is still
   `discord`. Ignore it freely.

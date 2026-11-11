@@ -24,7 +24,7 @@ Then:
    document, `<issuer>/.well-known/openid-configuration`) with a PKCE challenge,
    `state` and `nonce`.
 2. The person signs in on Umbral's sign-in page, with whichever connectors the
-   app offers: Google, GitHub, a passkey and so on.
+   app offers: Google, GitHub, Apple, a passkey and so on.
 3. Umbral redirects to the app's redirect URI with a code. The system hands that
    address back to the app and closes the browser sheet.
 4. The app exchanges the code at the token endpoint with its PKCE verifier, and
@@ -33,6 +33,12 @@ Then:
 
 This is the pattern of RFC 8252, *OAuth 2.0 for Native Apps*, which AppAuth
 implements.
+
+**An iOS app and Sign in with Apple.** An iOS app that offers Google, GitHub or
+another third-party sign-in usually has to offer Sign in with Apple too, under
+App Store Review Guideline 4.8. The [Apple connector](connectors/apple.md) does
+that through Umbral, in the same browser sheet. Read its page before you submit
+the app.
 
 ## Why not a sign-in form in the app, or a WebView
 

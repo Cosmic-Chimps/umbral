@@ -67,7 +67,8 @@ back:
 | Key ID | "A Key ID is ten letters and digits, like ABC123DEFG." |
 | Private key (missing on a new connector) | "Paste the .p8 key Apple let you download." |
 | Private key (unusable) | "That is not a usable .p8 key. Paste the whole file again, including the BEGIN and END lines." |
-| Display name, allowed domains | The existing messages. |
+| Display name | "Enter a name for this connector, then save again." (the other panes' message speaks of the sign-in button's label, which is fixed here) |
+| Allowed domains | The existing messages. |
 
 Refusals that are not about a field stay notices at the top of the pane: the
 secret store refused the write (existing), the slug is taken (existing), and:
