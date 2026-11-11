@@ -43,3 +43,17 @@ question and is worth taking, here or as the next task.**
    again.", which is true in both places. Catalogue only.
 
 If nit 1 goes to a task of its own, say so and this one merges as it is.
+
+## Re-check, 2026-11-11, at `9a8e1c7` (captures `60e588f`)
+
+**Clear to merge.** Looked at `refused-invalid-360-dark` (wildcard, redirect list) and
+`refused-invalid-post-logout-1280-light` (fragment).
+
+- Nit 1 taken: the reason shows as a field error with its mark, in the strings given, under
+  the field of the list it was typed in; the fragment case now says what is wrong.
+- Nit 2 taken: the notice ends "then try again."
+- The unreachable "no host" string kept: fine, it costs nothing and covers a runtime change.
+
+One observation, not a condition: the error sits after the hint, so at 360 the order is field,
+Add, hint, error. Error before hint would put the reason nearer the field. Take it or leave it;
+no further re-check.
