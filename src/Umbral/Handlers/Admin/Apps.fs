@@ -814,9 +814,10 @@ let private uriList (ctx: HttpContext) (t: Texts.Texts) (row: Row) (spec: UriLis
         if isLast then
             p(class' = "um-hint") { t.AppRedirectUriLastHint }
 
-        p(class' = "um-hint") { spec.Hint }
-
+        // The list's rule is the add field's hint, under the field it describes;
+        // with no field (a full list) it stays under the list.
         if spec.Uris.Length >= Umbral.Domains.RedirectUris.maxPerApp then
+            p(class' = "um-hint") { spec.Hint }
             p(class' = "um-hint") { t.AppUriListFull }
         else
             form(method = "post", action = $"/admin/apps/{row.ClientId}/{spec.Route}", class' = "space-y-2") {
@@ -827,12 +828,16 @@ let private uriList (ctx: HttpContext) (t: Texts.Texts) (row: Row) (spec: UriLis
                     input(type' = "text", id = addId, name = "uri", class' = "um-input um-mono sm:flex-1")
                         .attr("autocomplete", "off")
                         .attr("spellcheck", "false")
+                        .attr("aria-describedby", $"{addId}-hint")
 
-                    button(type' = "submit", class' = Components.btnSm Components.Secondary) {
+                    // Its own width on a narrow screen, like the pane's other small buttons.
+                    button(type' = "submit", class' = Components.btnSm Components.Secondary + " self-start sm:self-auto") {
                         Components.icon Theme.Add
                         t.AppUriAddButton
                     }
                 }
+
+                p(id = $"{addId}-hint", class' = "um-hint") { spec.Hint }
             }
     }
 
