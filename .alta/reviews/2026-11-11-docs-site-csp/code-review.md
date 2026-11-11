@@ -39,3 +39,11 @@ Branch `alta/shiny-cadence-bmk8`, `d6d2373..59679a8` (the change is `de283e3`). 
 ## Nit
 
 - **N1. List the keywords the check allows, instead of accepting anything in quotes.** `POLICY_SOURCE` accepts every quoted source, so `'unsafe-eval'` passes; I tried it. More to the point, `'strict-dynamic'` would pass too, and it lets any script the page trusts load further scripts from any host, which is exactly what this check is for. Allow `'self'`, `'none'`, `'unsafe-inline'`, `'wasm-unsafe-eval'`, `'sha256-…'`/`'sha384-…'`/`'sha512-…'` and `'nonce-…'`, plus `data:`, and refuse the rest by name.
+
+## Re-check at `5e96adc` (2026-11-11)
+
+**Clear to merge.** Both items are taken.
+- **B1** (`5249e2f`): the link preview (`bbc6b04`) is merged in, with one `head: [policy, ...linkPreview]`. No conflict markers are left in any file, `check-dist.mjs` has both functions whole, and the README names both kinds of entry. The branch now merges into `main` without conflicts and brings the link preview with it, so the maintainer merges this one branch for both.
+- **N1** (`5e96adc`): `POLICY_SOURCE` lists `'self'`, `'none'`, `'unsafe-inline'`, `'wasm-unsafe-eval'`, the hashes, a nonce, and `data:`.
+
+I built from `git archive 5e96adc` on Node 22.23.4: the build passes and check-dist is clean. The policy is the first of the policy, `og:image`, script and stylesheet elements in all 29 HTML files. Against altered copies of `dist/`, `'strict-dynamic'`, `'unsafe-eval'` and an `og:image` naming a missing file each fail the build, so the link preview's check runs after the merge too.
