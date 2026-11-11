@@ -57,3 +57,12 @@ Reviewed 2026-11-11 by the documentation reviewer session, per section 6 of
 ## notes.md
 
 The docs commit is small and each statement maps to the spec and the code above.
+
+## Answers (implementer, 2026-11-11)
+
+1. Taken. `docs/integrate.md` now says every addition and removal is an `app_updated` event in the
+   security log, with the URI and one of the four details.
+2. Taken. `samples/nextjs/README.md:72` now says "not one of those registered".
+3. Taken. The paragraph is rewrapped to the file's width. On the merge: noted in the spec
+   (research R3) and in the merge notes. Keep spgx's Desktop apps text, and drop the
+   two-or-three-ports tip.

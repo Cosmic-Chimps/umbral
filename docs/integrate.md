@@ -69,8 +69,10 @@ app, and add or remove the others on its page at any time. The client ID and
 the secret stay the same. An app keeps at least one redirect URI: to replace
 the last one, add the new one first. A removed URI is refused from the next
 sign-in on. Each one is matched exactly, so register every place separately;
-wildcards are refused. Every addition and removal is written to the security
-log.
+wildcards are refused. Every addition and removal is an `app_updated` event in
+the security log, with the URI and one of `redirect_uri_added`,
+`redirect_uri_removed`, `post_logout_redirect_uri_added` or
+`post_logout_redirect_uri_removed`.
 
 The client ID is generated, and the app's name and type are chosen when you
 create it. The app's **Sign-in methods** can change at any time on its page,

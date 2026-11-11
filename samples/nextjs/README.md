@@ -69,7 +69,7 @@ with an Umbral at a real address (its `UMBRAL__PUBLIC_ORIGIN`), and
 
 Behind a reverse proxy that terminates TLS, set `AUTH_URL` to the app's public
 https address. Without it the app builds `http://localhost:3000` URIs, and
-Umbral refuses the sign-in because that redirect URI is not the one registered.
+Umbral refuses the sign-in because that redirect URI is not one of those registered.
 You do not need `AUTH_TRUST_HOST`, which would have Auth.js build its URIs from
 the request's `Host` and `X-Forwarded-*` headers: `AUTH_URL` gives the address
 from configuration instead. The proxy must still pass the `Host` header (or

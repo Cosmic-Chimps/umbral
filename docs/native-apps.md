@@ -78,9 +78,9 @@ the **Client ID** from the app's page, and nothing else.
 ## Redirect URIs
 
 An app can have several redirect URIs (up to 10, added on its page), and Umbral
-matches each **exactly**, character for character: scheme, host, port, path and a trailing slash all count, and
-wildcards are refused. A request with any other value gets an Umbral error page,
-not a redirect. Two kinds work for a phone app:
+matches each **exactly**, character for character: scheme, host, port, path and
+a trailing slash all count, and wildcards are refused. A request with any other
+value gets an Umbral error page, not a redirect. Two kinds work for a phone app:
 
 - **A custom scheme**, such as `com.example.app:/callback`. Use the reverse of a
   domain you own, so no other app is likely to pick the same scheme. It is the
