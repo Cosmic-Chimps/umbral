@@ -433,3 +433,17 @@ the picture goes, and no icon.
   while, so after the deploy share the address with `?v=2` to see the new one at once. Whether
   Slack also shows the small icon beside the site's name from a PNG `link rel="icon"` on a project
   site (it cannot be at the host's root, `/favicon.ico`) is to be seen after the deploy.
+
+### The link preview: both reviews clear, their nits taken
+
+- **Code** (`code-review.md`, `dd269f2`): clear at `cebbe8e`, two nits. `check-dist.mjs` now requires
+  `og:image` and `twitter:image` to be an absolute URL on the site's own host, under `base`, and a
+  file that `dist/` holds: a renamed file and a picture on another host were each injected into a
+  built page and each failed the check, exit 1. `site/README.md` says to run
+  `npm install --no-save sharp` if a later Astro stops installing it. `apple-touch-icon.png` is a
+  full square in the tile's colour, since a phone rounds the corners itself and paints
+  transparency black; the 32-pixel icon keeps its transparent corners.
+- **Design** (`review.md`): clear at `cebbe8e`, one optional nit, taken: the mark sits 19 pixels
+  further left in `social/card.html`, so its base line and the line of text share a left edge.
+  One dark card for both themes, and the footer's words, as ruled. `og.png` was drawn again with
+  the command in `site/README.md`.

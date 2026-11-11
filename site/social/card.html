@@ -33,7 +33,9 @@
     color: #ece8df;
   }
   .lockup { display: flex; align-items: center; gap: 36px; }
-  .lockup svg { width: 200px; height: 200px; flex: none; }
+  /* The drawing's base line starts 4.5 of its 48 units in (19px here): pull the
+     mark left by that, so the base line and the line of text share an edge. */
+  .lockup svg { width: 200px; height: 200px; flex: none; margin-left: -19px; }
   .wordmark {
     font-family: 'Bricolage Grotesque', sans-serif;
     font-weight: 800;

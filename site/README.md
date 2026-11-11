@@ -53,7 +53,7 @@ chrome --headless --hide-scrollbars --virtual-time-budget=2000 --window-size=120
 ```
 
 To make the two icons again after changing `public/favicon.svg` (it uses `sharp`, which Astro
-installs):
+installs; if a later Astro no longer does, `npm install --no-save sharp` first):
 
 ```sh
 node scripts/preview-icons.mjs
@@ -73,6 +73,8 @@ later, or at once on an address it has not seen (add `?v=2`).
 - A page that is not in `sidebar.mjs`, or an entry of it for a page that does not exist.
 - A source that does not start with a `# ` title, or that carries frontmatter.
 - A link the built pages do not resolve (`starlight-links-validator`, a second check).
+- A link preview picture (`og:image`, `twitter:image`) that is not on the site's own host, or that
+  `dist/` does not hold at that address.
 - Anything in `dist/` that asks another host for a file: an external script, stylesheet, font or
   image, a new URL in the JavaScript that `check-dist.mjs` has not been told about, or a host it
   does not know named in a script, a stylesheet or an SVG file.
