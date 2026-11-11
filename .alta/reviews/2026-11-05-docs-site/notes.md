@@ -168,8 +168,8 @@ Everything not in the list above that is new text:
 
 - **Pins** (exact, with `package-lock.json`): `astro` 7.4.10, `@astrojs/starlight` 0.42.10,
   `starlight-links-validator` 0.27.0. Nothing else. Astro 7.4.10 itself asks for Node 22.23.4 or
-  later, so `package.json` says `>=22.23.4`, `.nvmrc` says `22`, and the workflow takes the newest
-  22 (`check-latest`), since a runner's cached 22 may be older.
+  later, so `package.json` says `>=22.23.4`, and `.nvmrc` says `22.23.4` exactly, which the
+  workflow reads (after the code review; first `22` with `check-latest`).
 - **`site/site.config.mjs`** holds `site` and `base`, the two lines to change for a custom domain,
   and the repository's address. The Astro config, the collect script and the check import them.
 - **`site/scripts/collect.mjs`** (Node, standard library only) writes `site/src/content/docs/` and
@@ -190,8 +190,9 @@ Everything not in the list above that is new text:
   repository. To a page's source: the page's route, with the anchor checked against the target's
   headings. To `README.md#anchor`: the page that holds that section. To anything else that exists
   in the repository (a sample, a spec, `docker-compose.yml`, `docs/history/`): the file on GitHub.
-  To nothing: an error with `source:line`, and nothing is written. On this tree: 169 links to
-  pages, 28 to GitHub.
+  To nothing: an error with `source:line`, and nothing is written. On this tree: 127 links to
+  pages, 28 to GitHub (169 before the navigation paragraphs were left out, see "After the
+  reviews").
 - **Every page is in the sidebar.** `site/sidebar.mjs` is the sidebar and the list of pages; the
   script fails on a generated page it does not name and on an entry for a page that does not
   exist. 28 pages.
@@ -342,3 +343,47 @@ changed here. The task should wait until the site is live, and not long after.
 After these: `check-links.py` passes (270 links in 34 files), the site builds clean (28 pages, all
 internal links valid, nothing requested from another host), `actionlint` passes on both workflows
 touched.
+
+### Design re-check: clear at `cb75872`
+
+The verdict is at the top of `review.md`. The search field keeps both its gold border (Starlight's)
+and the gold ring (the focus), as ruled.
+
+### Documentation re-check: clear at `cb75872` (`d2dab14`), with two last requests, both taken
+
+- **One sentence in the walkthrough's opening**: "In Umbral a passkey is a connector, and a person's
+  passkeys belong to their user, like the provider accounts they sign in with." It was the one
+  statement of the README's old passkey opening that was left nowhere.
+- **"Back to the README. Other providers: …" on the site** (the designer's observation, ruled by
+  the documentation reviewer): the paragraph stays in the sources, where it is a GitHub reader's
+  way back and sideways, and `collect.mjs` leaves it out of the generated page. The rule is
+  narrow: a paragraph before the first `## ` that starts "Back to the [README](…). Other providers:"
+  or "Other stores:" and holds nothing but links. Ten pages have one (the six connectors, the four
+  stores). If such a paragraph ever holds a sentence of content, the build stops and says so,
+  rather than dropping it. `docs/native-apps.md` opens "Back to the README" too, but goes on with
+  a sentence about the samples, so it does not match and is kept whole. Links to pages went from
+  169 to 127: the 42 that left are those navigation links.
+
+### Code (`code-review.md`): two blocking items and five nits, all taken
+
+- **B1, a pull request could cancel a deploy to `main`.** `concurrency` is now one group per ref,
+  `pages-${{ github.ref }}`, and only a pull request cancels its own older runs.
+- **B2, the Release notes page would never follow a release.** The release pushes `CHANGELOG.md`
+  with the job's token, which starts no workflow. `pages.yml` now also runs on `workflow_run` of
+  `release`, `completed`. `CHANGELOG.md` stays in the path filter for a hand edit.
+- **N1, three fetches `check-dist` did not see.** Added: in every `.js`, `.mjs`, `.css` and `.svg`
+  of `dist/`, a host that follows a quote, a bracket, an equals sign or a space, with or without a
+  scheme, must be the site's own or in a list of hosts, each with its reason (`www.w3.org`,
+  `bugzilla.mozilla.org`, `bugs.webkit.org`, `markjs.io`, `git.io`, `example.com`: the six the
+  reviewer found, and the six this build has). The exact-URL list for JavaScript stays. Proved by
+  injecting the reviewer's three cases into a built `dist/`: `fetch("//evil.example/x")` in a
+  script, `image-set("https://evil.example/a.png" 1x)` in a stylesheet and
+  `<image href="https://evil.example/a.png"/>` in `favicon.svg`. Three problems, one per file, exit
+  1; restored, it passes: `51 files read (29 html, 6 css, 13 js, 3 svg)`.
+- **N2, Node pinned exactly.** `site/.nvmrc` is `22.23.4`; the workflow reads it with
+  `node-version-file` and no `check-latest`.
+- **N3**: `persist-credentials: false` on the checkout.
+- **N4**: the artifact is uploaded only on `main`, the same condition as the deploy job.
+- **N5**: the header comment of `collect.mjs` says the line-based scan's limit.
+- **Not a finding, a Content-Security-Policy in a `<meta>`**: proposed as a follow-up task, not
+  done here.

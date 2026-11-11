@@ -12,7 +12,16 @@ Starlight's custom properties was the right way to make that cheap.
 
 ## Verdict
 
-**Not yet clear: one blocking item, three nits.** All four are a few lines in `umbra.css`. No
+**Re-check, 2026-11-11, at `cb75872`: clear to merge.** All four items are in `umbra.css` as
+asked and seen in the retaken captures: the current sidebar entry is the rail's (a tonal step
+with gold text, both themes; `start-1280-dark`, `connector-discord-1280-light`); h2 is the
+display face at 24px/32px, so the page title leads; the header mark is 28px beside the
+wordmark; the search field's focus ring is gold (`search-1280-dark`). Keep both the gold
+border and the gold ring on that field: the ring is the site's focus language, and the border
+is Starlight's own. Code blocks stay on Starlight's themes. The design side is done; the docs
+and code reviews are the other gates.
+
+First review at `65a2f69`: **not yet clear: one blocking item, three nits.** All four are a few lines in `umbra.css`. No
 component, layout or script is needed for any of them, so the maintainer's constraint holds.
 
 ## What is right and stays

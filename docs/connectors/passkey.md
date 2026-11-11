@@ -4,7 +4,9 @@ Lets people sign in to your apps with a passkey, and no account at any provider.
 A passkey is a key that a person's phone, laptop or security key holds, unlocked
 by their fingerprint, face or PIN. Nothing is typed, there is nothing to phish,
 and no third party learns who signed in. Umbral is the provider: it keeps only
-the public half of the key, which is not a secret.
+the public half of the key, which is not a secret. In Umbral a passkey is a
+connector, and a person's passkeys belong to their user, like the provider
+accounts they sign in with.
 
 Phones, recent laptops and tablets hold passkeys (the platform's own keychain or
 password manager syncs them), and so do hardware security keys such as a YubiKey.

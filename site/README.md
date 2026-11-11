@@ -8,7 +8,8 @@ folder is generated and ignored, so to change a page you edit its source Markdow
 
 ## Build and preview
 
-You need Node 22, at 22.23.4 or later, which is what Astro asks for (`.nvmrc`).
+You need the Node version in `.nvmrc` (22.23.4; Astro asks for that or later). The workflow reads
+the same file, so CI and a local build run the same Node.
 
 ```sh
 cd site
@@ -26,7 +27,7 @@ npm run collect   # the collect script alone
 | --- | --- |
 | `site.config.mjs` | The address of the site and of the repository. The first two lines are the only ones to change if the site moves to a domain of its own. |
 | `sidebar.mjs` | The sidebar, and with it the list of pages. |
-| `scripts/collect.mjs` | Cuts the Markdown into pages, writes their frontmatter and rewrites their links. |
+| `scripts/collect.mjs` | Cuts the Markdown into pages, writes their frontmatter and rewrites their links. It leaves out a walkthrough's "Back to the README. Other providers: …" paragraph, which is for readers on GitHub: here the sidebar does that. |
 | `scripts/check-dist.mjs` | Reads the built `dist/` and fails if it asks another host for anything. |
 | `src/styles/umbra.css` | The look: Umbral's colours and fonts, through Starlight's custom properties. The one stylesheet. |
 | `src/assets/`, `public/favicon.svg` | The mark, for the dark and the light theme, and the favicon. |
@@ -44,7 +45,8 @@ The fonts are Umbral's own, copied from `src/Umbral/Assets/fonts/` by the collec
 - A source that does not start with a `# ` title, or that carries frontmatter.
 - A link the built pages do not resolve (`starlight-links-validator`, a second check).
 - Anything in `dist/` that asks another host for a file: an external script, stylesheet, font or
-  image, or a new URL in the JavaScript that `check-dist.mjs` has not been told about.
+  image, a new URL in the JavaScript that `check-dist.mjs` has not been told about, or a host it
+  does not know named in a script, a stylesheet or an SVG file.
 
 ## The look in numbers
 

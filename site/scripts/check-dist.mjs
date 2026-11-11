@@ -38,8 +38,37 @@ const ALLOWED_JS_URLS = new Map([
   ['https://harrymkt.github.io', 'translator credit in a Pagefind UI language string'],
 ]);
 
+// Hosts that may be named in the built scripts, stylesheets and SVG files. The
+// exact list above only sees a full http(s) URL in JavaScript; this one also
+// sees what it cannot: a protocol-relative "//host/x", a URL in an SVG file,
+// and one in a CSS function other than url(), such as image-set(). Every host
+// that follows a quote, a bracket, an equals sign or a space, with or without
+// a scheme, must be here, each with the reason it is not a request.
+const ALLOWED_HOSTS = new Map([
+  ['www.w3.org', 'XML namespaces (SVG, XHTML), in scripts, in SVG files and in data: URIs of the stylesheets'],
+  ['bugzilla.mozilla.org', 'a link to a browser bug in a comment of Starlight\'s stylesheet'],
+  ['bugs.webkit.org', 'a link to a browser bug in a comment of Starlight\'s stylesheet'],
+  ['markjs.io', 'the homepage in the licence comment of mark.js, in pagefind-highlight.js'],
+  ['git.io', 'a link in a comment of mark.js, in pagefind-highlight.js'],
+  ['example.com', 'a dummy origin in pagefind to parse a relative URL, never fetched'],
+]);
+const HOST_AFTER_DELIMITER = /["'`(=\s](?:https?:)?\/\/([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/g;
+
 const problems = [];
 const problem = (file, message) => problems.push(`${path.relative(DIST, file)}: ${message}`);
+
+const seenHosts = new Set();
+
+/** Every host named after a delimiter in a script, a stylesheet or an SVG file must be the site's own or allowed. */
+function checkHosts(file, text) {
+  const found = new Set();
+  for (const m of text.matchAll(HOST_AFTER_DELIMITER)) found.add(m[1].toLowerCase());
+  for (const host of found) {
+    seenHosts.add(host);
+    if (host === OWN_HOST || ALLOWED_HOSTS.has(host)) continue;
+    problem(file, `names the host ${host}, which is not in the allowed hosts of scripts/check-dist.mjs`);
+  }
+}
 
 function walk(dir, found = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -145,7 +174,7 @@ if (!existsSync(path.join(DIST, 'pagefind')) || !statSync(path.join(DIST, 'pagef
   problems.push('dist/ has no pagefind/ directory: the search was not built');
 }
 
-const counts = { html: 0, css: 0, js: 0 };
+const counts = { html: 0, css: 0, js: 0, svg: 0 };
 const seenJsUrls = new Set();
 for (const file of walk(DIST)) {
   const ext = path.extname(file).toLowerCase();
@@ -154,18 +183,28 @@ for (const file of walk(DIST)) {
     checkHtml(file, readFileSync(file, 'utf8'));
   } else if (ext === '.css') {
     counts.css++;
-    for (const u of cssUrls(readFileSync(file, 'utf8'))) problem(file, `the stylesheet fetches ${u}`);
+    const css = readFileSync(file, 'utf8');
+    for (const u of cssUrls(css)) problem(file, `the stylesheet fetches ${u}`);
+    checkHosts(file, css);
   } else if (ext === '.js' || ext === '.mjs') {
     counts.js++;
     const js = readFileSync(file, 'utf8');
     checkJs(file, js);
+    checkHosts(file, js);
     for (const url of js.match(/https?:\/\/[^\s"'`)<>\\$,;{}]+/g) ?? []) seenJsUrls.add(url);
+  } else if (ext === '.svg') {
+    // An SVG shown as an image cannot fetch, but one inlined or embedded later could.
+    counts.svg++;
+    checkHosts(file, readFileSync(file, 'utf8'));
   }
 }
 
 // An allowed URL that no longer appears is a stale entry: drop it, so the list stays honest.
 for (const url of ALLOWED_JS_URLS.keys()) {
   if (!seenJsUrls.has(url)) console.warn(`check-dist: note: ${url} is in the allowed list but no script holds it any more`);
+}
+for (const host of ALLOWED_HOSTS.keys()) {
+  if (!seenHosts.has(host)) console.warn(`check-dist: note: ${host} is in the allowed hosts but no file names it any more`);
 }
 
 if (problems.length > 0) {
@@ -177,6 +216,6 @@ if (problems.length > 0) {
 const total = [...externalLinks.values()].reduce((a, b) => a + b, 0);
 const hosts = [...externalLinks].sort((a, b) => b[1] - a[1]).map(([host, n]) => `${host} ${n}`).join(', ');
 console.log(
-  `check-dist: ${counts.html + counts.css + counts.js} files read (${counts.html} html, ${counts.css} css, ${counts.js} js), ` +
+  `check-dist: ${counts.html + counts.css + counts.js + counts.svg} files read (${counts.html} html, ${counts.css} css, ${counts.js} js, ${counts.svg} svg), ` +
     `nothing requested from another host; ${total} external <a> links (${hosts || 'none'})`,
 );

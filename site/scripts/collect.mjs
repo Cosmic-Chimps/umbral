@@ -14,6 +14,11 @@
 // The link scan follows .github/scripts/check-links.py (outside fenced code and
 // code spans; inline links and images, reference definitions and HTML href/src),
 // and slug() is a port of its own, so an anchor that works on GitHub works here.
+// Like that script, the scan reads one line at a time, so a code span that
+// wraps onto a second line is not blanked. A link-like text in one usually
+// fails loudly, as a link that does not exist; the quiet case would be a
+// wrapped span holding `](path)` to a file that exists, whose path would be
+// rewritten inside the code. No source does that; keep such a span on one line.
 
 import {
   copyFileSync,
@@ -208,6 +213,31 @@ function segment(src, from, to, shift = 0) {
   return { src, lines: src.lines.filter((l) => l.n >= from && l.n <= to), shift };
 }
 
+// A walkthrough opens, on GitHub, with a paragraph that is only navigation:
+// "Back to the [README](…). Other providers: [Discord](…) · [GitHub](…)."
+// It is a GitHub reader's way back and sideways, so it stays in the source. On
+// the site the sidebar does both, and "the README" is not where the reader
+// came from, so the page leaves it out.
+const NAVIGATION = /^Back to the \[README\]\([^)]*\)\. Other (?:providers|stores):/;
+
+/** The lines of that paragraph, before the first `## ` heading, or null. */
+function navigationParagraph(src) {
+  const firstH2 = src.headings.find((h) => h.level === 2)?.n ?? src.lines.length + 1;
+  const start = src.lines.find((l) => l.n < firstH2 && !l.code && NAVIGATION.test(l.raw));
+  if (!start) return null;
+  let to = start.n;
+  while (to < src.lines.length && src.lines[to].raw.trim() && src.lines[to].n < firstH2) to++;
+  const text = src.lines.slice(start.n - 1, to).map((l) => l.raw).join(' ');
+  // Only links and what separates them may follow: a sentence of content in
+  // the same paragraph would be dropped with it, so that is an error instead.
+  const rest = text.replace(NAVIGATION, '').replace(/\[[^\]]*\]\([^)]*\)/g, '').replace(/[·.\s]/g, '');
+  if (rest) {
+    fail(`${src.rel}:${start.n}`, `the "Back to the README" paragraph holds more than links ("${rest.slice(0, 40)}"); give that text a paragraph of its own`);
+    return null;
+  }
+  return { from: start.n, to };
+}
+
 function buildPages() {
   // README.md, cut into its preamble and its `## ` sections.
   const readme = load('README.md');
@@ -277,7 +307,14 @@ function buildPages() {
   const whole = (rel, route, fixedTitle) => {
     const src = load(rel);
     const title = titleOf(src);
-    addPage({ route, title: fixedTitle ?? title, edit: rel, segments: [segment(src, 2, src.lines.length)] });
+    const last = src.lines.length;
+    const nav = navigationParagraph(src);
+    addPage({
+      route,
+      title: fixedTitle ?? title,
+      edit: rel,
+      segments: nav ? [segment(src, 2, nav.from - 1), segment(src, nav.to + 1, last)] : [segment(src, 2, last)],
+    });
   };
   whole('samples/README.md', 'samples');
   whole('CHANGELOG.md', 'release-notes', 'Release notes');
