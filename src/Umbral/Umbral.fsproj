@@ -79,6 +79,7 @@
     <Compile Include="Infrastructure/Providers/GitHub.fs" />
     <Compile Include="Infrastructure/Providers/Google.fs" />
     <Compile Include="Infrastructure/Providers/Oidc.fs" />
+    <Compile Include="Infrastructure/Providers/Apple.fs" />
     <Compile Include="Infrastructure/Providers/Fediverse.fs" />
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />

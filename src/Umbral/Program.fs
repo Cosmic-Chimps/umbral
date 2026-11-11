@@ -322,6 +322,16 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
         :> ProviderAdapters.IProviderAdapter)
     |> ignore
 
+    // Sign in with Apple reuses the OpenID Connect discovery cache and the
+    // OpenID Connect adapter's token exchange and validation.
+    services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
+        Providers.Apple.AppleAdapter(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName,
+            sp.GetRequiredService<OidcDiscovery.OidcDiscovery>(),
+            sp.GetRequiredService<TimeProvider>())
+        :> ProviderAdapters.IProviderAdapter)
+    |> ignore
+
     services.AddSingleton<ProviderAdapters.Registry>(fun sp ->
         ProviderAdapters.Registry(sp.GetServices<ProviderAdapters.IProviderAdapter>()))
     |> ignore

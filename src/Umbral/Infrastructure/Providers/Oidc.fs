@@ -73,7 +73,8 @@ let private readBounded (content: HttpContent) : Task<string> =
         return Encoding.UTF8.GetString(buffer.ToArray())
     }
 
-let private mapDiscovery (result: DiscoveryResult) : Result<OpenIdConnectConfiguration, ConnectorError> =
+/// Discovery's verdict as a connector error. The Apple adapter uses it too.
+let mapDiscovery (result: DiscoveryResult) : Result<OpenIdConnectConfiguration, ConnectorError> =
     match result with
     | Discovered configuration -> Ok configuration
     | Unreachable reason -> Error(ProviderUnreachable reason)
@@ -85,8 +86,8 @@ let private listed (values: Collections.Generic.ICollection<string>) =
 /// PKCE is sent unless the document lists methods and `S256` is not among them
 /// (research R5). An absent list says nothing, and a conforming authorization
 /// server ignores a parameter it does not know (RFC 6749 §3.1), so sending the
-/// challenge is the safe reading of silence.
-let private offersPkce (configuration: OpenIdConnectConfiguration) =
+/// challenge is the safe reading of silence. The Apple adapter uses it too.
+let offersPkce (configuration: OpenIdConnectConfiguration) =
     match listed configuration.CodeChallengeMethodsSupported with
     | [] -> true
     | methods -> List.contains "S256" methods
@@ -99,7 +100,8 @@ let private usesBasicAuthentication (configuration: OpenIdConnectConfiguration) 
     | [] -> true
     | methods -> List.contains "client_secret_basic" methods
 
-type private TokenResponse =
+/// What the token endpoint answered with. The Apple adapter uses it too.
+type TokenResponse =
     { AccessToken: string
       IdToken: string option }
 
@@ -110,7 +112,10 @@ let private basicHeader (clientId: string) (clientSecret: string) =
     let credentials = $"{Uri.EscapeDataString clientId}:{Uri.EscapeDataString clientSecret}"
     AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes credentials))
 
-let private exchangeCode
+/// The token request, with the client authentication the provider's discovery
+/// document asks for. The Apple adapter uses it too, with a signed client secret
+/// in place of the stored one.
+let exchangeCode
     (http: HttpClient)
     (configuration: OpenIdConnectConfiguration)
     (request: ExchangeRequest)
@@ -214,53 +219,137 @@ let private reasonFor (error: exn | null) =
     | :? SecurityTokenNotYetValidException -> "not_yet_valid"
     | _ -> "malformed"
 
+/// The settings every `id_token` is held to (research R4).
+let private validationParameters
+    (time: TimeProvider)
+    (clientId: string)
+    (issuer: string)
+    (keys: SecurityKey seq)
+    =
+    let parameters = TokenValidationParameters()
+    // The issuer is stored without a trailing slash; providers differ on
+    // whether the claim has one, and discovery accepted either (research R2).
+    parameters.ValidIssuers <- [ issuer; issuer + "/" ]
+    parameters.ValidateIssuer <- true
+    parameters.ValidAudience <- clientId
+    parameters.ValidateAudience <- true
+    parameters.IssuerSigningKeys <- keys
+    parameters.ValidateIssuerSigningKey <- true
+    parameters.RequireSignedTokens <- true
+    // Asymmetric only: `none` and the `HS*` family are refused (FR-012).
+    parameters.ValidAlgorithms <- asymmetricAlgorithms
+    parameters.ValidateLifetime <- true
+    parameters.RequireExpirationTime <- true
+    parameters.ClockSkew <- clockSkew
+
+    // Umbral's clock, so a test that moves it moves token lifetimes with it:
+    // the library's own check reads the system time, and its `TimeProvider`
+    // setting is not public. The rule is the library's — expiry and start
+    // judged with the skew, the exceptions it would raise — only the clock
+    // is ours.
+    parameters.LifetimeValidator <-
+        LifetimeValidator(fun notBefore expires _ _ ->
+            let now = time.GetUtcNow().UtcDateTime
+
+            if not expires.HasValue then
+                raise (SecurityTokenNoExpirationException "the id_token has no expiry")
+            elif notBefore.HasValue && notBefore.Value > now + clockSkew then
+                raise (SecurityTokenNotYetValidException "the id_token is not valid yet")
+            elif expires.Value < now - clockSkew then
+                raise (SecurityTokenExpiredException "the id_token has expired")
+            else
+                true)
+
+    parameters
+
+/// Validate an `id_token` against the provider's published keys and return its
+/// payload, once the signature, the standard claims, `nonce`, `azp` and a present
+/// `sub` have been checked. The Apple adapter uses it too.
+///
+/// The signing keys come from the discovery cache. A token whose `kid` the
+/// cache has never seen means the provider rotated its keys (FR-013): the
+/// cache is asked to fetch again — once, throttled by the cache to one forced
+/// refresh per issuer per five minutes — and the token is judged against what
+/// that returns. A `kid` that is still unknown then is a signature failure.
+let validateIdToken
+    (discovery: OidcDiscovery)
+    (time: TimeProvider)
+    (clientId: string)
+    (issuer: string)
+    (configuration: OpenIdConnectConfiguration)
+    (idToken: string)
+    (expectedNonce: string)
+    : Task<Result<JsonElement, ConnectorError>> =
+    task {
+        // Reading the header is not trusting it: it only picks the keys and
+        // lets the two cheap refusals (`alg`, `kid`) happen before any
+        // cryptography. The signature is still the library's to check.
+        let token =
+            try
+                Some(JsonWebToken idToken)
+            with :? ArgumentException ->
+                None
+
+        match token with
+        | None -> return invalid "malformed"
+        | Some token ->
+
+        if not (List.contains token.Alg asymmetricAlgorithms) then
+            return invalid "algorithm"
+        else
+
+        let! keysResult =
+            task {
+                let known =
+                    String.IsNullOrEmpty token.Kid
+                    || configuration.SigningKeys |> Seq.exists (fun key -> key.KeyId = token.Kid)
+
+                if known then
+                    return Ok configuration
+                else
+                    let! refreshed = discovery.Refresh issuer
+                    return mapDiscovery refreshed
+            }
+
+        match keysResult with
+        | Error error -> return Error error
+        | Ok configuration ->
+
+        let! result =
+            JsonWebTokenHandler()
+                .ValidateTokenAsync(idToken, validationParameters time clientId issuer configuration.SigningKeys)
+
+        if not result.IsValid then
+            return invalid (reasonFor result.Exception)
+        else
+            use doc = JsonDocument.Parse(Encoding.UTF8.GetString(Base64UrlEncoder.DecodeBytes token.EncodedPayload))
+            let payload = doc.RootElement
+
+            let audiences =
+                match payload.TryGetProperty "aud" with
+                | true, aud when aud.ValueKind = JsonValueKind.Array ->
+                    aud.EnumerateArray()
+                    |> Seq.choose (fun a -> if a.ValueKind = JsonValueKind.String then Option.ofObj (a.GetString()) else None)
+                    |> List.ofSeq
+                | _ -> []
+
+            if optString payload "nonce" <> Some expectedNonce then
+                return invalid "nonce"
+            // OIDC Core §3.1.3.7: with several audiences the token must say
+            // which party it was issued to, and it must be this client.
+            elif audiences.Length > 1 && optString payload "azp" <> Some clientId then
+                return invalid "audience"
+            else
+                match optString payload "sub" with
+                | None -> return invalid "subject"
+                // Cloned: the document is disposed when this block ends, and the
+                // caller reads the payload after it.
+                | Some _ -> return Ok(payload.Clone())
+    }
+
 type OidcAdapter(httpClient: HttpClient, discovery: OidcDiscovery, time: TimeProvider) =
 
-    /// The settings every `id_token` is held to (research R4).
-    let validationParameters (connector: Connector) (issuer: string) (keys: SecurityKey seq) =
-        let parameters = TokenValidationParameters()
-        // The issuer is stored without a trailing slash; providers differ on
-        // whether the claim has one, and discovery accepted either (research R2).
-        parameters.ValidIssuers <- [ issuer; issuer + "/" ]
-        parameters.ValidateIssuer <- true
-        parameters.ValidAudience <- connector.ClientId
-        parameters.ValidateAudience <- true
-        parameters.IssuerSigningKeys <- keys
-        parameters.ValidateIssuerSigningKey <- true
-        parameters.RequireSignedTokens <- true
-        // Asymmetric only: `none` and the `HS*` family are refused (FR-012).
-        parameters.ValidAlgorithms <- asymmetricAlgorithms
-        parameters.ValidateLifetime <- true
-        parameters.RequireExpirationTime <- true
-        parameters.ClockSkew <- clockSkew
-
-        // Umbral's clock, so a test that moves it moves token lifetimes with it:
-        // the library's own check reads the system time, and its `TimeProvider`
-        // setting is not public. The rule is the library's — expiry and start
-        // judged with the skew, the exceptions it would raise — only the clock
-        // is ours.
-        parameters.LifetimeValidator <-
-            LifetimeValidator(fun notBefore expires _ _ ->
-                let now = time.GetUtcNow().UtcDateTime
-
-                if not expires.HasValue then
-                    raise (SecurityTokenNoExpirationException "the id_token has no expiry")
-                elif notBefore.HasValue && notBefore.Value > now + clockSkew then
-                    raise (SecurityTokenNotYetValidException "the id_token is not valid yet")
-                elif expires.Value < now - clockSkew then
-                    raise (SecurityTokenExpiredException "the id_token has expired")
-                else
-                    true)
-
-        parameters
-
-    /// Validate the `id_token` and return its payload.
-    ///
-    /// The signing keys come from the discovery cache. A token whose `kid` the
-    /// cache has never seen means the provider rotated its keys (FR-013): the
-    /// cache is asked to fetch again — once, throttled by the cache to one forced
-    /// refresh per issuer per five minutes — and the token is judged against what
-    /// that returns. A `kid` that is still unknown then is a signature failure.
+    /// Validate the `id_token` and read the identity from its payload.
     member private _.Validate
         (connector: Connector)
         (issuer: string)
@@ -269,68 +358,11 @@ type OidcAdapter(httpClient: HttpClient, discovery: OidcDiscovery, time: TimePro
         (expectedNonce: string)
         : Task<Result<Identity, ConnectorError>> =
         task {
-            // Reading the header is not trusting it: it only picks the keys and
-            // lets the two cheap refusals (`alg`, `kid`) happen before any
-            // cryptography. The signature is still the library's to check.
-            let token =
-                try
-                    Some(JsonWebToken idToken)
-                with :? ArgumentException ->
-                    None
-
-            match token with
-            | None -> return invalid "malformed"
-            | Some token ->
-
-            if not (List.contains token.Alg asymmetricAlgorithms) then
-                return invalid "algorithm"
-            else
-
-            let! keysResult =
-                task {
-                    let known =
-                        String.IsNullOrEmpty token.Kid
-                        || configuration.SigningKeys |> Seq.exists (fun key -> key.KeyId = token.Kid)
-
-                    if known then
-                        return Ok configuration
-                    else
-                        let! refreshed = discovery.Refresh issuer
-                        return mapDiscovery refreshed
-                }
-
-            match keysResult with
+            match! validateIdToken discovery time connector.ClientId issuer configuration idToken expectedNonce with
             | Error error -> return Error error
-            | Ok configuration ->
-
-            let! result =
-                JsonWebTokenHandler()
-                    .ValidateTokenAsync(idToken, validationParameters connector issuer configuration.SigningKeys)
-
-            if not result.IsValid then
-                return invalid (reasonFor result.Exception)
-            else
-                use doc = JsonDocument.Parse(Encoding.UTF8.GetString(Base64UrlEncoder.DecodeBytes token.EncodedPayload))
-                let payload = doc.RootElement
-
-                let audiences =
-                    match payload.TryGetProperty "aud" with
-                    | true, aud when aud.ValueKind = JsonValueKind.Array ->
-                        aud.EnumerateArray()
-                        |> Seq.choose (fun a -> if a.ValueKind = JsonValueKind.String then Option.ofObj (a.GetString()) else None)
-                        |> List.ofSeq
-                    | _ -> []
-
-                if optString payload "nonce" <> Some expectedNonce then
-                    return invalid "nonce"
-                // OIDC Core §3.1.3.7: with several audiences the token must say
-                // which party it was issued to, and it must be this client.
-                elif audiences.Length > 1 && optString payload "azp" <> Some connector.ClientId then
-                    return invalid "audience"
-                else
-                    match optString payload "sub" with
-                    | None -> return invalid "subject"
-                    | Some subject -> return Ok(identityOf payload subject)
+            | Ok payload ->
+                // `validateIdToken` has checked that `sub` is a present string.
+                return Ok(identityOf payload (optString payload "sub" |> Option.defaultValue ""))
         }
 
     /// Fill what the `id_token` left out from the userinfo endpoint, and refuse
