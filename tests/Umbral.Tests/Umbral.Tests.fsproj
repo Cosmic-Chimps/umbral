@@ -27,6 +27,7 @@
     <Compile Include="AppleSignInTests.fs" />
     <Compile Include="AppleAdminTests.fs" />
     <Compile Include="AppleButtonTests.fs" />
+    <Compile Include="ProviderMarkTests.fs" />
     <Compile Include="OidcDiscoveryTests.fs" />
     <Compile Include="OidcAdapterTests.fs" />
     <Compile Include="StubOidcProviderTests.fs" />

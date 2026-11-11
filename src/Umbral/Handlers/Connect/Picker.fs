@@ -141,6 +141,11 @@ let private appleLogoSlot () =
 /// connector is the exception to all of it: Apple fixes its button's title and
 /// colours, so it keeps its own class whatever `kind` is, and wears its logo
 /// slot where the others have the link icon.
+///
+/// The icon is chosen by the connector's kind, never by its display name:
+/// GitHub gets its own mark (its logo guidelines allow it in black or white
+/// only, which the CSS pins), a passkey gets Umbral's Key icon, and Google,
+/// Discord, the Fediverse and OIDC keep the link icon (specs/014-provider-marks/research.md).
 let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: string) (lastUsed: bool) (connector: Connector) =
     let href =
         $"/connect/{Uri.EscapeDataString connector.Slug}/start?returnUrl={Uri.EscapeDataString returnUrl}"
@@ -159,6 +164,8 @@ let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: st
     let leading () : HtmlElement =
         match connector.Kind with
         | Apple -> appleLogoSlot () :> HtmlElement
+        | GitHub -> Components.githubMark () :> HtmlElement
+        | Passkey -> Components.icon Theme.Key :> HtmlElement
         | _ -> Components.icon Theme.Link :> HtmlElement
 
     let link =

@@ -28,6 +28,11 @@ open Umbral.Views.Theme
 let icon (i: Icon) =
     raw $"""<svg class="um-icon" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true" focusable="false"><path d="{i.Path}"/></svg>"""
 
+/// The GitHub mark for the GitHub connector's button: Theme.GitHubMarkPath, a constant, and
+/// `currentColor`, which umbral.input.css pins to white or black as GitHub's rules require.
+let githubMark () =
+    raw $"""<svg class="um-icon um-mark-github" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="{Theme.GitHubMarkPath}"/></svg>"""
+
 /// The Gnomon (an inline SVG) next to the wordmark. The wordmark is set in
 /// lowercase and the display face by `um-wordmark` (CSS); the text stays
 /// "Umbral" for titles and screen readers.

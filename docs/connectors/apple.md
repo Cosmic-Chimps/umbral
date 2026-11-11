@@ -247,10 +247,12 @@ an email Apple reports as verified counts, and the domain must match exactly.
   [Trying it from a laptop](#trying-it-from-a-laptop).
 - **The button.** Its title is always "Sign in with Apple", black in the light
   theme and white in the dark theme, and it does not take an app's accent colour:
-  these are Apple's rules for the button. Apple's logo is not in the button yet:
-  the artwork is Apple's own and the Umbral project has to add it. Until a
-  release notes that it is there, do not rely on this button for an App Store
-  review.
+  these are Apple's rules for the button. Apple's logo is not in the button:
+  Apple's licence for its logo artwork (read on 2026-11-11) lets only members of
+  the Apple Developer Program use it and forbids redistributing it, so the
+  Umbral project cannot ship it, and Apple's rules forbid drawing it. Until a
+  release notes that the logo can be added, do not rely on this button for an
+  App Store review.
 - **The subject belongs to your team.** Apple's identifier for a person is the
   same for every app of one developer team, and different for another team.
   Moving the Services ID to another team makes everyone a new user.

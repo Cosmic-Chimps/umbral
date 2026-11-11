@@ -94,6 +94,15 @@
   .um-apple-logo { display: inline-flex; flex: none; align-items: center; }
   .um-apple-logo:empty { display: none; }
   .um-apple-logo > svg { width: auto; height: 1.25em; fill: currentColor; }
+  /* GitHub's logo rules allow its mark in pure white or black only. The secondary
+     button's text is bone or ink, not pure, so the mark is set explicitly there,
+     by theme as .um-btn-apple above; on the primary (accent) button it keeps
+     currentColor, which Umbral already makes black or white. */
+  .um-btn-secondary .um-mark-github { color: #fff; }
+  :root[data-theme="light"] .um-btn-secondary .um-mark-github { color: #000; }
+  @media (prefers-color-scheme: light) {
+    :root[data-theme="system"] .um-btn-secondary .um-mark-github { color: #000; }
+  }
   .um-label { @apply block text-label-sm uppercase text-on-surface-variant mb-1.5; }
   /* The title of a section inside a card ("Sign-in page branding"): a step above
      the field labels it groups, and below the card's own headline-md title. */
