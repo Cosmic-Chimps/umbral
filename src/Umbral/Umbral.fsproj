@@ -123,6 +123,7 @@
     <Compile Include="Handlers/Dev/FakeProvider.fs" />
     <Compile Include="Handlers/Admin/Apps.fs" />
     <Compile Include="Handlers/Admin/AppSecret.fs" />
+    <Compile Include="Handlers/Admin/AppRedirectUris.fs" />
     <Compile Include="Handlers/Admin/AppDelete.fs" />
     <Compile Include="Handlers/Admin/AppBranding.fs" />
     <Compile Include="Handlers/Admin/Users.fs" />

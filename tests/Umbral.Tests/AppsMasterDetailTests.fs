@@ -462,7 +462,9 @@ let ``a long redirect URI is in a list item that may break anywhere`` () =
 
         let! html = operator.GetHtml(location created |> fun l -> l.Substring(0, l.IndexOf '?'))
 
-        let item = Regex.Match(html, "<li[^>]*>\\s*" + Regex.Escape uri)
+        // The address sits in a span inside the list item (the row also holds
+        // its Remove form since spec 012); the span carries the break rule.
+        let item = Regex.Match(html, "<li[^>]*>\\s*<span[^>]*>\\s*" + Regex.Escape uri)
         Assert.True(item.Success, "the redirect URI is not in a list item")
         Assert.Contains("[overflow-wrap:anywhere]", item.Value)
     }

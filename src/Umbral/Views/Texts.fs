@@ -163,6 +163,25 @@ type Texts =
       AppRedirectUriLabel: string
       AppRedirectUriHint: string
       AppPostLogoutRedirectUriLabel: string
+      // Spec 012: the app's redirect URIs and post-logout redirect URIs as editable lists.
+      AppRedirectUrisLabel: string
+      AppRedirectUrisHint: string
+      AppPostLogoutUrisLabel: string
+      AppPostLogoutUrisHint: string
+      AppPostLogoutUrisNone: string
+      /// Shown in place of Remove on the only redirect URI.
+      AppRedirectUriLastHint: string
+      /// Shown in place of the add form when a list holds the maximum.
+      AppUriListFull: string
+      AppRedirectUriAddLabel: string
+      AppPostLogoutUriAddLabel: string
+      AppUriAddButton: string
+      AppUriRemoveButton: string
+      /// The accessible name of a Remove button: takes the URI.
+      AppUriRemoveLabel: string -> string
+      /// Takes the URI, then the app's name.
+      AppRedirectUriRemoveConfirm: string -> string -> string
+      AppPostLogoutUriRemoveConfirm: string -> string -> string
       AppTypeLabel: string
       AppTypeHint: string
       AppTypeWebDescription: string
@@ -740,6 +759,16 @@ let private noticeEn (code: string) : string option =
     | "app-name-required" -> Some "Give the app a name, then save again."
     | "app-redirect-uri-invalid" ->
         Some "Enter an absolute URL with no wildcards, for example https://app.example.com/callback, then save again."
+    | "app-redirect-uri-added" -> Some "Redirect URI added."
+    | "app-redirect-uri-removed" -> Some "Redirect URI removed. Sign-ins that send it are refused from now on."
+    | "app-post-logout-uri-added" -> Some "Post-logout redirect URI added."
+    | "app-post-logout-uri-removed" -> Some "Post-logout redirect URI removed."
+    | "app-redirect-uri-duplicate" -> Some "That address is already registered for this app."
+    | "app-redirect-uri-limit" ->
+        Some $"An app can have at most {RedirectUris.maxPerApp} addresses in this list. Remove one, then add the new one."
+    | "app-redirect-uri-last" ->
+        Some "An app needs at least one redirect URI, or nobody can sign in to it. Add the new one first, then remove the old one."
+    | "app-redirect-uri-not-registered" -> Some "That address isn't registered for this app any more."
     | "app-type-invalid" -> Some "Choose an app type, then save again."
     | "app-not-found" -> Some "That app no longer exists. Choose one from the list, or register it again."
     | "connector-not-found" ->
@@ -1010,8 +1039,22 @@ let en: Texts =
       AppConnectionTitle = "Connection"
       AppNameLabel = "Name"
       AppRedirectUriLabel = "Redirect URI"
-      AppRedirectUriHint = "The exact, absolute callback URL the app expects — no wildcards."
+      AppRedirectUriHint = "The exact, absolute callback URL the app expects — no wildcards. You can add more on the app's page."
       AppPostLogoutRedirectUriLabel = "Post-logout redirect URI (optional)"
+      AppRedirectUrisLabel = "Redirect URIs"
+      AppRedirectUrisHint = $"Umbral sends people back only to these addresses, matched exactly. Up to {RedirectUris.maxPerApp}."
+      AppPostLogoutUrisLabel = "Post-logout redirect URIs"
+      AppPostLogoutUrisHint = $"Where Umbral may send people after they sign out, matched exactly. Up to {RedirectUris.maxPerApp}."
+      AppPostLogoutUrisNone = "None. After signing out, people land on Umbral's home page."
+      AppRedirectUriLastHint = "An app needs at least one redirect URI. Add the new one before you remove this one."
+      AppUriListFull = $"This list is full ({RedirectUris.maxPerApp}). Remove one to add another."
+      AppRedirectUriAddLabel = "Add a redirect URI"
+      AppPostLogoutUriAddLabel = "Add a post-logout redirect URI"
+      AppUriAddButton = "Add"
+      AppUriRemoveButton = "Remove"
+      AppUriRemoveLabel = fun uri -> $"Remove {uri}"
+      AppRedirectUriRemoveConfirm = fun uri name -> $"Remove {uri} from \"{name}\"? Sign-ins that send this address will be refused."
+      AppPostLogoutUriRemoveConfirm = fun uri name -> $"Remove {uri} from \"{name}\"? People who sign out with this address will land on Umbral's home page instead."
       AppTypeLabel = "App type"
       AppTypeHint = "Not sure? Ask where the sign-in code runs: on a server you control, pick Web application; on the person's own device, pick Single-page or native app."
       AppTypeWebDescription = "Your app has a back end that can keep a secret: ASP.NET, Node/Express, Django, Rails, PHP. Sign-in happens on the server. You get a client ID and a client secret, and sign-in is also protected with PKCE."

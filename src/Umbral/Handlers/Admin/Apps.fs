@@ -377,6 +377,10 @@ let private noticeKind (code: string) =
     match code with
     | "app-name-required"
     | "app-redirect-uri-invalid"
+    | "app-redirect-uri-duplicate"
+    | "app-redirect-uri-limit"
+    | "app-redirect-uri-last"
+    | "app-redirect-uri-not-registered"
     | "app-type-invalid"
     | "app-connector-unknown"
     | "app-not-found"
@@ -746,6 +750,90 @@ let private secretReveal (t: Texts.Texts) (revealed: RevealedSecret) =
         Components.copyField t.Copy t.Copied t.AppSecretLabel "revealed-secret" revealed.Secret ignore
     }
 
+/// What differs between an app's two lists of addresses (spec 012): the route,
+/// the words, and whether the list may be left empty.
+type private UriListSpec =
+    { /// Prefix of the add field's id, unique per app and list.
+      Id: string
+      /// The route under `/admin/apps/{clientId}/`.
+      Route: string
+      Label: string
+      Hint: string
+      AddLabel: string
+      /// Takes the address, then the app's name.
+      RemoveConfirm: string -> string -> string
+      Uris: string list
+      /// The only entry has no Remove; the pane says why instead.
+      KeepOne: bool
+      /// Shown instead of an empty list; a list that may not be empty has none.
+      Empty: string option
+      /// The `data-` attribute that marks the block, for tests.
+      Marker: string }
+
+/// One list of addresses in the Connection section: its label, the rows with a
+/// Remove each, the hint, and the add form (or the note that the list is full).
+let private uriList (ctx: HttpContext) (t: Texts.Texts) (row: Row) (spec: UriListSpec) =
+    let isLast = spec.KeepOne && spec.Uris.Length = 1
+    let addId = $"{spec.Id}-{row.ClientId}"
+
+    div(class' = "space-y-2").data(spec.Marker, "") {
+        p(class' = "um-label") { spec.Label }
+
+        match spec.Uris, spec.Empty with
+        | [], Some none -> (p(class' = "text-body-md text-on-surface-variant") { none }) :> HtmlElement
+        | uris, _ ->
+            // A redirect URI has no break points of its own; at 360px it
+            // would push the pane wider than the screen.
+            (ul(class' = "space-y-1 text-body-md text-on-surface-variant") {
+                for uri in uris do
+                    li(class' = "flex flex-wrap items-center justify-between gap-x-3 gap-y-1").data("uri", uri) {
+                        span(class' = "um-mono [overflow-wrap:anywhere]") { uri }
+
+                        if not isLast then
+                            (form(method = "post", action = $"/admin/apps/{row.ClientId}/{spec.Route}/remove", class' = "inline") {
+                                ctx.GetAntiforgeryInput()
+                                input(type' = "hidden", name = "uri", value = uri)
+
+                                button(
+                                    type' = "submit",
+                                    class' = Components.btnSm Components.Ghost + " text-error hover:text-error"
+                                )
+                                    .attr("aria-label", t.AppUriRemoveLabel uri) {
+                                    Components.icon Theme.DeleteForever
+                                    t.AppUriRemoveButton
+                                }
+                            })
+                            |> Components.confirmSubmit (spec.RemoveConfirm uri row.DisplayName)
+                            :> HtmlElement
+                    }
+            })
+            :> HtmlElement
+
+        if isLast then
+            p(class' = "um-hint") { t.AppRedirectUriLastHint }
+
+        p(class' = "um-hint") { spec.Hint }
+
+        if spec.Uris.Length >= Umbral.Domains.RedirectUris.maxPerApp then
+            p(class' = "um-hint") { t.AppUriListFull }
+        else
+            form(method = "post", action = $"/admin/apps/{row.ClientId}/{spec.Route}", class' = "space-y-2") {
+                ctx.GetAntiforgeryInput()
+                label(for' = addId, class' = "um-label") { spec.AddLabel }
+
+                div(class' = "flex flex-col gap-2 sm:flex-row sm:items-center") {
+                    input(type' = "text", id = addId, name = "uri", class' = "um-input um-mono sm:flex-1")
+                        .attr("autocomplete", "off")
+                        .attr("spellcheck", "false")
+
+                    button(type' = "submit", class' = Components.btnSm Components.Secondary) {
+                        Components.icon Theme.Add
+                        t.AppUriAddButton
+                    }
+                }
+            }
+    }
+
 /// One app's pane (the contract's order): heading, the notices about it, the
 /// connection details, the sign-in methods, the branding, and the closing row.
 let private appPane
@@ -807,12 +895,36 @@ let private appPane
                           ignore
                   }
 
-                  // A redirect URI has no break points of its own; at 360px it
-                  // would push the pane wider than the screen.
-                  ul(class' = "space-y-1 text-body-md text-on-surface-variant") {
-                      for uri in row.RedirectUris do
-                          li(class' = "um-mono [overflow-wrap:anywhere]") { uri }
-                  }
+                  uriList
+                      ctx
+                      t
+                      row
+                      { Id = "redirect-uri-add"
+                        Route = "redirect-uris"
+                        Label = t.AppRedirectUrisLabel
+                        Hint = t.AppRedirectUrisHint
+                        AddLabel = t.AppRedirectUriAddLabel
+                        RemoveConfirm = t.AppRedirectUriRemoveConfirm
+                        Uris = row.RedirectUris
+                        // The only one stays: an app with none cannot sign anyone in.
+                        KeepOne = true
+                        Empty = None
+                        Marker = "redirect-uris" }
+
+                  uriList
+                      ctx
+                      t
+                      row
+                      { Id = "post-logout-uri-add"
+                        Route = "post-logout-uris"
+                        Label = t.AppPostLogoutUrisLabel
+                        Hint = t.AppPostLogoutUrisHint
+                        AddLabel = t.AppPostLogoutUriAddLabel
+                        RemoveConfirm = t.AppPostLogoutUriRemoveConfirm
+                        Uris = row.PostLogoutRedirectUris
+                        KeepOne = false
+                        Empty = Some t.AppPostLogoutUrisNone
+                        Marker = "post-logout-uris" }
               })
 
           // FR-009: which connectors this app offers, readable at a glance, with

@@ -59,6 +59,7 @@ let endpoints: Endpoint list =
       yield! Umbral.Handlers.Dev.FakeProvider.endpoint
       yield! Umbral.Handlers.Admin.Apps.endpoint
       Umbral.Handlers.Admin.AppSecret.endpoint
+      Umbral.Handlers.Admin.AppRedirectUris.endpoint
       Umbral.Handlers.Admin.AppDelete.endpoint
       yield! Umbral.Handlers.Admin.AppBranding.endpoint
       Umbral.Handlers.Admin.Users.endpoint
