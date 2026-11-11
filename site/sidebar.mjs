@@ -41,7 +41,7 @@ export const sidebar = [
     items: [
       { label: 'HTTPS and proxies', slug: 'run/https' },
       { label: 'Back up your data', slug: 'run/backup' },
-      { label: 'Passkeys for the admin area', slug: 'passkeys' },
+      { label: 'Passkeys for the admin area', slug: 'run/operator-passkeys' },
       { label: 'Forgotten operator credential', slug: 'run/operator-credential' },
       {
         label: 'Secret stores',

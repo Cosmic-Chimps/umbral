@@ -37,8 +37,9 @@
 # outputs, never from GITHUB_REF_NAME (which is "main" on a Run workflow), and
 # checks out the tag, so it builds exactly the tagged commit.
 #
-# Setup (Bella Baxter, variables, the production environment): README,
-# "Deploying on Caravana". The production environment's deployment rule must
+# Setup (Bella Baxter, variables, the production environment):
+# docs/run/caravana.md, "Deploying on Caravana". The production environment's
+# deployment rule must
 # allow the tag pattern v* (a pushed tag) AND the branch main (Run workflow: the
 # run's ref is refs/heads/main, so the deploy job is refused without it).
 name: release

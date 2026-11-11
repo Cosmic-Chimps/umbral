@@ -1,36 +1,12 @@
-# Passkeys
-
-A passkey is a key that a person's phone, laptop or security key holds, unlocked
-by their fingerprint, face or PIN. Nothing is typed and there is nothing to
-phish, and no third party learns who signed in. Umbral keeps only the public
-half, which is not a secret. In Umbral a passkey is a connector (Umbral itself
-is the provider), and a person's passkeys belong to their user. Details and
-gotchas are in the [Passkeys walkthrough](connectors/passkey.md).
-
-Umbral uses passkeys in two places, and they are separate:
-
-- **For the people who sign in to your apps**, through the passkey connector. The walkthrough
-  covers enabling it, inviting someone, signing in, adding a passkey to an account that signs in
-  with a provider, recovery, removing a passkey and what an app receives.
-- **For you, in the admin area.** See [Passkeys for the admin area](#passkeys-for-the-admin-area)
-  below.
-
-**The security log.** The events are `passkey_registered`, `passkey_removed`,
-`passkey_invitation_created` and `passkey_invitation_revoked`, and a refused
-passkey sign-in or invitation is a `sign_in_failed` event whose detail starts
-`passkey_refused;reason=`. No challenge, credential id, key or invitation link is
-ever logged.
-
-**Memory.** An instance with the passkey connector in use idles under 160 MB (a
-ceiling, as with an external secret store; the figure is confirmed by the
-idle-memory test). Without the connector it stays under 150 MB.
-
-## Passkeys for the admin area
+# Passkeys for the admin area
 
 You can also sign in to the admin area with a passkey. These passkeys are the
 operator's own, not people's. They do not need the passkey connector to be
 enabled, they never appear on **Users**, and they never sign anyone in to an
 app.
+
+For the passkeys of the people who sign in to your apps, see the
+[Passkeys walkthrough](../connectors/passkey.md).
 
 Open **Credential** in the side rail. The page has three parts: **Passkeys**,
 **Password sign-in** and **Password**.
@@ -65,7 +41,7 @@ working; a change of scheme or port does not.
 
 **If you lose the device.** Run `reset-credential` on the host. It keeps the
 passkeys unless you add `--forget-passkeys` (see
-[Forgotten operator credential](run/operator-credential.md)).
+[Forgotten operator credential](operator-credential.md)).
 
 **The security log.** Adding a passkey is `operator_passkey_added`, removing one
 is `operator_passkey_removed`, and a change of the switch is

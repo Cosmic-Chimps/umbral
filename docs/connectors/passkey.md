@@ -184,5 +184,12 @@ it is invitations only. See [Who can sign in](../who-can-sign-in.md).
   `security_events` as `passkey_refused;reason=invitation_…`.
 - **The security log** records `passkey_registered`, `passkey_removed`,
   `passkey_invitation_created` and `passkey_invitation_revoked`, and refusals as
-  `sign_in_failed` with `passkey_refused;reason=…`. See
+  `sign_in_failed` with `passkey_refused;reason=…`. No challenge, credential id,
+  key or invitation link is ever logged. See
   [Troubleshooting](../run/troubleshooting.md).
+- **Memory.** An instance with the passkey connector in use idles under 160 MB (a
+  ceiling, as with an external secret store; the figure is confirmed by the
+  idle-memory test). Without the connector it stays under 150 MB.
+- **Passkeys for the admin area are separate.** The operator's own passkeys,
+  for signing in to the admin area, do not need this connector: see
+  [Passkeys for the admin area](../run/operator-passkeys.md).

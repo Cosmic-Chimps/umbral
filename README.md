@@ -62,7 +62,7 @@ reads the same here on GitHub.
 - **Run it:**
   [HTTPS and proxies](https://cosmic-chimps.github.io/umbral/run/https/) ·
   [Back up your data](https://cosmic-chimps.github.io/umbral/run/backup/) ·
-  [Passkeys for the admin area](https://cosmic-chimps.github.io/umbral/passkeys/) ·
+  [Passkeys for the admin area](https://cosmic-chimps.github.io/umbral/run/operator-passkeys/) ·
   [Forgotten operator credential](https://cosmic-chimps.github.io/umbral/run/operator-credential/) ·
   [Secret stores](https://cosmic-chimps.github.io/umbral/run/secret-stores/) ·
   [AWS Secrets Manager](https://cosmic-chimps.github.io/umbral/secret-stores/aws/) ·
@@ -182,7 +182,7 @@ other admin session out.
 Once you are in, you can add a passkey under **Credential** and sign in with
 it from the sign-in page with **Sign in with a passkey**. When you have one,
 you can turn password sign-in off there (see
-[Passkeys](docs/passkeys.md#passkeys-for-the-admin-area)).
+[Passkeys](docs/run/operator-passkeys.md)).
 
 > `/admin` always takes you to the right place: the setup page the first time,
 > the sign-in page afterwards. `/` is a short public home page (what Umbral is,
@@ -370,9 +370,9 @@ Umbral serves plain HTTP on port 8080 inside the container and expects a reverse
 of it to terminate TLS. The repository's [`docker-compose.yml`](docker-compose.yml) does this
 with Caddy, which also fetches and renews the certificate: point a domain name at the machine,
 make ports 80 and 443 reach it, and run `UMBRAL_DOMAIN=auth.example.com docker compose up -d`.
-The whole of it, why `UMBRAL__PUBLIC_ORIGIN` must be exactly the address people use, and what
-another reverse proxy must send are in [Run it for real, behind HTTPS](docs/run/https.md). On a
-Caravana host, see [Deploying on Caravana](docs/run/caravana.md).
+The rest is in [Run it for real, behind HTTPS](docs/run/https.md): why `UMBRAL__PUBLIC_ORIGIN`
+must be exactly the address people use, and what another reverse proxy must send. On a Caravana
+host, see [Deploying on Caravana](docs/run/caravana.md).
 
 ## Your data: back it up
 

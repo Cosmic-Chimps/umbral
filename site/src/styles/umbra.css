@@ -60,6 +60,9 @@
      the page colour here; the hairline of both themes is the fifth step. */
   --sl-color-hairline: var(--sl-color-gray-5);
   --sl-color-hairline-light: var(--sl-color-gray-5);
+
+  /* Behind the current entry of the sidebar: the product's high tonal step. */
+  --umbra-current-bg: #1d1d2b;
 }
 
 :root[data-theme='light'] {
@@ -78,6 +81,8 @@
 
   /* The sidebar sits on the same paper as the header. */
   --sl-color-bg-sidebar: var(--sl-color-gray-7);
+
+  --umbra-current-bg: #ebe5d8;
 }
 
 /* The page title and the sections of a page in the display face; h3 and
@@ -90,7 +95,10 @@ main h1,
 main h1 {
   letter-spacing: -0.035em;
 }
+/* The product's headline large, so the page title leads and the sections mark. */
 .sl-markdown-content h2 {
+  font-size: 1.5rem;
+  line-height: 2rem;
   letter-spacing: -0.03em;
 }
 .sl-markdown-content :is(h3, h4, h5, h6) {
@@ -104,4 +112,26 @@ main h1 {
   letter-spacing: -0.035em;
   text-transform: lowercase;
   color: var(--sl-color-white);
+}
+/* The mark at about the wordmark's line height, as in the product's rail. */
+.site-title img {
+  height: 1.75rem;
+  width: auto;
+}
+
+/* The current page, as the product's rail draws it: a tonal step and gold
+   text, never a fill. */
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover,
+.sidebar-content a[aria-current='page']:focus {
+  background-color: var(--umbra-current-bg);
+  color: var(--sl-color-text-accent);
+  font-weight: 600;
+}
+
+/* The search field's focus ring is the browser's own blue otherwise, the one
+   colour here that is neither a tone, the gold nor a status. */
+#starlight__search .pagefind-ui__search-input:focus-visible {
+  outline: 2px solid var(--sl-color-text-accent);
+  outline-offset: 2px;
 }

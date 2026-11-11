@@ -61,6 +61,7 @@ The pairs of text and background of the Umbra mapping, as contrast ratios (WCAG,
 | Link text on the page (accent-high in the dark theme, accent in the light) | 11.95 | 5.25 |
 | Link text on the header and sidebar | 11.14 | 5.54 |
 | Link text on inline code | 8.10 | 4.72 |
+| The current sidebar entry: link text on its tonal step (`#1d1d2b`, `#ebe5d8`) | 10.14 | 4.72 |
 | The accent as text on the page | 5.73 | 5.25 |
 | The accent as text on the header and sidebar | 5.35 | 5.54 |
 | Outline border on the page (3:1 is enough for a border) | 4.13 | 3.58 |

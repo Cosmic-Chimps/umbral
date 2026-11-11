@@ -43,9 +43,10 @@ Line numbers are `README.md` at `3c87b72` (1570 lines). The README is now 412 li
 | How it looks (534–571) | `docs/look.md` | `/look/` |
 | Brand an app's sign-in page (573–662) | `docs/branding.md` | `/branding/` |
 | Who can sign in (664–755) | `docs/who-can-sign-in.md` | `/who-can-sign-in/` |
-| Passkeys: opening (759–764), the security log (819–823), memory (825–827) | `docs/passkeys.md` | `/passkeys/` |
+| Passkeys: opening (759–764) | not kept twice: the walkthrough's opening says it (table below) | `/connectors/passkey/` |
+| Passkeys: the security log (819–823), memory (825–827) | `docs/connectors/passkey.md`, Gotchas (after the documentation review; first in `docs/passkeys.md`) | `/connectors/passkey/` |
 | Passkeys: Enable the connector … JavaScript (766–817) | not kept twice: `docs/connectors/passkey.md` says it (table below) | `/connectors/passkey/` |
-| Passkeys for the admin area (829–878) | `docs/passkeys.md` | `/passkeys/` |
+| Passkeys for the admin area (829–878) | `docs/run/operator-passkeys.md` (after the documentation review; first `docs/passkeys.md`) | `/run/operator-passkeys/` |
 | Run it for real, behind HTTPS (880–974) | `docs/run/https.md`; the README keeps one new paragraph | `/run/https/` |
 | Deploying on Caravana, with Release and the Caravana backup (976–1229) | `docs/run/caravana.md` | `/run/caravana/` |
 | Your data: back it up, with Upgrading (1231–1329) | `docs/run/backup.md`; the README keeps one new paragraph | `/run/backup/` |
@@ -56,8 +57,8 @@ Line numbers are `README.md` at `3c87b72` (1570 lines). The README is now 412 li
 | Contributing (1545–1566) | README; one link target changed, one sentence added about `site/` | not published |
 | License (1568–1570) | README, unchanged | not published |
 
-For T4, when it runs: "Passkeys" findings are in `docs/passkeys.md` and
-`docs/connectors/passkey.md`; "Run it for real" in `docs/run/https.md`; "Backup" in
+For T4, when it runs: "Passkeys" findings are in `docs/connectors/passkey.md` and
+`docs/run/operator-passkeys.md`; "Run it for real" in `docs/run/https.md`; "Backup" in
 `docs/run/backup.md`; "Moving secrets" in `docs/run/secret-stores.md`; "Settings" in
 `docs/run/settings.md`; "Troubleshooting" in `docs/run/troubleshooting.md`; "Who can sign in" in
 `docs/who-can-sign-in.md`. The Requirements item of W11 is still in the README.
@@ -96,6 +97,7 @@ unchanged apart from two link targets.
 
 | README paragraph (lines) | Where `docs/connectors/passkey.md` says it |
 | --- | --- |
+| The opening (759–764): what a passkey is, Umbral keeps the public half, Umbral is the provider, a person's passkeys belong to their user | The opening ("Umbral is the provider: it keeps only the public half"); "Adding a passkey…" ("An account holds up to 10 passkeys"); "Removing a passkey" ("Deleting a user deletes their passkeys") |
 | Enable the connector (766–773) | "1. Enable the connector" |
 | Invite someone (775–782) | "2. Invite someone", "3. What the person sees" |
 | Signing in (784–786) | "Signing in" |
@@ -106,10 +108,11 @@ unchanged apart from two link targets.
 | Bound to the address (810–812) | "Before you start", and Gotchas, "Changing the domain stops every passkey" |
 | JavaScript (814–817) | Gotchas, "JavaScript is needed" |
 
-The security-log paragraph (819–823) is kept in `docs/passkeys.md` although the walkthrough's
-Gotchas name the same events, because its last sentence, "No challenge, credential id, key or
-invitation link is ever logged", is said nowhere else. The memory paragraph is said nowhere else
-either.
+The security-log paragraph's last sentence, "No challenge, credential id, key or invitation link
+is ever logged", and the memory paragraph were said nowhere else. They were first kept in
+`docs/passkeys.md`; the documentation review lifted the links-only rule for them, and they are now
+in the walkthrough's Gotchas: the sentence in "The security log" (which already named the events),
+the memory paragraph as a bullet of its own.
 
 ## New sentences
 
@@ -128,8 +131,11 @@ Everything not in the list above that is new text:
 - README, Contributing: one sentence on `site/`.
 - `docs/integrate.md`: the lead paragraph, which sends a GitHub reader to the README for the three
   values. The site drops it (the README's section is the lead there).
-- `docs/passkeys.md`: "Umbral uses passkeys in two places, and they are separate:" and its two
-  bullets.
+- `docs/run/operator-passkeys.md`: "For the passkeys of the people who sign in to your apps, see
+  the Passkeys walkthrough."
+- `docs/connectors/passkey.md`, Gotchas: "Passkeys for the admin area are separate. The operator's
+  own passkeys, for signing in to the admin area, do not need this connector: see Passkeys for the
+  admin area."
 - `docs/run/secret-stores.md`: "By default Umbral keeps each connector's client secret in `/data`,
   encrypted (`UMBRAL__SECRET_STORE=local`). It can keep them in a secrets manager instead." (from
   the settings table's row for `UMBRAL__SECRET_STORE`).
@@ -269,10 +275,15 @@ light one), which the Fill Pair Rule may want as ink with gold text in the light
 ## The UI strings that cite documentation (step 5)
 
 T6 has not landed and has no task file, so there was nothing to amend. A follow-up task was
-created instead, `c36q` ("UI: point the Documentation link and the strings that cite docs at the
-documentation site"): a `DocsUrl` constant beside `RepositoryUrl`, `DocumentationUrl` (today
-`RepositoryUrl + "#readme"`, the footer's link) pointing at the site, and E14's six strings naming
-the site's pages. `Texts.fs` is not changed here. It should wait until the site is live.
+created instead, `hhww` ("UI and log: point the Documentation link and every message that cites
+docs at the documentation site"): a `DocsUrl` constant beside `RepositoryUrl`, `DocumentationUrl`
+(today `RepositoryUrl + "#readme"`, the footer's link) pointing at the site, E14's six strings
+naming the site's pages, and **the log message at `src/Umbral/Program.fs:556`**: the schema-9
+upgrade warning sends operators to "Troubleshooting in the README", which this branch moved to
+`docs/run/troubleshooting.md`. The documentation review found that one (its blocking item, for the
+follow-up); it is in `hhww`'s "Why" and "What to do". (`hhww` replaces `c36q`, which was removed
+and created again with the added item, since a task cannot be edited.) Nothing under `src/` is
+changed here. The task should wait until the site is live, and not long after.
 
 ## The maintainer's steps
 
@@ -293,3 +304,41 @@ the site's pages. `Texts.fs` is not changed here. It should wait until the site 
 - **Code** (`umbral`): `site/scripts/collect.mjs`, `site/scripts/check-dist.mjs`,
   `.github/workflows/pages.yml`, the pins, `site/package-lock.json` (381 packages, all from
   `registry.npmjs.org`).
+
+## After the reviews (2026-11-11)
+
+### Design (`review.md`): one blocking item, three nits, all taken in `site/src/styles/umbra.css`
+
+- **Blocking, the current sidebar entry.** It was Starlight's filled pill. It is now the product's
+  rail: the high tonal step (`#1d1d2b` dark, `#ebe5d8` light) with the label in the theme's gold at
+  600, on `.sidebar-content a[aria-current='page']` (and its hover and focus), which outranks
+  Starlight's own rule in the built CSS. The pair is in the contrast table of `site/README.md`:
+  10.14 dark, 4.72 light.
+- **h2** is the product's headline large, `1.5rem` / `2rem`, still in the display face.
+- **The header mark** is `1.75rem` high.
+- **The search field's focus ring** was the browser's own blue (the input had no outline rule); it
+  is `2px solid` in the theme's gold.
+- Code blocks keep Starlight's themes, as ruled.
+- All 13 captures were taken again from the new build.
+
+### Documentation (`review-docs.md`, `8d66e66`): clear, one item for the follow-up, four nits
+
+- **The log message** (`Program.fs:556`): in the follow-up task `hhww`, see "The UI strings that
+  cite documentation" above.
+- **Nit 1**: the comment in `.github/workflows/release.yml` names `docs/run/caravana.md`.
+- **Nit 2, one name for one page**: taken in full. `docs/passkeys.md` is now
+  `docs/run/operator-passkeys.md`, titled "Passkeys for the admin area" as its sidebar row and the
+  README's Contents call it, and holds that section alone, with one sentence that points to the
+  walkthrough for people's passkeys. The security-log sentence and the memory paragraph are in the
+  walkthrough's Gotchas, with one bullet that points back. So the first of the "Decisions the task
+  left open" above is settled this way: two pages, each on one subject. The route is
+  `/run/operator-passkeys/`.
+- **Nit 3**: no pull request exists yet (this session does not open one unasked). When one is
+  opened, its description should say that the README's links to the site are dead until the
+  `pages` workflow has run once, so that the merge and the first run happen in one sitting. It is
+  step 4 of "The maintainer's steps".
+- **Nit 4**: the README's "Run it for real" paragraph takes the reviewer's wording.
+
+After these: `check-links.py` passes (270 links in 34 files), the site builds clean (28 pages, all
+internal links valid, nothing requested from another host), `actionlint` passes on both workflows
+touched.
