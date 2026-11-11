@@ -387,3 +387,18 @@ and the gold ring (the focus), as ruled.
 - **N5**: the header comment of `collect.mjs` says the line-based scan's limit.
 - **Not a finding, a Content-Security-Policy in a `<meta>`**: proposed as a follow-up task, not
   done here.
+
+### All three reviews clear (2026-11-11)
+
+| Review | File | Verdict |
+| --- | --- | --- |
+| Design, `umbral-designer` | `review.md` | Clear to merge at `cb75872` |
+| Documentation, `umbral-documentation` | `review-docs.md` | Clear to merge at `cb75872` (`d2dab14`); still clear at `5155151` (`eaa2757`) |
+| Code, `umbral` | `code-review.md` | Clear to merge at `5155151` (`1a33b45`) |
+
+Nothing changed under `site/`, `docs/`, `README.md` or `.github/` after `5155151`: the two commits
+on top of it are the reviewers' own files. The branch is not pushed and not merged. What remains
+is "The maintainer's steps" above: merge, turn Pages on once, run the `pages` workflow by hand the
+first time, and look at the deployed site. Two follow-up tasks wait for the site to be live:
+`hhww` (the Documentation link, the UI strings and the log message that cite documentation) and
+`fqjn` (a Content-Security-Policy meta element on the site).
