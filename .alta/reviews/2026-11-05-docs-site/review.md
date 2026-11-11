@@ -105,3 +105,28 @@ docs review's to rule on, not mine.
 
 Recapture `start` and `connector-discord` at 1280 in both themes and `search-1280-dark`, and
 send the commit. One look.
+
+## The link preview (added 2026-11-11, at `cebbe8e`)
+
+**Clear to merge. One optional nit.** Looked at `site/public/og.png` (1200 by 630),
+`apple-touch-icon.png` (180), `favicon-32.png` and the head tags in `astro.config.mjs`.
+
+The three questions:
+
+1. **One dark card for both of a reader's themes: yes.** Ink is the identity's first face and
+   its fallback theme, and a preview sits in someone else's interface, light or dark; ink with
+   bone holds in both. No paper variant.
+2. **The line: the footer's words, as built.** The card is shared by every page; the preview's
+   own title and description already say which page and that it is documentation. "Self-hosted
+   passwordless sign-in" says what Umbral is, from the catalogue.
+3. **The mark's size and gap: right.** The full cut with the base line is the correct drawing
+   at 200px, its base sits on the wordmark's baseline, and the gap reads as the product's
+   lockup scaled up. The only gold is the sun.
+
+The icons are the favicon tile unchanged, in the bold cut, which is the cut for those sizes.
+The alt text and the declared dimensions are right.
+
+Nit (optional): the tagline starts at the 96px padding, but the mark's base line starts about
+20px further in, because the drawing has its own inset in its 48-unit box. Pull the mark left
+by that inset (a negative margin of about 20px on the mark in `card.html`) so the base line and
+the tagline share a left edge.

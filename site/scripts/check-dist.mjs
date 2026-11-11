@@ -18,7 +18,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { site } from '../site.config.mjs';
+import { base, site } from '../site.config.mjs';
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const OWN_HOST = new URL(site).host;
@@ -111,6 +111,30 @@ const FETCHED = new Set(['src', 'srcset', 'poster', 'data', 'action', 'xlink:hre
 
 const externalLinks = new Map(); // host -> count, for <a href>
 
+// The picture of a link preview. A chat or social app fetches it from the
+// address in the page, so it must be the site's own, absolute, and a file that
+// this build really holds at that path: a changed base or a renamed file
+// would otherwise bring back the empty box, with no build noticing.
+const PREVIEW_IMAGE = new Set(['og:image', 'twitter:image']);
+const BASE_PATH = base.replace(/\/+$/, '');
+
+function checkPreviewImage(file, which, value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    problem(file, `${which} is "${value}", which is not an absolute URL`);
+    return;
+  }
+  if (url.host !== OWN_HOST) {
+    problem(file, `${which} points at ${value}, which is not on ${OWN_HOST}`);
+  } else if (BASE_PATH && !url.pathname.startsWith(`${BASE_PATH}/`)) {
+    problem(file, `${which} is ${value}, which is not under ${BASE_PATH}/`);
+  } else if (!existsSync(path.join(DIST, decodeURIComponent(url.pathname.slice(BASE_PATH.length))))) {
+    problem(file, `${which} is ${value}, and dist/ holds no such file`);
+  }
+}
+
 // What a source of the Content-Security-Policy may be: something in quotes (a
 // keyword such as 'self' or 'unsafe-inline', a hash, a nonce) or data:. A host or
 // another scheme, which are written without quotes, would let the browser ask
@@ -192,6 +216,8 @@ function checkHtml(file, html) {
         if (otherHost(value) !== null) problem(file, `<${name} ${attr}> points at ${value}`);
       } else if (attr === 'style') {
         for (const u of cssUrls(value)) problem(file, `an inline style on <${name}> fetches ${u}`);
+      } else if (name === 'meta' && attr === 'content' && PREVIEW_IMAGE.has(attrs.get('property') ?? attrs.get('name') ?? '')) {
+        checkPreviewImage(file, attrs.get('property') ?? attrs.get('name'), value);
       } else if (name === 'meta' && attr === 'content' && /^refresh$/i.test(attrs.get('http-equiv') ?? '')) {
         const target = /url\s*=\s*['"]?([^'";\s]+)/i.exec(value)?.[1];
         if (target && otherHost(target) !== null) problem(file, `<meta http-equiv="refresh"> goes to ${target}`);

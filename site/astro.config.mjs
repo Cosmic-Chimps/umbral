@@ -5,9 +5,10 @@ import { base, repository, site } from './site.config.mjs';
 import { sidebar } from './sidebar.mjs';
 
 // No custom components, no layouts, no head scripts: Starlight's defaults plus
-// one stylesheet and one `head` entry, the policy below. The site asks no other
-// host for anything: scripts/check-dist.mjs proves it after every build, and the
-// policy has the browser refuse it.
+// one stylesheet and the `head` entries below: the policy, then the link preview
+// (meta and link elements only). The site asks no other host for anything:
+// scripts/check-dist.mjs proves it after every build, and the policy has the
+// browser refuse it.
 
 // GitHub Pages sends no header of ours, so the Content-Security-Policy travels in
 // each page, as a meta element. Everything comes from the site itself; each
@@ -27,6 +28,20 @@ const contentSecurityPolicy = [
   "form-action 'self'",
 ].join('; ');
 
+// What a chat or social app shows beside a link to the site. Starlight writes
+// the title and the description but no picture, and its favicon is an SVG,
+// which those apps do not draw: without these the preview has an empty box
+// where the picture goes and no icon. The picture's address must be absolute.
+const linkPreview = [
+  { tag: 'meta', attrs: { property: 'og:image', content: `${site}${base}/og.png` } },
+  { tag: 'meta', attrs: { property: 'og:image:type', content: 'image/png' } },
+  { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+  { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+  { tag: 'meta', attrs: { property: 'og:image:alt', content: 'Umbral: self-hosted passwordless sign-in' } },
+  { tag: 'meta', attrs: { name: 'twitter:image', content: `${site}${base}/og.png` } },
+  { tag: 'link', attrs: { rel: 'icon', type: 'image/png', sizes: '32x32', href: `${base}/favicon-32.png` } },
+  { tag: 'link', attrs: { rel: 'apple-touch-icon', sizes: '180x180', href: `${base}/apple-touch-icon.png` } },
+];
 export default defineConfig({
   site,
   base,
@@ -42,6 +57,10 @@ export default defineConfig({
         alt: '',
       },
       favicon: '/favicon.svg',
+      // The policy first. Starlight puts an http-equiv meta right after the charset
+      // and the viewport, before the first script and stylesheet, which is where a
+      // policy has to be. One `head` key: a second would silently replace this one.
+      head: [{ tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: contentSecurityPolicy } }, ...linkPreview],
       customCss: ['./src/styles/umbra.css'],
       social: [{ icon: 'github', label: 'GitHub', href: repository }],
       sidebar,
@@ -49,9 +68,6 @@ export default defineConfig({
       lastUpdated: false,
       credits: false,
       pagefind: true,
-      // Starlight puts an http-equiv meta right after the charset and the viewport,
-      // before the first script and stylesheet, which is where a policy has to be.
-      head: [{ tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: contentSecurityPolicy } }],
     }),
   ],
 });
