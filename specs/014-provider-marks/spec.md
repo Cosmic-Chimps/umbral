@@ -51,5 +51,11 @@ Apple's logo `docs/connectors/apple.md` has to tell operators not to rely on the
 review. The case against: a new stored value (a schema change), a pasted-SVG parser on the
 admin side, and a second place an operator has to visit Apple's site.
 
+**Security requirement (code review of part A, 2026-11-11):** the pasted SVG never goes through
+`raw`: it can carry script, `on*` handlers, `foreignObject` and `href` references. Either it is
+parsed to an allowlist (the `viewBox` and path data only) before it is stored and only those
+values reach the page, or it is served as an `<img>` from an Umbral route with its own CSP and
+`nosniff`. Tests include a hostile SVG.
+
 **Status:** waiting for the maintainer. Until then the Apple button stays title-only and the
 walkthrough keeps both warnings.
