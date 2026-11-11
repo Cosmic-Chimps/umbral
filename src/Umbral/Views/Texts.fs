@@ -638,7 +638,23 @@ type Texts =
       /// The reason Apple could not be reached, said when enabling.
       AppleEnableUnreachable: string -> string
       /// The store and the cause (`<store>: <cause>`), said when the key could not be read.
-      AppleEnableStore: string -> string }
+      AppleEnableStore: string -> string
+      // The Apple button's logo section (specs/014-provider-marks, FR-010 to FR-015)
+      AppleLogoSectionTitle: string
+      AppleLogoLead: string
+      AppleLogoLabel: string
+      AppleLogoHint: string
+      AppleLogoSave: string
+      AppleLogoReplaceLabel: string
+      AppleLogoReplaceHint: string
+      AppleLogoRemove: string
+      AppleLogoRemoveConfirm: string
+      /// The pasted text is not an SVG file. The text itself is never drawn back.
+      AppleLogoNotSvg: string
+      /// The SVG has more in it than the logo's outline.
+      AppleLogoMoreThanShapes: string
+      AppleLogoTooLarge: string
+      AppleLogoNone: string }
 
 /// The display name of a store, by the id a `SecretRef` carries.
 let private secretStoreNameEn (storeId: string) : string =
@@ -929,6 +945,9 @@ let private noticeEn (code: string) : string option =
         Some "Not enabled: the stored key cannot sign. Paste the .p8 key again under Replace the private key."
     | "connector-enable-apple-store" ->
         Some "Not enabled: Umbral could not read the key from the secret store. Check the store, then press Enable again."
+    // The Apple button's logo (spec 014).
+    | "apple-logo-saved" -> Some "Logo saved."
+    | "apple-logo-removed" -> Some "Logo removed. The button shows its title alone."
     | "passkey-invitation-created" ->
         Some "Invitation created. Copy the link below and send it to the person; it is not shown again."
     | "passkey-invitation-invalid" -> Some "A note is at most 64 characters. Shorten it, then invite again."
@@ -1528,7 +1547,24 @@ let en: Texts =
         fun reason -> $"Not enabled: Umbral could not reach Apple ({reason}). Try again in a moment."
       AppleEnableStore =
         fun reason ->
-            $"Not enabled: Umbral could not read the key from the secret store ({reason}). Check the store, then press Enable again." }
+            $"Not enabled: Umbral could not read the key from the secret store ({reason}). Check the store, then press Enable again."
+      AppleLogoSectionTitle = "Sign-in button logo"
+      AppleLogoLead =
+        "Apple requires its own logo on this button and does not let Umbral ship it. Add it from your Apple Developer account, and the button shows it."
+      AppleLogoLabel = "Apple logo (SVG)"
+      AppleLogoHint =
+        "Download the logo from Apple Design Resources, open the SVG in a text editor and paste all of it. Umbral keeps only its shape and draws it in the button's own black or white."
+      AppleLogoSave = "Save logo"
+      AppleLogoReplaceLabel = "Replace the logo"
+      AppleLogoReplaceHint = "Leave blank to keep the saved logo."
+      AppleLogoRemove = "Remove logo"
+      AppleLogoRemoveConfirm = "Remove the logo? The button will show its title alone."
+      AppleLogoNotSvg =
+        "That is not an SVG file. Paste the whole file from Apple Design Resources, from <svg to </svg>."
+      AppleLogoMoreThanShapes =
+        "That SVG has more than a shape in it. Umbral accepts only the logo's outline. Paste the file as Apple provides it."
+      AppleLogoTooLarge = "That file is too large to be a logo."
+      AppleLogoNone = "No logo yet. The button shows \"Sign in with Apple\" alone." }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.

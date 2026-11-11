@@ -39,7 +39,12 @@ let private classesOf (button: string) =
 
 /// An instance with the Apple connector (named `displayName`), the fake one and
 /// one app, and the page of that app. `accent` is the app's colour, if any.
-let private pageWith (displayName: string) (accent: string option) (cookies: string list) =
+let private pageAfter
+    (prepare: Fixtures.TestApp -> System.Threading.Tasks.Task)
+    (displayName: string)
+    (accent: string option)
+    (cookies: string list)
+    =
     task {
         let fake = FakeApple.create ()
         let! app = Fixtures.createAppWithProviderHandler fake.Handler fakeSettings ignore
@@ -49,6 +54,7 @@ let private pageWith (displayName: string) (accent: string option) (cookies: str
         do! claimOperator app operator
         do! seedFakeConnector app
         do! FakeApple.seedConnector app fake
+        do! prepare app
 
         if displayName <> "Apple" then
             let! stored = ConnectorStore.findBySlug app.DbConfig "apple"
@@ -81,6 +87,21 @@ let private pageWith (displayName: string) (accent: string option) (cookies: str
         Assert.Equal(HttpStatusCode.OK, response.StatusCode)
         let! html = response.Content.ReadAsStringAsync()
         return decode html
+    }
+
+let private pageWith (displayName: string) (accent: string option) (cookies: string list) =
+    pageAfter (fun _ -> System.Threading.Tasks.Task.CompletedTask) displayName accent cookies
+
+/// A logo as the admin pane would have parsed and stored it.
+let private madeUp = """<svg viewBox="0 0 10 10"><path d="M1 1 L9 9 Z"/></svg>"""
+
+let private storeLogo (svg: string) (app: Fixtures.TestApp) : System.Threading.Tasks.Task =
+    task {
+        match Umbral.Domains.AppleLogo.parse svg with
+        | Ok logo ->
+            let! stored = ConnectorStore.setAppleLogo app.DbConfig app.Clock logo
+            Assert.True stored
+        | Error e -> failwith $"{e}"
     }
 
 [<Fact>]
@@ -136,6 +157,43 @@ let ``the Apple button has no link icon and an empty slot for Apple's logo`` () 
 
         // The others keep their link icon.
         Assert.Contains("<svg", buttonOf html "fake")
+    }
+
+[<Fact>]
+let ``a saved logo is drawn in Apple's slot and the other buttons are unchanged`` () =
+    task {
+        let! html = pageAfter (storeLogo madeUp) "Apple" None []
+        let button = buttonOf html "apple"
+        Assert.Matches("<span class=\"um-apple-logo\"[^>]*data-apple-logo[^>]*aria-hidden=\"true\"[^>]*><svg viewBox=\"0 0 10 10\" fill=\"currentColor\"", button)
+        Assert.Contains("<path d=\"M1 1 L9 9 Z\"", button)
+        Assert.Contains("Sign in with Apple", button)
+
+        // The other connector keeps its link icon, and no logo.
+        let other = buttonOf html "fake"
+        Assert.DoesNotContain("um-apple-logo", other)
+        Assert.DoesNotContain("viewBox=\"0 0 10 10\"", other)
+        Assert.Contains("<svg", other)
+    }
+
+[<Fact>]
+let ``text written straight into the database never reaches the page`` () =
+    task {
+        let hostile = """<svg viewBox="0 0 1 1" onload="alert(1)"><path d="M0 0Z"/></svg>"""
+
+        let writeHostile (app: Fixtures.TestApp) : System.Threading.Tasks.Task =
+            task {
+                use! connection = Database.openConnection app.DbConfig
+                use command = connection.CreateCommand()
+                command.CommandText <- "UPDATE connectors SET apple_logo = @logo WHERE slug = 'apple'"
+                command.Parameters.AddWithValue("@logo", hostile) |> ignore
+                let! changed = command.ExecuteNonQueryAsync()
+                Assert.Equal(1, changed)
+            }
+
+        let! html = pageAfter writeHostile "Apple" None []
+        Assert.DoesNotContain("onload", html)
+        Assert.DoesNotContain("alert(", html)
+        Assert.Matches("<span class=\"um-apple-logo\"[^>]*data-apple-logo[^>]*aria-hidden=\"true\"[^>]*></span>", buttonOf html "apple")
     }
 
 [<Fact>]

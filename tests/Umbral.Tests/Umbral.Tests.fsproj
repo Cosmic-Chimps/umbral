@@ -27,6 +27,7 @@
     <Compile Include="AppleClientSecretTests.fs" />
     <Compile Include="AppleSignInTests.fs" />
     <Compile Include="AppleAdminTests.fs" />
+    <Compile Include="AppleLogoAdminTests.fs" />
     <Compile Include="AppleButtonTests.fs" />
     <Compile Include="ProviderMarkTests.fs" />
     <Compile Include="OidcDiscoveryTests.fs" />

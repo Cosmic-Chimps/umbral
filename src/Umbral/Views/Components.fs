@@ -19,6 +19,7 @@ open System
 open Microsoft.AspNetCore.Http
 open Oxpecker
 open Oxpecker.ViewEngine
+open Umbral.Domains
 open Umbral.Views.Texts
 open Umbral.Views.Theme
 
@@ -32,6 +33,20 @@ let icon (i: Icon) =
 /// `currentColor`, which umbral.input.css pins to white or black as GitHub's rules require.
 let githubMark () =
     raw $"""<svg class="um-icon um-mark-github" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="{Theme.GitHubMarkPath}"/></svg>"""
+
+/// The slot for Apple's logo on the Apple connector's button. Apple requires its own logo on
+/// this button and does not let Umbral ship it, so the operator pastes it in the connector's
+/// pane (specs/014-provider-marks). Without one the slot is empty and takes no space, so the
+/// title stays centred. With one, what is drawn is `AppleLogo.render` of a value that came out
+/// of `AppleLogo.parse`: the validated `viewBox` and path data, rebuilt, never the pasted text,
+/// so `raw` is safe here. Callers get the logo from `ConnectorStore.appleLogo`, which parses it
+/// again on every read, so nothing written straight into the database reaches a page either.
+let appleLogoSlot (logo: AppleLogo.AppleLogo option) : HtmlElement =
+    let slot = span(class' = "um-apple-logo").data("apple-logo", "").attr("aria-hidden", "true")
+
+    match logo with
+    | Some logo -> slot { raw (AppleLogo.render logo) }
+    | None -> slot { }
 
 /// The Gnomon (an inline SVG) next to the wordmark. The wordmark is set in
 /// lowercase and the display face by `um-wordmark` (CSS); the text stays

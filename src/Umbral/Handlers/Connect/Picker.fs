@@ -9,6 +9,7 @@ open System
 open OpenIddict.Abstractions
 open Oxpecker
 open Oxpecker.ViewEngine
+open Umbral.Domains
 open Umbral.Domains.Branding
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
@@ -126,14 +127,6 @@ let arrange (last: string option) (offered: Connector list) : Connector option *
         | None -> None, offered
     | _ -> None, offered
 
-/// The slot for Apple's logo on the Apple connector's button. It is empty in this
-/// change and takes no space while it is, so the title stays centred. The artwork
-/// that goes inside as an inline SVG must be Apple's own file from Apple Design
-/// Resources: it must never be drawn by hand or loaded from another host, and
-/// adding it is a follow-up for the maintainer (specs/013, research R8).
-let private appleLogoSlot () =
-    span(class' = "um-apple-logo").data("apple-logo", "").attr("aria-hidden", "true") { }
-
 /// A connector's button. Primary when the app chose an accent colour, so the
 /// colour is what the person sees to press; secondary otherwise, as it always
 /// was (a logo alone does not recolour anything). The one last used carries a
@@ -146,7 +139,7 @@ let private appleLogoSlot () =
 /// GitHub gets its own mark (its logo guidelines allow it in black or white
 /// only, which the CSS pins), a passkey gets Umbral's Key icon, and Google,
 /// Discord, the Fediverse and OIDC keep the link icon (specs/014-provider-marks/research.md).
-let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: string) (lastUsed: bool) (connector: Connector) =
+let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: string) (lastUsed: bool) (appleLogo: AppleLogo.AppleLogo option) (connector: Connector) =
     let href =
         $"/connect/{Uri.EscapeDataString connector.Slug}/start?returnUrl={Uri.EscapeDataString returnUrl}"
 
@@ -163,7 +156,7 @@ let private button (t: Texts.Texts) (kind: Components.ButtonKind) (returnUrl: st
 
     let leading () : HtmlElement =
         match connector.Kind with
-        | Apple -> appleLogoSlot () :> HtmlElement
+        | Apple -> Components.appleLogoSlot appleLogo
         | GitHub -> Components.githubMark () :> HtmlElement
         | Passkey -> Components.icon Theme.Key :> HtmlElement
         | _ -> Components.icon Theme.Link :> HtmlElement
@@ -192,6 +185,7 @@ let private view
     (app: NamedApp option)
     (branding: AppBranding option)
     (connectors: Connector list)
+    (appleLogo: AppleLogo.AppleLogo option)
     (last: string option)
     (notice: string option)
     =
@@ -259,14 +253,14 @@ let private view
                 (div(class' = "flex flex-col gap-3") {
                     match arrange last connectors with
                     | Some first, others ->
-                        button t buttonKind returnUrl true first
+                        button t buttonKind returnUrl true appleLogo first
                         div(class' = "um-or").data("or-divider", "") { t.PickerOr }
 
                         for connector in others do
-                            button t buttonKind returnUrl false connector
+                            button t buttonKind returnUrl false appleLogo connector
                     | None, all ->
                         for connector in all do
-                            button t buttonKind returnUrl false connector
+                            button t buttonKind returnUrl false appleLogo connector
                 })
                 :> HtmlElement
         }
@@ -310,7 +304,19 @@ let handler: EndpointHandler =
                     | None -> return AllShared
                 }
 
-            return! ctx.WriteHtmlView(view ctx t returnUrl app branding (offeredTo choice all) (BrowserCookies.lastConnector ctx) notice)
+            let offered = offeredTo choice all
+
+            // The logo is read only when Apple is on the page, and only through
+            // `ConnectorStore.appleLogo`, which hands back a parsed value.
+            let! appleLogo =
+                task {
+                    if offered |> List.exists (fun c -> c.Kind = Apple) then
+                        return! ConnectorStore.appleLogo config
+                    else
+                        return None
+                }
+
+            return! ctx.WriteHtmlView(view ctx t returnUrl app branding offered appleLogo (BrowserCookies.lastConnector ctx) notice)
         }
 
 let endpoint = GET [ route "/signin" handler ]

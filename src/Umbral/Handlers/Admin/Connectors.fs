@@ -144,6 +144,79 @@ type private Row =
         | Some c -> c.Slug
         | None -> this.Kind.Value
 
+/// The Apple pane's "Sign-in button logo" section (spec 014, FR-010 to FR-015). `logo` is
+/// what `ConnectorStore.appleLogo` returned: a parsed value, drawn through
+/// `Components.appleLogoSlot`, which is the only way any SVG reaches this page. `problem` is
+/// the refusal's message, drawn under the field; the pasted text itself is never drawn back,
+/// so the textarea is always empty.
+let private appleLogoSection
+    (ctx: HttpContext)
+    (t: Texts.Texts)
+    (logo: AppleLogo.AppleLogo option)
+    (problem: string option)
+    : HtmlElement =
+    let section =
+        div(class' = "um-pane-section").data("apple-logo-section", "") {
+            h3(class' = "um-section-title") { t.AppleLogoSectionTitle }
+
+            div(class' = "space-y-5") {
+                p(class' = "text-body-md text-on-surface-variant") { t.AppleLogoLead }
+
+                match logo with
+                | None ->
+                    (p(class' = "text-body-md text-on-surface-variant").data("apple-logo-none", "") { t.AppleLogoNone })
+                    :> HtmlElement
+                | Some logo ->
+                    // The sample Apple button as people see it, drawn like the branding
+                    // section's. `data-branding-sample` keeps the disabled button at full
+                    // opacity.
+                    (div(class' = "w-full max-w-sm space-y-4 rounded-lg bg-surface-container p-4") {
+                        button(type' = "button", class' = "um-btn um-btn-apple w-full justify-center")
+                            .attr("disabled", "disabled")
+                            .data("branding-sample", "")
+                            .data("apple-logo-sample", "") {
+                            Components.appleLogoSlot (Some logo)
+                            t.SignInWithApple
+                        }
+                    })
+                    :> HtmlElement
+
+                form(method = "post", action = "/admin/connectors/apple/logo", class' = "space-y-3") {
+                    ctx.GetAntiforgeryInput()
+
+                    match logo with
+                    | Some _ -> Components.textareaField t.AppleLogoReplaceLabel "appleLogo" 6 (Some t.AppleLogoReplaceHint) problem
+                    | None -> Components.textareaField t.AppleLogoLabel "appleLogo" 6 (Some t.AppleLogoHint) problem
+
+                    div(class' = "flex flex-wrap items-center gap-2") {
+                        button(type' = "submit", class' = Components.btnSm Components.Secondary) { t.AppleLogoSave }
+                    }
+                }
+
+                // Reversible (the operator can paste it again), so a ghost in the error colour
+                // with a confirm, never the red fill.
+                match logo with
+                | Some _ ->
+                    (form(method = "post", action = "/admin/connectors/apple/logo/remove") {
+                        ctx.GetAntiforgeryInput()
+
+                        button(
+                            type' = "submit",
+                            class' = Components.btnSm Components.Ghost + " text-error hover:text-error"
+                        ) {
+                            t.AppleLogoRemove
+                        }
+                    })
+                    |> Components.confirmSubmit t.AppleLogoRemoveConfirm
+                    :> HtmlElement
+                | None -> Fragment() :> HtmlElement
+            }
+        }
+
+    match logo with
+    | Some _ -> section.data("apple-logo-saved", "") :> HtmlElement
+    | None -> section :> HtmlElement
+
 let private providerPane
     (ctx: HttpContext)
     (t: Texts.Texts)
@@ -154,6 +227,8 @@ let private providerPane
     (view: Components.FrameView)
     (notice: HtmlElement option)
     (appleDraft: AppleConnector.Draft option)
+    (appleLogo: AppleLogo.AppleLogo option)
+    (appleLogoProblem: string option)
     (row: Row)
     =
     let slug = row.Slug
@@ -444,6 +519,13 @@ let private providerPane
                           }
                       }
                   })
+
+              // The Apple button's logo, with a form of its own so that adding or
+              // removing it never touches the credentials. Only for a stored Apple
+              // connector: an unconfigured kind has no button to put a logo on.
+              match row.Kind with
+              | Apple when isConfigured -> appleLogoSection ctx t appleLogo appleLogoProblem
+              | _ -> Fragment() :> HtmlElement
 
               // An unconfigured kind has nothing to switch off or delete.
               if isConfigured then
@@ -842,6 +924,8 @@ let private view
     (strand: StrandWarning option)
     (explained: string option)
     (appleDraft: AppleConnector.Draft option)
+    (appleLogo: AppleLogo.AppleLogo option)
+    (appleLogoProblem: string option)
     (invitations: PasskeyInvitations.Invitation list)
     (revealedLink: string option)
     =
@@ -1002,7 +1086,7 @@ let private view
 
                 FediverseConnector.pane ctx t origin enabledCount chosenSlugs row.Existing draft frameView paneNotice
             | _ ->
-                providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice appleDraft row
+                providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice appleDraft appleLogo appleLogoProblem row
                 :> HtmlElement
         | _, None -> Fragment() :> HtmlElement
 
@@ -1081,12 +1165,15 @@ type private Drafts =
     { Instance: DomainsDraft option
       Card: (string * DomainsDraft) option
       /// The Apple form, refused, with every typed value but the key.
-      Apple: AppleConnector.Draft option }
+      Apple: AppleConnector.Draft option
+      /// The refusal of a pasted logo, said under its field. The pasted text is not kept.
+      AppleLogoProblem: string option }
 
 let private noDrafts =
     { Instance = None
       Card = None
-      Apple = None }
+      Apple = None
+      AppleLogoProblem = None }
 
 /// The screen, with the add form as given. The GET routes draw it empty; a refused
 /// add draws it again with the operator's input, and so does a refused list.
@@ -1100,6 +1187,7 @@ let private render
             let t = Texts.current ()
             let config = ctx.GetService<Database.DbConfig>()
             let! existing = ConnectorStore.listAll config
+            let! appleLogo = ConnectorStore.appleLogo config
             let! choices = AppConnectors.allChoices config
             let! instanceList = EmailDomainRules.instanceList config
 
@@ -1287,6 +1375,8 @@ let private render
                         strand
                         explained
                         drafts.Apple
+                        appleLogo
+                        drafts.AppleLogoProblem
                         invitations
                         revealedLink
                 )
@@ -2311,6 +2401,67 @@ let saveAllowedDomains: EndpointHandler =
             return! WebForms.redirectWithNotice ctx domainsPath "allowed-domains-saved"
         })
 
+/// Save the pasted logo of the Apple button (spec 014, FR-010 to FR-015). The text is
+/// parsed to an allowlist, and only the parsed value is stored; a refusal is a 422 with its
+/// message under the field and nothing stored, and the pasted text is not drawn back. A
+/// blank paste with a logo saved keeps it and goes back to the pane with no notice, since
+/// nothing changed ("Leave blank to keep the saved logo."); with none saved it is the
+/// not-an-SVG refusal.
+let saveAppleLogo: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let t = Texts.current ()
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let! form = WebForms.readValidated ctx
+            let slug = Apple.Value
+            let! existing = ConnectorStore.findBySlug config slug
+
+            match existing with
+            | Some stored when stored.Kind = Apple ->
+                let pasted = WebForms.value form "appleLogo"
+                let! saved = ConnectorStore.appleLogo config
+
+                if String.IsNullOrWhiteSpace pasted && saved.IsSome then
+                    return! WebForms.redirect ctx (detailPath slug)
+                else
+                    match AppleLogo.parse pasted with
+                    | Error error ->
+                        ctx.SetStatusCode 422
+
+                        let message =
+                            match error with
+                            | AppleLogo.NotSvg -> t.AppleLogoNotSvg
+                            | AppleLogo.MoreThanShapes -> t.AppleLogoMoreThanShapes
+                            | AppleLogo.TooLarge -> t.AppleLogoTooLarge
+
+                        return!
+                            render ctx (Item slug) emptyAddForm { noDrafts with AppleLogoProblem = Some message }
+                    | Ok logo ->
+                        let! _ = ConnectorStore.setAppleLogo config clock logo
+                        do! recordEventWith ctx SecurityEvents.ConnectorUpdated slug (Some "apple-logo=saved")
+                        return! WebForms.redirectWithNotice ctx (detailPath slug) "apple-logo-saved"
+            | _ -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+        })
+
+/// Take the logo off the Apple button: the button shows its title alone again.
+let removeAppleLogo: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let! _ = WebForms.readValidated ctx
+            let slug = Apple.Value
+            let! existing = ConnectorStore.findBySlug config slug
+
+            match existing with
+            | Some stored when stored.Kind = Apple ->
+                let! _ = ConnectorStore.clearAppleLogo config clock
+                do! recordEventWith ctx SecurityEvents.ConnectorUpdated slug (Some "apple-logo=removed")
+                return! WebForms.redirectWithNotice ctx (detailPath slug) "apple-logo-removed"
+            | _ -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+        })
+
 let endpoint =
     [ GET [ route "/admin/connectors" page ]
       GET [ route "/admin/connectors/new" newPage ]
@@ -2319,5 +2470,7 @@ let endpoint =
       POST [ route "/admin/connectors" create ]
       POST [ route "/admin/allowed-domains" saveAllowedDomains ]
       POST [ route "/admin/connectors/fediverse" saveFediverse ]
+      POST [ route "/admin/connectors/apple/logo" saveAppleLogo ]
+      POST [ route "/admin/connectors/apple/logo/remove" removeAppleLogo ]
       POST [ route "/admin/connectors/apple" saveApple ]
       POST [ routef "/admin/connectors/{%s}" (slugOfSegment >> save) ] ]

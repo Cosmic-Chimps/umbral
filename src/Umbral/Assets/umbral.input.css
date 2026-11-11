@@ -82,18 +82,21 @@
      app's accent. The light theme gets black with white text and the dark theme
      white with black text, chosen the way tailwind.config.js chooses the tokens:
      dark on :root, light under data-theme="light" and under "system" when the OS
-     asks for light. No outline and no border. */
-  .um-btn-apple { background-color: #fff; color: #000; }
+     asks for light. No outline and no border. Apple's logo artwork carries its own
+     padding, so there is no gap between it and the title; the other buttons keep
+     theirs. */
+  .um-btn-apple { background-color: #fff; color: #000; gap: 0; }
   :root[data-theme="light"] .um-btn-apple { background-color: #000; color: #fff; }
   @media (prefers-color-scheme: light) {
     :root[data-theme="system"] .um-btn-apple { background-color: #000; color: #fff; }
   }
-  /* The place for Apple's logo, empty until the maintainer adds Apple's own
-     artwork (Picker.fs). An empty slot takes no space, so the title stays
-     centred; a logo is as tall as the icon the other buttons carry. */
+  /* The place for Apple's logo, which the operator pastes in the connector's pane
+     (Components.appleLogoSlot). An empty slot takes no space, so the title stays
+     centred; a logo fills the button's full height (h-11, 2.75rem), its width
+     from its own proportions, in the button's own black or white. */
   .um-apple-logo { display: inline-flex; flex: none; align-items: center; }
   .um-apple-logo:empty { display: none; }
-  .um-apple-logo > svg { width: auto; height: 1.25em; fill: currentColor; }
+  .um-apple-logo > svg { width: auto; height: 2.75rem; fill: currentColor; }
   /* GitHub's logo rules allow its mark in pure white or black only. The secondary
      button's text is bone or ink, not pure, so the mark is set explicitly there,
      by theme as .um-btn-apple above; on the primary (accent) button it keeps

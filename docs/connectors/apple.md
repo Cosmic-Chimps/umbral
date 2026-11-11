@@ -33,9 +33,8 @@ Back to the [README](../../README.md). Other providers:
   interactions for advertising without consent. Sign in with Apple is the usual
   answer. The guideline is at
   <https://developer.apple.com/app-store/review/guidelines/#login-services>.
-  One thing to know first: the Apple logo is not in Umbral's button yet (see
-  [The button](#gotchas) under Gotchas), so check that before you submit an app
-  to the App Store.
+  App Review checks the button too: add Apple's logo to it in
+  [step 4](#4-add-apples-logo-to-the-button) before you submit an app.
 
 ## 1. Get the return URL from Umbral
 
@@ -157,7 +156,42 @@ A refused form shows each message under the field it is about and keeps what
 you typed, except the key, which is never drawn back. The last four messages
 appear at the top of the pane.
 
-## 4. What people see
+## 4. Add Apple's logo to the button
+
+Apple's rules want its logo on a Sign in with Apple button, and App Review
+checks the button of an app that offers it. Apple does not let the Umbral
+project ship the logo: its licence for the artwork (read on 2026-11-11) lets
+only members of the Apple Developer Program use it, in their own apps, and
+forbids redistributing it. You are a member, so you add it yourself:
+
+1. Download **Sign in with Apple Logo** from Apple Design Resources,
+   <https://developer.apple.com/design/resources/>, and accept Apple's licence.
+2. Pick an SVG file made for a button with a title (not a logo-only one). Black
+   or white does not matter: Umbral draws the logo in the button's own colour.
+   A picture of a whole button (its background and its title as well as the
+   apple) does not work: Umbral draws every shape in one colour, so the button
+   would show a solid bar.
+3. Open the SVG in a text editor and copy all of it, from `<svg` to `</svg>`.
+4. In **Connectors → Apple**, under **Sign-in button logo**, paste it into
+   **Apple logo (SVG)** and click **Save logo**.
+
+The pane then shows the button as people see it, in the current theme. If the
+logo looks too small or too large beside the title, paste another size of the
+same file under **Replace the logo**. **Remove logo** takes it away again; the
+button then shows its title alone. Deleting the Apple connector deletes the
+logo with it.
+
+Umbral keeps only the logo's outline: it reads the file, keeps its shape and
+nothing else (no colours, no background, no script), and draws that in the
+button. It refuses a file that holds anything other than shapes:
+
+| What the form says | What to do |
+| --- | --- |
+| "That is not an SVG file. Paste the whole file from Apple Design Resources, from &lt;svg to &lt;/svg&gt;." | What you pasted is not an SVG, or is cut short. Copy the whole file again. |
+| "That SVG has more than a shape in it. Umbral accepts only the logo's outline. Paste the file as Apple provides it." | The file has been edited or is not Apple's. Download it again. |
+| "That file is too large to be a logo." | The text is longer than 32 KiB. Apple's logo files are a few kilobytes. |
+
+## 5. What people see
 
 1. They click **Sign in with Apple** on Umbral's page.
 2. Apple's page asks them to sign in if they are not signed in. The first time,
@@ -247,12 +281,9 @@ an email Apple reports as verified counts, and the domain must match exactly.
   [Trying it from a laptop](#trying-it-from-a-laptop).
 - **The button.** Its title is always "Sign in with Apple", black in the light
   theme and white in the dark theme, and it does not take an app's accent colour:
-  these are Apple's rules for the button. Apple's logo is not in the button:
-  Apple's licence for its logo artwork (read on 2026-11-11) lets only members of
-  the Apple Developer Program use it and forbids redistributing it, so the
-  Umbral project cannot ship it, and Apple's rules forbid drawing it. Until a
-  release notes that the logo can be added, do not rely on this button for an
-  App Store review.
+  these are Apple's rules for the button. Apple's logo is in it only once you
+  have added it ([step 4](#4-add-apples-logo-to-the-button)): Umbral cannot ship
+  it, because Apple's licence for the artwork forbids redistributing it.
 - **The subject belongs to your team.** Apple's identifier for a person is the
   same for every app of one developer team, and different for another team.
   Moving the Services ID to another team makes everyone a new user.
