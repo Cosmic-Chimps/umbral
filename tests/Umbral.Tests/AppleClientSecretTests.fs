@@ -150,6 +150,66 @@ let ``garbage, an RSA key and a P-384 key do not sign`` () =
     Assert.True((clientSecret clock keyIds servicesId (rsa.ExportPkcs8PrivateKeyPem())).IsNone)
     Assert.True((clientSecret clock keyIds servicesId (p384.ExportPkcs8PrivateKeyPem())).IsNone)
 
+// A 256-bit key is not a P-256 key: secp256k1 and brainpoolP256r1 are the same
+// size, import on a platform that has them, sign, and are then refused by Apple
+// with `invalid_client`. Generated with `openssl ecparam -genkey` and converted
+// with `openssl pkcs8 -topk8 -nocrypt`; they protect nothing.
+let private secp256k1Pem =
+    "-----BEGIN PRIVATE KEY-----\n\
+     MIGEAgEAMBAGByqGSM49AgEGBSuBBAAKBG0wawIBAQQgd3KEK2GYy5oTpO4ysME4\n\
+     fpKD3wj4jMtWaCCqvrNaunShRANCAAREi+c8u9gKU+68E1Xj4UXdweL7leZ17X2L\n\
+     2OOIzwdlOebGnBjSRVkbkki3Qqo1kdzgPmRQQSbYyGPtMOKVMCzL\n\
+     -----END PRIVATE KEY-----\n"
+
+let private brainpoolP256r1Pem =
+    "-----BEGIN PRIVATE KEY-----\n\
+     MIGIAgEAMBQGByqGSM49AgEGCSskAwMCCAEBBwRtMGsCAQEEII1Nc5bREoOO8Fnp\n\
+     IsFVsE8aNoCcfz2sudv4xY/xZl5ioUQDQgAEdhur2ac9N7p9agDvQcIGW/z5Zv46\n\
+     EnI0+1PFDh84m1yWm/BGjsZDkf1CBSMMZZUZp3XSQKGUue4M5/CcJpTCaA==\n\
+     -----END PRIVATE KEY-----\n"
+
+[<Theory>]
+[<InlineData("secp256k1")>]
+[<InlineData("brainpoolP256r1")>]
+let ``a 256-bit key on another curve is refused and signs nothing`` (curve: string) =
+    let pem = if curve = "secp256k1" then secp256k1Pem else brainpoolP256r1Pem
+
+    // Some platforms (this macOS one among them) cannot even import the key, which
+    // refuses it for another reason; where they can, the curve's OID is what
+    // refuses it. Either way no key is accepted and no secret is signed. The
+    // decision on the OID itself is held by `the curve is P-256 by its OID` below.
+    Assert.Equal(None, normaliseKey pem)
+    Assert.True((clientSecret (FakeTimeProvider startOfTest) keyIds servicesId pem).IsNone)
+
+[<Fact>]
+let ``a P-256 key from a PEM has the P-256 OID on this platform`` () =
+    use key = p256 ()
+    use imported = ECDsa.Create()
+    imported.ImportFromPem(pemOf key)
+    let curve = (imported.ExportParameters false).Curve
+
+    Assert.Equal("1.2.840.10045.3.1.7", curve.Oid.Value)
+
+[<Fact>]
+let ``the curve is P-256 by its OID`` () =
+    Assert.True(curveIsP256 "1.2.840.10045.3.1.7" "nistP256")
+    Assert.True(curveIsP256 "1.2.840.10045.3.1.7" null)
+
+    // The OID decides when there is one: a name cannot make another curve pass.
+    Assert.False(curveIsP256 "1.3.132.0.10" "nistP256")
+    Assert.False(curveIsP256 "1.3.132.0.10" "secp256k1")
+    Assert.False(curveIsP256 "1.3.36.3.3.2.8.1.1.7" "brainpoolP256r1")
+    Assert.False(curveIsP256 "1.3.132.0.34" "nistP384")
+
+    // A platform that gives a name and no OID value.
+    Assert.True(curveIsP256 null "nistP256")
+    Assert.True(curveIsP256 "" "ECDSA_P256")
+    Assert.False(curveIsP256 null "secp256k1")
+    Assert.False(curveIsP256 null "brainpoolP256r1")
+    Assert.False(curveIsP256 null "nistP384")
+    Assert.False(curveIsP256 null null)
+    Assert.False(curveIsP256 "" "")
+
 // ---------------------------------------------------------------------------
 // The key as pasted
 // ---------------------------------------------------------------------------
@@ -239,6 +299,31 @@ let ``either name alone is the name`` () =
 let ``control characters are dropped and spaces trimmed`` () =
     Assert.Equal(Some "Maria Ruiz", user "{\"name\":{\"firstName\":\"Ma\\tri\\na\",\"lastName\":\"  Ruiz  \"}}")
     Assert.Equal(Some "Maria", user "{\"name\":{\"firstName\":\"\\n Maria \\t\",\"lastName\":\"\\t\\n\"}}")
+
+[<Fact>]
+let ``format characters are dropped from a name`` () =
+    // U+202E, a right-to-left override: it would make the name read backwards.
+    Assert.Equal(Some "Maria Ruiz", user "{\"name\":{\"firstName\":\"\\u202eMaria\",\"lastName\":\"Ruiz\"}}")
+    // U+200B, a zero-width space, inside a word.
+    Assert.Equal(Some "Maria Ruiz", user "{\"name\":{\"firstName\":\"Ma\\u200bria\",\"lastName\":\"Ruiz\"}}")
+    // U+2066 to U+2069, the isolates.
+    Assert.Equal(
+        Some "Maria Ruiz",
+        user "{\"name\":{\"firstName\":\"\\u2066Ma\\u2067ri\\u2068a\\u2069\",\"lastName\":\"Ruiz\"}}"
+    )
+    // A name made only of format characters is no name.
+    Assert.Equal(None, user "{\"name\":{\"firstName\":\"\\u202e\\u200b\"}}")
+    // A format character outside the basic plane (U+E0041, a tag letter), a surrogate pair.
+    Assert.Equal(Some "Maria", user "{\"name\":{\"firstName\":\"Mar\\udb40\\udc41ia\"}}")
+
+[<Fact>]
+let ``accents and an emoji in a name are kept`` () =
+    Assert.Equal(Some "José Núñez", user "{\"name\":{\"firstName\":\"José\",\"lastName\":\"Núñez\"}}")
+    // U+1F600 as a surrogate pair, whole.
+    Assert.Equal(Some "Maria 😀", user "{\"name\":{\"firstName\":\"Maria\",\"lastName\":\"\\ud83d\\ude00\"}}")
+    // A zero-width JOINER (U+200D) is a format character too: an emoji sequence
+    // that needs it loses it and shows as its parts.
+    Assert.Equal(Some "👨👩", user "{\"name\":{\"firstName\":\"\\ud83d\\udc68\\u200d\\ud83d\\udc69\"}}")
 
 [<Fact>]
 let ``a name of 300 characters is cut to 200`` () =

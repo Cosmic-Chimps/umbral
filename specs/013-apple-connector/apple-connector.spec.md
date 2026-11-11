@@ -287,11 +287,16 @@ generic failure, create no session and are recorded.
   connector's kind answers by form post. The cookie MUST be deleted before any
   of this is judged.
 - **FR-014**: A correlation minted for one response mode MUST NOT be redeemable
-  in the other.
+  in the other. Single use MUST hold for callbacks that arrive at the same
+  moment: exactly one of them is accepted.
 - **FR-015**: The POST MUST NOT require an antiforgery token, MUST be rate
   limited like the GET callback, and MUST read a body of at most 64 KB.
 - **FR-016**: `error=user_cancelled_authorize` MUST be treated as the person
-  declining, like `access_denied`.
+  declining, like `access_denied`, and only when the answer carries the right
+  `state`: a provider's `error` MUST NOT be believed before `state` has been
+  compared, in either response mode. The error word written to the security log
+  MUST be lower-case letters and underscores, at most 64, else the word `other`
+  (code review B1).
 
 **The identity**
 
@@ -308,7 +313,7 @@ generic failure, create no session and are recorded.
   type or absence is false.
 - **FR-020**: The name MUST be read from the `user` form field
   (`name.firstName`, `name.lastName`) only after the `id_token` validated, cut
-  to 200 characters, with control characters removed. An answer without a
+  to 200 characters, with control and format characters removed. An answer without a
   usable name MUST leave a stored name as it is.
 
 **The screens**

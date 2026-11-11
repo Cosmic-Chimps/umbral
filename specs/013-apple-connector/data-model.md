@@ -61,6 +61,7 @@ No change. A person who signs in with Apple is a `linked_accounts` row with
 | Cookie | Mode | SameSite | Purpose string |
 | --- | --- | --- | --- |
 | `umbral_connect` | answer by redirect (every kind but Apple) | `Lax` | `Umbral.Connect.v1` (unchanged) |
-| `umbral_connect_post` | answer by form post (Apple) | `None; Secure` | `Umbral.Connect.FormPost.v1` |
+| `__Secure-umbral_connect_post` | answer by form post (Apple) | `None; Secure` | `Umbral.Connect.FormPost.v1` |
 
-Same payload, same ten minutes, same path `/connect`, both `HttpOnly`.
+Same payload, same ten minutes, same path `/connect`, both `HttpOnly`. The
+form-post cookie has the `__Secure-` prefix (code review N2): see research R2.

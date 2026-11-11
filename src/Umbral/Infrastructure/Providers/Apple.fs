@@ -33,6 +33,19 @@ open Umbral.Infrastructure.ProviderAdapters
 // The key and the client secret
 // ---------------------------------------------------------------------------
 
+/// Whether a curve is NIST P-256, by its OID `1.2.840.10045.3.1.7`. Platforms
+/// that name a curve and give no OID value are accepted by that name, and only by
+/// the names P-256 goes by: a 256-bit key is not enough, because secp256k1 and
+/// brainpoolP256r1 are 256 bits too and Apple would refuse a client secret signed
+/// with either.
+let curveIsP256 (oid: string | null) (friendlyName: string | null) : bool =
+    match Option.ofObj oid with
+    | Some value when value <> "" -> value = "1.2.840.10045.3.1.7"
+    | _ ->
+        match Option.ofObj friendlyName with
+        | Some name -> name = "nistP256" || name = "ECDSA_P256" || name = "secp256r1" || name = "prime256v1"
+        | None -> false
+
 /// Import a PEM into an elliptic-curve key, or None when it is not one on the
 /// P-256 curve with its private half. The caller owns the key and disposes it.
 /// No exception escapes and none of its text is used: what was pasted may be a
@@ -44,7 +57,17 @@ let private importKey (pem: string) : ECDsa option =
         try
             ecdsa.ImportFromPem pem
 
-            if ecdsa.KeySize <> 256 then
+            let curve = (ecdsa.ExportParameters false).Curve
+
+            // The size first (cheap), then the curve itself. `Curve.Oid` is
+            // null for a key that is not on a named curve.
+            let isP256 =
+                ecdsa.KeySize = 256
+                && (match box curve.Oid with
+                    | null -> false
+                    | _ -> curveIsP256 curve.Oid.Value curve.Oid.FriendlyName)
+
+            if not isP256 then
                 ecdsa.Dispose()
                 None
             else
@@ -160,6 +183,24 @@ let claimIsTrue (payload: JsonElement) (name: string) : bool =
 let private maxPostedUserLength = 8192
 let private maxNameLength = 200
 
+/// Characters that never belong in a display name: the control characters (Cc)
+/// and the format characters (Cf), which are invisible but change how the text
+/// reads, such as the right-to-left override U+202E, the isolates U+2066 to
+/// U+2069 and the zero-width characters. The text is walked as code points, not
+/// as UTF-16 chars, so a surrogate pair (an emoji) stays whole and a format
+/// character outside the basic plane (the tag characters) is dropped too.
+let private isDroppedInName (rune: Text.Rune) =
+    Text.Rune.IsControl rune || Text.Rune.GetUnicodeCategory rune = Globalization.UnicodeCategory.Format
+
+let private withoutDropped (text: string) =
+    let builder = Text.StringBuilder()
+
+    for rune in text.EnumerateRunes() do
+        if not (isDroppedInName rune) then
+            builder.Append(rune.ToString()) |> ignore
+
+    builder.ToString()
+
 let private nameParts (user: JsonElement) : string list =
     if user.ValueKind <> JsonValueKind.Object then
         []
@@ -171,7 +212,7 @@ let private nameParts (user: JsonElement) : string list =
                 match name.TryGetProperty field with
                 | true, part when part.ValueKind = JsonValueKind.String ->
                     let text = part.GetString() |> Option.ofObj |> Option.defaultValue ""
-                    let cleaned = String(text.ToCharArray() |> Array.filter (fun c -> not (Char.IsControl c)))
+                    let cleaned = withoutDropped text
                     Some(cleaned.Trim())
                 | _ -> None)
             |> List.filter (fun part -> part <> "")
@@ -179,7 +220,7 @@ let private nameParts (user: JsonElement) : string list =
 
 /// The display name from the form post's `user` field, JSON like
 /// `{"name":{"firstName":"Maria","lastName":"Ruiz"},"email":"..."}`. Only
-/// `name.firstName` and `name.lastName` are read; control characters are dropped,
+/// `name.firstName` and `name.lastName` are read; control and format characters are dropped,
 /// the two are joined with one space and the result is cut to 200 characters.
 ///
 /// Nothing signs this field, so it gives a display name and nothing else

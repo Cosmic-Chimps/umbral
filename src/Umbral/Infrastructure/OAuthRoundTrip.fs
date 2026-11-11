@@ -59,6 +59,14 @@ let answerOfQuery (ctx: HttpContext) : Answer =
 // over plain http, which the laptop trial runs on. Their cookie stays `Lax`,
 // exactly as it was.
 //
+// The form-post cookie carries the `__Secure-` prefix. It is always `Secure`, so
+// the prefix costs nothing, and a browser then refuses to let a plain-http
+// response plant or overwrite it: a man in the middle on http cannot give the
+// victim a correlation the attacker minted for their own sign-in. `__Host-`
+// would also stop a sibling subdomain, but it requires `Path=/` and this cookie
+// is limited to `/connect`. The `Lax` cookie cannot take a prefix, because it is
+// used over plain http in development.
+//
 // The two modes differ in cookie name AND in protector purpose, so a
 // correlation minted in one mode cannot be redeemed in the other by
 // construction: the other mode does not look at that cookie, and could not
@@ -79,7 +87,7 @@ let private settingsFor (ctx: HttpContext) (mode: ResponseMode) =
           SameSite = SameSiteMode.Lax
           Secure = ctx.Request.IsHttps }
     | FormPost ->
-        { CookieName = "umbral_connect_post"
+        { CookieName = "__Secure-umbral_connect_post"
           Purpose = "Umbral.Connect.FormPost.v1"
           SameSite = SameSiteMode.None
           Secure = true }
@@ -99,6 +107,18 @@ type Correlation =
       /// every other kind. The callback exchanges the code there and nowhere
       /// else (specs/010 research R9).
       Server: string }
+
+/// The provider's error word as it may reach the security log: only
+/// `[a-z_]{1,64}`, else the fixed word `other`. The log's `detail` is short and
+/// structured and `;` and `=` separate its fields, so a provider's free text, or
+/// a forger's, must not be able to add fields of its own or fill the log (the
+/// same rule as `safeDomain` in `SecurityEvents.fs`). The words that matter,
+/// `access_denied` and `user_cancelled_authorize`, pass unchanged.
+let private cleanErrorWord (error: string) =
+    if error.Length >= 1 && error.Length <= 64 && error |> Seq.forall (fun c -> (c >= 'a' && c <= 'z') || c = '_') then
+        error
+    else
+        "other"
 
 type RoundTripError =
     | NoCorrelation
@@ -230,11 +250,19 @@ let start
 // one container by design — the bound is "sign-ins in the last ten minutes",
 // which for this audience is single digits.
 //
+// The remembering IS the check, in one atomic step: `TryAdd` succeeds for
+// exactly one of any number of concurrent callbacks that carry the same state,
+// and the rest get `Replayed`. A separate "has it been used" read followed by a
+// later write would let two requests that arrive together both pass the read.
+// Expired entries are pruned before the add, so an entry older than the
+// lifetime never blocks a state.
+//
 // Without this, "single use" was a claim in a comment rather than a property.
 // ---------------------------------------------------------------------------
 
 let private consumed = Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset>()
 
+/// True when this call is the first to use `state`.
 let private rememberConsumed (now: DateTimeOffset) (state: string) =
     // Prune while inserting: no timer, no background service, and the table
     // cannot outgrow the window.
@@ -243,11 +271,6 @@ let private rememberConsumed (now: DateTimeOffset) (state: string) =
             consumed.TryRemove entry.Key |> ignore
 
     consumed.TryAdd(state, now)
-
-let private alreadyConsumed (now: DateTimeOffset) (state: string) =
-    match consumed.TryGetValue state with
-    | true, usedAt -> now - usedAt <= Lifetime
-    | _ -> false
 
 // ---------------------------------------------------------------------------
 // Complete
@@ -283,11 +306,24 @@ let private readCookie (ctx: HttpContext) (settings: CookieSettings) =
 ///
 ///   1. read the cookie
 ///   2. DELETE it, before anything else can fail or succeed
-///   3. only then compare
+///   3. decrypt it
+///   4. `state`: missing is `StateMissing`, and one that does not equal the
+///      correlation's (constant time) is `StateMismatch`
+///   5. the slug, then the expiry
+///   6. single use: the last gate, one atomic step
+///   7. only now, for a correlation that passed all of that, the provider's own
+///      `error` is believed
 ///
 /// Deleting first is what makes a replayed callback find nothing. If deletion
 /// happened after a successful exchange, an attacker could replay the callback
 /// until something raced.
+///
+/// `state` comes before the provider's `error` because a page on another site
+/// can post (or link to) any `error` it likes and make the browser send the
+/// cookie along. A real provider returns `state` with its error (RFC 6749
+/// section 4.1.2.1), so an error that does not carry the right `state` is not
+/// the provider's: it is reported as the missing or wrong `state` it is, never
+/// as a person pressing cancel. The correlation is spent either way.
 let complete
     (protectorProvider: IDataProtectionProvider)
     (clock: TimeProvider)
@@ -320,12 +356,6 @@ let complete
     | None -> Error Corrupt
     | Some correlation ->
 
-    // The provider's own refusal comes back with no code. Checked after the
-    // cookie is gone so a cancelled attempt cannot be reused.
-    match answer.Error with
-    | Some error -> Error(ProviderReturnedError error)
-    | None ->
-
     // An empty state is a missing one: it cannot equal a minted value.
     match answer.State |> Option.filter (fun s -> s.Length > 0) with
     | None -> Error StateMissing
@@ -337,10 +367,6 @@ let complete
 
     if not (Ids.constantTimeEquals correlation.State returnedState) then
         Error StateMismatch
-    elif alreadyConsumed now correlation.State then
-        // A second callback carrying a correlation that has already been
-        // redeemed. The cookie deletion did not stop it, so the server does.
-        Error Replayed
     elif correlation.Slug <> slug then
         // The response arrived on a different connector's callback route than
         // the one it was minted for. Distinct routes per provider exist so the
@@ -350,9 +376,17 @@ let complete
         // Checked even though the cookie carries Max-Age: a client controls its
         // own cookie jar, and the server's clock is the one that counts.
         Error Expired
+    elif not (rememberConsumed now correlation.State) then
+        // A second callback carrying a correlation that has already been
+        // redeemed. The cookie deletion did not stop it, so the server does.
+        // This is also what spends a correlation that carried a provider error.
+        Error Replayed
     else
-        rememberConsumed now correlation.State |> ignore
-        Ok correlation
+        // Believed only now: the browser held this correlation and the answer
+        // carried its `state`.
+        match answer.Error with
+        | Some error -> Error(ProviderReturnedError(cleanErrorWord error))
+        | None -> Ok correlation
 
 /// The authorization request this round trip belongs to, read from the
 /// correlation cookie WITHOUT consuming it. `complete` rejects most failures

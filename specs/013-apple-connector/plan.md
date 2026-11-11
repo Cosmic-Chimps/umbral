@@ -45,7 +45,7 @@ sequenceDiagram
     participant A as Apple
     B->>U: GET /connect/apple/start
     U->>A: discovery + keys (cached)
-    U-->>B: 302 to Apple, Set-Cookie umbral_connect_post (None, Secure)
+    U-->>B: 302 to Apple, Set-Cookie __Secure-umbral_connect_post (None, Secure)
     B->>A: authorize (response_mode=form_post, state, nonce, PKCE)
     A-->>B: page that posts code, state, user
     B->>U: POST /connect/apple/callback (cookie sent: SameSite=None)

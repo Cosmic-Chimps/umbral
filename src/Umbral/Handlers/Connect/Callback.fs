@@ -298,8 +298,23 @@ let handler (slug: string) : EndpointHandler =
 [<Literal>]
 let private MaxFormBytes = 65536
 
-/// The answer of a form post. A body that is not a form, is too large or
-/// cannot be read is an answer with nothing in it, NOT a refusal here: the
+/// Whether the request's body is `application/x-www-form-urlencoded`: the media
+/// type alone, case-insensitive, whatever parameters (`charset`) follow it. It is
+/// what Apple sends. `HasFormContentType` would also accept `multipart/form-data`,
+/// which Apple never sends and which has no business here.
+let private isUrlEncodedForm (ctx: HttpContext) =
+    match Option.ofObj ctx.Request.ContentType with
+    | None -> false
+    | Some contentType ->
+        let mediaType =
+            match contentType.IndexOf ';' with
+            | -1 -> contentType
+            | index -> contentType.Substring(0, index)
+
+        String.Equals(mediaType.Trim(), "application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase)
+
+/// The answer of a form post. A body that is not a url-encoded form, is too
+/// large or cannot be read is an answer with nothing in it, NOT a refusal here: the
 /// shared body must still run, because `OAuthRoundTrip.complete` is what
 /// deletes the correlation cookie before anything is judged. The person gets
 /// the ordinary failure (`state_missing`, or `no_correlation_cookie`).
@@ -313,12 +328,17 @@ let private readPostedAnswer (ctx: HttpContext) : Task<OAuthRoundTrip.Answer * s
         if declared.HasValue && declared.Value > int64 MaxFormBytes then
             // Declared too large: the body is not read at all.
             return nothing
-        elif not ctx.Request.HasFormContentType then
+        elif not (isUrlEncodedForm ctx) then
             return nothing
         else
             try
-                // Also for a body that does not declare its length: where the
-                // server lets the limit be set, it stops reading at the cap.
+                // The real cap on the bytes read, also for a body that does not
+                // declare its length: where the server lets the limit be set (Kestrel
+                // does), it stops reading at the cap and the read throws. Together
+                // with the `Content-Length` check above, that is the whole bound on
+                // the body. The limits in `FormOptions` below bound the fields only:
+                // the body is not buffered here, so `BufferBodyLengthLimit` would do
+                // nothing and is not set.
                 match ctx.Features.Get<IHttpMaxRequestBodySizeFeature>() with
                 | null -> ()
                 | feature when not feature.IsReadOnly -> feature.MaxRequestBodySize <- Nullable(int64 MaxFormBytes)
@@ -328,8 +348,7 @@ let private readPostedAnswer (ctx: HttpContext) : Task<OAuthRoundTrip.Answer * s
                     FormOptions(
                         ValueCountLimit = 8,
                         KeyLengthLimit = 64,
-                        ValueLengthLimit = MaxFormBytes,
-                        BufferBodyLengthLimit = int64 MaxFormBytes
+                        ValueLengthLimit = MaxFormBytes
                     )
 
                 let feature = FormFeature(ctx.Request, options)
@@ -362,9 +381,13 @@ let postHandler (slug: string) : EndpointHandler =
 // HttpOnly and encrypted, and the posted `state` must equal the one inside it,
 // a value that left Umbral once, in the redirect to Apple, in this browser. A
 // page on another site can make the browser send the cookie but can neither
-// read it nor know `state`. All a forged POST can do is spend one sign-in
-// attempt, because the cookie is deleted before anything is compared. Nothing
-// is read from the session, and no user, link or session is written on a
+// read it nor know `state`. `state` is compared before the provider's `error`
+// is believed, so a forged POST that carries `error=user_cancelled_authorize`
+// and no right `state` is `state_missing` or `state_mismatch`, never a
+// "you cancelled" that did not happen, and whatever it puts in `error` is
+// reduced to a plain word before it reaches the log. All a forged POST can do
+// is spend one sign-in attempt, because the cookie is deleted before anything
+// is compared. Nothing is read from the session, and no user, link or session is written on a
 // refused path (specs/013 research R3).
 //
 // `DisableAntiforgery` is what makes the route work at all: `UseAntiforgery`

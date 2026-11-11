@@ -244,8 +244,8 @@ let ``the start redirects to Apple with the form post request and keeps its cook
             | true, values -> values |> Option.ofObj |> Option.map List.ofSeq |> Option.defaultValue []
             | _ -> []
 
-        let post = cookies |> List.tryFind (fun c -> c.StartsWith "umbral_connect_post=")
-        Assert.True(post.IsSome, "no umbral_connect_post cookie")
+        let post = cookies |> List.tryFind (fun c -> c.StartsWith "__Secure-umbral_connect_post=")
+        Assert.True(post.IsSome, "no __Secure-umbral_connect_post cookie")
 
         let attributes = post.Value.ToLowerInvariant()
         Assert.Contains("samesite=none", attributes)
@@ -646,7 +646,7 @@ let ``an answer that was already redeemed is refused when posted again, with or 
         let browser = newBrowser world
 
         let! seen = visit browser world (Some FakeApple.mariaUser)
-        let cookie = browser.Cookies["umbral_connect_post"]
+        let cookie = browser.Cookies["__Secure-umbral_connect_post"]
 
         let! first = FakeApple.post browser seen.Fields
         Assert.Contains("/connect/authorize", location first)
@@ -657,7 +657,7 @@ let ``an answer that was already redeemed is refused when posted again, with or 
         Assert.Contains("msg=sign-in-failed", location again)
 
         // And with the old cookie value put back by hand.
-        browser.Cookies["umbral_connect_post"] <- cookie
+        browser.Cookies["__Secure-umbral_connect_post"] <- cookie
         let! putBack = FakeApple.post browser seen.Fields
         Assert.Contains("msg=sign-in-failed", location putBack)
 
@@ -686,6 +686,11 @@ let ``the answer as a GET is refused`` () =
         let! refused = browser.Get $"/connect/apple/callback?state={state}&code={code}"
 
         assertRefused browser refused "sign-in-failed"
+
+        // A GET looks for the cookie of a redirect, which a form-post sign-in
+        // never set: the browser's own correlation is not in play.
+        let! detail = lastFailure world
+        Assert.Equal("no_correlation_cookie", detail)
         Assert.Equal(0, world.Fake.TokenRequests)
 
         let! users = count world "SELECT count(*) FROM users"
@@ -840,4 +845,227 @@ let ``a connector disabled between the start and the post is refused`` () =
         Assert.Equal("connector_unavailable", detail)
         Assert.Equal(0, world.Fake.TokenRequests)
         do! assertNoSecretsLogged world []
+    }
+
+// ---------------------------------------------------------------------------
+// What a forged or malformed post can do (code review B1, N3, N4)
+//
+// Each of these starts a real Apple sign-in, so the browser holds the form-post
+// correlation, and then posts something else than Apple's own answer WITH that
+// cookie, as a page on another site can make a browser do.
+// ---------------------------------------------------------------------------
+
+/// A body that does not declare its length, so no `Content-Length` is sent.
+type private Chunked(bytes: byte[], contentType: string) as this =
+    inherit HttpContent()
+    do this.Headers.ContentType <- Headers.MediaTypeHeaderValue contentType
+
+    override _.SerializeToStreamAsync(stream, _context) =
+        stream.WriteAsync(bytes, 0, bytes.Length)
+
+    override _.TryComputeLength(length: byref<int64>) =
+        length <- 0L
+        false
+
+let private postContent (browser: Browser) (content: HttpContent) =
+    let message = new HttpRequestMessage(HttpMethod.Post, "/connect/apple/callback")
+    message.Content <- content
+    browser.Send message
+
+let private fieldOf (seen: Visit) (name: string) =
+    seen.Fields |> List.find (fun (n, _) -> n = name) |> snd
+
+/// The refusal of a post whose body was not read, or had no `state`: the general
+/// failure, `state_missing` in the log, and Apple never asked.
+let private assertStateMissing (world: World) (browser: Browser) (back: HttpResponseMessage) =
+    task {
+        assertRefused browser back "sign-in-failed"
+
+        let! detail = lastFailure world
+        Assert.Equal("state_missing", detail)
+        Assert.Equal(0, world.Fake.TokenRequests)
+
+        let! users = count world "SELECT count(*) FROM users"
+        Assert.Equal(0, users)
+        do! assertNoSecretsLogged world []
+    }
+
+[<Fact>]
+let ``an error posted with no state is not a cancel`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        let browser = newBrowser world
+
+        let! _ = visit browser world None
+
+        // A page on another site: the browser sends the cookie, the page cannot
+        // know the state, and "you cancelled" would be a lie.
+        let! back = FakeApple.post browser [ "error", "user_cancelled_authorize" ]
+
+        assertRefused browser back "sign-in-failed"
+        Assert.DoesNotContain("msg=access-denied", location back)
+
+        let! detail = lastFailure world
+        Assert.Equal("state_missing", detail)
+        Assert.Equal(0, world.Fake.TokenRequests)
+    }
+
+[<Fact>]
+let ``an error posted with a wrong state is not a cancel`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        let browser = newBrowser world
+
+        let! _ = visit browser world None
+        let! back = FakeApple.post browser [ "state", "not-the-state"; "error", "user_cancelled_authorize" ]
+
+        assertRefused browser back "sign-in-failed"
+        Assert.DoesNotContain("msg=access-denied", location back)
+
+        let! detail = lastFailure world
+        Assert.Equal("state_mismatch", detail)
+        Assert.Equal(0, world.Fake.TokenRequests)
+    }
+
+[<Fact>]
+let ``an error of free text posted with the right state is recorded as other and none of the text is logged`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        let browser = newBrowser world
+
+        let! seen = visit browser world None
+
+        let hostile = ";injected=yes;detail=" + String('Z', 10 * 1024)
+        let! back = FakeApple.post browser [ "state", fieldOf seen "state"; "error", hostile ]
+
+        // Not Apple's cancel word, so not reported as a cancel either.
+        assertRefused browser back "sign-in-failed"
+
+        let! detail = lastFailure world
+        Assert.Equal("provider_error:other", detail)
+
+        let! log = dumpEvents world
+        Assert.DoesNotContain("injected", log)
+        Assert.DoesNotContain("ZZZZZZZZ", log)
+        Assert.Equal(0, world.Fake.TokenRequests)
+    }
+
+[<Fact>]
+let ``an answer that names another kind of connector under the slug is refused as the wrong response mode`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        let browser = newBrowser world
+
+        let! seen = visit browser world None
+
+        // Within the correlation's lifetime the operator replaces the Apple
+        // connector with one that is not answered by a form post, under the
+        // same slug. The correlation still names that slug.
+        let! _ =
+            scalar
+                world
+                "UPDATE connectors SET kind = 'fake', apple_team_id = NULL, apple_key_id = NULL WHERE slug = 'apple'"
+                []
+
+        let! back = FakeApple.post browser seen.Fields
+        assertRefused browser back "sign-in-failed"
+
+        let! detail = lastFailure world
+        Assert.Equal("response_mode_mismatch", detail)
+        Assert.Equal(0, world.Fake.TokenRequests)
+
+        let! users = count world "SELECT count(*) FROM users"
+        Assert.Equal(0, users)
+        do! assertNoSecretsLogged world []
+    }
+
+[<Fact>]
+let ``a body over the cap is not read even with the right cookie and the right state`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        let browser = newBrowser world
+
+        let! seen = visit browser world None
+
+        // Declared length over 64 KB, in values that are each under the limit
+        // of a value, so only the cap on the body can refuse it: were it read,
+        // the state is the right one and Apple would be asked.
+        let pad = String('x', 40 * 1024)
+        let! back = FakeApple.post browser (seen.Fields @ [ "pad1", pad; "pad2", pad ])
+
+        do! assertStateMissing world browser back
+    }
+
+[<Fact>]
+let ``a body that declares no length and is over the cap is not read either`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        let browser = newBrowser world
+
+        let! seen = visit browser world None
+
+        // The test server has no feature to cap the request body, so what stops
+        // this one here is the limit of a single value; Kestrel's own cap is not
+        // exercised by this suite.
+        let encoded = seen.Fields |> List.map (fun (n, v) -> $"{n}={Uri.EscapeDataString v}") |> String.concat "&"
+        let body = Text.Encoding.UTF8.GetBytes(encoded + "&pad=" + String('x', 70 * 1024))
+        let! back = postContent browser (new Chunked(body, "application/x-www-form-urlencoded"))
+
+        do! assertStateMissing world browser back
+    }
+
+[<Fact>]
+let ``a form with too many fields is not read even with the right cookie and the right state`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        let browser = newBrowser world
+
+        let! seen = visit browser world None
+        let! back = FakeApple.post browser (seen.Fields @ [ for i in 1..20 -> $"f{i}", "v" ])
+
+        do! assertStateMissing world browser back
+    }
+
+[<Fact>]
+let ``a multipart form is not read even with the right cookie and the right state`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        let browser = newBrowser world
+
+        let! seen = visit browser world None
+
+        let multipart = new MultipartFormDataContent()
+
+        for name, value in seen.Fields do
+            multipart.Add(new StringContent(value), name)
+
+        let! back = postContent browser multipart
+
+        do! assertStateMissing world browser back
+    }
+
+[<Fact>]
+let ``a url-encoded form with a charset and another case of the type is still read`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        let browser = newBrowser world
+
+        let! seen = visit browser world (Some FakeApple.mariaUser)
+
+        let encoded = seen.Fields |> List.map (fun (n, v) -> $"{n}={Uri.EscapeDataString v}") |> String.concat "&"
+        let content = new StringContent(encoded)
+        content.Headers.ContentType <- Headers.MediaTypeHeaderValue.Parse "Application/X-WWW-Form-URLEncoded; charset=utf-8"
+
+        let! back = postContent browser content
+        let! outcome = codeFrom browser back
+        signedIn outcome |> ignore
     }

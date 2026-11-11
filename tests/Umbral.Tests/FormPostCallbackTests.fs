@@ -8,6 +8,11 @@
 /// every way a request can be malformed ends as the ordinary refusal and never
 /// as a server error. The whole Apple flow is tested with a fake Apple in
 /// AppleSignInTests; there is no form-post provider to sign in through here.
+///
+/// These posts carry no form-post correlation, so they reach
+/// `no_correlation_cookie` whether or not the limits work. That the body is NOT
+/// read when it is over a limit, with the right cookie and the right state, is
+/// held in AppleSignInTests, where a real sign-in has set the cookie.
 module Umbral.Tests.FormPostCallbackTests
 
 open System
@@ -107,7 +112,7 @@ let ``the correlation cookie of a redirect sign-in cannot finish it by a form po
         // A real start: the browser now holds the Lax cookie and knows the state.
         let! toProvider = browser.Get "/connect/fake/start"
         Assert.True(browser.Cookies.ContainsKey "umbral_connect", "the redirect mode set its own cookie")
-        Assert.False(browser.Cookies.ContainsKey "umbral_connect_post", "and not the form-post one")
+        Assert.False(browser.Cookies.ContainsKey "__Secure-umbral_connect_post", "and not the form-post one")
 
         let state = Regex.Match(Uri.UnescapeDataString(location toProvider), "state=([^&]+)").Groups[1].Value
         Assert.NotEmpty state
@@ -138,7 +143,7 @@ let ``a post that is not a form is refused the same way, without a server error`
     }
 
 [<Fact>]
-let ``a body larger than 64 KB is refused the same way, without a server error`` () =
+let ``a body larger than 64 KB with no correlation is refused the same way, without a server error`` () =
     task {
         use! app = instance ()
         let browser = Browser app.Client
@@ -158,7 +163,7 @@ let ``a body larger than 64 KB is refused the same way, without a server error``
     }
 
 [<Fact>]
-let ``a form with too many fields is refused the same way`` () =
+let ``a form with too many fields and no correlation is refused the same way`` () =
     task {
         use! app = instance ()
         let browser = Browser app.Client

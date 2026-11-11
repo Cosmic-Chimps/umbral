@@ -47,10 +47,16 @@ one there is nothing to bind to.
 **A cookie that is sent on a cross-site POST: `SameSite=None; Secure`.** This is
 what ASP.NET Core's own OpenID Connect handler does for the same reason. Chosen.
 
-- Name `umbral_connect_post`, path `/connect`, `HttpOnly`, `Secure` always
-  (browsers drop a `SameSite=None` cookie without it; Apple accepts only https
-  return URLs anyway), ten minutes, encrypted and authenticated under its own
-  data-protection purpose `Umbral.Connect.FormPost.v1`.
+- Name `__Secure-umbral_connect_post`, path `/connect`, `HttpOnly`, `Secure`
+  always (browsers drop a `SameSite=None` cookie without it; Apple accepts only
+  https return URLs anyway). The `__Secure-` prefix costs nothing because the
+  cookie is always `Secure`, and a browser then refuses to let a plain-http
+  response plant or overwrite it, so a man in the middle on http cannot give the
+  victim a correlation the attacker minted for their own sign-in. `__Host-`
+  would also stop sibling subdomains but requires `Path=/`, and this cookie is
+  limited to `/connect`. The `Lax` cookie cannot take a prefix because it is used
+  over plain http in development. Ten minutes, encrypted and authenticated under
+  its own data-protection purpose `Umbral.Connect.FormPost.v1`.
 - Minted only when the provider's endpoints say it answers by form post. Every
   other connector keeps the `Lax` cookie unchanged: `None` is not sent over
   plain http, and the laptop trial runs on http.

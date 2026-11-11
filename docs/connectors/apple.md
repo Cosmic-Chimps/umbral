@@ -216,7 +216,10 @@ an email Apple reports as verified counts, and the domain must match exactly.
   ask again by stopping the use of Sign in with Apple with your app (on an
   iPhone: **Settings**, their name, **Sign in with Apple**, the app, **Delete**)
   and signing in again: Apple then has them share their name and email as on a
-  first sign-in.
+  first sign-in. The name comes from a field of Apple's answer that Apple does
+  not sign, so Umbral uses it as a display name only and never as proof of who
+  someone is. A person could change their own display name that way, and
+  nothing else.
 - **The email may be a relay address.** A person who chooses to hide their email
   is given an address ending in `@privaterelay.appleid.com`, which forwards to
   them. Umbral treats it as their verified email. Three things follow. It is not

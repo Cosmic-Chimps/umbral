@@ -299,12 +299,25 @@ let ``a form-post round trip sets its own cookie, SameSite None and always Secur
     let headers = setCookies ctx |> List.map _.ToLowerInvariant()
     let header = headers |> List.exactlyOne
 
-    Assert.StartsWith("umbral_connect_post=", header)
+    Assert.StartsWith("__secure-umbral_connect_post=", header)
     Assert.Contains("samesite=none", header)
     Assert.Contains("secure", header)
     Assert.Contains("httponly", header)
     Assert.Contains("path=/connect", header)
     Assert.Empty(headers |> List.filter (fun h -> h.StartsWith "umbral_connect="))
+
+[<Fact>]
+let ``the form-post cookie carries the Secure prefix and the Lax cookie does not`` () =
+    let clock = clock ()
+
+    // `__Secure-`: a browser refuses to let a plain-http response set it, so a man
+    // in the middle on http cannot plant a correlation of their own. Only the
+    // always-Secure cookie can have it; the Lax one is used over http in development.
+    let post, _ = startFormPost clock "apple"
+    let lax, _ = start clock "discord"
+
+    Assert.Equal<string list>([ "__Secure-umbral_connect_post" ], post |> List.map fst)
+    Assert.Equal<string list>([ "umbral_connect" ], lax |> List.map fst)
 
 [<Fact>]
 let ``a redirect round trip still sets only the Lax cookie, and is not forced Secure over http`` () =
@@ -348,7 +361,7 @@ let ``a form post with the wrong state is refused and the response deletes the c
     let deletion =
         setCookies ctx
         |> List.map _.ToLowerInvariant()
-        |> List.find (fun h -> h.StartsWith "umbral_connect_post=")
+        |> List.find (fun h -> h.StartsWith "__secure-umbral_connect_post=")
 
     Assert.Contains("expires=thu, 01 jan 1970", deletion)
     Assert.Contains("path=/connect", deletion)
@@ -424,7 +437,7 @@ let ``a Lax correlation presented as the form-post cookie is refused as corrupt`
 
     // A different protector purpose: the value cannot be decrypted under the
     // other mode's, whatever it is called.
-    match completePost clock (renamed "umbral_connect_post" cookies) "apple" (answer (Some correlation.State) None) with
+    match completePost clock (renamed "__Secure-umbral_connect_post" cookies) "apple" (answer (Some correlation.State) None) with
     | Error OAuthRoundTrip.Corrupt -> ()
     | other -> failwith $"unexpected: {other}"
 
@@ -459,3 +472,143 @@ let ``peek and returnUrlOf read the cookie of their own mode only`` () =
     Assert.Equal(None, peekIn OAuthRoundTrip.Redirect postCookies)
     Assert.Equal(Some "/connect/authorize?x=1", peekIn OAuthRoundTrip.Redirect laxCookies)
     Assert.Equal(None, peekIn OAuthRoundTrip.FormPost laxCookies)
+
+// ---------------------------------------------------------------------------
+// `state` before the provider's `error`, and a cleaned error word (code review
+// B1): a page on another site can post any `error` it likes and make the
+// browser send the cookie along
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``an error with no state is a missing state, not the provider's word`` () =
+    for mode in [ OAuthRoundTrip.Redirect; OAuthRoundTrip.FormPost ] do
+        let clock = clock ()
+
+        let result =
+            match mode with
+            | OAuthRoundTrip.Redirect ->
+                let cookies, _ = start clock "discord"
+                complete clock cookies "discord" [ "error", "access_denied" ]
+            | OAuthRoundTrip.FormPost ->
+                let cookies, _ = startFormPost clock "apple"
+                completePost clock cookies "apple" (answer None (Some "user_cancelled_authorize"))
+
+        match result with
+        | Error OAuthRoundTrip.StateMissing -> ()
+        | other -> failwith $"{mode}: unexpected {other}"
+
+[<Fact>]
+let ``an error with a wrong state is a state mismatch, not the provider's word`` () =
+    for mode in [ OAuthRoundTrip.Redirect; OAuthRoundTrip.FormPost ] do
+        let clock = clock ()
+
+        let result =
+            match mode with
+            | OAuthRoundTrip.Redirect ->
+                let cookies, _ = start clock "discord"
+                complete clock cookies "discord" [ "error", "access_denied"; "state", "not-the-state" ]
+            | OAuthRoundTrip.FormPost ->
+                let cookies, _ = startFormPost clock "apple"
+                completePost clock cookies "apple" (answer (Some "not-the-state") (Some "user_cancelled_authorize"))
+
+        match result with
+        | Error OAuthRoundTrip.StateMismatch -> ()
+        | other -> failwith $"{mode}: unexpected {other}"
+
+/// Complete a fresh round trip in `mode` with the right `state` and this `error`.
+let private withRightState (mode: OAuthRoundTrip.ResponseMode) (error: string) =
+    let clock = clock ()
+
+    match mode with
+    | OAuthRoundTrip.Redirect ->
+        let cookies, correlation = start clock "discord"
+        complete clock cookies "discord" [ "error", error; "state", correlation.State ]
+    | OAuthRoundTrip.FormPost ->
+        let cookies, correlation = startFormPost clock "apple"
+        completePost clock cookies "apple" (answer (Some correlation.State) (Some error))
+
+[<Theory>]
+[<InlineData("access_denied", "access_denied")>]
+[<InlineData("user_cancelled_authorize", "user_cancelled_authorize")>]
+[<InlineData("invalid_request", "invalid_request")>]
+[<InlineData("a;b=c", "other")>]
+[<InlineData("Access_Denied", "other")>]
+[<InlineData("ACCESS_DENIED", "other")>]
+[<InlineData("", "other")>]
+[<InlineData("with space", "other")>]
+[<InlineData("digits_123", "other")>]
+[<InlineData("caf\u00e9", "other")>]
+let ``an error with the right state is the provider's word, cleaned`` (sent: string, recorded: string) =
+    for mode in [ OAuthRoundTrip.Redirect; OAuthRoundTrip.FormPost ] do
+        match withRightState mode sent with
+        | Error(OAuthRoundTrip.ProviderReturnedError word) ->
+            Assert.Equal(recorded, word)
+            Assert.Equal($"provider_error:{recorded}", (OAuthRoundTrip.ProviderReturnedError word).Detail)
+        | other -> failwith $"{mode}: unexpected {other}"
+
+[<Fact>]
+let ``an error of 64 letters passes and one of 65 or 10000 is other`` () =
+    for mode in [ OAuthRoundTrip.Redirect; OAuthRoundTrip.FormPost ] do
+        let word (sent: string) =
+            match withRightState mode sent with
+            | Error(OAuthRoundTrip.ProviderReturnedError word) -> word
+            | other -> failwith $"{mode}: unexpected {other}"
+
+        Assert.Equal(String('a', 64), word (String('a', 64)))
+        Assert.Equal("other", word (String('a', 65)))
+        Assert.Equal("other", word (String('a', 10000)))
+
+[<Fact>]
+let ``a provider's error spends the correlation`` () =
+    let clock = clock ()
+    let cookies, correlation = startFormPost clock "apple"
+    let cancelled = answer (Some correlation.State) (Some "user_cancelled_authorize")
+
+    match completePost clock cookies "apple" cancelled with
+    | Error(OAuthRoundTrip.ProviderReturnedError _) -> ()
+    | other -> failwith $"unexpected: {other}"
+
+    // The client kept the cookie and sent the answer again, this time with no error.
+    match completePost clock cookies "apple" (answer (Some correlation.State) None) with
+    | Error OAuthRoundTrip.Replayed -> ()
+    | other -> failwith $"unexpected: {other}"
+
+// ---------------------------------------------------------------------------
+// Single use in one atomic step (code review N1)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``concurrent callbacks with the same correlation give exactly one success`` () =
+    let clock = clock ()
+    let cookies, correlation = startFormPost clock "apple"
+    let posted = answer (Some correlation.State) None
+    let attempts = 16
+    let gate = new Threading.Barrier(attempts)
+    let results = Collections.Concurrent.ConcurrentBag<Result<OAuthRoundTrip.Correlation, OAuthRoundTrip.RoundTripError>>()
+
+    // A thread each, so that all of them are really waiting at the barrier
+    // before any goes on. Each has a context of its own with the same cookie, as
+    // separate requests do.
+    let threads =
+        [ for _ in 1..attempts ->
+              Threading.Thread(fun () ->
+                  let ctx = contextWith cookies []
+                  gate.SignalAndWait()
+                  results.Add(OAuthRoundTrip.complete protectors clock ctx OAuthRoundTrip.FormPost "apple" posted)) ]
+
+    threads |> List.iter _.Start()
+    threads |> List.iter _.Join()
+
+    let all = List.ofSeq results
+    Assert.Equal(attempts, all.Length)
+    Assert.Equal(1, all |> List.filter Result.isOk |> List.length)
+
+    Assert.True(
+        all
+        |> List.forall (fun r ->
+            match r with
+            | Ok _
+            | Error OAuthRoundTrip.Replayed -> true
+            | _ -> false),
+        "every other callback is a replay"
+    )
