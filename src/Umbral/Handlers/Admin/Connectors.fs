@@ -153,6 +153,7 @@ let private providerPane
     (domains: Domains)
     (view: Components.FrameView)
     (notice: HtmlElement option)
+    (appleDraft: AppleConnector.Draft option)
     (row: Row)
     =
     let slug = row.Slug
@@ -203,9 +204,12 @@ let private providerPane
         | EmailDomains.NoRule -> "anyone", t.ConnectorRuleAnyone
 
     let typedDomains, domainsProblem =
-        match domains.CardDraft with
-        | Some(draftSlug, draft) when draftSlug = slug -> draft.Typed, Some draft.Problem
-        | _ -> EmailDomains.display storedList, None
+        match appleDraft, domains.CardDraft with
+        // The Apple form refused for any of its fields keeps every typed value,
+        // the domains among them.
+        | Some draft, _ -> draft.Domains, draft.Problems.TryFind AppleConnector.DomainsField
+        | None, Some(draftSlug, draft) when draftSlug = slug -> draft.Typed, Some draft.Problem
+        | None, _ -> EmailDomains.display storedList, None
 
     let unreadableStore =
         match secretStore with
@@ -374,45 +378,50 @@ let private providerPane
 
                       // FR-013: the slug and the kind are not fields. Neither ever
                       // changes, so the form has nothing to edit them with.
-                      Components.fieldWith
-                          "text"
-                          []
-                          (fun i -> i.attr("required", "required") |> ignore)
-                          t.ConnectorDisplayNameLabel
-                          "displayName"
-                          (row.Existing |> Option.map (fun c -> c.DisplayName) |> Option.defaultValue row.Kind.DisplayName)
-                          (Some t.ConnectorDisplayNameHint)
-                          None
+                      match row.Kind with
+                      // Apple's values are not a client ID and a client secret: a
+                      // Services ID, a Team ID, a Key ID and a .p8 key.
+                      | Apple -> AppleConnector.fields t row.Existing appleDraft
+                      | _ ->
+                          Components.fieldWith
+                              "text"
+                              []
+                              (fun i -> i.attr("required", "required") |> ignore)
+                              t.ConnectorDisplayNameLabel
+                              "displayName"
+                              (row.Existing |> Option.map (fun c -> c.DisplayName) |> Option.defaultValue row.Kind.DisplayName)
+                              (Some t.ConnectorDisplayNameHint)
+                              None
 
-                      Components.field
-                          t.ClientIdLabel
-                          "clientId"
-                          (row.Existing |> Option.map (fun c -> c.ClientId) |> Option.defaultValue "")
-                          (Some(
-                              match row.Kind with
-                              | Oidc -> t.ConnectorOidcClientIdHint
-                              | kind -> t.ProviderConsoleHint kind.DisplayName
-                          ))
-                          None
+                          Components.field
+                              t.ClientIdLabel
+                              "clientId"
+                              (row.Existing |> Option.map (fun c -> c.ClientId) |> Option.defaultValue "")
+                              (Some(
+                                  match row.Kind with
+                                  | Oidc -> t.ConnectorOidcClientIdHint
+                                  | kind -> t.ProviderConsoleHint kind.DisplayName
+                              ))
+                              None
 
-                      match row.Existing with
-                      | Some existing ->
-                          // Never Edit: for a saved secret there is nothing to edit from,
-                          // because the screen cannot read it back.
-                          (Components.maskedSecretField
-                              t.ClientSecretLabel
-                              (Secrets.masked existing.ClientSecretHint)
-                              (Fragment() :> HtmlElement))
-                          :> HtmlElement
-                      | None -> Fragment() :> HtmlElement
+                          match row.Existing with
+                          | Some existing ->
+                              // Never Edit: for a saved secret there is nothing to edit from,
+                              // because the screen cannot read it back.
+                              (Components.maskedSecretField
+                                  t.ClientSecretLabel
+                                  (Secrets.masked existing.ClientSecretHint)
+                                  (Fragment() :> HtmlElement))
+                              :> HtmlElement
+                          | None -> Fragment() :> HtmlElement
 
-                      Components.passwordField
-                          (if isConfigured then t.ReplaceSecretLabel else t.ClientSecretLabel)
-                          "clientSecret"
-                          (Some(if isConfigured then t.ReplaceSecretHint else t.ClientSecretHint))
-                          None
+                          Components.passwordField
+                              (if isConfigured then t.ReplaceSecretLabel else t.ClientSecretLabel)
+                              "clientSecret"
+                              (Some(if isConfigured then t.ReplaceSecretHint else t.ClientSecretHint))
+                              None
 
-                      sharedBox t isShared
+                      sharedBox t (match appleDraft with Some draft -> draft.Shared | None -> isShared)
 
                       connectorDomainsField t domains.Instance typedDomains domainsProblem
 
@@ -498,6 +507,19 @@ let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWa
                 | Fediverse ->
                     input(type' = "hidden", name = "scope", value = Fediverse.scopeValue stored.FediverseAccess)
                     input(type' = "hidden", name = "servers", value = String.concat "\n" stored.FediverseAccess.Servers)
+                | Apple ->
+                    // Apple's save reads its own four values and the list, and would
+                    // read an absent list as "clear it". No `privateKey`: an absent
+                    // key keeps the stored one, so the key never travels here.
+                    input(type' = "hidden", name = AppleConnector.ServicesIdField, value = stored.ClientId)
+
+                    match stored.AppleKey with
+                    | Some ids ->
+                        input(type' = "hidden", name = AppleConnector.TeamIdField, value = ids.TeamId)
+                        input(type' = "hidden", name = AppleConnector.KeyIdField, value = ids.KeyId)
+                    | None -> ()
+
+                    input(type' = "hidden", name = AppleConnector.DomainsField, value = EmailDomains.display stored.AllowedEmailDomains)
                 | _ -> ()
 
                 button(type' = "submit", class' = Components.btnSm Components.Danger) {
@@ -761,6 +783,7 @@ let private noticeKind (code: string) =
     | "passkey-not-enabled"
     | "connector-strands-apps"
     | "connector-delete-strands-apps"
+    | "connector-enable-apple-key"
     | "allowed-domains-removal" -> Components.Warning
     | _ -> Components.Success
 
@@ -812,6 +835,7 @@ let private view
     (notice: string option)
     (strand: StrandWarning option)
     (explained: string option)
+    (appleDraft: AppleConnector.Draft option)
     (invitations: PasskeyInvitations.Invitation list)
     (revealedLink: string option)
     =
@@ -971,7 +995,9 @@ let private view
                     |> Option.bind (fun (slug, d) -> if slug = "fediverse" then Some(d.Typed, d.Problem) else None)
 
                 FediverseConnector.pane ctx t origin enabledCount chosenSlugs row.Existing draft frameView paneNotice
-            | _ -> providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice row :> HtmlElement
+            | _ ->
+                providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice appleDraft row
+                :> HtmlElement
         | _, None -> Fragment() :> HtmlElement
 
     div(class' = "space-y-6").data("screen", "connectors") {
@@ -1020,9 +1046,16 @@ let private rowsFor (existing: Connector list) =
         |> List.sortBy (fun c -> kindOrder c.Kind, c.Slug)
         |> List.map (fun c -> { Kind = c.Kind; Existing = Some c })
 
+    // Apple follows Google among the kinds not set up. A connector of another kind
+    // that an operator named `apple` (before the kind existed) already holds that
+    // address, so a second, empty Apple entry would link to the wrong pane.
+    let appleSlugHeld = existing |> List.exists (fun c -> c.Slug = Apple.Value)
+
     let empty =
-        allKinds
-        |> List.filter (fun kind -> not (existing |> List.exists (fun c -> c.Kind = kind)))
+        allKinds @ [ Apple ]
+        |> List.filter (fun kind ->
+            not (existing |> List.exists (fun c -> c.Kind = kind))
+            && not (kind = Apple && appleSlugHeld))
         |> List.map (fun kind -> { Kind = kind; Existing = None })
 
     // The passkey row is never in the add form: it is the stored connector of
@@ -1040,9 +1073,14 @@ let private rowsFor (existing: Connector list) =
 /// A refused list at either level, to draw again with what was typed.
 type private Drafts =
     { Instance: DomainsDraft option
-      Card: (string * DomainsDraft) option }
+      Card: (string * DomainsDraft) option
+      /// The Apple form, refused, with every typed value but the key.
+      Apple: AppleConnector.Draft option }
 
-let private noDrafts = { Instance = None; Card = None }
+let private noDrafts =
+    { Instance = None
+      Card = None
+      Apple = None }
 
 /// The screen, with the add form as given. The GET routes draw it empty; a refused
 /// add draws it again with the operator's input, and so does a refused list.
@@ -1167,6 +1205,19 @@ let private render
                     Some(said |> Option.defaultValue (t.Notice code))
                 // The store failures: which store, and the cause or the secret's
                 // name, come from the cookie the refusal wrote, never the URL.
+                // Apple's: the reason is what Apple's address did, or the store's
+                // failure; it comes from the cookie the redirect wrote.
+                | Some("connector-saved-apple-unreachable" | "connector-enable-apple-unreachable" | "connector-enable-apple-store" as code) ->
+                    let said =
+                        ctx.TryGetQueryValue "slug"
+                        |> Option.bind (fun slug -> WebForms.NoticeReason.consume ctx code "slug" slug)
+                        |> Option.map (fun reason ->
+                            match code with
+                            | "connector-saved-apple-unreachable" -> t.AppleSavedUnreachable reason
+                            | "connector-enable-apple-unreachable" -> t.AppleEnableUnreachable reason
+                            | _ -> t.AppleEnableStore reason)
+
+                    Some(said |> Option.defaultValue (t.Notice code))
                 | Some("connector-secret-store-failed" | "connector-secret-left-behind" | "connector-secret-replaced-left-behind" as code) ->
                     let said =
                         ctx.TryGetQueryValue "slug"
@@ -1229,6 +1280,7 @@ let private render
                         notice
                         strand
                         explained
+                        drafts.Apple
                         invitations
                         revealedLink
                 )
@@ -1742,6 +1794,155 @@ let create: EndpointHandler =
             return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-added"
         })
 
+/// Write the changes of a saved connector: the card's values and, when a new
+/// secret came with them, the secret itself, in the active store, under the
+/// lease that keeps a move from interleaving. Shared by the generic card save
+/// and the Apple save, so a replaced key travels exactly the way a replaced
+/// client secret does. `hintOf` says what the row keeps of the new secret (the
+/// last four characters for a client secret, nothing for a private key);
+/// `appleKey` is the Team ID and Key ID to store, None for every other kind.
+let private applyChanges
+    (ctx: HttpContext)
+    (slug: string)
+    (newName: string)
+    (clientId: string)
+    (newShared: bool)
+    (domains: string list option)
+    (newSecret: string option)
+    (hintOf: string -> string)
+    (appleKey: AppleKeyIds option)
+    : System.Threading.Tasks.Task =
+    task {
+        let config = ctx.GetService<Database.DbConfig>()
+        let clock = ctx.GetService<TimeProvider>()
+        let secrets = ctx.GetService<SecretStores>()
+
+        // Everything from the write of a new secret to the row that
+        // records it, so that a move copying this connector cannot
+        // interleave with it (the lease, ConnectorStore.tryLease).
+        let apply () =
+            task {
+                // The row is read again under the lease: a move that
+                // finished since the first read may have changed which
+                // store holds the old copy.
+                match! ConnectorStore.findBySlug config slug with
+                | None -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+                | Some stored ->
+
+                // The name is derived again from what never changes about the
+                // connector, so a connector already in the active store gets a
+                // new version of the secret it has (the reference stays), and
+                // one in another store gets a copy in the active one (R5).
+                let! secretUpdate =
+                    match newSecret with
+                    | Some plaintext ->
+                        task {
+                            let name = Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc
+
+                            match! secrets.Active.Put(name, plaintext, ctx.RequestAborted) with
+                            | Ok reference -> return Ok(Some(reference, (reference.Encoded, hintOf plaintext)))
+                            | Error failure ->
+                                do! recordPutFailed ctx slug failure
+                                return Error failure
+                        }
+                    | None -> System.Threading.Tasks.Task.FromResult(Ok None)
+
+                match secretUpdate with
+                | Error failure -> return! refuseStoreFailed ctx (detailPath slug) slug failure
+                | Ok written ->
+
+                let! updated =
+                    ConnectorStore.update config clock slug newName clientId newShared domains (written |> Option.map snd) appleKey
+
+                match written with
+                | Some(reference, _) when not updated ->
+                    // The connector vanished between the read and the update;
+                    // the secret just written belongs to nothing.
+                    do! discard ctx reference
+                | _ -> ()
+
+                if not updated then
+                    return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+                else
+                    // FR-022: a changed secret names the store that now holds it.
+                    do!
+                        recordEventWith
+                            ctx
+                            SecurityEvents.ConnectorUpdated
+                            slug
+                            (written |> Option.map (fun (reference, _) -> $"store={reference.Store}"))
+
+                    // FR-021: only when the stored list actually changed,
+                    // judged against the row as read under the lease.
+                    match domains with
+                    | Some list when list <> stored.AllowedEmailDomains -> do! recordDomainsChanged ctx (Some slug) list
+                    | _ -> ()
+
+                    // A secret moved to another store leaves its old copy
+                    // behind in the old one, which is removed now that no row
+                    // refers to it. The card is already saved either way. Only a
+                    // different STORE means a copy to remove: within one store a
+                    // new version went under the same name, and a locator that
+                    // differs in spelling (a GCP project id against its number)
+                    // still names that same secret, which must not be deleted.
+                    let! leftBehind =
+                        match written, Secrets.SecretRef.Decode stored.ClientSecretRef with
+                        | Some(reference, _), Ok old when old.Store <> reference.Store ->
+                            task {
+                                secrets.Evict old
+                                secrets.Evict reference
+
+                                match secrets.For old.Store with
+                                | Ok oldStore ->
+                                    match! oldStore.Delete(old, ctx.RequestAborted) with
+                                    | Ok() -> return None
+                                    | Error failure -> return Some(old.Store, failure)
+                                | Error failure -> return Some(old.Store, failure)
+                            }
+                        | Some(reference, _), Ok old ->
+                            secrets.Evict old
+                            secrets.Evict reference
+                            System.Threading.Tasks.Task.FromResult None
+                        | Some(reference, _), _ ->
+                            secrets.Evict reference
+                            System.Threading.Tasks.Task.FromResult None
+                        | None, _ -> System.Threading.Tasks.Task.FromResult None
+
+                    match leftBehind with
+                    | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-saved"
+                    | Some(store, failure) ->
+                        do!
+                            SecurityEvents.recordStoreFailure
+                                config
+                                clock
+                                SecurityEvents.Actor.Operator
+                                slug
+                                (remoteIpOf ctx)
+                                store
+                                "delete"
+                                failure
+
+                        let name = (Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc).In store
+
+                        return!
+                            WebForms.NoticeReason.redirect
+                                ctx
+                                (detailPath slug)
+                                "connector-secret-replaced-left-behind"
+                                "slug"
+                                slug
+                                $"{store}|{name}"
+            }
+
+        match newSecret with
+        // No secret is written, so there is nothing for a move to race.
+        | None -> return! apply ()
+        | Some _ ->
+            match! ConnectorStore.withLease config clock slug apply with
+            | Some() -> ()
+            | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-secret-busy"
+    }
+
 /// Save a connector. The kind comes from the stored row, never from the slug
 /// (FR-012); a slug with no row is the first connector of the kind it names,
 /// which is the path of a kind not set up.
@@ -1887,132 +2088,170 @@ let save (slug: string) : EndpointHandler =
                         WebForms.NoticeReason.redirect ctx (detailPath slug) "connector-strands-apps" "slug" slug "unshare"
                 else
 
-                let secrets = ctx.GetService<SecretStores>()
+                return! applyChanges ctx slug newName clientId newShared domains newSecret Secrets.hint None
+        })
 
-                // Everything from the write of a new secret to the row that
-                // records it, so that a move copying this connector cannot
-                // interleave with it (the lease, ConnectorStore.tryLease).
-                let apply () =
+/// A refused Apple form is drawn again on the connector's pane as an
+/// unprocessable form: every typed value but the key, each message under its
+/// field (FR-005).
+let private refuseApple (ctx: HttpContext) (draft: AppleConnector.Draft) =
+    ctx.SetStatusCode 422
+    render ctx (Item "apple") emptyAddForm { noDrafts with Apple = Some draft }
+
+/// Create the Apple connector, or change it (specs/013 FR-001 to FR-008). Apple's
+/// values are not a client ID and a client secret, so it has a route of its own
+/// ahead of the generic one; the pane is the generic pane with other fields.
+///
+/// Every refusal is collected before anything is written, and a refused form
+/// saves nothing. A new connector is checked with its key in hand (the key signs,
+/// Apple answers) before the key reaches the store: unreachable saves it disabled
+/// and says why; an unusable key is a refusal. Replacing the key of a saved
+/// connector runs no network check and leaves it enabled or disabled as it was,
+/// because a moment in which Apple cannot be reached must not switch off a
+/// connector that works (FR-006). The row keeps no characters of the key.
+let saveApple: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let t = Texts.current ()
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let! form = WebForms.readValidated ctx
+            let slug = Apple.Value
+            let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
+            let! existing = ConnectorStore.findBySlug config slug
+
+            match existing with
+            // The slug is another kind's (a connector an operator named `apple`
+            // before the kind existed): this form would edit it as the wrong one.
+            | Some stored when stored.Kind <> Apple -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+            | _ ->
+
+            match AppleConnector.parse t (parseDomains t) existing.IsSome form with
+            | Error draft -> return! refuseApple ctx draft
+            | Ok parsed ->
+
+            let typedDomains = WebForms.value form AppleConnector.DomainsField
+
+            match existing with
+            | None ->
+                let pem = parsed.Key |> Option.get
+
+                let! checkedKey =
+                    Providers.Apple.check
+                        (ctx.GetService<OidcDiscovery.OidcDiscovery>())
+                        clock
+                        parsed.Ids
+                        parsed.ServicesId
+                        pem
+
+                match checkedKey with
+                | Providers.Apple.KeyUnusable ->
+                    return! refuseApple ctx (AppleConnector.withKeyUnusable t (AppleConnector.draftOf parsed typedDomains))
+                | Providers.Apple.Ready
+                | Providers.Apple.AppleUnreachable _ ->
+
+                let unreachable =
+                    match checkedKey with
+                    | Providers.Apple.AppleUnreachable reason -> Some(WebForms.truncate 300 reason)
+                    | _ -> None
+
+                // `now` is the `created_utc` of the row and the discriminator of the
+                // secret's name, so it is taken once.
+                let now = clock.GetUtcNow()
+
+                match! putNew ctx slug now pem with
+                | Error failure -> return! refuseStoreFailed ctx (detailPath slug) slug failure
+                | Ok(reference, (encoded, _)) ->
+
+                let! added =
+                    ConnectorStore.create
+                        config
+                        now
+                        { Slug = slug
+                          Kind = Apple
+                          DisplayName = parsed.DisplayName
+                          ClientId = parsed.ServicesId
+                          ClientSecretRef = ""
+                          ClientSecretHint = ""
+                          IssuerUrl = None
+                          AllowedEmailDomains = parsed.Domains
+                          PasskeyEnrolment = InvitationsOnly
+                          FediverseAccess = FediverseAccess.Any
+                          AppleKey = Some parsed.Ids
+                          IsEnabled = unreachable.IsNone
+                          IsShared = parsed.Shared
+                          CreatedUtc = now
+                          UpdatedUtc = now }
+                        // No characters of a private key are kept as a hint (FR-002).
+                        (encoded, "")
+
+                if added <> ConnectorStore.Created then
+                    do! discard ctx reference
+                    return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-slug-taken"
+                else
+
+                do!
+                    recordEventWith
+                        ctx
+                        SecurityEvents.ConnectorCreated
+                        slug
+                        (Some(
+                            match unreachable with
+                            | Some reason -> $"store={reference.Store};saved_disabled: {reason}"
+                            | None -> $"store={reference.Store}"
+                        ))
+
+                if not parsed.Domains.IsEmpty then
+                    do! recordDomainsChanged ctx (Some slug) parsed.Domains
+
+                match unreachable with
+                | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-saved"
+                | Some reason ->
+                    return!
+                        WebForms.NoticeReason.redirect
+                            ctx
+                            (detailPath slug)
+                            "connector-saved-apple-unreachable"
+                            "slug"
+                            slug
+                            reason
+
+            | Some stored ->
+                // Turning sharing off can leave an all-shared app with nothing to
+                // offer. Nothing changes until the operator confirms (FR-010).
+                let! stranded =
                     task {
-                        // The row is read again under the lease: a move that
-                        // finished since the first read may have changed which
-                        // store holds the old copy.
-                        match! ConnectorStore.findBySlug config slug with
-                        | None -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
-                        | Some stored ->
+                        if stored.IsShared && not parsed.Shared && not confirmed then
+                            let! connectors = ConnectorStore.listAll config
+                            let! apps = AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
 
-                        // The name is derived again from what never changes about the
-                        // connector, so a connector already in the active store gets a
-                        // new version of the secret it has (the reference stays), and
-                        // one in another store gets a copy in the active one (R5).
-                        let! secretUpdate =
-                            match newSecret with
-                            | Some plaintext ->
-                                task {
-                                    let name = Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc
+                            let after =
+                                connectors
+                                |> List.map (fun c -> if c.Slug = slug then { c with IsShared = false } else c)
 
-                                    match! secrets.Active.Put(name, plaintext, ctx.RequestAborted) with
-                                    | Ok reference -> return Ok(Some(reference, (reference.Encoded, Secrets.hint plaintext)))
-                                    | Error failure ->
-                                        do! recordPutFailed ctx slug failure
-                                        return Error failure
-                                }
-                            | None -> System.Threading.Tasks.Task.FromResult(Ok None)
-
-                        match secretUpdate with
-                        | Error failure -> return! refuseStoreFailed ctx (detailPath slug) slug failure
-                        | Ok written ->
-
-                        let! updated =
-                            ConnectorStore.update config clock slug newName clientId newShared domains (written |> Option.map snd) None
-
-                        match written with
-                        | Some(reference, _) when not updated ->
-                            // The connector vanished between the read and the update;
-                            // the secret just written belongs to nothing.
-                            do! discard ctx reference
-                        | _ -> ()
-
-                        if not updated then
-                            return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+                            return AppConnectors.strandedByChange apps connectors after
                         else
-                            // FR-022: a changed secret names the store that now holds it.
-                            do!
-                                recordEventWith
-                                    ctx
-                                    SecurityEvents.ConnectorUpdated
-                                    slug
-                                    (written |> Option.map (fun (reference, _) -> $"store={reference.Store}"))
-
-                            // FR-021: only when the stored list actually changed,
-                            // judged against the row as read under the lease.
-                            match domains with
-                            | Some list when list <> stored.AllowedEmailDomains -> do! recordDomainsChanged ctx (Some slug) list
-                            | _ -> ()
-
-                            // A secret moved to another store leaves its old copy
-                            // behind in the old one, which is removed now that no row
-                            // refers to it. The card is already saved either way. Only a
-                            // different STORE means a copy to remove: within one store a
-                            // new version went under the same name, and a locator that
-                            // differs in spelling (a GCP project id against its number)
-                            // still names that same secret, which must not be deleted.
-                            let! leftBehind =
-                                match written, Secrets.SecretRef.Decode stored.ClientSecretRef with
-                                | Some(reference, _), Ok old when old.Store <> reference.Store ->
-                                    task {
-                                        secrets.Evict old
-                                        secrets.Evict reference
-
-                                        match secrets.For old.Store with
-                                        | Ok oldStore ->
-                                            match! oldStore.Delete(old, ctx.RequestAborted) with
-                                            | Ok() -> return None
-                                            | Error failure -> return Some(old.Store, failure)
-                                        | Error failure -> return Some(old.Store, failure)
-                                    }
-                                | Some(reference, _), Ok old ->
-                                    secrets.Evict old
-                                    secrets.Evict reference
-                                    System.Threading.Tasks.Task.FromResult None
-                                | Some(reference, _), _ ->
-                                    secrets.Evict reference
-                                    System.Threading.Tasks.Task.FromResult None
-                                | None, _ -> System.Threading.Tasks.Task.FromResult None
-
-                            match leftBehind with
-                            | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-saved"
-                            | Some(store, failure) ->
-                                do!
-                                    SecurityEvents.recordStoreFailure
-                                        config
-                                        clock
-                                        SecurityEvents.Actor.Operator
-                                        slug
-                                        (remoteIpOf ctx)
-                                        store
-                                        "delete"
-                                        failure
-
-                                let name = (Secrets.SecretName.derive (prefixOf ctx) slug stored.CreatedUtc).In store
-
-                                return!
-                                    WebForms.NoticeReason.redirect
-                                        ctx
-                                        (detailPath slug)
-                                        "connector-secret-replaced-left-behind"
-                                        "slug"
-                                        slug
-                                        $"{store}|{name}"
+                            return []
                     }
 
-                match newSecret with
-                // No secret is written, so there is nothing for a move to race.
-                | None -> return! apply ()
-                | Some _ ->
-                    match! ConnectorStore.withLease config clock slug apply with
-                    | Some() -> ()
-                    | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-secret-busy"
+                if not stranded.IsEmpty then
+                    return!
+                        WebForms.NoticeReason.redirect ctx (detailPath slug) "connector-strands-apps" "slug" slug "unshare"
+                else
+
+                // A new key goes through the path of a replaced client secret (the
+                // lease, the write, the removal of the old copy), with no hint.
+                return!
+                    applyChanges
+                        ctx
+                        slug
+                        parsed.DisplayName
+                        parsed.ServicesId
+                        parsed.Shared
+                        (Some parsed.Domains)
+                        parsed.Key
+                        (fun _ -> "")
+                        (Some parsed.Ids)
         })
 
 /// Save the instance list (FR-016, FR-019). Emptying a list that is not empty
@@ -2074,4 +2313,5 @@ let endpoint =
       POST [ route "/admin/connectors" create ]
       POST [ route "/admin/allowed-domains" saveAllowedDomains ]
       POST [ route "/admin/connectors/fediverse" saveFediverse ]
+      POST [ route "/admin/connectors/apple" saveApple ]
       POST [ routef "/admin/connectors/{%s}" (slugOfSegment >> save) ] ]

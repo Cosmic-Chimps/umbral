@@ -600,7 +600,38 @@ type Texts =
       /// The normalised server the connector's list does not allow.
       FediverseNotAllowed: string -> string
       /// The normalised server that did not answer.
-      FediverseUnreachable: string -> string }
+      FediverseUnreachable: string -> string
+
+      // Apple connector (specs/013)
+      /// The display name's label on the Apple pane: the sign-in button's title is
+      /// fixed, so it is not a "button label" there.
+      AppleDisplayNameLabel: string
+      AppleDisplayNameHint: string
+      AppleDisplayNameRequired: string
+      AppleServicesIdLabel: string
+      AppleServicesIdHint: string
+      AppleServicesIdInvalid: string
+      AppleTeamIdLabel: string
+      AppleTeamIdHint: string
+      AppleTeamIdInvalid: string
+      AppleKeyIdLabel: string
+      AppleKeyIdHint: string
+      AppleKeyIdInvalid: string
+      /// The textarea of a connector that has no key yet.
+      ApplePrivateKeyLabel: string
+      ApplePrivateKeyHint: string
+      ApplePrivateKeyMissing: string
+      ApplePrivateKeyUnusable: string
+      /// The masked field of a saved key, and the textarea that replaces it.
+      ApplePrivateKeySavedLabel: string
+      AppleReplaceKeyLabel: string
+      AppleReplaceKeyHint: string
+      /// The reason Apple could not be reached, said after the connector was saved disabled.
+      AppleSavedUnreachable: string -> string
+      /// The reason Apple could not be reached, said when enabling.
+      AppleEnableUnreachable: string -> string
+      /// The store and the cause (`<store>: <cause>`), said when the key could not be read.
+      AppleEnableStore: string -> string }
 
 /// The display name of a store, by the id a `SecretRef` carries.
 let private secretStoreNameEn (storeId: string) : string =
@@ -881,6 +912,16 @@ let private noticeEn (code: string) : string option =
     // The Fediverse connector (spec 010).
     | "fediverse-connector-saved" -> Some "Saved. People can sign in with a Fediverse account from the next page load."
     | "fediverse-connector-invalid" -> Some "Choose Any server or Only these servers, then save again."
+    // The Apple connector (spec 013). The fixed text is what a notice says without
+    // its reason (a refresh, a link); the reason comes from the notice cookie.
+    | "connector-saved-apple-unreachable" ->
+        Some "Saved, but not enabled: Umbral could not reach Apple. Press Enable to try again."
+    | "connector-enable-apple-unreachable" ->
+        Some "Not enabled: Umbral could not reach Apple. Try again in a moment."
+    | "connector-enable-apple-key" ->
+        Some "Not enabled: the stored key cannot sign. Paste the .p8 key again under Replace the private key."
+    | "connector-enable-apple-store" ->
+        Some "Not enabled: Umbral could not read the key from the secret store."
     | "passkey-invitation-created" ->
         Some "Invitation created. Copy the link below and send it to the person; it is not shown again."
     | "passkey-invitation-invalid" -> Some "A note is at most 64 characters. Shorten it, then invite again."
@@ -1446,7 +1487,37 @@ let en: Texts =
         fun server ->
             $"{server} does not offer the sign-in Umbral uses. Mastodon and GoToSocial servers do; Akkoma, Pleroma, Misskey and Sharkey do not yet. Use another account, or another way to sign in."
       FediverseNotAllowed = fun server -> $"Accounts on {server} cannot sign in here. Use another way to sign in."
-      FediverseUnreachable = fun server -> $"{server} did not answer. Try again in a moment." }
+      FediverseUnreachable = fun server -> $"{server} did not answer. Try again in a moment."
+
+      // Apple connector (specs/013)
+      AppleDisplayNameLabel = "Display name"
+      AppleDisplayNameHint = "Shown on the admin screens. The sign-in button always says Sign in with Apple."
+      AppleDisplayNameRequired = "Enter a name for this connector, then save again."
+      AppleServicesIdLabel = "Services ID"
+      AppleServicesIdHint =
+        "The identifier of the Services ID, like com.example.signin. It is what other providers call the client ID. On Apple's site: Identifiers, Services IDs."
+      AppleServicesIdInvalid = "Enter the Services ID, like com.example.signin, with no spaces."
+      AppleTeamIdLabel = "Team ID"
+      AppleTeamIdHint = "Ten characters. On Apple's site: Membership details."
+      AppleTeamIdInvalid = "A Team ID is ten letters and digits, like DEF123GHIJ."
+      AppleKeyIdLabel = "Key ID"
+      AppleKeyIdHint = "Ten characters. On Apple's site: Keys, then the key's name."
+      AppleKeyIdInvalid = "A Key ID is ten letters and digits, like ABC123DEFG."
+      ApplePrivateKeyLabel = "Private key (.p8)"
+      ApplePrivateKeyHint =
+        "Open the .p8 file in a text editor and paste all of it, including the BEGIN and END lines. Stored encrypted. It can't be shown again once saved, only replaced."
+      ApplePrivateKeyMissing = "Paste the .p8 key Apple let you download."
+      ApplePrivateKeyUnusable =
+        "That is not a usable .p8 key. Paste the whole file again, including the BEGIN and END lines."
+      ApplePrivateKeySavedLabel = "Private key"
+      AppleReplaceKeyLabel = "Replace the private key"
+      AppleReplaceKeyHint = "Leave blank to keep the saved key. A new key has a new Key ID: change it above too."
+      AppleSavedUnreachable =
+        fun reason -> $"Saved, but not enabled: Umbral could not reach Apple ({reason}). Press Enable to try again."
+      AppleEnableUnreachable =
+        fun reason -> $"Not enabled: Umbral could not reach Apple ({reason}). Try again in a moment."
+      AppleEnableStore =
+        fun reason -> $"Not enabled: Umbral could not read the key from the secret store ({reason})." }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.

@@ -9,7 +9,72 @@ open OpenIddict.Abstractions
 open Oxpecker
 open Umbral.Domains.Connectors
 open Umbral.Infrastructure
+open Umbral.Infrastructure.SecretStores.Registry
 open Umbral.Handlers.Admin.ConnectorPaths
+
+/// What turning on an Apple connector found out (specs/013 FR-008).
+type private AppleEnable =
+    | AppleUsable
+    /// The key cannot sign, or the row has no Team ID and Key ID to sign with.
+    | AppleKeyUnusable
+    | AppleCannotBeReached of reason: string
+    /// The key could not be read from its secret store: the store and the cause word.
+    | AppleStoreFailed of reason: string
+
+/// Read the connector's key from its secret store, the way the callback reads it
+/// at the moment of use, and run the Apple check with it: sign first, then ask
+/// Apple for its discovery document and keys. Neither the key nor what the store
+/// said reaches the answer: the reason carries the store's id and a cause word.
+let private checkApple (ctx: Microsoft.AspNetCore.Http.HttpContext) (connector: Connector) =
+    task {
+        let config = ctx.GetService<Database.DbConfig>()
+        let clock = ctx.GetService<System.TimeProvider>()
+        let secrets = ctx.GetService<SecretStores>()
+        let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+
+        match connector.AppleKey with
+        | None -> return AppleKeyUnusable
+        | Some keyIds ->
+
+        let store, reading =
+            match Secrets.SecretRef.Decode connector.ClientSecretRef with
+            | Ok reference ->
+                reference.Store,
+                secrets.Read(
+                    reference,
+                    (fun cause ->
+                        SecurityEvents.recordStoreStale config clock connector.Slug remoteIp reference.Store cause),
+                    ctx.RequestAborted
+                )
+            | Error _ -> "unknown", System.Threading.Tasks.Task.FromResult(Error Secrets.NotFound)
+
+        match! reading with
+        | Error cause ->
+            do!
+                SecurityEvents.recordStoreFailure
+                    config
+                    clock
+                    SecurityEvents.Actor.Operator
+                    connector.Slug
+                    remoteIp
+                    store
+                    "get"
+                    cause
+
+            return AppleStoreFailed $"{store}: {cause.Cause}"
+        | Ok pem ->
+            match!
+                Providers.Apple.check
+                    (ctx.GetService<OidcDiscovery.OidcDiscovery>())
+                    clock
+                    keyIds
+                    connector.ClientId
+                    pem
+            with
+            | Providers.Apple.Ready -> return AppleUsable
+            | Providers.Apple.KeyUnusable -> return AppleKeyUnusable
+            | Providers.Apple.AppleUnreachable reason -> return AppleCannotBeReached reason
+    }
 
 let handler (slug: string) : EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
@@ -63,6 +128,27 @@ let handler (slug: string) : EndpointHandler =
                         return Some result
                     }
                 | _ -> System.Threading.Tasks.Task.FromResult None
+
+            // The same, for Apple, whose key is read from its store: switching on
+            // proves the key signs and Apple answers; switching off asks nothing.
+            let! apple =
+                match connector.Kind with
+                | Apple when not turningOff ->
+                    task {
+                        let! outcome = checkApple ctx connector
+                        return Some outcome
+                    }
+                | _ -> System.Threading.Tasks.Task.FromResult None
+
+            let refuseApple (notice: string) (reason: string) =
+                WebForms.NoticeReason.redirect ctx (detailPath slug) notice "slug" slug (WebForms.truncate 300 reason)
+
+            match apple with
+            | Some AppleKeyUnusable -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-enable-apple-key"
+            | Some(AppleCannotBeReached reason) -> return! refuseApple "connector-enable-apple-unreachable" reason
+            | Some(AppleStoreFailed reason) -> return! refuseApple "connector-enable-apple-store" reason
+            | Some AppleUsable
+            | None ->
 
             match discovery with
             | Some(OidcDiscovery.Unreachable reason) ->

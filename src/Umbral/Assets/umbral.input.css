@@ -103,6 +103,12 @@
   .um-input:focus { @apply border-primary outline-none; }
   .um-input[aria-invalid="true"] { @apply border-error; }
   .um-input[readonly] { @apply text-on-surface-variant; }
+  /* The multi-line sibling of .um-input, for a value pasted whole (a .p8 key): the
+     same surface, border, radius and focus, but its height comes from its rows and
+     the padding is vertical as well, because .um-input is fixed at 44px. */
+  .um-textarea { @apply block w-full resize-y rounded-md bg-surface-container border border-outline px-3.5 py-2.5 text-body-md text-on-surface placeholder:text-on-surface-variant; }
+  .um-textarea:focus { @apply border-primary outline-none; }
+  .um-textarea[aria-invalid="true"] { @apply border-error; }
   /* The native file input's "Choose file" button, dressed as a small secondary button.
      border-style is set here because the base reset that makes every other border
      solid does not reach this pseudo-element, and the browser's own default for it
@@ -154,7 +160,7 @@
   .um-icon { display: inline-block; flex: none; width: 1.25em; height: 1.25em; vertical-align: -0.25em; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .um-btn, .um-input, .um-link, .um-footer-link, .um-choice, .um-check { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
+  .um-btn, .um-input, .um-textarea, .um-link, .um-footer-link, .um-choice, .um-check { transition: background-color 160ms ease, border-color 160ms ease, box-shadow 200ms ease, color 160ms ease; }
 }
 @supports selector(:has(*)) {
   .um-choice-radio:focus-visible { outline: none; }
