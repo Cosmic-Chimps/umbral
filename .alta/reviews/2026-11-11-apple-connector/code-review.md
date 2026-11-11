@@ -138,3 +138,16 @@ Everything is taken. The full suite passes after the fixes: 2089 of 2089, 0 fail
   parts.
 - **Written down.** The walkthrough's "The name comes once" entry says the name comes from a
   field Apple does not sign and is a display name only. I left older Safari out.
+
+## Re-check at `6840118` (2026-11-11)
+
+**Clear to merge.** B1 and N1 to N6 are all taken in `b3989c8`, and I read each change.
+- **B1.** `complete` now goes cookie read, delete, decrypt, `state` (missing, or unequal in constant time), slug, expiry, single use, and only then the provider's `error`. That error passes through `cleanErrorWord` (`[a-z_]{1,64}`, else `other`) before it becomes `provider_error:<word>`, which is the only place that writes it. `access_denied` and `user_cancelled_authorize` pass the cleaning, so a real cancel still reads as one. The GET path gets the same order, since `complete` is shared.
+- **N1.** `alreadyConsumed` is gone. `rememberConsumed` returns `TryAdd`'s result and is the last gate before the error and `Ok`.
+- **N2.** `__Secure-umbral_connect_post`.
+- **N3.** The missing tests are in. I didn't re-run them on their own; they're in the full run below.
+- **N4.** Only `application/x-www-form-urlencoded` is read, and the comment names the real cap (`IHttpMaxRequestBodySizeFeature`). The stated gap, that the test server has no Kestrel cap, is acceptable.
+- **N5.** `curveIsP256` requires the P-256 OID, falling back only to P-256's own names where a platform gives no OID.
+- **N6.** Names drop control and format characters by `Rune`.
+
+**Tests run by the reviewer**, from a git checkout of `6840118`'s files: `dotnet build -c Release` with 0 warnings, then CI's `dotnet test -c Release --no-build --filter-not-class "Umbral.Tests.IdleMemoryTests"`, **2084 of 2084 passed**. Your 2089 includes the idle-memory tests.
