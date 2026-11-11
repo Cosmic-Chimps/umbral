@@ -17,7 +17,7 @@ open Umbral.Domains.Passkeys
 let private Columns =
     "SELECT slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
             is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains, passkey_enrolment,
-            fediverse_scope, fediverse_servers FROM connectors"
+            fediverse_scope, fediverse_servers, apple_team_id, apple_key_id FROM connectors"
 
 let private readOptional (reader: SqliteDataReader) (ordinal: int) =
     if reader.IsDBNull ordinal then None else Some(reader.GetString ordinal)
@@ -50,6 +50,13 @@ let private read (reader: SqliteDataReader) =
           // safe mode: only the listed servers can sign in.
           OnlyListed = Fediverse.parseScope (reader.GetString 13) |> Option.defaultValue true
           Servers = Fediverse.deserialiseServers (reader.GetString 14) }
+      AppleKey =
+        // Both set for an `apple` row, both NULL for every other kind. One
+        // without the other is a hand-edited row and reads as no key, so
+        // nothing signs a client secret from half a pair.
+        match readOptional reader 15, readOptional reader 16 with
+        | Some teamId, Some keyId -> Some { TeamId = teamId; KeyId = keyId }
+        | _ -> None
       CreatedUtc = DateTimeOffset.Parse(reader.GetString 8, Globalization.CultureInfo.InvariantCulture)
       UpdatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture) }
 
@@ -94,6 +101,16 @@ let findByIssuer (config: Database.DbConfig) (issuer: string) =
         return List.tryHead rows
     }
 
+let private appleTeamParameter (connector: Connector) : obj =
+    match connector.AppleKey with
+    | Some key -> key.TeamId :> obj
+    | None -> DBNull.Value :> obj
+
+let private appleKeyParameter (connector: Connector) : obj =
+    match connector.AppleKey with
+    | Some key -> key.KeyId :> obj
+    | None -> DBNull.Value :> obj
+
 let private issuerParameter (connector: Connector) : obj =
     match connector.IssuerUrl with
     | Some issuer -> issuer :> obj
@@ -128,9 +145,9 @@ let save
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
                   is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains,
-                  passkey_enrolment, fediverse_scope, fediverse_servers)
+                  passkey_enrolment, fediverse_scope, fediverse_servers, apple_team_id, apple_key_id)
              VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains,
-                     @enrolment, @fediScope, @fediServers)
+                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey)
              ON CONFLICT (slug) DO UPDATE SET
                  display_name      = @name,
                  client_id         = @clientId,
@@ -142,6 +159,8 @@ let save
                  passkey_enrolment = @enrolment,
                  fediverse_scope   = @fediScope,
                  fediverse_servers = @fediServers,
+                 apple_team_id     = @appleTeam,
+                 apple_key_id      = @appleKey,
                  updated_utc       = @now"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -157,6 +176,8 @@ let save
         command.Parameters.AddWithValue("@enrolment", connector.PasskeyEnrolment.Value) |> ignore
         command.Parameters.AddWithValue("@fediScope", Fediverse.scopeValue connector.FediverseAccess) |> ignore
         command.Parameters.AddWithValue("@fediServers", Fediverse.serialiseServers connector.FediverseAccess.Servers) |> ignore
+        command.Parameters.AddWithValue("@appleTeam", appleTeamParameter connector) |> ignore
+        command.Parameters.AddWithValue("@appleKey", appleKeyParameter connector) |> ignore
         command.Parameters.AddWithValue("@now", now) |> ignore
 
         let! _ = command.ExecuteNonQueryAsync()
@@ -202,9 +223,9 @@ let create
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
                   is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains,
-                  passkey_enrolment, fediverse_scope, fediverse_servers)
+                  passkey_enrolment, fediverse_scope, fediverse_servers, apple_team_id, apple_key_id)
              VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains,
-                     @enrolment, @fediScope, @fediServers)
+                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey)
              ON CONFLICT (slug) DO NOTHING"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -220,6 +241,8 @@ let create
         command.Parameters.AddWithValue("@enrolment", connector.PasskeyEnrolment.Value) |> ignore
         command.Parameters.AddWithValue("@fediScope", Fediverse.scopeValue connector.FediverseAccess) |> ignore
         command.Parameters.AddWithValue("@fediServers", Fediverse.serialiseServers connector.FediverseAccess.Servers) |> ignore
+        command.Parameters.AddWithValue("@appleTeam", appleTeamParameter connector) |> ignore
+        command.Parameters.AddWithValue("@appleKey", appleKeyParameter connector) |> ignore
         command.Parameters.AddWithValue("@now", now.ToUniversalTime().ToString "o") |> ignore
 
         try
@@ -236,8 +259,9 @@ let create
 /// the secret. Slug, kind and the enabled flag are left alone: the slug and kind
 /// never change (FR-013) and enabling has its own action. `allowedDomains` None
 /// leaves the stored list as it is (a form that does not carry the field must not
-/// clear it); Some replaces it, and Some [] clears it. Returns false when no
-/// connector has that slug.
+/// clear it); Some replaces it, and Some [] clears it. `appleKey` works the same
+/// way: None leaves the stored Team ID and Key ID, Some replaces both (only the
+/// `apple` kind passes it). Returns false when no connector has that slug.
 let update
     (config: Database.DbConfig)
     (clock: TimeProvider)
@@ -247,6 +271,7 @@ let update
     (isShared: bool)
     (allowedDomains: string list option)
     (newSecretRef: (string * string) option)
+    (appleKey: AppleKeyIds option)
     : Task<bool> =
     task {
         use! connection = Database.openConnection config
@@ -261,6 +286,8 @@ let update
                  allowed_email_domains = coalesce(@domains, allowed_email_domains),
                  client_secret_ref  = coalesce(@secretRef, client_secret_ref),
                  client_secret_hint = coalesce(@secretHint, client_secret_hint),
+                 apple_team_id      = coalesce(@appleTeam, apple_team_id),
+                 apple_key_id       = coalesce(@appleKey, apple_key_id),
                  updated_utc        = @now
              WHERE slug = @slug"
 
@@ -280,6 +307,14 @@ let update
         | None ->
             command.Parameters.AddWithValue("@secretRef", DBNull.Value) |> ignore
             command.Parameters.AddWithValue("@secretHint", DBNull.Value) |> ignore
+
+        match appleKey with
+        | Some key ->
+            command.Parameters.AddWithValue("@appleTeam", key.TeamId) |> ignore
+            command.Parameters.AddWithValue("@appleKey", key.KeyId) |> ignore
+        | None ->
+            command.Parameters.AddWithValue("@appleTeam", DBNull.Value) |> ignore
+            command.Parameters.AddWithValue("@appleKey", DBNull.Value) |> ignore
 
         command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
 

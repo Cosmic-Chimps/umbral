@@ -446,15 +446,15 @@ let ``a connector's list survives being read back and a card save without the fi
         Assert.Equal<string list>([ "acme.com"; "xn--mnchen-3ya.de" ], read.Value.AllowedEmailDomains)
 
         // `update` with None keeps it; Some replaces it; Some [] clears it.
-        let! _ = ConnectorStore.update app.DbConfig app.Clock "fake" "Fake" "fake" true None None
+        let! _ = ConnectorStore.update app.DbConfig app.Clock "fake" "Fake" "fake" true None None None
         let! kept = ConnectorStore.findBySlug app.DbConfig "fake"
         Assert.Equal<string list>([ "acme.com"; "xn--mnchen-3ya.de" ], kept.Value.AllowedEmailDomains)
 
-        let! _ = ConnectorStore.update app.DbConfig app.Clock "fake" "Fake" "fake" true (Some [ "example.org" ]) None
+        let! _ = ConnectorStore.update app.DbConfig app.Clock "fake" "Fake" "fake" true (Some [ "example.org" ]) None None
         let! replaced = ConnectorStore.findBySlug app.DbConfig "fake"
         Assert.Equal<string list>([ "example.org" ], replaced.Value.AllowedEmailDomains)
 
-        let! _ = ConnectorStore.update app.DbConfig app.Clock "fake" "Fake" "fake" true (Some []) None
+        let! _ = ConnectorStore.update app.DbConfig app.Clock "fake" "Fake" "fake" true (Some []) None None
         let! cleared = ConnectorStore.findBySlug app.DbConfig "fake"
         Assert.Empty cleared.Value.AllowedEmailDomains
     }
@@ -835,6 +835,7 @@ let private googleStartUrl (connectorList: string list) (instanceList: string li
                   AllowedEmailDomains = connectorList
                   PasskeyEnrolment = Connectors.InvitationsOnly
                   FediverseAccess = Connectors.FediverseAccess.Any
+                  AppleKey = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
@@ -923,6 +924,7 @@ let private addOpenConnector (app: Fixtures.TestApp) (slug: string) =
                   AllowedEmailDomains = []
                   PasskeyEnrolment = Connectors.InvitationsOnly
                   FediverseAccess = Connectors.FediverseAccess.Any
+                  AppleKey = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

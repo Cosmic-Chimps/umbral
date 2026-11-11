@@ -182,6 +182,7 @@ let private addLabConnector (app: Fixtures.TestApp) =
                   AllowedEmailDomains = []
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
+                  AppleKey = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

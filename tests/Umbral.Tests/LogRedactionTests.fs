@@ -553,7 +553,7 @@ let ``no full email address reaches a log sink or the security log when a sign-i
 
         // The operator limits the connector to one domain, through the same
         // call the Connectors screen makes.
-        let! _ = ConnectorStore.update app.DbConfig app.Clock "fake" "Fake" "fake" true (Some [ "acme.com" ]) None
+        let! _ = ConnectorStore.update app.DbConfig app.Clock "fake" "Fake" "fake" true (Some [ "acme.com" ]) None None
 
         // The callback: a verified address at another domain, and an
         // unverified address at the listed one.

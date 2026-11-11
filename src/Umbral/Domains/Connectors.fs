@@ -15,6 +15,10 @@ type ProviderKind =
     | Discord
     | GitHub
     | Google
+    /// Sign in with Apple: a built-in kind, at most one connector, slug `apple`.
+    /// An OpenID Connect provider with a fixed issuer whose client secret Umbral
+    /// signs itself and whose answer is a form post (specs/013-apple-connector).
+    | Apple
     /// Development and tests only. Hard-gated: Umbral refuses to start if a
     /// connector of this kind exists outside Development with the flag unset.
     /// A fake identity provider that ships enabled is a total authentication
@@ -42,6 +46,7 @@ type ProviderKind =
         | Discord -> "discord"
         | GitHub -> "github"
         | Google -> "google"
+        | Apple -> "apple"
         | Fake -> "fake"
         | Oidc -> "oidc"
         | Fediverse -> "fediverse"
@@ -52,6 +57,7 @@ type ProviderKind =
         | Discord -> "Discord"
         | GitHub -> "GitHub"
         | Google -> "Google"
+        | Apple -> "Apple"
         | Fake -> "Fake (development)"
         | Oidc -> "OpenID Connect"
         | Fediverse -> "Fediverse"
@@ -59,7 +65,9 @@ type ProviderKind =
 
 /// The three providers with a card of their own. Deliberately not `Oidc`: an
 /// OpenID Connect provider has no "first connector" to configure in place, it
-/// is always added by issuer.
+/// is always added by issuer. Also not `Apple`: it has four values to fill in
+/// and a pane and a route of its own (specs/013), so it must not appear in the
+/// add form.
 let allKinds = [ Discord; GitHub; Google ]
 
 let parseKind (value: string) =
@@ -67,6 +75,7 @@ let parseKind (value: string) =
     | "discord" -> Some Discord
     | "github" -> Some GitHub
     | "google" -> Some Google
+    | "apple" -> Some Apple
     | "fake" -> Some Fake
     | "oidc" -> Some Oidc
     | "fediverse" -> Some Fediverse
@@ -88,7 +97,15 @@ type ProviderEndpoints =
       SupportsPkce: bool
       /// Google returns an id_token and requires a nonce with it. The others
       /// are plain OAuth 2.0 and have no id_token at all.
-      UsesNonce: bool }
+      UsesNonce: bool
+      /// Apple answers with `response_mode=form_post`: a cross-site POST to the
+      /// callback instead of a redirect. The round trip then keeps its
+      /// correlation in a cookie that is sent on such a POST (specs/013
+      /// research R2). False for every other kind.
+      AnswersByFormPost: bool }
+
+/// The issuer of Sign in with Apple. Fixed: there is one Apple.
+let appleIssuer = "https://appleid.apple.com"
 
 let endpointsFor (kind: ProviderKind) =
     match kind with
@@ -98,7 +115,8 @@ let endpointsFor (kind: ProviderKind) =
           UserInfoUrl = "https://discord.com/api/v10/users/@me"
           Scopes = [ "identify"; "email" ]
           SupportsPkce = true
-          UsesNonce = false }
+          UsesNonce = false
+          AnswersByFormPost = false }
 
     | GitHub ->
         { AuthorizationUrl = "https://github.com/login/oauth/authorize"
@@ -108,7 +126,8 @@ let endpointsFor (kind: ProviderKind) =
           // addresses — /user.email is null whenever the user keeps it private.
           Scopes = [ "read:user"; "user:email" ]
           SupportsPkce = true
-          UsesNonce = false }
+          UsesNonce = false
+          AnswersByFormPost = false }
 
     | Google ->
         { AuthorizationUrl = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -117,7 +136,19 @@ let endpointsFor (kind: ProviderKind) =
           // `openid` is mandatory: without it Google returns no id_token.
           Scopes = [ "openid"; "email"; "profile" ]
           SupportsPkce = true
-          UsesNonce = true }
+          UsesNonce = true
+          AnswersByFormPost = false }
+
+    | Apple ->
+        // Like `Oidc`, the URLs are empty: they come from Apple's discovery
+        // document, read from `appleIssuer`.
+        { AuthorizationUrl = ""
+          TokenUrl = ""
+          UserInfoUrl = ""
+          Scopes = [ "name"; "email" ]
+          SupportsPkce = true
+          UsesNonce = true
+          AnswersByFormPost = true }
 
     | Fake ->
         { AuthorizationUrl = "/dev/fake-provider/authorize"
@@ -125,7 +156,8 @@ let endpointsFor (kind: ProviderKind) =
           UserInfoUrl = ""
           Scopes = []
           SupportsPkce = false
-          UsesNonce = false }
+          UsesNonce = false
+          AnswersByFormPost = false }
 
     | Fediverse ->
         // Every server has its own endpoints, read at registration (specs/010
@@ -135,7 +167,8 @@ let endpointsFor (kind: ProviderKind) =
           UserInfoUrl = ""
           Scopes = []
           SupportsPkce = false
-          UsesNonce = false }
+          UsesNonce = false
+          AnswersByFormPost = false }
 
     | Passkey ->
         // Like Fake, nothing to say: no authorization endpoint is ever built
@@ -145,7 +178,8 @@ let endpointsFor (kind: ProviderKind) =
           UserInfoUrl = ""
           Scopes = []
           SupportsPkce = false
-          UsesNonce = false }
+          UsesNonce = false
+          AnswersByFormPost = false }
 
     | Oidc ->
         // Only what holds for every OpenID Connect provider. The URLs are empty
@@ -157,7 +191,8 @@ let endpointsFor (kind: ProviderKind) =
           UserInfoUrl = ""
           Scopes = [ "openid"; "email"; "profile" ]
           SupportsPkce = true
-          UsesNonce = true }
+          UsesNonce = true
+          AnswersByFormPost = false }
 
 /// What an operator must be told when they pick this provider, beyond the
 /// generic instructions. Empty for the ones with nothing surprising.
@@ -172,6 +207,10 @@ let setupCaveat (kind: ProviderKind) =
              than localhost. A LAN address like http://192.168.1.50:8080 cannot be registered. Use a \
              domain name with HTTPS in front of Umbral, or forward a port so the address is \
              http://localhost."
+    | Apple ->
+        Some
+            "Apple accepts only an https address on a real domain name: not localhost, not an IP \
+             address. Sign in with Apple also needs a paid Apple Developer Program membership."
     | Discord
     | GitHub
     | Fake
@@ -205,6 +244,13 @@ type FediverseAccess =
 
     static member Any = { OnlyListed = false; Servers = [] }
 
+/// Only for `Apple`: who signs the client secret (specs/013 data-model).
+type AppleKeyIds =
+    { /// The Team ID: the `iss` of the client secret.
+      TeamId: string
+      /// The Key ID of the `.p8` key: the `kid` of the client secret.
+      KeyId: string }
+
 /// A configured connector, as stored.
 type Connector =
     { /// Immutable: it is in the callback URL the operator registered with the
@@ -235,6 +281,9 @@ type Connector =
       /// Only for `Fediverse`: which servers may sign in. Every other kind keeps
       /// `FediverseAccess.Any` and ignores it, as they ignore `PasskeyEnrolment`.
       FediverseAccess: FediverseAccess
+      /// Only for `Apple`: the Team ID and Key ID. None for every other kind, as
+      /// they have no `IssuerUrl`.
+      AppleKey: AppleKeyIds option
       CreatedUtc: DateTimeOffset
       UpdatedUtc: DateTimeOffset }
 
@@ -367,3 +416,39 @@ let parseOidcSubject (subject: string) : (string * string) option =
     match subject.IndexOf '#' with
     | index when index > 0 && index < subject.Length - 1 -> Some(subject.Substring(0, index), subject.Substring(index + 1))
     | _ -> None
+
+// ---------------------------------------------------------------------------
+// Sign in with Apple (specs/013-apple-connector)
+// ---------------------------------------------------------------------------
+
+/// A Team ID or a Key ID: exactly ten ASCII letters or digits, trimmed, case
+/// kept. Apple prints both in the developer console, so a value of any other
+/// shape is a typo or the wrong field, and refusing it here is kinder than
+/// Apple's `invalid_client`.
+let parseAppleId (input: string | null) : string option =
+    match input with
+    | null -> None
+    | text ->
+        let trimmed = text.Trim()
+
+        let isAsciiLetterOrDigit (c: char) =
+            (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+
+        if trimmed.Length = 10 && trimmed |> Seq.forall isAsciiLetterOrDigit then
+            Some trimmed
+        else
+            None
+
+/// A Services ID (the `client_id` at Apple): trimmed, not empty, no whitespace.
+/// Apple lets the operator choose it, usually a reverse-domain name, so nothing
+/// more is checked here.
+let parseServicesId (input: string | null) : string option =
+    match input with
+    | null -> None
+    | text ->
+        let trimmed = text.Trim()
+
+        if trimmed.Length > 0 && not (trimmed |> Seq.exists Char.IsWhiteSpace) then
+            Some trimmed
+        else
+            None

@@ -1008,10 +1008,11 @@ let private rowsFor (existing: Connector list) =
         | Discord -> 0
         | GitHub -> 1
         | Google -> 2
-        | Oidc -> 3
-        | Fake -> 4
-        | Fediverse -> 5
-        | Passkey -> 6
+        | Apple -> 3
+        | Oidc -> 4
+        | Fake -> 5
+        | Fediverse -> 6
+        | Passkey -> 7
 
     let stored =
         existing
@@ -1331,6 +1332,7 @@ let saveFediverse: EndpointHandler =
                                   AllowedEmailDomains = []
                                   PasskeyEnrolment = InvitationsOnly
                                   FediverseAccess = access
+                                  AppleKey = None
                                   IsEnabled = true
                                   IsShared = shared
                                   CreatedUtc = now
@@ -1368,7 +1370,7 @@ let saveFediverse: EndpointHandler =
                                     "fediverse"
                                     "unshare"
                         else
-                            let! _ = ConnectorStore.update config clock "fediverse" "Fediverse" "" shared None None
+                            let! _ = ConnectorStore.update config clock "fediverse" "Fediverse" "" shared None None None
                             let! _ = ConnectorStore.setFediverseAccess config clock "fediverse" access
                             do! recordEventWith ctx SecurityEvents.ConnectorUpdated "fediverse" detail
                             return! WebForms.redirectWithNotice ctx (detailPath "fediverse") "fediverse-connector-saved"
@@ -1447,6 +1449,9 @@ let private refuseStoreFailed (ctx: HttpContext) (path: string) (slug: string) (
 let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
     match kind with
     | Fake -> (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed
+    // Apple has four values and a route of its own (specs/013): it is not
+    // created through the generic card path.
+    | Apple
     | Oidc
     | Fediverse
     | Passkey -> false
@@ -1582,6 +1587,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   AllowedEmailDomains = domains
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
+                  AppleKey = None
                   IsEnabled = enabled
                   IsShared = state.Shared
                   CreatedUtc = now
@@ -1715,6 +1721,7 @@ let create: EndpointHandler =
                       AllowedEmailDomains = domains
                       PasskeyEnrolment = InvitationsOnly
                       FediverseAccess = FediverseAccess.Any
+                      AppleKey = None
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
@@ -1833,6 +1840,7 @@ let save (slug: string) : EndpointHandler =
                           AllowedEmailDomains = defaultArg domains []
                           PasskeyEnrolment = InvitationsOnly
                           FediverseAccess = FediverseAccess.Any
+                          AppleKey = None
                           // A connector arrives enabled: the operator came here to
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true
@@ -1916,7 +1924,7 @@ let save (slug: string) : EndpointHandler =
                         | Ok written ->
 
                         let! updated =
-                            ConnectorStore.update config clock slug newName clientId newShared domains (written |> Option.map snd)
+                            ConnectorStore.update config clock slug newName clientId newShared domains (written |> Option.map snd) None
 
                         match written with
                         | Some(reference, _) when not updated ->

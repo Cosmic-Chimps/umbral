@@ -19,6 +19,7 @@ let private connector (slug: string) (kind: ProviderKind) (issuer: string option
       AllowedEmailDomains = []
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = FediverseAccess.Any
+      AppleKey = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = System.DateTimeOffset.UnixEpoch
@@ -176,7 +177,7 @@ let ``saving the form of another kind and updating a passkey connector keep its 
         do! ConnectorStore.save app.DbConfig app.Clock (passkeyConnector OpenSignUp) None
 
         // `update` is the generic card's write: it has no enrolment to say.
-        let! _ = ConnectorStore.update app.DbConfig app.Clock "passkey" "Passkey" "" false None None
+        let! _ = ConnectorStore.update app.DbConfig app.Clock "passkey" "Passkey" "" false None None None
         let! stored = ConnectorStore.findBySlug app.DbConfig "passkey"
 
         Assert.Equal(OpenSignUp, stored.Value.PasskeyEnrolment)
@@ -252,4 +253,81 @@ let ``an unknown stored scope word reads as only listed, the closed way`` () =
 
         let! stored = ConnectorStore.findBySlug app.DbConfig "fediverse"
         Assert.True stored.Value.FediverseAccess.OnlyListed
+    }
+
+// ---------------------------------------------------------------------------
+// The Apple key ids (spec 013 T002)
+// ---------------------------------------------------------------------------
+
+let private appleConnector (key: AppleKeyIds) : Connector =
+    { connector "apple" Apple None with
+        DisplayName = "Apple"
+        ClientId = "com.example.signin"
+        AppleKey = Some key }
+
+[<Fact>]
+let ``an apple connector is created with its Team ID and Key ID and read back equal`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let key = { TeamId = "DEF123GHIJ"; KeyId = "ABC123DEFG" }
+        let created = appleConnector key
+
+        let! result = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) created secret
+        Assert.Equal(ConnectorStore.Created, result)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "apple"
+
+        let expected =
+            { created with
+                ClientSecretRef = fst secret
+                ClientSecretHint = snd secret
+                CreatedUtc = stored.Value.CreatedUtc
+                UpdatedUtc = stored.Value.UpdatedUtc }
+
+        Assert.Equal(expected, stored.Value)
+        Assert.Equal(Some key, stored.Value.AppleKey)
+    }
+
+[<Fact>]
+let ``updating an apple connector with new ids changes the Key ID and leaving them out keeps it`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let key = { TeamId = "DEF123GHIJ"; KeyId = "ABC123DEFG" }
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (appleConnector key) secret
+
+        let rotated = { key with KeyId = "ZYX987WVUT" }
+        let! changed = ConnectorStore.update app.DbConfig app.Clock "apple" "Apple" "com.example.signin" true None None (Some rotated)
+        Assert.True changed
+
+        let! after = ConnectorStore.findBySlug app.DbConfig "apple"
+        Assert.Equal(Some rotated, after.Value.AppleKey)
+
+        // A write that does not carry the ids (the display name alone) keeps them.
+        let! _ = ConnectorStore.update app.DbConfig app.Clock "apple" "Apple ID" "com.example.signin" true None None None
+        let! kept = ConnectorStore.findBySlug app.DbConfig "apple"
+        Assert.Equal(Some rotated, kept.Value.AppleKey)
+    }
+
+[<Fact>]
+let ``saving an apple connector writes and replaces its ids`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let key = { TeamId = "DEF123GHIJ"; KeyId = "ABC123DEFG" }
+        do! ConnectorStore.save app.DbConfig app.Clock (appleConnector key) (Some secret)
+
+        let rotated = { key with TeamId = "KLM456NOPQ" }
+        do! ConnectorStore.save app.DbConfig app.Clock (appleConnector rotated) None
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "apple"
+        Assert.Equal(Some rotated, stored.Value.AppleKey)
+    }
+
+[<Fact>]
+let ``a connector of another kind reads no Apple key`` () =
+    task {
+        use! app = Fixtures.createApp ()
+
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "google" Google None) secret
+        let! stored = ConnectorStore.findBySlug app.DbConfig "google"
+        Assert.Equal(None, stored.Value.AppleKey)
     }

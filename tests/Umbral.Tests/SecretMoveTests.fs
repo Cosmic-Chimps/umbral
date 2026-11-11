@@ -94,6 +94,7 @@ let private seedLocal (app: Fixtures.TestApp) (kind: ProviderKind) (slug: string
                       AllowedEmailDomains = []
                       PasskeyEnrolment = InvitationsOnly
                       FediverseAccess = FediverseAccess.Any
+                      AppleKey = None
                       IsEnabled = true
                       IsShared = true
                       CreatedUtc = now
@@ -368,6 +369,7 @@ let ``a row changed between the copy and the switch is skipped and left as it is
                             true
                             None
                             (Some("local:replaced-meanwhile", "ably"))
+                            None
 
                     ()
             }
@@ -747,6 +749,7 @@ let private seedPasskey (app: Fixtures.TestApp) =
           AllowedEmailDomains = []
           PasskeyEnrolment = InvitationsOnly
           FediverseAccess = FediverseAccess.Any
+          AppleKey = None
           IsEnabled = true
           IsShared = true
           CreatedUtc = app.Clock.GetUtcNow()

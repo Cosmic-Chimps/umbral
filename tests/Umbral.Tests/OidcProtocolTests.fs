@@ -131,6 +131,7 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
                   AllowedEmailDomains = []
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
+                  AppleKey = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

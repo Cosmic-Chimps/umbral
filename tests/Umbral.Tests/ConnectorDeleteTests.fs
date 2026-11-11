@@ -37,6 +37,7 @@ let private seedDiscord (app: Fixtures.TestApp) (enabled: bool) =
                   AllowedEmailDomains = []
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
+                  AppleKey = None
                   IsEnabled = enabled
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
