@@ -13,6 +13,7 @@ behaves the same way, so the one for your stack is the one to read.
 | [Next.js](nextjs/README.md) | Next.js 16 (App Router), Auth.js (`next-auth` v5) | **Web application** (a server keeps the secret) |
 | [Android](android/README.md) | Kotlin, Jetpack Compose, AppAuth-Android | **Single-page or native app** (no secret: PKCE alone) |
 | [iOS](ios/README.md) | Swift, SwiftUI, AppAuth-iOS | **Single-page or native app** (no secret: PKCE alone) |
+| [.NET MAUI](maui/README.md) | C#, .NET MAUI (Android and iOS), `Duende.IdentityModel.OidcClient` | **Single-page or native app** (no secret: PKCE alone) |
 
 CI runs each web sample against a real Umbral, built from this repository, and
 walks through it in a headless browser: see [The harness](#the-harness). A
@@ -114,16 +115,17 @@ Each sample's README has, in this order:
 
 ## A phone app
 
-The [Android](android/README.md) and [iOS](ios/README.md) samples follow the
-same contract, adapted to an app, and
+The [Android](android/README.md), [iOS](ios/README.md) and
+[.NET MAUI](maui/README.md) samples follow the same contract, adapted to an
+app, and
 [Native and mobile apps](../docs/native-apps.md) explains the pattern they show:
 
 - **Screens instead of pages.** A home screen with **Public**, **Private** and
   **Sign in** or **Sign out**, a public screen, and a private screen that starts
   the sign-in when you are signed out and shows the same claims as `/private`.
 - **The system's sign-in browser,** a Custom Tab on Android and
-  `ASWebAuthenticationSession` on iOS (.NET MAUI's `WebAuthenticator` uses the
-  same two), never a WebView.
+  `ASWebAuthenticationSession` on iOS (the .NET MAUI sample's `WebAuthenticator`
+  uses the same two), never a WebView.
 - **A configuration file instead of environment variables.** `UMBRAL_ISSUER`
   and `UMBRAL_CLIENT_ID` are set in one file the sample's README names, and
   built into the app. There is no secret and no port.

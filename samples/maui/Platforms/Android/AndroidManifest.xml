@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Tokens must not leave the device: no backup. Https everywhere; plain http only to the
+         loopback addresses (see network_security_config.xml). -->
+    <application
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- WebAuthenticator needs to see which browsers offer Custom Tabs. -->
+    <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+    </queries>
+
+</manifest>

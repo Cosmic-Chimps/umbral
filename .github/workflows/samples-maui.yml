@@ -1,0 +1,57 @@
+# The .NET MAUI sample, built.
+#
+# samples/maui/ is an app, not a web server, so the harness of samples.yml
+# (which walks each sample in a headless browser) cannot walk it, and an
+# emulator on a CI runner is slow and flaky. This job only builds the Android
+# target, with warnings as errors, so a change that breaks the build, a package
+# or the manifest is caught. The iOS target is not built here: it needs a macOS
+# runner with exactly the Xcode the MAUI iOS workload was built for (10.0.110
+# wants Xcode 27.2), which runner images do not promise, while the shared code
+# is already compiled by the Android build. The sign-in itself is
+# walked by hand, on Android and iOS: samples/maui/README.md says how, and the
+# task's review notes record it.
+name: samples-maui
+
+on:
+  push:
+    branches: [main]
+    paths: ['samples/maui/**', '.github/workflows/samples-maui.yml']
+  pull_request:
+    paths: ['samples/maui/**', '.github/workflows/samples-maui.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: samples/maui
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      # .NET for Android wants JDK 21 and refuses newer ones (XA0030).
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # samples/maui/global.json pins the SDK's feature band (10.0.4xx), which
+      # the workload set below belongs to.
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: samples/maui/global.json
+
+      # Pinned to a workload set, so a new MAUI release does not change the
+      # build. The runner image has the Android SDK (ANDROID_HOME) with its
+      # licences accepted.
+      - name: MAUI Android workload
+        run: dotnet workload install maui-android --version 10.0.404
+
+      - name: Build
+        run: dotnet build -f net10.0-android -c Debug

@@ -186,3 +186,7 @@ Native samples are listed here as they are added, each following the shared
   AppAuth-Android, in a Custom Tab, with a custom-scheme redirect URI.
 - [iOS](../samples/ios/README.md): Swift, SwiftUI and AppAuth-iOS, in an
   `ASWebAuthenticationSession`, with a custom-scheme redirect URI.
+- [.NET MAUI](../samples/maui/README.md): one C# project for Android and iOS,
+  with `Duende.IdentityModel.OidcClient` and MAUI's `WebAuthenticator` (a
+  Custom Tab or an `ASWebAuthenticationSession`), with a custom-scheme redirect
+  URI.
