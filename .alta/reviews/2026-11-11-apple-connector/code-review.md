@@ -80,3 +80,61 @@ B1 is an old ordering that the new route makes worse, and it breaks the security
   - `appleKey = None` keeps the stored ids.
   - `applyChanges` is the old inline code moved, plus `hintOf` and `appleKey`.
   - Schema version 10 adds two nullable columns, in both the fresh schema and the upgrade step, and rewrites no data.
+
+## The tests, run by the reviewer
+
+From a git checkout of `8fd0a41`'s files, with CI's commands: `dotnet build -c Release` with **0 warnings**, then `dotnet test -c Release --no-build --filter-not-class "Umbral.Tests.IdleMemoryTests"`, **2053 of 2053 passed**. Your 2058 likely includes the idle-memory tests, which CI runs in their own job.
+
+## Answers (implementer, 2026-11-11), at `b3989c8`
+
+Everything is taken. The full suite passes after the fixes: 2089 of 2089, 0 failed, 0 skipped
+(`dotnet test`, Debug, with the idle-memory tests; your 2053 is the same suite without them at
+`8fd0a41`). The build has 0 warnings.
+
+- **B1, taken, in the shared `OAuthRoundTrip.complete`.** The order is now: read the cookie,
+  delete it, decrypt, `state` (missing is `StateMissing`, unequal in constant time is
+  `StateMismatch`), the slug, the expiry, single use, and only then the provider's `error`. A
+  correlation that carried an error is spent like any other. The word that reaches the log goes
+  through `cleanErrorWord`: `[a-z_]{1,64}`, else `other`; `access_denied` and
+  `user_cancelled_authorize` pass unchanged. The comment on `complete` and the one on the POST
+  route say so, and the spec's FR-016 records the rule.
+  - Unit tests, both modes (`OAuthRoundTripTests`): an error with no state is a missing state;
+    with a wrong state a mismatch; with the right state the provider's word, cleaned (`a;b=c`,
+    upper case, empty, spaces, digits, non-ASCII, 65 and 10,000 letters all give `other`; 64
+    letters pass); a provider's error spends the correlation.
+  - Pipeline tests (`AppleSignInTests`): an error posted with no state, and with a wrong state,
+    is not a cancel (`sign-in-failed`, `state_missing` / `state_mismatch`); an error of `;`, `=`
+    and 10 KB of text with the right state is recorded as exactly `provider_error:other`, and
+    none of the text is in any column of `security_events`.
+  - Two existing tests sent `error=access_denied` with no `state` and expected a cancel
+    (`SignInAppNameTests`, `SignInFlowTests`). They now send the `state` a provider would
+    return and assert what they asserted. The Fediverse decline tests already sent it.
+- **N1, taken.** `alreadyConsumed` is gone; `rememberConsumed` prunes and then `TryAdd`s, and
+  it is the last gate. Test: sixteen concurrent callbacks with one correlation give exactly
+  one `Ok`.
+- **N2, taken.** `__Secure-umbral_connect_post`, with the reason in the comment, the data
+  model and research R2. A test holds the prefix on the form-post cookie and its absence on
+  the `Lax` one.
+- **N3, taken.**
+  - `response_mode_mismatch`: an Apple sign-in is started, the row's kind is changed under the
+    slug, and the post is refused with that word, no token request, no user.
+  - The body cap and the field limit are now tested with the right cookie and the right
+    `state`: `state_missing`, no token request. They fail when the checks are removed (the
+    implementer tried it). One gap is stated in the test: the test server has no
+    `IHttpMaxRequestBodySizeFeature`, so Kestrel's own cap is not exercised; a body with no
+    declared length is held there by the value-length limit.
+  - The GET refusal asserts `no_correlation_cookie`.
+- **N4, taken.** `readPostedAnswer` reads only `application/x-www-form-urlencoded` (media type
+  alone, any case, any parameters); multipart is an empty answer. The comment names
+  `IHttpMaxRequestBodySizeFeature` and the `Content-Length` check as the cap;
+  `BufferBodyLengthLimit` is removed.
+- **N5, taken.** `importKey` requires the curve's OID to be `1.2.840.10045.3.1.7`
+  (`curveIsP256`; a platform that gives a name and no OID value is accepted by P-256's names
+  only). secp256k1 and brainpoolP256r1 keys, generated with openssl and embedded as PEM, are
+  refused and sign nothing. On macOS they are refused at import already, so the OID decision
+  itself is held by a unit test of `curveIsP256`.
+- **N6, taken.** `nameOf` drops Cc and Cf, walking code points so a surrogate pair stays
+  whole. One consequence, pinned in a test: U+200D is Cf, so a joined emoji shows as its
+  parts.
+- **Written down.** The walkthrough's "The name comes once" entry says the name comes from a
+  field Apple does not sign and is a display name only. I left older Safari out.
