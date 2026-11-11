@@ -187,7 +187,8 @@ let registerApp (browser: Browser) (name: string) =
 
 /// One whole sign-in through the fake provider, ending with the authorization
 /// code the app would receive. `browser` ends up with an Umbral session.
-let signInViaFake
+let signInViaFakeTo
+    (redirectUri: string)
     (browser: Browser)
     (clientId: string)
     (scope: string)
@@ -197,7 +198,7 @@ let signInViaFake
     task {
         let authorizeUrl =
             "/connect/authorize?client_id=" + Uri.EscapeDataString clientId
-            + "&response_type=code&redirect_uri=" + Uri.EscapeDataString RedirectUri
+            + "&response_type=code&redirect_uri=" + Uri.EscapeDataString redirectUri
             + "&scope=" + Uri.EscapeDataString scope
             + "&code_challenge=" + Challenge
             + "&code_challenge_method=S256&state=app-state"
@@ -231,11 +232,17 @@ let signInViaFake
             return Error replayed
         else
             let! issued = browser.Get replayed
+            // The code goes back to the address the app asked for, and only there.
+            Assert.StartsWith(redirectUri, location issued)
             return Ok(Regex.Match(location issued, "code=([^&]+)").Groups[1].Value)
     }
 
+/// `signInViaFakeTo` the default redirect URI.
+let signInViaFake (browser: Browser) (clientId: string) (scope: string) (subject: string) (email: string) =
+    signInViaFakeTo RedirectUri browser clientId scope subject email
+
 /// Redeem an authorization code at the token endpoint.
-let exchangeCode (app: Fixtures.TestApp) (clientId: string) (secret: string) (code: string) =
+let exchangeCodeFor (redirectUri: string) (app: Fixtures.TestApp) (clientId: string) (secret: string) (code: string) =
     task {
         let message = new HttpRequestMessage(HttpMethod.Post, "/connect/token")
 
@@ -244,7 +251,7 @@ let exchangeCode (app: Fixtures.TestApp) (clientId: string) (secret: string) (co
                 dict
                     [ "grant_type", "authorization_code"
                       "code", Uri.UnescapeDataString code
-                      "redirect_uri", RedirectUri
+                      "redirect_uri", redirectUri
                       "code_verifier", Verifier
                       "client_id", clientId
                       "client_secret", secret ]
@@ -252,6 +259,10 @@ let exchangeCode (app: Fixtures.TestApp) (clientId: string) (secret: string) (co
 
         return! app.Client.SendAsync message
     }
+
+/// `exchangeCodeFor` the default redirect URI.
+let exchangeCode (app: Fixtures.TestApp) (clientId: string) (secret: string) (code: string) =
+    exchangeCodeFor RedirectUri app clientId secret code
 
 /// One scalar from the app's own database.
 let scalar (app: Fixtures.TestApp) (statement: string) (parameters: (string * string) list) =

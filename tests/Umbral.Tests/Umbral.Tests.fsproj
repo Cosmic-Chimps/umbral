@@ -65,6 +65,7 @@
     <Compile Include="AppChoiceRuleTests.fs" />
     <Compile Include="SignInAppNameTests.fs" />
     <Compile Include="AppConnectorChoiceTests.fs" />
+    <Compile Include="AppRedirectUrisTests.fs" />
     <Compile Include="MultipleConnectorsTests.fs" />
     <Compile Include="NoConfigFileTests.fs" />
     <Compile Include="SecretStoreSettingsTests.fs" />
