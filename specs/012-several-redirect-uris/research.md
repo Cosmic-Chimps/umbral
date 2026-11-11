@@ -38,9 +38,10 @@ OpenIddict 7.7.1's own `ValidateRedirectUriAsync` and
 address for an app of type `native` (every "Single-page or native" app here),
 and accept `localhost` and `https` too. So "matched exactly" was already not
 entirely true for those apps before this spec. This spec changes nothing there.
-`spgx` replaces both checks with Umbral's own rule. Until it merges, the claims
-in this spec about exact matching hold for Web applications, and for native
-apps except the loopback port.
+`spgx` replaces both checks with Umbral's own rule (`RedirectUris.loopbackOnAnyPort`),
+and this branch now carries it through a merge of `main`. Because of it, `add` treats
+a loopback address with a port and the same address without one as two
+registrations, even though `Uri` equality calls them the same.
 
 ## R4. "Already registered"
 

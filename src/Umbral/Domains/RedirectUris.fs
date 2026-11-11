@@ -48,6 +48,49 @@ let acceptable (value: string) : Result<Uri, string> =
 
             | Some uri -> Ok uri
 
+/// RFC 8252 §7.3: whether `requested` is `registered` with a port added, for a
+/// registration on a loopback IP address.
+///
+/// A native app cannot know in advance which port it will be able to listen on,
+/// so it registers `http://127.0.0.1/callback` and asks for
+/// `http://127.0.0.1:53124/callback`. Only the port may differ.
+///
+/// The rule is narrower than the one OpenIddict ships, on purpose, and it is
+/// plain text comparison with no `Uri` normalisation, so what was registered is
+/// what is matched:
+///
+///  - The host is the literal `127.0.0.1` or `[::1]`, written as `http://`.
+///    `localhost` is excluded (RFC 8252 §8.3): a name resolves through a
+///    resolver or a hosts file the app does not control, where the IP literal
+///    cannot be redirected. `https` is excluded because a loopback listener has
+///    no certificate worth the name.
+///  - A registration that already names a port never qualifies: it asked for
+///    that port, and only that port.
+///  - The path and query are the registered text, character for character.
+///  - The port is 1 to 5 digits, no leading zero, 1 to 65535.
+///
+/// An identical `requested` is false here: exact matching is the caller's first
+/// check, and this rule is for what it does not cover.
+let loopbackOnAnyPort (registered: string) (requested: string) : bool =
+    let validPort (digits: string) =
+        digits.Length >= 1
+        && digits.Length <= 5
+        && digits[0] <> '0'
+        && Seq.forall (fun c -> c >= '0' && c <= '9') digits
+        && int digits <= 65535
+
+    let matches (prefix: string) =
+        registered.StartsWith(prefix, StringComparison.Ordinal)
+        && (let remainder = registered.Substring prefix.Length
+
+            (remainder = "" || remainder[0] = '/' || remainder[0] = '?')
+            && requested.StartsWith(prefix + ":", StringComparison.Ordinal)
+            && requested.Length > prefix.Length + 1 + remainder.Length
+            && requested.EndsWith(remainder, StringComparison.Ordinal)
+            && validPort (requested.Substring(prefix.Length + 1, requested.Length - prefix.Length - 1 - remainder.Length)))
+
+    matches "http://127.0.0.1" || matches "http://[::1]"
+
 /// How many addresses one list (redirect URIs, or post-logout redirect URIs)
 /// may hold. A bound keeps the pane readable and the app's stored descriptor
 /// small; ten is more than any real app has asked for.
@@ -74,10 +117,16 @@ let add (registered: string list) (candidate: string) : Result<string list, AddR
     match acceptable trimmed with
     | Error why -> Error(Invalid why)
     | Ok uri ->
+        // A port-less loopback address accepts any port, the same one with a
+        // port only that port, so the two are different registrations even
+        // where `Uri` equality (port 80 is http's default) calls them the same.
         let same (existing: string) =
             existing = trimmed
             || (match Uri.TryCreate(existing, UriKind.Absolute) with
-                | true, other -> not (isNull other) && Uri.Equals(other, uri)
+                | true, other ->
+                    not (isNull other)
+                    && Uri.Equals(other, uri)
+                    && not (loopbackOnAnyPort existing trimmed || loopbackOnAnyPort trimmed existing)
                 | _ -> false)
 
         if List.exists same registered then Error AlreadyRegistered

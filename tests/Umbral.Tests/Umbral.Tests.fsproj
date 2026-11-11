@@ -47,6 +47,7 @@
     <Compile Include="ConnectorDeleteTests.fs" />
     <Compile Include="SecurityEventCoverageTests.fs" />
     <Compile Include="OidcProtocolTests.fs" />
+    <Compile Include="LoopbackRedirectTests.fs" />
     <Compile Include="OAuthRoundTripTests.fs" />
     <Compile Include="RateLimitTests.fs" />
     <Compile Include="TrustedProxiesTests.fs" />

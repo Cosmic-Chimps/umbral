@@ -104,3 +104,24 @@ GitHub Pages can't send headers, but a `<meta http-equiv="Content-Security-Polic
   - words before "Other providers:": the pattern no longer matches and the paragraph is kept whole.
 
   Either way, no text is dropped. `native-apps.md` keeps its paragraph, and the discord page leaves its paragraph out.
+
+## The link preview, `cebbe8e` (2026-11-11)
+
+**Clear to merge.** No blocking items; two nits.
+
+What I checked:
+- **The build.** `git archive cebbe8e`, built on Node 22.23.4: it passes, and check-dist is clean.
+- **The tags.** The three PNGs land in `dist/` under `/umbral/`. Each of the 28 pages has exactly one `og:image`, `https://cosmic-chimps.github.io/umbral/og.png`, built from `site.config.mjs`, so a custom domain moves it too. Starlight's own `og:url`, `og:title` and `twitter:card` are untouched, with no duplicates.
+- **What the head gains.** Only `meta` and `link` elements, and no script.
+- **The card.** `social/card.html` loads only the two local fonts, and it isn't in `dist/`.
+- **The picture.** It is 1200 × 630, and the alt text says what it shows.
+- **sharp** is Astro's optional dependency (0.35.5) and has no install script.
+
+Your questions:
+- **Global head entries.** Right. There is one picture for the site, and the per-page title, URL and description stay Starlight's.
+- **sharp.** Leave it out of `package.json`. The script is run by hand, and if Astro ever stops installing sharp it fails loudly with "Cannot find package 'sharp'". Naming it would only risk a second copy. One line in the README's "The link preview" says the way out: `npm install --no-save sharp`.
+- **`meta content` in check-dist.** Yes, and N1 is how.
+
+Nits:
+- **N1. check `og:image` and `twitter:image` in check-dist.** These aren't reader requests: a chat app's server fetches them, so the reader's privacy isn't at stake. But a wrong value fails in silence: a changed `base`, a renamed file, or a picture moved to another host leaves Slack with the empty box again, and no build notices. For those two properties (and `og:image:secure_url` if it ever appears), require the site's own host and a file that exists in `dist/` at that path under `base`.
+- **N2, for the designer: the 180 px icon has transparent rounded corners.** iOS fills an `apple-touch-icon`'s transparency with black and rounds the corners itself. The usual form is a full square in the tile's colour. It's barely visible on this ink, so it's the designer's call.

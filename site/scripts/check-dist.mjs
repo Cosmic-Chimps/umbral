@@ -9,11 +9,16 @@
 // Own host is the host of `site` in site.config.mjs. A link a reader may follow
 // (the href of an <a>) or text may name any host; nothing the browser fetches on
 // its own may.
+//
+// The browser enforces the same thing at run time, through the
+// Content-Security-Policy that astro.config.mjs puts in every page. This script
+// checks that each page carries it, before anything it loads, and that it allows
+// no other host.
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { site } from '../site.config.mjs';
+import { base, site } from '../site.config.mjs';
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const OWN_HOST = new URL(site).host;
@@ -106,6 +111,56 @@ const FETCHED = new Set(['src', 'srcset', 'poster', 'data', 'action', 'xlink:hre
 
 const externalLinks = new Map(); // host -> count, for <a href>
 
+// The picture of a link preview. A chat or social app fetches it from the
+// address in the page, so it must be the site's own, absolute, and a file that
+// this build really holds at that path: a changed base or a renamed file
+// would otherwise bring back the empty box, with no build noticing.
+const PREVIEW_IMAGE = new Set(['og:image', 'twitter:image']);
+const BASE_PATH = base.replace(/\/+$/, '');
+
+function checkPreviewImage(file, which, value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    problem(file, `${which} is "${value}", which is not an absolute URL`);
+    return;
+  }
+  if (url.host !== OWN_HOST) {
+    problem(file, `${which} points at ${value}, which is not on ${OWN_HOST}`);
+  } else if (BASE_PATH && !url.pathname.startsWith(`${BASE_PATH}/`)) {
+    problem(file, `${which} is ${value}, which is not under ${BASE_PATH}/`);
+  } else if (!existsSync(path.join(DIST, decodeURIComponent(url.pathname.slice(BASE_PATH.length))))) {
+    problem(file, `${which} is ${value}, and dist/ holds no such file`);
+  }
+}
+
+// What a source of the Content-Security-Policy may be: one of these keywords, a
+// hash, a nonce, or data:. Everything else is refused by name: a host or another
+// scheme would let the browser ask another host, and so would a keyword such as
+// 'strict-dynamic', which lets a trusted script load others from anywhere.
+const POLICY_SOURCE = /^(?:'self'|'none'|'unsafe-inline'|'wasm-unsafe-eval'|'sha(?:256|384|512)-[A-Za-z0-9+\/_-]+={0,2}'|'nonce-[A-Za-z0-9+\/_-]+={0,2}'|data:)$/;
+
+/** The page's policy must exist, name no other host, and come before anything the page loads. */
+function checkPolicy(file, policyAt, policy, firstLoadAt) {
+  if (policy === null) {
+    problem(file, 'has no <meta http-equiv="Content-Security-Policy">: the browser would not refuse a request to another host');
+    return;
+  }
+  if (firstLoadAt !== -1 && firstLoadAt < policyAt) {
+    problem(file, 'a script or a stylesheet comes before the Content-Security-Policy element, so the policy does not cover it');
+  }
+  const directives = policy.split(';').map((d) => d.trim().split(/\s+/)).filter((d) => d[0] !== '');
+  if (!directives.some(([name, ...sources]) => name === 'default-src' && sources.join(' ') === "'self'")) {
+    problem(file, "the Content-Security-Policy does not start from default-src 'self'");
+  }
+  for (const [name, ...sources] of directives) {
+    for (const source of sources) {
+      if (!POLICY_SOURCE.test(source)) problem(file, `the Content-Security-Policy allows ${source} in ${name}`);
+    }
+  }
+}
+
 function checkHtml(file, html) {
   const scripts = [];
   const styles = [];
@@ -130,10 +185,21 @@ function checkHtml(file, html) {
     for (const u of cssUrls(css)) problem(file, `a <style> element fetches ${u}`);
   }
 
+  let policyAt = -1;
+  let policy = null;
+  let firstLoadAt = -1;
   for (const tag of rest.matchAll(TAG)) {
     const name = tag[1].toLowerCase();
     const attrs = new Map();
     for (const a of tag[2].matchAll(ATTR)) attrs.set(a[1].toLowerCase(), a[2] ?? a[3] ?? a[4] ?? '');
+    if (name === 'meta' && /^content-security-policy$/i.test(attrs.get('http-equiv') ?? '')) {
+      if (policy === null) {
+        policyAt = tag.index;
+        policy = attrs.get('content') ?? '';
+      }
+    } else if (firstLoadAt === -1 && (name === 'script' || name === 'style' || (name === 'link' && /\bstylesheet\b/i.test(attrs.get('rel') ?? '')))) {
+      firstLoadAt = tag.index;
+    }
     for (const [attr, value] of attrs) {
       if (attr === 'xmlns' || attr.startsWith('xmlns:')) continue;
       if (attr === 'href') {
@@ -150,12 +216,15 @@ function checkHtml(file, html) {
         if (otherHost(value) !== null) problem(file, `<${name} ${attr}> points at ${value}`);
       } else if (attr === 'style') {
         for (const u of cssUrls(value)) problem(file, `an inline style on <${name}> fetches ${u}`);
+      } else if (name === 'meta' && attr === 'content' && PREVIEW_IMAGE.has(attrs.get('property') ?? attrs.get('name') ?? '')) {
+        checkPreviewImage(file, attrs.get('property') ?? attrs.get('name'), value);
       } else if (name === 'meta' && attr === 'content' && /^refresh$/i.test(attrs.get('http-equiv') ?? '')) {
         const target = /url\s*=\s*['"]?([^'";\s]+)/i.exec(value)?.[1];
         if (target && otherHost(target) !== null) problem(file, `<meta http-equiv="refresh"> goes to ${target}`);
       }
     }
   }
+  checkPolicy(file, policyAt, policy, firstLoadAt);
 }
 
 function checkJs(file, js) {
@@ -209,7 +278,7 @@ for (const host of ALLOWED_HOSTS.keys()) {
 
 if (problems.length > 0) {
   for (const line of problems) console.error(line);
-  console.error(`check-dist: ${problems.length} problem${problems.length === 1 ? '' : 's'}: the site would ask another host for something`);
+  console.error(`check-dist: ${problems.length} problem${problems.length === 1 ? '' : 's'}: the site would ask another host for something, or the browser would not refuse it`);
   process.exit(1);
 }
 
