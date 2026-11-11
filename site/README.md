@@ -31,9 +31,38 @@ npm run collect   # the collect script alone
 | `scripts/check-dist.mjs` | Reads the built `dist/` and fails if it asks another host for anything. |
 | `src/styles/umbra.css` | The look: Umbral's colours and fonts, through Starlight's custom properties. The one stylesheet. |
 | `src/assets/`, `public/favicon.svg` | The mark, for the dark and the light theme, and the favicon. |
+| `social/card.html`, `public/og.png`, `public/favicon-32.png`, `public/apple-touch-icon.png` | The link preview: the picture and the icons a chat or social app shows beside a link to the site. See below. |
 
 The fonts are Umbral's own, copied from `src/Umbral/Assets/fonts/` by the collect script into
 `src/fonts/` and `public/licenses/fonts/` (generated, ignored).
+
+## The link preview
+
+A chat or social app that shows a link to the site draws a picture (`og:image`) and an icon. It
+does not draw an SVG, so both are PNG files, committed in `public/`, and `astro.config.mjs` names
+them in the page's `head` (meta and link elements only, no script). The picture's source is
+`social/card.html`: the mark, the wordmark and the footer's line, in the dark theme's colours and
+the shipped fonts.
+
+To make the picture again after changing the card, with any Chrome or Chromium, from `site/`
+after `npm run collect` (the card reads the fonts from `src/fonts/`):
+
+```sh
+chrome --headless --hide-scrollbars --virtual-time-budget=2000 --window-size=1200,630 \
+  --screenshot=public/og.png social/card.html
+```
+
+To make the two icons again after changing `public/favicon.svg` (it uses `sharp`, which Astro
+installs):
+
+```sh
+node scripts/preview-icons.mjs
+```
+
+Neither runs in the build: the three PNG files are committed.
+
+An app keeps a preview for a while after it first fetched a link, so a changed picture shows only
+later, or at once on an address it has not seen (add `?v=2`).
 
 ## What fails the build
 

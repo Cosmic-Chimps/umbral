@@ -402,3 +402,34 @@ is "The maintainer's steps" above: merge, turn Pages on once, run the `pages` wo
 first time, and look at the deployed site. Two follow-up tasks wait for the site to be live:
 `hhww` (the Documentation link, the UI strings and the log message that cite documentation) and
 `fqjn` (a Content-Security-Policy meta element on the site).
+
+## After the first deploy: the link preview (2026-11-11)
+
+The site is live at `https://cosmic-chimps.github.io/umbral/` (merged as `b9c0432`). The maintainer
+shared the link in Slack: the preview had the title and the description, an empty grey box where
+the picture goes, and no icon.
+
+- **Cause**, read from the deployed page: Starlight writes `twitter:card` as `summary_large_image`
+  but no `og:image` or `twitter:image`, and the only icon is `favicon.svg`, which chat and social
+  apps do not draw.
+- **Fix**, in `site/` only: `public/og.png` (1200 by 630), `public/favicon-32.png` and
+  `public/apple-touch-icon.png` (180), named in the pages' `head` by `astro.config.mjs` (six meta
+  elements and two link elements; still no script). The picture's address is absolute and built
+  from `site.config.mjs`, so a custom domain changes it too.
+- **The picture** is `site/social/card.html` drawn by Chrome: `Mark.full` in the dark theme's
+  colours, the lowercase wordmark in the display face at 800, and the footer's own line,
+  "Self-hosted passwordless sign-in", in the muted text colour on ink. Nothing else. It is a
+  proposal for the designer, like the theme was.
+- **The icons** are `public/favicon.svg` as PNG, made by `site/scripts/preview-icons.mjs` with
+  `sharp`, which Astro already installs (an optional dependency in the lockfile), so no dependency
+  is added. Neither the picture nor the icons are made in the build; the PNG files are committed,
+  and `site/README.md`, "The link preview", says how to make them again. The picture's command was
+  run as written and gave a file identical to the committed one. A first version of the README
+  made the icons with headless Chrome too; that is wrong (Chrome will not open a window as small
+  as 180 pixels and the icon came out cropped), which is why there is a script.
+- **Checked**: the build passes, `check-dist` is clean, and all 29 built pages carry the tags
+  (`og:image` is `https://cosmic-chimps.github.io/umbral/og.png`).
+- **Not checked**: Slack itself. It can only read the deployed site, and it keeps a preview for a
+  while, so after the deploy share the address with `?v=2` to see the new one at once. Whether
+  Slack also shows the small icon beside the site's name from a PNG `link rel="icon"` on a project
+  site (it cannot be at the host's root, `/favicon.ico`) is to be seen after the deploy.

@@ -1,0 +1,68 @@
+<!doctype html>
+<!--
+  The picture a chat or social app shows beside a link to the documentation
+  (og:image), 1200 by 630. It is the source of public/og.png: see "The link
+  preview" in site/README.md for how the PNG is made from it. The fonts are
+  the three shipped ones, copied to src/fonts/ by scripts/collect.mjs.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Umbral: the link preview card</title>
+<style>
+  @font-face {
+    font-family: 'Bricolage Grotesque';
+    font-weight: 800;
+    src: url('../src/fonts/bricolage-grotesque-latin-800-v1001.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Schibsted Grotesk';
+    font-weight: 400 600;
+    src: url('../src/fonts/schibsted-grotesk-latin-400-600-v1100.woff2') format('woff2');
+  }
+  html, body { margin: 0; }
+  body {
+    width: 1200px;
+    height: 630px;
+    box-sizing: border-box;
+    padding: 0 96px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: #0b0b14;
+    color: #ece8df;
+  }
+  .lockup { display: flex; align-items: center; gap: 36px; }
+  .lockup svg { width: 200px; height: 200px; flex: none; }
+  .wordmark {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-weight: 800;
+    font-size: 176px;
+    line-height: 1;
+    letter-spacing: -0.035em;
+    text-transform: lowercase;
+  }
+  .line {
+    margin: 44px 0 0;
+    font-family: 'Schibsted Grotesk', sans-serif;
+    font-weight: 400;
+    font-size: 44px;
+    line-height: 56px;
+    color: #a7a2b6;
+  }
+</style>
+</head>
+<body>
+  <div class="lockup">
+    <!-- Mark.full of src/Umbral/Views/Theme.fs, in the dark theme's colours. -->
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="4.5" fill="#f5c26b"/>
+      <path d="M6 39h36" stroke="#3a3a52" stroke-width="3" stroke-linecap="round"/>
+      <path d="M22 39H44L22 33Z" fill="#a7a2b6" opacity="0.5"/>
+      <path d="M22 39V13" stroke="#ece8df" stroke-width="4" stroke-linecap="round"/>
+    </svg>
+    <div class="wordmark">Umbral</div>
+  </div>
+  <p class="line">Self-hosted passwordless sign-in</p>
+</body>
+</html>
