@@ -77,8 +77,8 @@ the **Client ID** from the app's page, and nothing else.
 
 ## Redirect URIs
 
-An app has one redirect URI, and Umbral matches it **exactly**, character for
-character: scheme, host, port, path and a trailing slash all count, and
+An app can have several redirect URIs (up to 10, added on its page), and Umbral
+matches each **exactly**, character for character: scheme, host, port, path and a trailing slash all count, and
 wildcards are refused. A request with any other value gets an Umbral error page,
 not a redirect. Two kinds work for a phone app:
 
@@ -148,8 +148,8 @@ Sign-out has two parts, and an app usually wants both:
    ends its session and redirects to that URI with the `state`, and the system
    hands it back to the app, which closes the sheet.
 
-Umbral redirects only to the post-logout redirect URI registered for the app,
-matched exactly as the redirect URI is. Without one, or with any other address,
+Umbral redirects only to a post-logout redirect URI registered for the app,
+matched exactly as redirect URIs are. Without one, or with any other address,
 the person is still signed out of Umbral, but lands on Umbral's home page in the
 browser sheet, and the app has to close it. A sign-out ends Umbral's session
 only: the person stays signed in at Google, GitHub or whichever provider they
@@ -174,7 +174,8 @@ redirect: it listens on a port of the computer itself and registers
 included**, and `127.0.0.1` and `localhost` are different addresses to it. So
 the app must listen on the port it registered, and cannot pick a free port at
 random as RFC 8252 allows. If that port is taken, the sign-in fails. Pick an
-unusual fixed port, or use a custom scheme.
+unusual fixed port, register two or three of them as separate redirect URIs
+and try them in turn, or use a custom scheme.
 
 ## Samples
 

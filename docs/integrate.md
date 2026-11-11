@@ -14,8 +14,9 @@ how people are identified.
   password grant.
 - **Scopes:** `openid`, `email`, `profile`, and `offline_access` if you want a
   refresh token.
-- **Redirect URIs are matched exactly.** A request whose `redirect_uri` is not
-  the registered string is answered with an Umbral error page, not a redirect.
+- **Redirect URIs are matched exactly.** An app can have several, and a request
+  whose `redirect_uri` is not one of them, character for character, is
+  answered with an Umbral error page, not a redirect.
 - **The token endpoint** (`/connect/token`) accepts the secret as HTTP Basic or
   as a form field (`client_secret_basic` or `client_secret_post`).
 - **A browser-only app can call Umbral directly.** The discovery document, the
@@ -61,12 +62,19 @@ how people are identified.
   that read the discovery document do the right thing. If you hard-code the
   issuer and your library compares strings, copy it from the discovery document.
 
-Limits of the Apps screen today: an app has **one redirect URI** (plus an
-optional post-logout one), chosen when you create it, and the app's client ID is
-generated. To change a redirect URI, delete the app and register it again. You
-get a new client ID and secret. The app's **Sign-in methods** are different: you
-can change them at any time on its card, without touching the client ID or the
-secret.
+An app can have **up to 10 redirect URIs** and up to 10 post-logout redirect
+URIs, one for each place it runs: `http://localhost:3000/callback` on your
+machine, a staging host, production. You give the first when you create the
+app, and add or remove the others on its page at any time. The client ID and
+the secret stay the same. An app keeps at least one redirect URI: to replace
+the last one, add the new one first. A removed URI is refused from the next
+sign-in on. Each one is matched exactly, so register every place separately;
+wildcards are refused. Every addition and removal is written to the security
+log.
+
+The client ID is generated, and the app's name and type are chosen when you
+create it. The app's **Sign-in methods** can change at any time on its page,
+like its redirect URIs, without touching the client ID or the secret.
 
 ## Endpoints
 
@@ -106,10 +114,10 @@ signing out is how a person leaves. Disabling or deleting them on the **Users**
 screen ends it too (see below).
 
 To bring them back to your app afterwards, pass `post_logout_redirect_uri` with
-the post-logout URI registered for the app on the **Apps** screen (and `state`,
-which comes back with it). Umbral redirects only to that one: without it, or
-with any other address, the person is still signed out and lands on Umbral's own
-home page.
+one of the post-logout URIs registered for the app on the **Apps** screen (and
+`state`, which comes back with it). Umbral redirects only to those: without one,
+or with any other address, the person is still signed out and lands on Umbral's
+own home page.
 
 ## When a person is disabled or deleted
 

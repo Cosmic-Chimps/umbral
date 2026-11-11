@@ -183,8 +183,10 @@ state; on wide screens the pane shows the create form at once, as if
    existing reveal card's content, shown once, at the top of this app's pane
    rather than above the list.
 3. **Connection** (new section title, catalogue): Client ID with copy, Issuer
-   URL with copy, in a two-column grid from 640px; then the redirect URIs as a
-   mono list. No form.
+   URL with copy, in a two-column grid from 640px; then the redirect URIs and
+   the post-logout redirect URIs, each a mono list with Remove per row and an
+   add form under it (spec 012, `specs/012-several-redirect-uris/contracts/routes.md`;
+   amended 2026-11-11, before that a list with no form).
 4. **Sign-in methods** (existing title): the summary line or pills of what the
    app offers, the unrestricted warning when it applies, then the choice form
    with its small secondary "Save sign-in methods".
