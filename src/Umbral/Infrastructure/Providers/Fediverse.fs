@@ -52,7 +52,7 @@ let systemResolver = HostResolver(fun name token -> Dns.GetHostAddressesAsync(na
 [<Literal>]
 let private MaxResponseBytes = 65536
 
-let private requestTimeout = TimeSpan.FromSeconds 10.0
+let requestTimeout = TimeSpan.FromSeconds 10.0
 
 /// Raised by the connect callback when a name resolves to no public address.
 exception NonPublicAddress of host: string
@@ -142,11 +142,11 @@ type ServerError =
 
 type private Answer = { Status: int; Body: string }
 
-exception private ResponseTooLarge
+exception ResponseTooLarge
 
 /// A server is untrusted input: reading its body without a cap turns a 200 OK
 /// into a memory-exhaustion vector.
-let private readBounded (content: HttpContent) (cancellationToken: CancellationToken) : Task<string> =
+let readBounded (content: HttpContent) (cancellationToken: CancellationToken) : Task<string> =
     task {
         use! stream = content.ReadAsStreamAsync cancellationToken
         use buffer = new MemoryStream()
@@ -166,7 +166,7 @@ let private readBounded (content: HttpContent) (cancellationToken: CancellationT
         return Encoding.UTF8.GetString(buffer.ToArray())
     }
 
-let rec private involvesNonPublic (error: exn) : bool =
+let rec involvesNonPublic (error: exn) : bool =
     match error with
     | NonPublicAddress _ -> true
     | :? AggregateException as aggregate -> aggregate.InnerExceptions |> Seq.exists involvesNonPublic
@@ -195,9 +195,9 @@ let private send (client: HttpClient) (build: unit -> HttpRequestMessage) : Task
         | :? IOException -> return Error(Unreachable "the server could not be reached")
     }
 
-let private get (url: string) () = new HttpRequestMessage(HttpMethod.Get, url)
+let get (url: string) () = new HttpRequestMessage(HttpMethod.Get, url)
 
-let private postForm (url: string) (fields: (string * string) list) () =
+let postForm (url: string) (fields: (string * string) list) () =
     new HttpRequestMessage(
         HttpMethod.Post,
         url,
@@ -205,7 +205,7 @@ let private postForm (url: string) (fields: (string * string) list) () =
     )
 
 /// The body as a JSON object, or None. Cloned so the document can be disposed.
-let private parseObject (body: string) : JsonElement option =
+let parseObject (body: string) : JsonElement option =
     try
         use document = JsonDocument.Parse body
 
@@ -216,7 +216,7 @@ let private parseObject (body: string) : JsonElement option =
     with :? JsonException ->
         None
 
-let private optString (element: JsonElement) (name: string) : string option =
+let optString (element: JsonElement) (name: string) : string option =
     match element.TryGetProperty name with
     | true, prop when prop.ValueKind = JsonValueKind.String ->
         Option.ofObj (prop.GetString()) |> Option.filter (fun s -> s <> "")

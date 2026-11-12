@@ -51,7 +51,7 @@ let private clock () = FakeTimeProvider DateTimeOffset.UtcNow
 /// Start a round trip in `mode` and return the cookies plus the minted correlation.
 let private startIn (mode: OAuthRoundTrip.ResponseMode) (clock: TimeProvider) slug server =
     let ctx = contextWith [] []
-    let started = OAuthRoundTrip.start protectors clock ctx mode slug server "/connect/authorize?x=1"
+    let started = OAuthRoundTrip.start protectors clock ctx mode slug server "/connect/authorize?x=1" ""
     cookiesFrom ctx, started.Correlation
 
 let private startOn (clock: TimeProvider) slug server = startIn OAuthRoundTrip.Redirect clock slug server
@@ -219,7 +219,7 @@ let ``a cookie from a different key ring is refused`` () =
 let ``the correlation cookie is HttpOnly, Lax and scoped to connect`` () =
     let clock = clock ()
     let ctx = contextWith [] []
-    OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.Redirect "discord" "" "/" |> ignore
+    OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.Redirect "discord" "" "/" "" |> ignore
 
     let header =
         ctx.Response.Headers.SetCookie
@@ -278,6 +278,71 @@ let ``a six-field payload minted before the upgrade still decodes with no server
     | Error e -> failwith $"expected success, got {e.Detail}"
 
 // ---------------------------------------------------------------------------
+// The opaque per-kind payload (specs/015 research R9)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``an Extra payload round-trips through start and complete`` () =
+    let clock = clock ()
+    let extra = """{"did":"did:plc:abcdefghijklmnopqrstuvwx","jwk":"{\"kty\":\"EC\"}","nonce":"n1"}"""
+    let ctx = contextWith [] []
+
+    let started =
+        OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.Redirect "bluesky" "https://bsky.social" "/" extra
+
+    Assert.Equal(extra, started.Correlation.Extra)
+
+    match complete clock (cookiesFrom ctx) "bluesky" [ "code", "abc"; "state", started.Correlation.State ] with
+    | Ok recovered ->
+        Assert.Equal(extra, recovered.Extra)
+        Assert.Equal("https://bsky.social", recovered.Server)
+    | Error e -> failwith $"expected success, got {e.Detail}"
+
+[<Fact>]
+let ``a correlation started with no Extra comes back with none`` () =
+    let clock = clock ()
+    let cookies, correlation = start clock "discord"
+
+    match complete clock cookies "discord" [ "code", "abc"; "state", correlation.State ] with
+    | Ok recovered -> Assert.Equal("", recovered.Extra)
+    | Error e -> failwith $"expected success, got {e.Detail}"
+
+[<Fact>]
+let ``a seven-field payload minted before Extra still decodes with Extra empty`` () =
+    let clock = clock ()
+    let state = "the-state-seven"
+
+    let payload =
+        String.Join(
+            '\u001f',
+            [| state; "verifier"; "nonce"; "fediverse"; "/x"; clock.GetUtcNow().ToString "o"; "mastodon.social" |]
+        )
+
+    let protected' = protectors.CreateProtector("Umbral.Connect.v1").Protect payload
+
+    match complete clock [ "umbral_connect", protected' ] "fediverse" [ "code", "abc"; "state", state ] with
+    | Ok recovered ->
+        Assert.Equal("mastodon.social", recovered.Server)
+        Assert.Equal("", recovered.Extra)
+    | Error e -> failwith $"expected success, got {e.Detail}"
+
+[<Fact>]
+let ``a six-field payload decodes with Extra empty`` () =
+    let clock = clock ()
+    let state = "the-state-six-extra"
+
+    let payload =
+        String.Join('\u001f', [| state; "verifier"; "nonce"; "discord"; "/x"; clock.GetUtcNow().ToString "o" |])
+
+    let protected' = protectors.CreateProtector("Umbral.Connect.v1").Protect payload
+
+    match complete clock [ "umbral_connect", protected' ] "discord" [ "code", "abc"; "state", state ] with
+    | Ok recovered ->
+        Assert.Equal("", recovered.Server)
+        Assert.Equal("", recovered.Extra)
+    | Error e -> failwith $"expected success, got {e.Detail}"
+
+// ---------------------------------------------------------------------------
 // The form-post mode (specs/013 research R2): a cookie of its own, because a
 // Lax cookie is not sent on the cross-site POST Apple answers with
 // ---------------------------------------------------------------------------
@@ -294,7 +359,7 @@ let ``a form-post round trip sets its own cookie, SameSite None and always Secur
     // drops a SameSite=None cookie that is not.
     let ctx = contextWith [] []
     ctx.Request.Scheme <- "http"
-    OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.FormPost "apple" "" "/" |> ignore
+    OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.FormPost "apple" "" "/" "" |> ignore
 
     let headers = setCookies ctx |> List.map _.ToLowerInvariant()
     let header = headers |> List.exactlyOne
@@ -324,7 +389,7 @@ let ``a redirect round trip still sets only the Lax cookie, and is not forced Se
     let clock = clock ()
     let ctx = contextWith [] []
     ctx.Request.Scheme <- "http"
-    OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.Redirect "discord" "" "/" |> ignore
+    OAuthRoundTrip.start protectors clock ctx OAuthRoundTrip.Redirect "discord" "" "/" "" |> ignore
 
     let header = setCookies ctx |> List.exactlyOne |> _.ToLowerInvariant()
 

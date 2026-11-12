@@ -353,6 +353,7 @@ let private postHandler: EndpointHandler =
                                     "fediverse"
                                     host
                                     returnUrl
+                                    ""
 
                             let url =
                                 Client.authorizeUrl

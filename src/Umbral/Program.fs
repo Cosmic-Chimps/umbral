@@ -265,6 +265,45 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
             sp.GetRequiredService<Providers.Fediverse.PrimaryHandler>().Invoke())
     |> ignore
 
+    // The Bluesky connector's client (spec 015). The same guarded handler and the
+    // same seam as the Fediverse client, under a client name of its own, so a test
+    // stubs both. The PLC directory is where `did:plc` documents are read; an
+    // override must be https unless the development setting is on, like every
+    // address Umbral is told to trust.
+    let plcDirectory =
+        let text =
+            match Option.ofObj config["UMBRAL:BLUESKY_PLC_DIRECTORY"] |> Option.map _.Trim() with
+            | Some configured when configured <> "" -> configured.TrimEnd '/'
+            | _ -> "https://plc.directory"
+
+        let allowed =
+            match Uri.TryCreate(text, UriKind.Absolute) with
+            | true, uri ->
+                match Option.ofObj uri with
+                | Some u -> u.Scheme = Uri.UriSchemeHttps || (allowInsecureHttp && u.Scheme = Uri.UriSchemeHttp)
+                | None -> false
+            | _ -> false
+
+        match allowed with
+        | true -> text
+        | false ->
+            failwith
+                $"UMBRAL__BLUESKY_PLC_DIRECTORY must be an https address, for example https://plc.directory (http only in Development with UMBRAL__INSECURE_ALLOW_HTTP=true), but it is '{text}'."
+
+    services.AddSingleton<Providers.Bluesky.Options>(
+        ({ AllowDev = allowInsecureHttp
+           PlcDirectory = plcDirectory }: Providers.Bluesky.Options)
+    )
+    |> ignore
+
+    services.TryAddSingleton<Providers.Bluesky.TxtResolver>(Providers.Bluesky.dnsResolver)
+
+    services
+        .AddHttpClient(Providers.Bluesky.HttpClientName)
+        .ConfigurePrimaryHttpMessageHandler(fun (sp: IServiceProvider) ->
+            sp.GetRequiredService<Providers.Fediverse.PrimaryHandler>().Invoke())
+    |> ignore
+
     // Development only, and refused at startup if a fake connector exists
     // without both gate conditions — see `initialize`.
     services.AddSingleton<Providers.Fake.FakeGate>() |> ignore

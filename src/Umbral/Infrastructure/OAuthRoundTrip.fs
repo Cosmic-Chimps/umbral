@@ -106,7 +106,12 @@ type Correlation =
       /// The normalised fediverse server this round trip is bound to, empty for
       /// every other kind. The callback exchanges the code there and nowhere
       /// else (specs/010 research R9).
-      Server: string }
+      Server: string
+      /// An opaque per-kind payload, empty for every kind but Bluesky, whose
+      /// callback reads its DID, handle, token endpoint, DPoP key and nonce from
+      /// it (specs/015 research R9). It is encrypted with the rest of the
+      /// cookie. It must not contain the unit separator: it is JSON.
+      Extra: string }
 
 /// The provider's error word as it may reach the security log: only
 /// `[a-z_]{1,64}`, else the fixed word `other`. The log's `detail` is short and
@@ -145,13 +150,15 @@ type RoundTripError =
 // ---------------------------------------------------------------------------
 // Serialisation
 //
-// Seven strings joined by a unit separator, not JSON.
+// Eight strings joined by a unit separator, not JSON.
 //
 // The first version used System.Text.Json over a `type private Stored`. F#
 // compiles a private type as non-public, which the serializer cannot construct,
 // so every correlation came back as a decode failure — indistinguishable from
 // tampering, and reported as such. Joining seven values we control needs no
-// serializer at all.
+// serializer at all. The last field, `Extra`, is JSON for Bluesky, but it is
+// one string among the eight: JSON text holds no raw U+001F (a control
+// character is escaped as \u001f), so it cannot split the payload either.
 //
 // None of these values can contain the separator: they are all base64url
 // (state, verifier, nonce), a validated slug, a local path, or a host (a host
@@ -162,10 +169,13 @@ type RoundTripError =
 let private Separator = '\u001f'
 
 let private encode (c: Correlation) =
-    String.Join(Separator, [| c.State; c.CodeVerifier; c.Nonce; c.Slug; c.ReturnUrl; c.IssuedAtUtc.ToString "o"; c.Server |])
+    String.Join(
+        Separator,
+        [| c.State; c.CodeVerifier; c.Nonce; c.Slug; c.ReturnUrl; c.IssuedAtUtc.ToString "o"; c.Server; c.Extra |]
+    )
 
 let private decode (payload: string) =
-    let build (state: string) (verifier: string) (nonce: string) (slug: string) (returnUrl: string) (issuedAt: string) (server: string) =
+    let build (state: string) (verifier: string) (nonce: string) (slug: string) (returnUrl: string) (issuedAt: string) (server: string) (extra: string) =
         match DateTimeOffset.TryParse(issuedAt, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.RoundtripKind) with
         | true, issuedAt ->
             Some
@@ -175,14 +185,18 @@ let private decode (payload: string) =
                   Slug = slug
                   ReturnUrl = returnUrl
                   IssuedAtUtc = issuedAt
-                  Server = server }
+                  Server = server
+                  Extra = extra }
         | _ -> None
 
     match payload.Split Separator with
+    | [| state; verifier; nonce; slug; returnUrl; issuedAt; server; extra |] ->
+        build state verifier nonce slug returnUrl issuedAt server extra
+    // Seven fields: a cookie minted before `Extra` existed.
     | [| state; verifier; nonce; slug; returnUrl; issuedAt; server |] ->
-        build state verifier nonce slug returnUrl issuedAt server
+        build state verifier nonce slug returnUrl issuedAt server ""
     // Six fields: a cookie minted just before an upgrade, which has no server.
-    | [| state; verifier; nonce; slug; returnUrl; issuedAt |] -> build state verifier nonce slug returnUrl issuedAt ""
+    | [| state; verifier; nonce; slug; returnUrl; issuedAt |] -> build state verifier nonce slug returnUrl issuedAt "" ""
     | _ -> None
 
 // ---------------------------------------------------------------------------
@@ -203,6 +217,7 @@ let start
     (slug: string)
     (server: string)
     (returnUrl: string)
+    (extra: string)
     : Started =
     let verifier = Ids.newCodeVerifier ()
 
@@ -213,7 +228,8 @@ let start
           Slug = slug
           ReturnUrl = returnUrl
           IssuedAtUtc = clock.GetUtcNow()
-          Server = server }
+          Server = server
+          Extra = extra }
 
     let settings = settingsFor ctx mode
     let protector = protectorProvider.CreateProtector settings.Purpose
