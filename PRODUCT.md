@@ -85,7 +85,7 @@ product that offers those cannot truthfully claim this simplicity.
   never carries app branding.
 - Documentation is the support channel (`README.md`, `docs/`, `CHANGELOG.md`
   for people who run it). Product rules live in
-  `.specify/memory/constitution.md` (version 3.0.1, 2026-10-26); features are
+  `.specify/memory/constitution.md` (version 3.1.0, 2026-11-11); features are
   specified in `specs/NNN-*/` with spec, plan and tasks.
 
 ## Capabilities and Constraints
