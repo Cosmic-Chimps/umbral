@@ -87,3 +87,10 @@ Either way, a test should paste a hostile SVG and check that it does nothing.
   ```
 
   On 13 cases (`1`, `-1.5`, `1.`, `.5`, `1e5`, `1.5E-3`, `+0.25`, `1.2.3`, `e5`, `.`, `--1`, `1e`, `01.10`) it gives the same answers as today's pattern, and the 32,000-digit case takes 5 ms. `RegexOptions.NonBacktracking` on the current pattern also works (1 ms). Add the 32,000-digit `viewBox` as a test with a time bound.
+
+### Re-check at `55bc21c` (2026-11-12)
+
+**Clear to merge.**
+- **N1 is taken.** `numberPattern` is the one-group form, with a comment saying why. The new test feeds 32,000 digits then `x` into a `viewBox`, a `width` and a transform, each under `MaxChars` so it reaches the parser, and each must be refused in under a second.
+- **The design fix to Remove logo.** The button sits on Save's row and posts the separate `apple-logo-remove` form through its `form` attribute, so it never sends the pasted text. That form is a sibling of the Save form, not nested inside it: a nested `<form>` would be dropped by the browser's parser. It holds the antiforgery token and carries `data-confirm`, and `umbral.js` confirms on the submit event of the form actually submitted, so the confirmation still runs.
+- **Tests run by the reviewer**, from a git checkout of `55bc21c`'s files: `dotnet build -c Release` with 0 warnings, `build-css.sh --check` exits 0, and `AppleLogoTests` 36 of 36, `AppleLogoAdminTests` 14 of 14, `AppleButtonTests` 9 of 9.
