@@ -102,6 +102,7 @@
     <Compile Include="FediverseStepErrorsTests.fs" />
     <Compile Include="FediverseReRegistrationTests.fs" />
     <Compile Include="FediverseSessionRecheckTests.fs" />
+    <Compile Include="BlueskyAccountsTests.fs" />
     <Compile Include="AllowedDomainsSignInTests.fs" />
     <Compile Include="CraftedLinkTests.fs" />
     <Compile Include="AllowedDomainsAdminTests.fs" />

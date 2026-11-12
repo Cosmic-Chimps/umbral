@@ -600,7 +600,8 @@ let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWa
 
                 match stored.Kind with
                 | Passkey -> input(type' = "hidden", name = "enrolment", value = stored.PasskeyEnrolment.Value)
-                | Fediverse ->
+                | Fediverse
+                | Bluesky ->
                     input(type' = "hidden", name = "scope", value = Fediverse.scopeValue stored.FediverseAccess)
                     input(type' = "hidden", name = "servers", value = String.concat "\n" stored.FediverseAccess.Servers)
                 | Apple ->
@@ -1093,6 +1094,16 @@ let private view
                     |> Option.bind (fun (slug, d) -> if slug = "fediverse" then Some(d.Typed, d.Problem) else None)
 
                 FediverseConnector.pane ctx t origin enabledCount chosenSlugs row.Existing draft frameView paneNotice
+            | Bluesky ->
+                // T009 replaces this: a placeholder until the Bluesky pane exists.
+                section(class' = "space-y-4")
+                    .data("connector", "bluesky")
+                    .data("connector-kind", "bluesky")
+                    .data("connector-shared", (match row.Existing with Some c when not c.IsShared -> "not-shared" | _ -> "shared")) {
+                    h2(class' = "text-xl font-semibold") { raw "Bluesky" }
+                    p() { raw "Bluesky settings come in a later step." }
+                }
+                :> HtmlElement
             | _ ->
                 providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice appleDraft appleLogo appleLogoProblem row
                 :> HtmlElement
@@ -1125,7 +1136,7 @@ let private addableKinds (ctx: HttpContext) =
 /// ones in the order Discord, GitHub, Google (the two easy wins first, since
 /// Google is the one that can refuse a homelab address outright), OpenID Connect,
 /// the fake one, then by slug; the kinds not set up follow, in the order of
-/// `allKinds`, and Fediverse then Passkey close the list.
+/// `allKinds`, and Fediverse, Bluesky then Passkey close the list.
 let private rowsFor (existing: Connector list) =
     let kindOrder kind =
         match kind with
@@ -1136,11 +1147,12 @@ let private rowsFor (existing: Connector list) =
         | Oidc -> 4
         | Fake -> 5
         | Fediverse -> 6
-        | Passkey -> 7
+        | Bluesky -> 7
+        | Passkey -> 8
 
     let stored =
         existing
-        |> List.filter (fun c -> c.Kind <> Passkey && c.Kind <> Fediverse)
+        |> List.filter (fun c -> c.Kind <> Passkey && c.Kind <> Fediverse && c.Kind <> Bluesky)
         |> List.sortBy (fun c -> kindOrder c.Kind, c.Slug)
         |> List.map (fun c -> { Kind = c.Kind; Existing = Some c })
 
@@ -1166,7 +1178,11 @@ let private rowsFor (existing: Connector list) =
         { Kind = Fediverse
           Existing = existing |> List.tryFind (fun c -> c.Kind = Fediverse) }
 
-    stored @ empty @ [ fediverse; passkey ]
+    let bluesky =
+        { Kind = Bluesky
+          Existing = existing |> List.tryFind (fun c -> c.Kind = Bluesky) }
+
+    stored @ empty @ [ fediverse; bluesky; passkey ]
 
 /// A refused list at either level, to draw again with what was typed.
 type private Drafts =
@@ -1227,7 +1243,7 @@ let private render
                     && not instanceList.IsEmpty
                     && (WebForms.NoticeReason.consume ctx "allowed-domains-removal" "list" "instance").IsSome
                     ->
-                    match existing |> List.filter (fun c -> c.Kind <> Passkey && c.Kind <> Fediverse && c.AllowedEmailDomains.IsEmpty) with
+                    match existing |> List.filter (fun c -> c.Kind <> Passkey && c.Kind <> Fediverse && c.Kind <> Bluesky && c.AllowedEmailDomains.IsEmpty) with
                     | [] -> None
                     | open' -> Some(open' |> List.map (fun c -> c.Slug, c.DisplayName))
                 | _ -> None
@@ -1610,6 +1626,7 @@ let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
     | Apple
     | Oidc
     | Fediverse
+    | Bluesky
     | Passkey -> false
     | Discord
     | GitHub

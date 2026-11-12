@@ -106,7 +106,13 @@ let handler: EndpointHandler =
             | EmailDomains.Admitted ->
 
             // Code review B4: the Fediverse server list, judged at the same place.
-            let! refusedServer = FediverseServers.recheckServer config connectorSlug u.Id
+            let! fediverseRefused = FediverseServers.recheckServer config connectorSlug u.Id
+
+            // The Bluesky server list (specs/015), only when the Fediverse one admits.
+            let! refusedServer =
+                match fediverseRefused with
+                | Some _ -> System.Threading.Tasks.Task.FromResult fediverseRefused
+                | None -> BlueskyAccounts.recheckServer config connectorSlug u.Id
 
             match refusedServer with
             | Some host ->

@@ -35,6 +35,11 @@ type ProviderKind =
     /// (specs/010-fediverse-connector). No adapter and no client credentials on
     /// the row: the credentials are per server, and the routes are Umbral's own.
     | Fediverse
+    /// Bluesky, on the AT Protocol: a built-in kind, at most one connector has
+    /// the slug `bluesky`. The person's own authorization server is the provider
+    /// (specs/015-bluesky-connector). No adapter and no client credentials on the
+    /// row, as for the Fediverse: the routes are Umbral's own.
+    | Bluesky
     /// Umbral as its own provider: the person proves who they are with a
     /// passkey Umbral verifies itself (specs/008-passkey-connector). No
     /// endpoints, no client credentials and no adapter: the ceremonies are
@@ -50,6 +55,7 @@ type ProviderKind =
         | Fake -> "fake"
         | Oidc -> "oidc"
         | Fediverse -> "fediverse"
+        | Bluesky -> "bluesky"
         | Passkey -> "passkey"
 
     member this.DisplayName =
@@ -61,6 +67,7 @@ type ProviderKind =
         | Fake -> "Fake (development)"
         | Oidc -> "OpenID Connect"
         | Fediverse -> "Fediverse"
+        | Bluesky -> "Bluesky"
         | Passkey -> "Passkey"
 
 /// The three providers with a card of their own. Deliberately not `Oidc`: an
@@ -79,6 +86,7 @@ let parseKind (value: string) =
     | "fake" -> Some Fake
     | "oidc" -> Some Oidc
     | "fediverse" -> Some Fediverse
+    | "bluesky" -> Some Bluesky
     | "passkey" -> Some Passkey
     | _ -> None
 
@@ -170,6 +178,17 @@ let endpointsFor (kind: ProviderKind) =
           UsesNonce = false
           AnswersByFormPost = false }
 
+    | Bluesky ->
+        // Read from the person's authorization server at sign-in (specs/015
+        // research R5), so there is nothing to say statically.
+        { AuthorizationUrl = ""
+          TokenUrl = ""
+          UserInfoUrl = ""
+          Scopes = []
+          SupportsPkce = false
+          UsesNonce = false
+          AnswersByFormPost = false }
+
     | Passkey ->
         // Like Fake, nothing to say: no authorization endpoint is ever built
         // for a passkey, and `/connect/passkey/start` is a route of Umbral's own.
@@ -216,6 +235,7 @@ let setupCaveat (kind: ProviderKind) =
     | Fake
     | Oidc
     | Fediverse
+    | Bluesky
     | Passkey -> None
 
 /// Who may become a user through the passkey connector (specs/008 research R8).
@@ -238,6 +258,8 @@ type PasskeyEnrolment =
 /// listed ones (normalised hosts). Like `PasskeyEnrolment` it decides who can be
 /// a user and nothing else. The list is kept whichever way `OnlyListed` is set,
 /// so switching to "any server" and back loses nothing (specs/010 data-model).
+/// The Bluesky connector uses it too, as its server scope: its hosts are
+/// authorization-server hosts (specs/015 data-model).
 type FediverseAccess =
     { OnlyListed: bool
       Servers: string list }

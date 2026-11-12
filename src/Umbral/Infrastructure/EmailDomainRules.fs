@@ -70,7 +70,8 @@ let ruleFor (config: Database.DbConfig) (connector: Connector) : Task<Rule> =
     task {
         match connector.Kind, connector.AllowedEmailDomains with
         | Passkey, _
-        | Fediverse, _ -> return NoRule
+        | Fediverse, _
+        | Bluesky, _ -> return NoRule
         | _, [] ->
             let! instance = instanceList config
             return applying [] instance

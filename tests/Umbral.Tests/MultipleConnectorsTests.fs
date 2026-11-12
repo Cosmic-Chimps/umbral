@@ -242,17 +242,17 @@ let ``every pane carries the naming advice and the kind and shared markers`` () 
         let! html = operator.GetHtml "/admin/connectors"
 
         // Every stored connector (the fake one has an entry now) and an empty
-        // entry for each kind with none, the passkey, fediverse and Apple kinds'
-        // included (specs 008, 010 and 013).
+        // entry for each kind with none, the passkey, fediverse, Apple and Bluesky
+        // kinds' included (specs 008, 010, 013 and 015).
         let slugs = entriesOn html
-        Assert.Equal<string list>([ "apple"; "discord"; "fake"; "fake-two"; "fediverse"; "github"; "google"; "passkey" ], slugs)
+        Assert.Equal<string list>([ "apple"; "bluesky"; "discord"; "fake"; "fake-two"; "fediverse"; "github"; "google"; "passkey" ], slugs)
 
         for slug in slugs do
             let! pane = paneOf operator slug
             // The passkey and fediverse panes have no provider to name an
             // application at, so they carry no naming advice (spec 008,
             // contracts/admin-surface.md; spec 010).
-            if slug <> "passkey" && slug <> "fediverse" then
+            if slug <> "passkey" && slug <> "fediverse" && slug <> "bluesky" then
                 Assert.Contains("data-naming-advice", pane)
 
             Assert.Contains("data-connector-kind=", pane)

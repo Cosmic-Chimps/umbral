@@ -250,11 +250,22 @@ let handler: EndpointHandler =
                             | EmailDomains.Admitted ->
                                 // Code review B4: the Fediverse server list is the
                                 // same kind of rule, judged at the same place.
-                                let! refusedServer =
+                                let! fediverseRefused =
                                     FediverseServers.recheckServer
                                         config
                                         (Sessions.currentConnector principal)
                                         (Sessions.currentSubject principal |> Option.defaultValue "")
+
+                                // The Bluesky server list (specs/015), only when the
+                                // Fediverse one admits.
+                                let! refusedServer =
+                                    match fediverseRefused with
+                                    | Some _ -> Task.FromResult fediverseRefused
+                                    | None ->
+                                        BlueskyAccounts.recheckServer
+                                            config
+                                            (Sessions.currentConnector principal)
+                                            (Sessions.currentSubject principal |> Option.defaultValue "")
 
                                 match refusedServer with
                                 | None -> return true

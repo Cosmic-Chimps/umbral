@@ -236,7 +236,7 @@ let private unrestrictedFor (instance: string list) (connectors: Connector list)
     let hasRule (connector: Connector) =
         if connector.Kind = Passkey then
             connector.PasskeyEnrolment = InvitationsOnly
-        elif connector.Kind = Fediverse then
+        elif connector.Kind = Fediverse || connector.Kind = Bluesky then
             connector.FediverseAccess.OnlyListed
         else
         match EmailDomains.applying connector.AllowedEmailDomains instance with
