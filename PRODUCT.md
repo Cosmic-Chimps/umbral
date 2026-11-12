@@ -29,8 +29,8 @@ per-app OAuth wiring. There is no landing page; the README is the front door.
 
 Umbral is a self-hosted OpenID Connect provider whose only job is signing
 people in without passwords: with a social provider they already use
-(Discord, GitHub, Google, any OpenID Connect provider the operator runs, or
-an account on a Mastodon or GoToSocial server), or with a passkey that Umbral
+(Discord, GitHub, Google, Apple, any OpenID Connect provider the operator runs,
+or an account on a Mastodon or GoToSocial server), or with a passkey that Umbral
 verifies itself. Apps talk to Umbral with any
 standard OIDC library. The operator wires each provider up once, in one place,
 instead of in every app.
@@ -67,7 +67,7 @@ product that offers those cannot truthfully claim this simplicity.
 - First run prints a setup token in the container log; the operator opens the
   setup page, pastes it, and chooses an operator credential.
 - Connector credentials come from OAuth apps the operator creates at Discord,
-  GitHub, Google or their own OIDC provider, following the walkthroughs in
+  GitHub, Google, Apple or their own OIDC provider, following the walkthroughs in
   `docs/connectors/`. Secrets can optionally live in AWS Secrets Manager,
   Google Cloud Secret Manager, Azure Key Vault or BellaBaxter
   (`docs/secret-stores/`).
@@ -96,9 +96,10 @@ product that offers those cannot truthfully claim this simplicity.
   secret shown once. Created in the Apps screen's detail pane
   (`/admin/apps/new`).
 - Connector: Umbral's identity at an upstream provider; several per provider
-  are allowed. Kinds: `discord`, `github`, `google`, `oidc`, and two that are
-  one per instance: `fediverse` (Umbral registers itself on each server) and
-  `passkey` (Umbral is the provider).
+  are allowed. Kinds: `discord`, `github`, `google`, `oidc`, and three that are
+  one per instance: `apple` (its button's title is fixed by Apple's rules, so
+  two would look the same), `fediverse` (Umbral registers itself on each
+  server) and `passkey` (Umbral is the provider).
 - User: a person who has signed in at least once. A provider user can add up
   to ten passkeys to the same account; a passkey-only user has no email.
   Operators can invite a user to add a passkey as recovery from a lost
