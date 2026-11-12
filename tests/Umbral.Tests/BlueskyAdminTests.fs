@@ -92,6 +92,9 @@ let ``not set up the pane shows the metadata address and no callback URL`` () =
         Assert.Contains(t.BlueskyMetadataHint, decoded)
         Assert.Contains(t.BlueskyNoEmailNote, decoded)
         Assert.Contains(t.BlueskyServersHint, decoded)
+        let serversInput = Regex.Match(html, "<input\\b[^>]*data-instance-list[^>]*>").Value
+        Assert.NotEmpty(serversInput)
+        Assert.DoesNotContain("placeholder", serversInput)
     }
 
 [<Fact>]

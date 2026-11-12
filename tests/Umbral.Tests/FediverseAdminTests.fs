@@ -59,6 +59,13 @@ let ``not set up the pane offers to enable and the list entry is muted`` () =
         Assert.Contains("data-instance-scope", html)
         Assert.Matches("value=\"any\"[^>]*checked|checked[^>]*value=\"any\"", html)
         Assert.Contains("data-instance-list", html)
+        // No placeholder on Servers: under "Any server" grey text would read as saved servers.
+        // The example is in the hint.
+        let serversInput = Regex.Match(html, "<input\\b[^>]*data-instance-list[^>]*>").Value
+        Assert.NotEmpty(serversInput)
+        Assert.DoesNotContain("placeholder", serversInput)
+        Assert.Contains((texts ()).FediverseServersHint, WebUtility.HtmlDecode html)
+        Assert.Contains("for example mastodon.social", (texts ()).FediverseServersHint)
         Assert.Contains("Enable Fediverse", html)
     }
 

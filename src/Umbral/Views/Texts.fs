@@ -583,7 +583,6 @@ type Texts =
       FediverseScopeListedLabel: string
       FediverseScopeListedHint: string
       FediverseServersLabel: string
-      FediversePlaceholder: string
       FediverseServersHint: string
       FediverseServersEmptyNote: string
       FediverseEnableButton: string
@@ -1534,8 +1533,8 @@ let en: Texts =
       FediverseScopeListedLabel = "Only these servers"
       FediverseScopeListedHint = "Only accounts on the servers listed below."
       FediverseServersLabel = "Servers"
-      FediversePlaceholder = "mastodon.social, fosstodon.org"
-      FediverseServersHint = "Server addresses, separated by commas or spaces. Used only with \"Only these servers\"."
+      FediverseServersHint =
+        "Server addresses, separated by commas or spaces, for example mastodon.social. Used only with \"Only these servers\"."
       FediverseServersEmptyNote =
         "The list is empty, so nobody can sign in through Fediverse. Add a server, or choose Any server."
       FediverseEnableButton = "Enable Fediverse"

@@ -173,7 +173,7 @@ let pane
                       Components.fieldWith
                           "text"
                           []
-                          (fun i -> i.attr("placeholder", t.FediversePlaceholder).data("instance-list", "") |> ignore)
+                          (fun i -> i.data("instance-list", "") |> ignore)
                           t.FediverseServersLabel
                           "servers"
                           serversValue

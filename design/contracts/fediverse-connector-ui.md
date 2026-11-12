@@ -34,9 +34,10 @@ The card follows the Passkey card's shape exactly (`PasskeyConnector.card`):
    on a server that works like Mastodon.*, and *Only these servers* with hint
    *Only accounts on the servers listed below.* Under the pair, always visible
    (no script hides it), the **Servers** field: a text field drawn like the
-   allowed-domains field (`Components.fieldWith`, placeholder
-   `mastodon.social, fosstodon.org`), hint *Server addresses, separated by
-   commas or spaces. Used only with "Only these servers".* A refused entry is
+   allowed-domains field (`Components.fieldWith`, no placeholder: under *Any
+   server* grey text would read as saved servers, so the example is in the
+   hint), hint *Server addresses, separated by commas or spaces, for example
+   mastodon.social. Used only with "Only these servers".* A refused entry is
    drawn under the field in the operator's words, naming the entry as text,
    the way `parseDomains` does. Then the primary button: *Save connector*, or
    *Enable Fediverse* when not yet configured, with the CheckCircle icon.

@@ -65,7 +65,7 @@ A pane of the frame, built like the Fediverse pane.
 - The no-email note, as on the Fediverse pane, with "Bluesky account".
 - **Settings**: the shared check; the scope as `.um-choice` radio cards, *Any server* (*Anyone
   with a Bluesky or other AT Protocol account.*) and *Only these servers* (*Only accounts that
-  sign in at the servers listed below.*); the **Servers** field, placeholder `bsky.social`,
+  sign in at the servers listed below.*); the **Servers** field, no placeholder (the example is in the hint),
   hint *The server where people sign in, separated by commas or spaces. Accounts hosted by
   Bluesky all sign in at bsky.social. Used only with "Only these servers".*; the empty-list
   warning and the refusals as on the Fediverse pane; **Save connector** or **Enable Bluesky**.
