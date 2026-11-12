@@ -25,11 +25,15 @@ really use, and that address has to be:
   name Umbral goes by at every server. AT Protocol puts no port in that address.
 
 If the instance is not at such an address, the **Bluesky** pane on the
-**Connectors** screen shows only this: *Bluesky needs Umbral at an https address
-without a port, reachable from the internet. This instance is at {origin}, so
-Bluesky cannot be enabled here.* (with your origin in place of `{origin}`). It
-has no settings and no **Enable** button, and a crafted request to enable it is
-refused. For a laptop trial, see [Gotchas](#gotchas).
+**Connectors** screen says so: *Bluesky needs Umbral at an https address without
+a port, reachable from the internet. This instance is at {origin}, so Bluesky
+cannot be enabled here.* (with your origin in place of `{origin}`). With no
+connector yet, that is all it offers: no settings and no **Enable Bluesky**, and
+a crafted request to create one is refused. A connector set up before the
+address changed keeps its sections, so you can still save its settings, disable
+it or delete it. Enabling it is refused with *Not enabled: Bluesky needs Umbral
+at an https address without a port, reachable from the internet.* For a laptop
+trial, see [Gotchas](#gotchas).
 
 Umbral's container must also be able to reach the servers your people use over
 HTTPS, and the PLC directory at `https://plc.directory`, where most accounts are
@@ -80,7 +84,8 @@ Bluesky**. No restart is needed. There is one Bluesky connector per instance,
 and you can change who can sign in later; it takes effect at once.
 
 If **Only these servers** is chosen with an empty list, nobody can sign in, and
-the pane says so. If an entry in **Servers** is not a server address, the pane
+the pane says so: *The list is empty, so nobody can sign in through Bluesky. Add
+a server, or choose Any server.* If an entry in **Servers** is not a server address, the pane
 names it under the field and saves nothing.
 
 ## How a person signs in
@@ -172,7 +177,8 @@ the sign-in page with a notice, as for any connector. See
 | `profile` | `https://bsky.app/profile/<did>`. |
 | `idp` | `bluesky`. |
 
-The last four need the `profile` scope. There is **no email**: Bluesky gives
+`name`, `preferred_username`, `picture` and `profile` need the `profile`
+scope; `idp` is always there. There is **no email**: Bluesky gives
 none, so the app gets no `email` and no `email_verified`, whatever scopes it
 asks for. An app that must have an email can ask the person for it itself, or
 not offer the Bluesky connector (on the **Apps** screen, choose its sign-in
@@ -252,8 +258,10 @@ The handle step shows these under the field and keeps what the person typed.
   its own description is inconsistent, or it refused a request twice. Nothing
   can be done on your side. Reason: `server_unsupported`.
 
-Failures after the person comes back from their server land on the sign-in page
-with one of the usual notices: *Sign-in didn't complete. Try again, or choose a
+A person who presses Cancel at their server comes back to *You cancelled the
+sign-in. Choose an option below to try again.* Other failures after the person
+comes back from their server land on the sign-in page with one of the usual
+notices: *Sign-in didn't complete. Try again, or choose a
 different option.* for a wrong or reused request, a failed exchange or an
 identity Umbral could not confirm, and *This account can't be used to sign in
 here. Try a different account or another option below, or contact whoever runs
@@ -266,7 +274,9 @@ answer came from a server other than the one the attempt started with),
 `atproto` permission, a `sub`, or was not a DPoP token), `did_mismatch` (the
 answer named a different account from the one the person typed) and
 `not_authoritative` (the server that answered is not the authority for that
-account).
+account). One more reason can appear before the handle step even shows:
+`origin_unsuitable`, when the instance's address cannot work for Bluesky (see
+[Before you start](#before-you-start)).
 
 ## Gotchas
 
@@ -276,7 +286,9 @@ account).
 - **An origin that cannot work is refused, not guessed at.** If an enabled
   connector later finds itself at an `http` address or one with a port, its entry
   on **Connectors** carries the attention marker, the pane shows the warning
-  above, and people who press the button are sent to the sign-in error page.
+  above, and people who press the button are sent back to the sign-in page
+  with *Sign-in didn't complete. Try again, or choose a different option.*
+  Security log reason: `origin_unsuitable`.
 - **Trying it from a laptop.** With `ASPNETCORE_ENVIRONMENT=Development` and
   `UMBRAL__INSECURE_ALLOW_HTTP=true` both set, and `UMBRAL__PUBLIC_ORIGIN` at a
   loopback address such as `http://127.0.0.1:8080`, Umbral signs in as AT
@@ -298,5 +310,7 @@ account).
   minute per address.
 - **The security log** records a failed sign-in as a `sign_in_failed` event
   whose detail is `bluesky:` and a reason, then `;server=<host>` when the
-  server is known. No token, key or code is recorded. See
+  server is known. A failure of the request's own checks, such as a reused
+  or expired attempt, carries the check after the reason:
+  `bluesky:exchange_failed;<check>;server=<host>`. No token, key or code is recorded. See
   [Troubleshooting](../run/troubleshooting.md).

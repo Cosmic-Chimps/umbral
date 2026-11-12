@@ -92,9 +92,10 @@ passkey until you enable the passkey connector, and the operator has no
 passkey, and password sign-in stays on until you turn it off under
 **Credential**. Version 10 is of this kind: it adds two empty columns for the
 Apple connector's Team ID and Key ID, and nobody can sign in with Apple until you
-set that connector up. Version 12 is of this kind too: it adds one empty column
-for the Bluesky connector, and nobody can sign in with Bluesky until you set that
-connector up. The one exception is version 9: it sets `email_verified` back
+set that connector up. Version 11 adds an empty column for the Apple button's
+logo. Version 12 is of this kind too: it adds one empty column that records the
+server a Bluesky user last signed in through, and nobody can sign in with
+Bluesky until you set that connector up. The one exception is version 9: it sets `email_verified` back
 to `false` for every user whose stored address no provider verifies, and the
 log says how many (see the 0.8.0 notes in the [CHANGELOG](../../CHANGELOG.md)). It does not work the other way: an older
 image refuses to start on a newer database, and says so in `docker logs umbral`
