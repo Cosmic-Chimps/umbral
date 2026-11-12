@@ -207,9 +207,11 @@ type Started =
     { Correlation: Correlation
       CodeChallenge: string }
 
-/// Mint the correlation and set the cookie of `mode`. Returns what the adapter
-/// needs to build its authorize URL.
-let start
+/// Mint the correlation from a `state` and a code verifier the caller already
+/// has, and set the cookie of `mode`. For a provider whose authorization request
+/// is sent before the browser leaves (Bluesky's PAR), and whose answer goes into
+/// `extra`: the state and the challenge must exist first. `start` makes its own.
+let startWith
     (protectorProvider: IDataProtectionProvider)
     (clock: TimeProvider)
     (ctx: HttpContext)
@@ -218,11 +220,11 @@ let start
     (server: string)
     (returnUrl: string)
     (extra: string)
+    (state: string)
+    (verifier: string)
     : Started =
-    let verifier = Ids.newCodeVerifier ()
-
     let correlation =
-        { State = Ids.newStateValue ()
+        { State = state
           CodeVerifier = verifier
           Nonce = Ids.newNonce ()
           Slug = slug
@@ -251,6 +253,20 @@ let start
 
     { Correlation = correlation
       CodeChallenge = Ids.codeChallengeS256 verifier }
+
+/// Mint the correlation and set the cookie of `mode`. Returns what the adapter
+/// needs to build its authorize URL.
+let start
+    (protectorProvider: IDataProtectionProvider)
+    (clock: TimeProvider)
+    (ctx: HttpContext)
+    (mode: ResponseMode)
+    (slug: string)
+    (server: string)
+    (returnUrl: string)
+    (extra: string)
+    : Started =
+    startWith protectorProvider clock ctx mode slug server returnUrl extra (Ids.newStateValue ()) (Ids.newCodeVerifier ())
 
 // ---------------------------------------------------------------------------
 // Single use, enforced by the server

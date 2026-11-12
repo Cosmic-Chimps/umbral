@@ -70,6 +70,7 @@ let endpoints: Endpoint list =
       Umbral.Handlers.Connect.Start.endpoint
       yield! Umbral.Handlers.Connect.Callback.endpoint
       yield! Umbral.Handlers.Connect.Fediverse.endpoint
+      yield! Umbral.Handlers.Connect.Bluesky.endpoint
       yield! Umbral.Handlers.Connect.Authorize.endpoint
       Umbral.Handlers.Connect.Token.endpoint
       yield! Umbral.Handlers.Connect.UserInfo.endpoint
@@ -302,6 +303,12 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
         .AddHttpClient(Providers.Bluesky.HttpClientName)
         .ConfigurePrimaryHttpMessageHandler(fun (sp: IServiceProvider) ->
             sp.GetRequiredService<Providers.Fediverse.PrimaryHandler>().Invoke())
+        .AddHttpMessageHandler(fun (sp: IServiceProvider) ->
+            new Providers.Bluesky.HostCheckHandler(
+                allowInsecureHttp,
+                sp.GetRequiredService<Providers.Fediverse.HostResolver>()
+            )
+            :> Net.Http.DelegatingHandler)
     |> ignore
 
     // Development only, and refused at startup if a fake connector exists

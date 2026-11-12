@@ -8,6 +8,7 @@
 
   <!-- Same compile-order constraint as the web project: helpers before the tests that use them. -->
   <ItemGroup>
+    <Compile Include="Infrastructure/FakeAtproto.fs" />
     <Compile Include="Infrastructure/Fixtures.fs" />
     <Compile Include="Infrastructure/InMemorySecretStore.fs" />
     <Compile Include="Infrastructure/Flows.fs" />
@@ -99,6 +100,7 @@
     <Compile Include="BlueskyDomainTests.fs" />
     <Compile Include="FediverseClientTests.fs" />
     <Compile Include="BlueskyClientTests.fs" />
+    <Compile Include="BlueskySignInTests.fs" />
     <Compile Include="FediverseSignInTests.fs" />
     <Compile Include="FediverseAdminTests.fs" />
     <Compile Include="FediverseStepErrorsTests.fs" />

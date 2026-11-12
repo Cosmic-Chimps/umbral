@@ -147,6 +147,7 @@
     <Compile Include="Handlers/Connect/Start.fs" />
     <Compile Include="Handlers/Connect/Callback.fs" />
     <Compile Include="Handlers/Connect/Fediverse.fs" />
+    <Compile Include="Handlers/Connect/Bluesky.fs" />
     <Compile Include="Handlers/Connect/UserInfo.fs" />
     <Compile Include="Handlers/Connect/EndSession.fs" />
     <Compile Include="Handlers/Connect/Error.fs" />

@@ -605,6 +605,22 @@ type Texts =
       /// The normalised server that did not answer.
       FediverseUnreachable: string -> string
 
+      // Bluesky connector (specs/015): the step. Continue and "Other ways to sign in"
+      // are the Fediverse step's.
+      BlueskyStepTitle: string
+      BlueskyHandleLabel: string
+      BlueskyHandlePlaceholder: string
+      BlueskyHandleHint: string
+      BlueskyNotAHandle: string
+      /// The handle that no account answers to.
+      BlueskyNotFound: string -> string
+      /// The normalised server the connector's list does not allow.
+      BlueskyNotAllowed: string -> string
+      /// The host that did not answer.
+      BlueskyUnreachable: string -> string
+      /// The handle whose server does not offer the sign-in Umbral uses.
+      BlueskyUnsupported: string -> string
+
       // Apple connector (specs/013)
       /// The display name's label on the Apple pane: the sign-in button's title is
       /// fixed, so it is not a "button label" there.
@@ -1515,6 +1531,19 @@ let en: Texts =
             $"{server} does not offer the sign-in Umbral uses. Mastodon and GoToSocial servers do; Akkoma, Pleroma, Misskey and Sharkey do not yet. Use another account, or another way to sign in."
       FediverseNotAllowed = fun server -> $"Accounts on {server} cannot sign in here. Use another way to sign in."
       FediverseUnreachable = fun server -> $"{server} did not answer. Try again in a moment."
+
+      // Bluesky connector (specs/015)
+      BlueskyStepTitle = "What is your Bluesky handle?"
+      BlueskyHandleLabel = "Handle"
+      BlueskyHandlePlaceholder = "you.bsky.social"
+      BlueskyHandleHint = "Like you.bsky.social, or your own domain if you use one. It is on your Bluesky profile."
+      BlueskyNotAHandle = "Enter a Bluesky handle like you.bsky.social."
+      BlueskyNotFound = fun handle -> $"No Bluesky account was found for {handle}. Check the spelling."
+      BlueskyNotAllowed = fun server -> $"Accounts on {server} cannot sign in here. Use another way to sign in."
+      BlueskyUnreachable = fun server -> $"{server} did not answer. Try again in a moment."
+      BlueskyUnsupported =
+        fun handle ->
+            $"The server for {handle} does not offer the sign-in Umbral uses. Use another way to sign in."
 
       // Apple connector (specs/013)
       AppleDisplayNameLabel = "Display name"

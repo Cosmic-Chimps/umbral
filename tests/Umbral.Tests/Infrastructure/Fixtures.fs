@@ -191,6 +191,33 @@ let createAppWithFediverseHandler
 
     createAppWithFediverseHandlerAndResolver handler resolver settings customize
 
+/// Start the real app with the AT Protocol `fake` behind every Bluesky call.
+///
+/// The same seams as the Fediverse fixtures: the fake is the primary handler of
+/// the guarded client (`Fediverse.PrimaryHandler`), so the connect guard is not in
+/// the way (the host pre-check is, and answers from `fake.HostResolver()`: a host
+/// marked private resolves to 10.0.0.5, every other name to a public address). The
+/// handle TXT lookup is the fake's, and the PLC directory is the fake's
+/// (`UMBRAL:BLUESKY_PLC_DIRECTORY`). The test origin is `https://umbral.test`, so
+/// the client ID is `https://umbral.test/connect/bluesky/client-metadata.json`.
+let createAppWithBlueskyFake
+    (fake: Umbral.Tests.Infrastructure.FakeAtproto.FakeAtproto)
+    (settings: (string * string) list)
+    (customize: WebApplicationBuilder -> unit)
+    : Task<TestApp> =
+    createAppWith ([ "UMBRAL:BLUESKY_PLC_DIRECTORY", fake.PlcDirectory ] @ settings) (fun builder ->
+        builder.Services.AddSingleton<Umbral.Infrastructure.Providers.Fediverse.PrimaryHandler>(
+            Umbral.Infrastructure.Providers.Fediverse.PrimaryHandler(fun () -> new Borrowed(fake) :> HttpMessageHandler))
+        |> ignore
+
+        builder.Services.AddSingleton<Umbral.Infrastructure.Providers.Fediverse.HostResolver>(fake.HostResolver())
+        |> ignore
+
+        builder.Services.AddSingleton<Umbral.Infrastructure.Providers.Bluesky.TxtResolver>(fake.TxtResolver())
+        |> ignore
+
+        customize builder)
+
 /// Replaces the registry with one holding `stores` (each under its own `Id`)
 /// and writing new secrets to the store named `activeId`, for `customize`.
 ///

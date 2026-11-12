@@ -71,6 +71,40 @@ let dnsResolver =
                 return Array.empty<string>
         })
 
+/// The host pre-check of FR-008: before a request leaves for any host (a handle's,
+/// a did:web's, a PDS, an authorization server learnt on the way) the name is
+/// resolved, and one that resolves only to non-public addresses is refused as
+/// `NonPublicAddress`, which `send` reads as `NonPublic`. It sits in front of the
+/// connect-time guard, which stays in production: that one judges the address the
+/// socket really opens, this one makes the refusal testable where a stub replaces
+/// the connect. Not applied under the development setting.
+type HostCheckHandler(allowDev: bool, resolver: Fediverse.HostResolver) =
+    inherit DelegatingHandler()
+
+    /// `base` cannot be reached from inside the task below.
+    member private _.Next(request: HttpRequestMessage, cancellationToken: CancellationToken) : Task<HttpResponseMessage> =
+        base.SendAsync(request, cancellationToken)
+
+    override this.SendAsync(request: HttpRequestMessage, cancellationToken: CancellationToken) : Task<HttpResponseMessage> =
+        task {
+            match Option.ofObj request.RequestUri with
+            | Some uri when not allowDev ->
+                let! addresses =
+                    task {
+                        try
+                            return! resolver.Invoke(uri.DnsSafeHost, cancellationToken)
+                        with
+                        | :? OperationCanceledException as e -> return raise (HttpRequestException("name resolution timed out", e))
+                        | e -> return raise (HttpRequestException("name resolution failed", e))
+                    }
+
+                if not (addresses |> Array.exists Umbral.Domains.Fediverse.isPublicAddress) then
+                    raise (Fediverse.NonPublicAddress uri.Host)
+            | _ -> ()
+
+            return! this.Next(request, cancellationToken)
+        }
+
 /// Why a call failed. The handler turns each into the contract's message.
 type ClientError =
     /// The name resolves only to addresses Umbral will not connect to.
