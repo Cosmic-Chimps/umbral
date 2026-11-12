@@ -29,8 +29,9 @@ per-app OAuth wiring. There is no landing page; the README is the front door.
 
 Umbral is a self-hosted OpenID Connect provider whose only job is signing
 people in without passwords: with a social provider they already use
-(Discord, GitHub, Google, or any OpenID Connect provider the operator runs),
-or with a passkey that Umbral verifies itself. Apps talk to Umbral with any
+(Discord, GitHub, Google, Apple, any OpenID Connect provider the operator runs,
+or an account on a Mastodon or GoToSocial server), or with a passkey that Umbral
+verifies itself. Apps talk to Umbral with any
 standard OIDC library. The operator wires each provider up once, in one place,
 instead of in every app.
 
@@ -66,10 +67,13 @@ product that offers those cannot truthfully claim this simplicity.
 - First run prints a setup token in the container log; the operator opens the
   setup page, pastes it, and chooses an operator credential.
 - Connector credentials come from OAuth apps the operator creates at Discord,
-  GitHub, Google or their own OIDC provider, following the walkthroughs in
+  GitHub, Google, Apple or their own OIDC provider, following the walkthroughs in
   `docs/connectors/`. Secrets can optionally live in AWS Secrets Manager,
   Google Cloud Secret Manager, Azure Key Vault or BellaBaxter
   (`docs/secret-stores/`).
+- The Fediverse connector needs nothing created anywhere either: Umbral
+  registers itself with each Mastodon or GoToSocial server the first time
+  someone from it signs in. The operator chooses any server or a list.
 - The passkey connector needs no account anywhere, only HTTPS (or localhost)
   and a device that holds passkeys. The operator chooses invitations only
   (default) or open sign-up; invitations are single-use links good for seven
@@ -81,7 +85,7 @@ product that offers those cannot truthfully claim this simplicity.
   never carries app branding.
 - Documentation is the support channel (`README.md`, `docs/`, `CHANGELOG.md`
   for people who run it). Product rules live in
-  `.specify/memory/constitution.md` (version 3.0.1, 2026-10-26); features are
+  `.specify/memory/constitution.md` (version 3.1.0, 2026-11-11); features are
   specified in `specs/NNN-*/` with spec, plan and tasks.
 
 ## Capabilities and Constraints
@@ -89,10 +93,13 @@ product that offers those cannot truthfully claim this simplicity.
 **Concepts and screens**
 
 - App: a program that signs in through Umbral; gets a client ID and a client
-  secret shown once. Created in a dialog over the Apps list.
+  secret shown once. Created in the Apps screen's detail pane
+  (`/admin/apps/new`).
 - Connector: Umbral's identity at an upstream provider; several per provider
-  are allowed. Kinds: `discord`, `github`, `google`, `oidc`, and `passkey`
-  (one per instance, Umbral is the provider).
+  are allowed. Kinds: `discord`, `github`, `google`, `oidc`, and three that are
+  one per instance: `apple` (its button's title is fixed by Apple's rules, so
+  two would look the same), `fediverse` (Umbral registers itself on each
+  server) and `passkey` (Umbral is the provider).
 - User: a person who has signed in at least once. A provider user can add up
   to ten passkeys to the same account; a passkey-only user has no email.
   Operators can invite a user to add a passkey as recovery from a lost
