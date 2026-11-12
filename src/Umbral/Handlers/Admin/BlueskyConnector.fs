@@ -147,14 +147,17 @@ let pane
 
                           match clientId with
                           | Ok(Bluesky.Metadata url) ->
-                              (div(class' = "space-y-1") {
-                                  Components.copyField
+                              // The whole address, wrapping, with Copy under it, as the
+                              // home page's issuer URL (design review nit 1): a field
+                              // cut the ".json" off at 1280.
+                              (div(class' = "space-y-1").data("client-metadata-url", url) {
+                                  Components.copyText
                                       t.Copy
                                       t.Copied
+                                      t.BlueskyCopyMetadata
                                       t.BlueskyMetadataLabel
                                       $"metadata-{Slug}"
                                       url
-                                      (fun input -> input.data("client-metadata-url", "") |> ignore)
 
                                   p(class' = "um-hint") { t.BlueskyMetadataHint }
                               })
@@ -203,7 +206,7 @@ let pane
                           Components.fieldWith
                               "text"
                               []
-                              (fun i -> i.attr("placeholder", t.BlueskyServersPlaceholder).data("instance-list", "") |> ignore)
+                              (fun i -> i.data("instance-list", "") |> ignore)
                               t.BlueskyServersLabel
                               "servers"
                               serversValue

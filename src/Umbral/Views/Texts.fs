@@ -632,7 +632,7 @@ type Texts =
       BlueskyScopeAnyHint: string
       BlueskyScopeListedHint: string
       BlueskyServersLabel: string
-      BlueskyServersPlaceholder: string
+      BlueskyCopyMetadata: string
       BlueskyServersHint: string
       BlueskyServersEmptyNote: string
       BlueskyEnableButton: string
@@ -1580,7 +1580,7 @@ let en: Texts =
       BlueskyScopeAnyHint = "Anyone with a Bluesky or other AT Protocol account."
       BlueskyScopeListedHint = "Only accounts that sign in at the servers listed below."
       BlueskyServersLabel = "Servers"
-      BlueskyServersPlaceholder = "bsky.social"
+      BlueskyCopyMetadata = "Copy the client metadata address"
       BlueskyServersHint =
         "The server where people sign in, separated by commas or spaces. Accounts hosted by Bluesky all sign in at bsky.social. Used only with \"Only these servers\"."
       BlueskyServersEmptyNote =
