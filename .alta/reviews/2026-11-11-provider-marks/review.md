@@ -79,3 +79,15 @@ slot's margin, nothing else.
 ## Re-check
 
 `picker-last-used` at 360 dark and 1280 light, and `apple-pane-logo` at 1280 dark.
+
+## Part B re-check, 2026-11-12, at `55bc21c`
+
+**Clear to merge.**
+
+- Blocking item fixed: the Last used badge has its gap again on the white button
+  (`picker-last-used-360-dark`) and on the black one (`picker-last-used-1280-light`); only the
+  logo-to-title space is closed.
+- Nit fixed: Save logo and Remove logo share one row (`apple-pane-logo-1280-dark`).
+
+The provisional note stands: the logo's position beside the title was judged on a stand-in, so
+look once at the button with Apple's real file on a live instance.
