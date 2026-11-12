@@ -101,3 +101,6 @@ The designer's answers of 2026-11-12 are in `design/contracts/bluesky-connector-
 ## Open, not mine
 - **A real sign-in with a real Bluesky account has not been done.** The tests use a fake AT Protocol stack. The quickest real check is the development loopback mode: run Umbral at `http://127.0.0.1:<port>` with the development flags, then sign in with your own handle. Bluesky's authorization server accepts AT Protocol's localhost client.
 - **The butterfly** would need Bluesky's trademark team to agree (research R7).
+
+## Release run at the review head
+On 2026-11-12, `dotnet build -c Release` gave 0 warnings, then `dotnet test -c Release --no-build --filter-not-class Umbral.Tests.IdleMemoryTests` ran 2462 tests: 2462 passed, 0 failed, 0 skipped, in 17m 52s. The run was built at `a5eb911` plus the saveBluesky change and its test. The design-nit commit `a4bd928` came afterwards and changes only the pane's markup and one test; `BlueskyAdminTests` passes 16 of 16 on it.
