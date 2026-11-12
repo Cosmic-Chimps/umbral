@@ -274,7 +274,7 @@ answer came from a server other than the one the attempt started with),
 `atproto` permission, a `sub`, or was not a DPoP token), `did_mismatch` (the
 answer named a different account from the one the person typed) and
 `not_authoritative` (the server that answered is not the authority for that
-account). One more reason can appear before the handle step even shows:
+account). One more reason can appear when the handle step opens or a handle is submitted:
 `origin_unsuitable`, when the instance's address cannot work for Bluesky (see
 [Before you start](#before-you-start)).
 
