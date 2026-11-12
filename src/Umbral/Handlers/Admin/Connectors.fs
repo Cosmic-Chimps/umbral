@@ -881,6 +881,7 @@ let private noticeKind (code: string) =
     | "connector-strands-apps"
     | "connector-delete-strands-apps"
     | "connector-enable-apple-key"
+    | "connector-enable-bluesky-origin"
     | "allowed-domains-removal" -> Components.Warning
     | _ -> Components.Success
 
@@ -920,7 +921,7 @@ let private noticeBlock
 let private view
     ctx
     (t: Texts.Texts)
-    origin
+    (origin: PublicOrigin.PublicOrigin)
     (rows: Row list)
     (enabledCount: int)
     (chosenSlugs: Set<string>)
@@ -939,6 +940,7 @@ let private view
     (revealedLink: string option)
     =
     let block code = noticeBlock ctx t domains strand explained code
+    let blueskyAllowDev = (ctx.GetService<Providers.Bluesky.Options>()).AllowDev
 
     let frameView =
         match selection, selected with
@@ -1011,7 +1013,16 @@ let private view
                         | Error _ -> None)
                     |> Option.exists (fun store -> not ((ctx.GetService<SecretStores>()).CanRead store))
 
-                offeredNowhere || unreadable)
+                // A Bluesky connector that is enabled where Bluesky cannot work
+                // (the address was changed after it was enabled).
+                let blueskyBlocked =
+                    row.Kind = Bluesky
+                    && row.Existing |> Option.exists (fun c -> c.IsEnabled)
+                    && (match Bluesky.clientIdFor blueskyAllowDev origin.Uri with
+                        | Error _ -> true
+                        | Ok _ -> false)
+
+                offeredNowhere || unreadable || blueskyBlocked)
 
         let marker =
             match row.Existing with
@@ -1095,15 +1106,11 @@ let private view
 
                 FediverseConnector.pane ctx t origin enabledCount chosenSlugs row.Existing draft frameView paneNotice
             | Bluesky ->
-                // T009 replaces this: a placeholder until the Bluesky pane exists.
-                section(class' = "space-y-4")
-                    .data("connector", "bluesky")
-                    .data("connector-kind", "bluesky")
-                    .data("connector-shared", (match row.Existing with Some c when not c.IsShared -> "not-shared" | _ -> "shared")) {
-                    h2(class' = "text-xl font-semibold") { raw "Bluesky" }
-                    p() { raw "Bluesky settings come in a later step." }
-                }
-                :> HtmlElement
+                let draft =
+                    domains.CardDraft
+                    |> Option.bind (fun (slug, d) -> if slug = "bluesky" then Some(d.Typed, d.Problem) else None)
+
+                BlueskyConnector.pane ctx t origin enabledCount chosenSlugs row.Existing draft frameView paneNotice blueskyAllowDev
             | _ ->
                 providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice appleDraft appleLogo appleLogoProblem row
                 :> HtmlElement
@@ -1546,6 +1553,115 @@ let saveFediverse: EndpointHandler =
                             let! _ = ConnectorStore.setFediverseAccess config clock "fediverse" access
                             do! recordEventWith ctx SecurityEvents.ConnectorUpdated "fediverse" detail
                             return! WebForms.redirectWithNotice ctx (detailPath "fediverse") "fediverse-connector-saved"
+        })
+
+/// Create the Bluesky connector, or change whether it is shared and which
+/// servers may sign in. A refused server entry saves nothing and is drawn again.
+/// Where the instance's address cannot work for Bluesky (`Bluesky.clientIdFor`),
+/// nothing is saved at all: a crafted post changes nothing.
+let saveBluesky: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let t = Texts.current ()
+            let allowDev = (ctx.GetService<Umbral.Infrastructure.Providers.Bluesky.Options>()).AllowDev
+            let! form = WebForms.readValidated ctx
+            let origin = ctx.GetService<PublicOrigin.PublicOrigin>()
+            let shared = WebForms.checkbox form "shared"
+            let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
+            let typed = WebForms.value form "servers"
+
+            // On an origin Bluesky cannot work at, no connector may be created
+            // (FR-004). An existing one keeps its Save: the list and the shared
+            // flag change nothing about the origin, and Enable is refused on its
+            // own route.
+            let! existingAtStart = ConnectorStore.findBySlug config "bluesky"
+
+            match Bluesky.clientIdFor allowDev origin.Uri, existingAtStart with
+            | Error _, None -> return! refuseDomains ctx (Item "bluesky") noDrafts
+            | _ ->
+
+            match FediverseRules.parseScope (WebForms.value form "scope") with
+            | None -> return! WebForms.redirectWithNotice ctx (detailPath "bluesky") "bluesky-connector-invalid"
+            | Some listed ->
+                match FediverseRules.parseServers allowDev typed with
+                | Error refused ->
+                    let message =
+                        match refused with
+                        | FediverseRules.NotAServer entry -> t.FediverseServerNotAddress entry
+                        | FediverseRules.Wildcard entry -> t.FediverseServerWildcard entry
+
+                    return!
+                        refuseDomains
+                            ctx
+                            (Item "bluesky")
+                            { noDrafts with Card = Some("bluesky", { Typed = typed; Problem = message }) }
+                | Ok servers ->
+                    let access = { OnlyListed = listed; Servers = servers }
+                    let detail = Some $"onlyListed={listed}"
+                    let! existing = ConnectorStore.findBySlug config "bluesky"
+
+                    match existing with
+                    | None ->
+                        let now = clock.GetUtcNow()
+
+                        let! result =
+                            ConnectorStore.create
+                                config
+                                now
+                                { Slug = "bluesky"
+                                  Kind = Bluesky
+                                  DisplayName = "Bluesky"
+                                  ClientId = ""
+                                  ClientSecretRef = ""
+                                  ClientSecretHint = ""
+                                  IssuerUrl = None
+                                  AllowedEmailDomains = []
+                                  PasskeyEnrolment = InvitationsOnly
+                                  FediverseAccess = access
+                                  AppleKey = None
+                                  IsEnabled = true
+                                  IsShared = shared
+                                  CreatedUtc = now
+                                  UpdatedUtc = now }
+                                ("", "")
+
+                        ignore result
+                        do! recordEventWith ctx SecurityEvents.ConnectorCreated "bluesky" detail
+                        return! WebForms.redirectWithNotice ctx (detailPath "bluesky") "bluesky-connector-saved"
+                    | Some stored when stored.Kind <> Bluesky ->
+                        return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+                    | Some stored ->
+                        let! stranded =
+                            task {
+                                if stored.IsShared && not shared && not confirmed then
+                                    let! connectors = ConnectorStore.listAll config
+                                    let! apps = AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
+
+                                    let after =
+                                        connectors
+                                        |> List.map (fun c -> if c.Slug = "bluesky" then { c with IsShared = false } else c)
+
+                                    return AppConnectors.strandedByChange apps connectors after
+                                else
+                                    return []
+                            }
+
+                        if not stranded.IsEmpty then
+                            return!
+                                WebForms.NoticeReason.redirect
+                                    ctx
+                                    (detailPath "bluesky")
+                                    "connector-strands-apps"
+                                    "slug"
+                                    "bluesky"
+                                    "unshare"
+                        else
+                            let! _ = ConnectorStore.update config clock "bluesky" "Bluesky" "" shared None None None
+                            let! _ = ConnectorStore.setFediverseAccess config clock "bluesky" access
+                            do! recordEventWith ctx SecurityEvents.ConnectorUpdated "bluesky" detail
+                            return! WebForms.redirectWithNotice ctx (detailPath "bluesky") "bluesky-connector-saved"
         })
 
 let private prefixOf (ctx: HttpContext) =
@@ -2495,6 +2611,7 @@ let endpoint =
       POST [ route "/admin/connectors" create ]
       POST [ route "/admin/allowed-domains" saveAllowedDomains ]
       POST [ route "/admin/connectors/fediverse" saveFediverse ]
+      POST [ route "/admin/connectors/bluesky" saveBluesky ]
       POST [ route "/admin/connectors/apple/logo" saveAppleLogo ]
       POST [ route "/admin/connectors/apple/logo/remove" removeAppleLogo ]
       POST [ route "/admin/connectors/apple" saveApple ]

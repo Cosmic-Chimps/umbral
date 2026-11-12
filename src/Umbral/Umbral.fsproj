@@ -122,6 +122,7 @@
     <Compile Include="Handlers/Admin/ConnectorPaths.fs" />
     <Compile Include="Handlers/Admin/PasskeyConnector.fs" />
     <Compile Include="Handlers/Admin/FediverseConnector.fs" />
+    <Compile Include="Handlers/Admin/BlueskyConnector.fs" />
     <Compile Include="Handlers/Admin/AppleConnector.fs" />
     <Compile Include="Handlers/Admin/Connectors.fs" />
     <Compile Include="Handlers/Admin/ConnectorToggle.fs" />

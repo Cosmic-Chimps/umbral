@@ -621,6 +621,24 @@ type Texts =
       /// The handle whose server does not offer the sign-in Umbral uses.
       BlueskyUnsupported: string -> string
 
+      // Bluesky connector (specs/015): the pane. Save connector, Any server, Only these
+      // servers and the refused-entry messages are the Fediverse pane's.
+      BlueskyCardLead: string
+      BlueskyMetadataLabel: string
+      BlueskyMetadataHint: string
+      /// In development mode on a loopback address, in place of the metadata address.
+      BlueskyDevNote: string
+      BlueskyNoEmailNote: string
+      BlueskyScopeAnyHint: string
+      BlueskyScopeListedHint: string
+      BlueskyServersLabel: string
+      BlueskyServersPlaceholder: string
+      BlueskyServersHint: string
+      BlueskyServersEmptyNote: string
+      BlueskyEnableButton: string
+      /// The instance's address as text, when Bluesky cannot be enabled at it.
+      BlueskyOriginBlocked: string -> string
+
       // Apple connector (specs/013)
       /// The display name's label on the Apple pane: the sign-in button's title is
       /// fixed, so it is not a "button label" there.
@@ -951,6 +969,11 @@ let private noticeEn (code: string) : string option =
     // The Fediverse connector (spec 010).
     | "fediverse-connector-saved" -> Some "Saved. People can sign in with a Fediverse account from the next page load."
     | "fediverse-connector-invalid" -> Some "Choose Any server or Only these servers, then save again."
+    // The Bluesky connector (spec 015).
+    | "bluesky-connector-saved" -> Some "Saved. People can sign in with a Bluesky account from the next page load."
+    | "bluesky-connector-invalid" -> Some "Choose Any server or Only these servers, then save again."
+    | "connector-enable-bluesky-origin" ->
+        Some "Not enabled: Bluesky needs Umbral at an https address without a port, reachable from the internet."
     // The Apple connector (spec 013). The fixed text is what a notice says without
     // its reason (a refresh, a link); the reason comes from the notice cookie.
     | "connector-saved-apple-unreachable" ->
@@ -1544,6 +1567,28 @@ let en: Texts =
       BlueskyUnsupported =
         fun handle ->
             $"The server for {handle} does not offer the sign-in Umbral uses. Use another way to sign in."
+
+      BlueskyCardLead =
+        "People sign in with their Bluesky handle. Any AT Protocol account works, wherever it is hosted."
+      BlueskyMetadataLabel = "Client metadata address"
+      BlueskyMetadataHint =
+        "Each server fetches this address to learn about Umbral. There is nothing to paste anywhere, but it must be reachable from the internet."
+      BlueskyDevNote =
+        "Development: Umbral signs in as AT Protocol's localhost client, so no address is fetched."
+      BlueskyNoEmailNote =
+        "A Bluesky account has no email, so allowed email domains do not apply to it and it never joins another account by email."
+      BlueskyScopeAnyHint = "Anyone with a Bluesky or other AT Protocol account."
+      BlueskyScopeListedHint = "Only accounts that sign in at the servers listed below."
+      BlueskyServersLabel = "Servers"
+      BlueskyServersPlaceholder = "bsky.social"
+      BlueskyServersHint =
+        "The server where people sign in, separated by commas or spaces. Accounts hosted by Bluesky all sign in at bsky.social. Used only with \"Only these servers\"."
+      BlueskyServersEmptyNote =
+        "The list is empty, so nobody can sign in through Bluesky. Add a server, or choose Any server."
+      BlueskyEnableButton = "Enable Bluesky"
+      BlueskyOriginBlocked =
+        fun origin ->
+            $"Bluesky needs Umbral at an https address without a port, reachable from the internet. This instance is at {origin}, so Bluesky cannot be enabled here."
 
       // Apple connector (specs/013)
       AppleDisplayNameLabel = "Display name"

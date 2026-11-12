@@ -143,6 +143,21 @@ let handler (slug: string) : EndpointHandler =
             let refuseApple (notice: string) (reason: string) =
                 WebForms.NoticeReason.redirect ctx (detailPath slug) notice "slug" slug (WebForms.truncate 300 reason)
 
+            // Bluesky is switched on only at an address it can work at: `https`, no
+            // port (or the development loopback). Switching off asks nothing.
+            let blueskyBlocked =
+                connector.Kind = Bluesky
+                && not turningOff
+                && (let allowDev = (ctx.GetService<Providers.Bluesky.Options>()).AllowDev
+
+                    match Umbral.Domains.Bluesky.clientIdFor allowDev (ctx.GetService<PublicOrigin.PublicOrigin>()).Uri with
+                    | Error _ -> true
+                    | Ok _ -> false)
+
+            if blueskyBlocked then
+                return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-enable-bluesky-origin"
+            else
+
             match apple with
             | Some AppleKeyUnusable -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-enable-apple-key"
             | Some(AppleCannotBeReached reason) -> return! refuseApple "connector-enable-apple-unreachable" reason
