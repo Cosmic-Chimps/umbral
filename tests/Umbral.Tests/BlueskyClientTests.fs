@@ -134,7 +134,7 @@ let private nonceChallenge (nonce: string) =
 let private pushed = """{"request_uri":"urn:ietf:params:oauth:request_uri:req-1","expires_in":60}"""
 
 let private push (client: HttpClient) (meta: ServerMetadata) (jwk: string) =
-    pushAuthorization client meta clientId callback "the-state" "the-challenge" "alice.test" jwk
+    pushAuthorization client meta clientId callback "the-state" "the-challenge" "alice.test" jwk CancellationToken.None
 
 let private options: Options =
     { AllowDev = false
@@ -321,7 +321,7 @@ let private tokenAnswer =
     $$"""{"access_token":"secret-access","token_type":"DPoP","scope":"atproto","sub":"{{did}}","expires_in":300}"""
 
 let private exchangeWith (client: HttpClient) (nonce: string option) =
-    exchange client meta.Token clientId callback "the-code" "the-verifier" (newKey ()) nonce
+    exchange client meta.Token clientId callback "the-code" "the-verifier" (newKey ()) nonce CancellationToken.None
 
 [<Fact>]
 let ``the token exchange sends its fields and parses the answer`` () =
@@ -411,7 +411,7 @@ let ``a TXT record wins over the well-known file`` () =
         let stub = new Stub(fun _ -> reply 200 "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa")
         let txt = TxtResolver(fun _ _ -> Task.FromResult [| $"did={did}" |])
 
-        let! result = resolveHandle (clientOn stub) txt false "alice.test"
+        let! result = resolveHandle (clientOn stub) txt false "alice.test" CancellationToken.None
 
         Assert.Equal(Ok did, result)
         Assert.Empty stub.Requests
@@ -427,7 +427,7 @@ let ``the TXT lookup is for the _atproto name`` () =
                 asked <- name
                 Task.FromResult [| $"did={did}" |])
 
-        let! _ = resolveHandle (clientOn (new Stub(fun _ -> reply 404 "")) ) txt false "alice.test"
+        let! _ = resolveHandle (clientOn (new Stub(fun _ -> reply 404 "")) ) txt false "alice.test" CancellationToken.None
         Assert.Equal("_atproto.alice.test", asked)
     }
 
@@ -435,7 +435,7 @@ let ``the TXT lookup is for the _atproto name`` () =
 let ``without a TXT record the well-known file answers`` () =
     task {
         let stub = new Stub(fun _ -> reply 200 $"{did}\n")
-        let! result = resolveHandle (clientOn stub) noTxt false "alice.test"
+        let! result = resolveHandle (clientOn stub) noTxt false "alice.test" CancellationToken.None
 
         Assert.Equal(Ok did, result)
         let request = stub.Requests |> Seq.exactlyOne
@@ -446,7 +446,7 @@ let ``without a TXT record the well-known file answers`` () =
 let ``the well-known file is fetched over http only in development`` () =
     task {
         let stub = new Stub(fun _ -> reply 200 did)
-        let! _ = resolveHandle (clientOn stub) noTxt true "alice.test"
+        let! _ = resolveHandle (clientOn stub) noTxt true "alice.test" CancellationToken.None
         Assert.Equal("http://alice.test/.well-known/atproto-did", stub.Requests[0].Url)
     }
 
@@ -456,15 +456,15 @@ let ``neither a TXT record nor a file is not found`` () =
         // An unusable TXT, and a body that is no DID.
         let txt = TxtResolver(fun _ _ -> Task.FromResult [| "v=spf1 -all" |])
 
-        let! junk = resolveHandle (clientOn (new Stub(fun _ -> reply 200 "<html>hello</html>"))) txt false "alice.test"
+        let! junk = resolveHandle (clientOn (new Stub(fun _ -> reply 200 "<html>hello</html>"))) txt false "alice.test" CancellationToken.None
         Assert.Equal(Error NotFound, junk)
 
-        let! missing = resolveHandle (clientOn (new Stub(fun _ -> reply 404 ""))) noTxt false "alice.test"
+        let! missing = resolveHandle (clientOn (new Stub(fun _ -> reply 404 ""))) noTxt false "alice.test" CancellationToken.None
         Assert.Equal(Error NotFound, missing)
 
         // A handle with no web server at all.
         let down = failing (HttpRequestException "down")
-        let! unreachable = resolveHandle down noTxt false "alice.test"
+        let! unreachable = resolveHandle down noTxt false "alice.test" CancellationToken.None
         Assert.Equal(Error NotFound, unreachable)
     }
 
@@ -474,7 +474,7 @@ let ``a handle that resolves only to non-public addresses is NonPublic`` () =
         let client =
             failing (HttpRequestException("blocked", Fediverse.NonPublicAddress "alice.test"))
 
-        let! result = resolveHandle client noTxt false "alice.test"
+        let! result = resolveHandle client noTxt false "alice.test" CancellationToken.None
         Assert.Equal(Error NonPublic, result)
     }
 
@@ -486,7 +486,7 @@ let ``a handle that resolves only to non-public addresses is NonPublic`` () =
 let ``a did:plc is read from the PLC directory`` () =
     task {
         let stub = new Stub(fun _ -> reply 200 (didDocument did))
-        let! result = resolveDid (clientOn stub) options did
+        let! result = resolveDid (clientOn stub) options did CancellationToken.None
 
         match result with
         | Ok document ->
@@ -503,7 +503,7 @@ let ``a did:web is read from its own host`` () =
     task {
         let webDid = "did:web:owner.example.com"
         let stub = new Stub(fun _ -> reply 200 (didDocument webDid))
-        let! result = resolveDid (clientOn stub) options webDid
+        let! result = resolveDid (clientOn stub) options webDid CancellationToken.None
 
         Assert.True result.IsOk
         Assert.Equal("https://owner.example.com/.well-known/did.json", stub.Requests[0].Url)
@@ -512,14 +512,14 @@ let ``a did:web is read from its own host`` () =
 [<Fact>]
 let ``a missing or wrong DID document is not found`` () =
     task {
-        let! missing = resolveDid (clientOn (new Stub(fun _ -> reply 404 "{}"))) options did
+        let! missing = resolveDid (clientOn (new Stub(fun _ -> reply 404 "{}"))) options did CancellationToken.None
         Assert.Equal(Error NotFound, missing)
 
         // A document that names another DID.
-        let! wrong = resolveDid (clientOn (new Stub(fun _ -> reply 200 (didDocument "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa")))) options did
+        let! wrong = resolveDid (clientOn (new Stub(fun _ -> reply 200 (didDocument "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa")))) options did CancellationToken.None
         Assert.Equal(Error NotFound, wrong)
 
-        let! junk = resolveDid (clientOn (new Stub(fun _ -> reply 200 "nope"))) options did
+        let! junk = resolveDid (clientOn (new Stub(fun _ -> reply 200 "nope"))) options did CancellationToken.None
         Assert.Equal(Error NotFound, junk)
     }
 
@@ -528,7 +528,7 @@ let ``a DID document that cannot be fetched is unreachable`` () =
     task {
         let down = failing (HttpRequestException "down")
 
-        match! resolveDid down options did with
+        match! resolveDid down options did CancellationToken.None with
         | Error(Unreachable "plc.test") -> ()
         | other -> failwith $"unexpected: {other}"
     }
@@ -563,7 +563,7 @@ let private discoverStub (resource: string) =
 let ``discover follows the PDS to its authorization server`` () =
     task {
         let stub = discoverStub """{ "authorization_servers": ["https://as.test"] }"""
-        let! result = discover (clientOn stub) false "https://pds.test"
+        let! result = discover (clientOn stub) false "https://pds.test" CancellationToken.None
 
         match result with
         | Ok server -> Assert.Equal(meta, server)
@@ -578,7 +578,7 @@ let ``a resource that names two servers is unsupported`` () =
         let stub =
             discoverStub """{ "authorization_servers": ["https://as.test", "https://other.test"] }"""
 
-        let! result = discover (clientOn stub) false "https://pds.test"
+        let! result = discover (clientOn stub) false "https://pds.test" CancellationToken.None
 
         Assert.Equal(Error(Unsupported "resource"), result)
         Assert.Equal(1, stub.Requests.Count)
@@ -594,7 +594,7 @@ let ``a server whose metadata fails a rule is unsupported with that word`` () =
                 else
                     reply 200 (metadataJson.Replace("\"ES256\"", "\"RS256\"")))
 
-        let! result = discover (clientOn stub) false "https://pds.test"
+        let! result = discover (clientOn stub) false "https://pds.test" CancellationToken.None
         Assert.Equal(Error(Unsupported "dpop_es256"), result)
     }
 
@@ -609,7 +609,7 @@ let ``the profile gives the display name and a blob address`` () =
             """{ "value": { "displayName": "Alice A.", "avatar": { "ref": { "$link": "bafkreiabc123" } } } }"""
 
         let stub = new Stub(fun _ -> reply 200 record)
-        let! name, picture = profile (clientOn stub) "https://pds.test" did
+        let! name, picture = profile (clientOn stub) "https://pds.test" did CancellationToken.None
 
         Assert.Equal(Some "Alice A.", name)
 
@@ -632,10 +632,163 @@ let ``the profile gives the display name and a blob address`` () =
 [<Fact>]
 let ``a failing profile read gives no name and no picture`` () =
     task {
-        let! name, picture = profile (clientOn (new Stub(fun _ -> reply 500 "{}"))) "https://pds.test" did
+        let! name, picture = profile (clientOn (new Stub(fun _ -> reply 500 "{}"))) "https://pds.test" did CancellationToken.None
         Assert.Equal(None, name)
         Assert.Equal(None, picture)
 
-        let! name, picture = profile (clientOn (new Stub(fun _ -> reply 404 "{}"))) "https://pds.test" did
+        let! name, picture = profile (clientOn (new Stub(fun _ -> reply 404 "{}"))) "https://pds.test" did CancellationToken.None
         Assert.Equal((None, None), (name, picture))
+    }
+
+
+// ---------------------------------------------------------------------------
+// An unusable key (N5)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a key that cannot make a proof is Unsupported dpop_proof at the PAR, with nothing sent`` () =
+    task {
+        let stub = new Stub(fun _ -> reply 201 pushed)
+        let! result = push (clientOn stub) meta "this is not a JWK"
+        Assert.Equal(Error(Unsupported "dpop_proof"), result)
+        Assert.Empty stub.Requests
+    }
+
+[<Fact>]
+let ``a key that cannot make a proof is exchange_failed at the token request, with nothing sent`` () =
+    task {
+        let stub = new Stub(fun _ -> reply 200 "{}")
+        let! result = exchange (clientOn stub) meta.Token clientId callback "the-code" "the-verifier" "{\"kty\":\"nope\"}" None CancellationToken.None
+        Assert.Equal(Error "exchange_failed", result)
+        Assert.Empty stub.Requests
+    }
+
+// ---------------------------------------------------------------------------
+// The nonce is kept in a cookie, so it is bounded (N2)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a nonce of 512 characters is kept and one of 513 is Unsupported dpop_nonce`` () =
+    task {
+        let ok = String('n', maxNonceLength)
+        let! kept = push (clientOn (new Stub(fun _ -> replyWithNonce 201 ok pushed))) meta (newKey ())
+
+        match kept with
+        | Ok result -> Assert.Equal(Some ok, result.Nonce)
+        | Error error -> failwith $"{error}"
+
+        let! refused = push (clientOn (new Stub(fun _ -> replyWithNonce 201 (String('n', maxNonceLength + 1)) pushed))) meta (newKey ())
+        Assert.Equal(Error(Unsupported "dpop_nonce"), refused)
+    }
+
+[<Fact>]
+let ``a challenge nonce past the bound is Unsupported dpop_nonce and is not retried`` () =
+    task {
+        let stub = new Stub(fun _ -> nonceChallenge (String('n', maxNonceLength + 1)))
+        let! result = push (clientOn stub) meta (newKey ())
+        Assert.Equal(Error(Unsupported "dpop_nonce"), result)
+        Assert.Equal(1, stub.Requests.Count)
+    }
+
+// ---------------------------------------------------------------------------
+// One deadline per attempt (N1)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``the TXT lookup gets the attempt's token`` () =
+    task {
+        use cts = new CancellationTokenSource()
+        let mutable seen = CancellationToken.None
+
+        let txt =
+            TxtResolver(fun _ token ->
+                seen <- token
+                Task.FromResult [| "did=" + did |])
+
+        let! result = resolveHandle (clientOn (new Stub(fun _ -> reply 404 ""))) txt false "alice.test" cts.Token
+        Assert.Equal(Ok did, result)
+        Assert.Equal(cts.Token, seen)
+    }
+
+[<Fact>]
+let ``a deadline that has passed is Unreachable, never not found, in every call`` () =
+    task {
+        use cts = new CancellationTokenSource()
+        cts.Cancel()
+        // Like the real transport: a cancelled token ends the request.
+        let honouring =
+            { new HttpMessageHandler() with
+                member _.SendAsync(_: HttpRequestMessage, token: CancellationToken) : Task<HttpResponseMessage> =
+                    token.ThrowIfCancellationRequested()
+                    Task.FromResult(reply 200 "{}") }
+
+        let client = new HttpClient(honouring, false)
+
+        match! resolveHandle client noTxt false "alice.test" cts.Token with
+        | Error(Unreachable _) -> ()
+        | other -> failwith $"resolveHandle: {other}"
+
+        match! resolveDid client options did cts.Token with
+        | Error(Unreachable _) -> ()
+        | other -> failwith $"resolveDid: {other}"
+
+        match! discover client false "https://pds.test" cts.Token with
+        | Error(Unreachable _) -> ()
+        | other -> failwith $"discover: {other}"
+
+        let! result = pushAuthorization client meta clientId callback "s" "c" "alice.test" (newKey ()) cts.Token
+
+        match result with
+        | Error(Unreachable _) -> ()
+        | other -> failwith $"pushAuthorization: {other}"
+
+        let! token = exchange client meta.Token clientId callback "c" "v" (newKey ()) None cts.Token
+        Assert.Equal(Error "exchange_failed", token)
+
+        let! name, picture = profile client "https://pds.test" did cts.Token
+        Assert.Equal((None, None), (name, picture))
+    }
+
+[<Fact>]
+let ``a deadline that passes while a server hangs ends the call as Unreachable`` () =
+    task {
+        use cts = new CancellationTokenSource(TimeSpan.FromMilliseconds 200.0)
+
+        let hanging =
+            { new HttpMessageHandler() with
+                member _.SendAsync(_: HttpRequestMessage, token: CancellationToken) : Task<HttpResponseMessage> =
+                    task {
+                        do! Task.Delay(Timeout.Infinite, token)
+                        return new HttpResponseMessage()
+                    } }
+
+        let started = DateTime.UtcNow
+        let! result = resolveDid (new HttpClient(hanging, false)) options did cts.Token
+        Assert.True((DateTime.UtcNow - started) < TimeSpan.FromSeconds 5.0)
+
+        match result with
+        | Error(Unreachable host) -> Assert.Equal("plc.test", host)
+        | other -> failwith $"{other}"
+    }
+
+// ---------------------------------------------------------------------------
+// The authorization server is named before it is asked (B4)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``authorizationServerOf reads only the protected resource`` () =
+    task {
+        let stub = new Stub(fun _ -> reply 200 """{"authorization_servers":["https://as.test"]}""")
+        let! result = authorizationServerOf (clientOn stub) false "https://pds.test" CancellationToken.None
+        Assert.Equal(Ok "https://as.test", result)
+        let request = stub.Requests |> Seq.exactlyOne
+        Assert.Equal("https://pds.test/.well-known/oauth-protected-resource", request.Url)
+    }
+
+[<Fact>]
+let ``authorizationServerOf refuses a server on another port in production`` () =
+    task {
+        let stub = new Stub(fun _ -> reply 200 """{"authorization_servers":["https://as.test:8443"]}""")
+        let! result = authorizationServerOf (clientOn stub) false "https://pds.test" CancellationToken.None
+        Assert.Equal(Error(Unsupported "resource"), result)
     }

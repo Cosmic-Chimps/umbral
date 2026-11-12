@@ -275,7 +275,6 @@ let ``no service at all is no_pds`` () =
 [<Theory>]
 [<InlineData("https://pds.example.net/", "https://pds.example.net")>]
 [<InlineData("https://PDS.Example.net", "https://pds.example.net")>]
-[<InlineData("https://pds.example.net:8443", "https://pds.example.net:8443")>]
 [<InlineData("https://pds.example.net:443", "https://pds.example.net")>]
 let ``the PDS is returned as an origin, without a trailing slash`` (endpoint: string, expected: string) =
     let json = document (pdsService "#atproto_pds" "AtprotoPersonalDataServer" endpoint)
@@ -297,6 +296,19 @@ let ``the PDS is returned as an origin, without a trailing slash`` (endpoint: st
 let ``a PDS that is not an origin is no_pds`` (endpoint: string) =
     let json = document (pdsService "#atproto_pds" "AtprotoPersonalDataServer" endpoint)
     Assert.Equal("no_pds", docError true json)
+
+[<Theory>]
+[<InlineData("https://pds.example.net:8443")>]
+[<InlineData("https://pds.example.net:444")>]
+[<InlineData("https://127.0.0.1:8443")>]
+let ``a PDS on a port other than the default is no_pds in production`` (endpoint: string) =
+    let json = document (pdsService "#atproto_pds" "AtprotoPersonalDataServer" endpoint)
+    Assert.Equal("no_pds", docError false json)
+
+[<Fact>]
+let ``a PDS on another port is accepted with the development setting`` () =
+    let json = document (pdsService "#atproto_pds" "AtprotoPersonalDataServer" "https://pds.example.net:8443")
+    Assert.Equal(Ok "https://pds.example.net:8443", parseDoc true json |> Result.map _.Pds)
 
 [<Fact>]
 let ``http is the PDS only with the development setting`` () =
@@ -498,10 +510,73 @@ let ``valid metadata gives the issuer and the three endpoints`` () =
     | Error word -> failwith word
 
 [<Fact>]
-let ``the endpoints need not share the issuer's host`` () =
-    match metadataResult false [ "token_endpoint", "\"https://entryway.example.net/oauth/token\"" ] with
-    | Ok m -> Assert.Equal("https://entryway.example.net/oauth/token", m.Token)
+let ``an endpoint on another host is endpoint_invalid`` () =
+    Assert.Equal("endpoint_invalid", metadataError [ "token_endpoint", "\"https://entryway.example.net/oauth/token\"" ])
+    Assert.Equal("endpoint_invalid", metadataError [ "pushed_authorization_request_endpoint", "\"https://other.example.net/oauth/par\"" ])
+    Assert.Equal("endpoint_invalid", metadataError [ "authorization_endpoint", "\"https://other.example.net/oauth/authorize\"" ])
+    // A look-alike: the issuer's name as a prefix of another host.
+    Assert.Equal("endpoint_invalid", metadataError [ "token_endpoint", "\"https://bsky.social.evil.test/oauth/token\"" ])
+
+[<Fact>]
+let ``an endpoint on another port or scheme is endpoint_invalid`` () =
+    Assert.Equal("endpoint_invalid", metadataError [ "token_endpoint", "\"https://bsky.social:8443/oauth/token\"" ])
+    Assert.Equal("endpoint_invalid", metadataError [ "pushed_authorization_request_endpoint", "\"https://bsky.social:8443/oauth/par\"" ])
+    Assert.Equal("endpoint_invalid", metadataError [ "authorization_endpoint", "\"http://bsky.social/oauth/authorize\"" ])
+
+[<Fact>]
+let ``an endpoint on the issuer's own origin is accepted, whatever its path, default port or case`` () =
+    match
+        metadataResult
+            false
+            [ "token_endpoint", "\"https://BSKY.social:443/some/other/token\""
+              "authorization_endpoint", "\"https://bsky.social/a/b?c=d\"" ]
+    with
+    | Ok m ->
+        Assert.Equal("https://BSKY.social:443/some/other/token", m.Token)
+        Assert.Equal("https://bsky.social/a/b?c=d", m.Authorize)
     | Error word -> failwith word
+
+[<Fact>]
+let ``under the development setting the endpoints must still share the issuer's port`` () =
+    let dev = "http://127.0.0.1:2583"
+
+    let ok =
+        parseServerMetadata
+            true
+            dev
+            (metadata
+                [ "issuer", $"\"{dev}\""
+                  "pushed_authorization_request_endpoint", $"\"{dev}/oauth/par\""
+                  "authorization_endpoint", $"\"{dev}/oauth/authorize\""
+                  "token_endpoint", $"\"{dev}/oauth/token\"" ])
+
+    Assert.True(Result.isOk ok)
+
+    let other =
+        parseServerMetadata
+            true
+            dev
+            (metadata
+                [ "issuer", $"\"{dev}\""
+                  "pushed_authorization_request_endpoint", $"\"{dev}/oauth/par\""
+                  "authorization_endpoint", $"\"{dev}/oauth/authorize\""
+                  "token_endpoint", "\"http://127.0.0.1:9999/oauth/token\"" ])
+
+    Assert.Equal(Error "endpoint_invalid", other)
+
+[<Theory>]
+[<InlineData("https://as.example.net:8443")>]
+[<InlineData("https://as.example.net:444")>]
+let ``an authorization server on a port other than the default is refused in production`` (server: string) =
+    Assert.Equal(None, parseProtectedResource false $"""{{ "authorization_servers": ["{server}"] }}""")
+    Assert.Equal(Some server, parseProtectedResource true $"""{{ "authorization_servers": ["{server}"] }}""")
+
+[<Fact>]
+let ``an authorization server on the default port written out is the plain origin`` () =
+    Assert.Equal(
+        Some "https://as.example.net",
+        parseProtectedResource false """{ "authorization_servers": ["https://as.example.net:443"] }"""
+    )
 
 [<Fact>]
 let ``an issuer that is not the origin is issuer_mismatch`` () =
@@ -585,13 +660,16 @@ let ``an endpoint of 2048 characters is accepted and one of 2049 is not`` () =
 
 [<Fact>]
 let ``http endpoints are accepted only with the development setting`` () =
-    let overrides =
-        [ "pushed_authorization_request_endpoint", "\"http://127.0.0.1:2583/oauth/par\""
-          "authorization_endpoint", "\"http://127.0.0.1:2583/oauth/authorize\""
-          "token_endpoint", "\"http://127.0.0.1:2583/oauth/token\"" ]
+    let dev = "http://127.0.0.1:2583"
 
-    Assert.Equal("endpoint_invalid", metadataError overrides)
-    Assert.True(metadataResult true overrides |> Result.isOk)
+    let overrides =
+        [ "issuer", $"\"{dev}\""
+          "pushed_authorization_request_endpoint", $"\"{dev}/oauth/par\""
+          "authorization_endpoint", $"\"{dev}/oauth/authorize\""
+          "token_endpoint", $"\"{dev}/oauth/token\"" ]
+
+    Assert.Equal(Error "endpoint_invalid", parseServerMetadata false dev (metadata overrides))
+    Assert.True(parseServerMetadata true dev (metadata overrides) |> Result.isOk)
 
 [<Fact>]
 let ``malformed metadata is malformed`` () =
@@ -700,6 +778,13 @@ let ``cleanName drops format characters`` () =
     Assert.Equal(Some "Alice", cleanName (Some "Al​ice⁦"))
     // A tag character is outside the basic plane and is dropped too.
     Assert.Equal(Some "Alice", cleanName (Some "Alice\U000E0041"))
+
+[<Fact>]
+let ``cleanName drops the line and paragraph separators`` () =
+    Assert.Equal(Some "AliceB", cleanName (Some "Alice\u2028B"))
+    Assert.Equal(Some "AliceB", cleanName (Some "Alice\u2029B"))
+    Assert.Equal(Some "Alice", cleanName (Some "\u2028Alice\u2029"))
+    Assert.Equal(None, cleanName (Some "\u2028\u2029"))
 
 [<Fact>]
 let ``cleanName of nothing usable is None`` () =

@@ -208,10 +208,13 @@ type Started =
       CodeChallenge: string }
 
 /// Mint the correlation from a `state` and a code verifier the caller already
-/// has, and set the cookie of `mode`. For a provider whose authorization request
-/// is sent before the browser leaves (Bluesky's PAR), and whose answer goes into
-/// `extra`: the state and the challenge must exist first. `start` makes its own.
-let startWith
+/// has, and set the cookie of `mode`, unless the protected payload is longer
+/// than `maxPayload` characters: a browser drops a cookie past about 4 KB
+/// without a word, so the caller refuses instead and no cookie is set. For a
+/// provider whose authorization request is sent before the browser leaves
+/// (Bluesky's PAR), and whose answer goes into `extra`: the state and the
+/// challenge must exist first. `start` makes its own.
+let tryStartWith
     (protectorProvider: IDataProtectionProvider)
     (clock: TimeProvider)
     (ctx: HttpContext)
@@ -222,7 +225,8 @@ let startWith
     (extra: string)
     (state: string)
     (verifier: string)
-    : Started =
+    (maxPayload: int)
+    : Started option =
     let correlation =
         { State = state
           CodeVerifier = verifier
@@ -237,22 +241,41 @@ let startWith
     let protector = protectorProvider.CreateProtector settings.Purpose
     let payload = protector.Protect(encode correlation)
 
-    let options = CookieOptions()
-    options.HttpOnly <- true
-    options.IsEssential <- true
-    options.Path <- CookiePath
-    // Lax, not Strict, for a redirect: the browser returns here on the
-    // provider's top-level redirect, and a Strict cookie is withheld on exactly
-    // that navigation, so every login would fail. The form-post mode needs
-    // `None`. Why each, and why not `None` everywhere: see the section above.
-    options.SameSite <- settings.SameSite
-    options.Secure <- settings.Secure
-    options.MaxAge <- Lifetime
+    if payload.Length > maxPayload then
+        None
+    else
+        let options = CookieOptions()
+        options.HttpOnly <- true
+        options.IsEssential <- true
+        options.Path <- CookiePath
+        // Lax, not Strict, for a redirect: the browser returns here on the
+        // provider's top-level redirect, and a Strict cookie is withheld on exactly
+        // that navigation, so every login would fail. The form-post mode needs
+        // `None`. Why each, and why not `None` everywhere: see the section above.
+        options.SameSite <- settings.SameSite
+        options.Secure <- settings.Secure
+        options.MaxAge <- Lifetime
 
-    ctx.Response.Cookies.Append(settings.CookieName, payload, options)
+        ctx.Response.Cookies.Append(settings.CookieName, payload, options)
 
-    { Correlation = correlation
-      CodeChallenge = Ids.codeChallengeS256 verifier }
+        Some
+            { Correlation = correlation
+              CodeChallenge = Ids.codeChallengeS256 verifier }
+
+/// `tryStartWith` with no bound on the payload.
+let startWith
+    (protectorProvider: IDataProtectionProvider)
+    (clock: TimeProvider)
+    (ctx: HttpContext)
+    (mode: ResponseMode)
+    (slug: string)
+    (server: string)
+    (returnUrl: string)
+    (extra: string)
+    (state: string)
+    (verifier: string)
+    : Started =
+    (tryStartWith protectorProvider clock ctx mode slug server returnUrl extra state verifier Int32.MaxValue).Value
 
 /// Mint the correlation and set the cookie of `mode`. Returns what the adapter
 /// needs to build its authorize URL.

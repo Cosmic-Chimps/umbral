@@ -276,3 +276,146 @@ let ``the client metadata document is 404 when there is no Bluesky connector`` (
         let! response = app.Client.GetAsync "/connect/bluesky/client-metadata.json"
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode)
     }
+
+// ---------------------------------------------------------------------------
+// Where Umbral may connect (B4)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``under only these servers, an unlisted server's metadata is never requested`` () =
+    task {
+        let! fake, app, prepared = setup ()
+
+        let! _ =
+            ConnectorStore.setFediverseAccess app.DbConfig app.Clock "bluesky" { OnlyListed = true; Servers = [ "as.other.test" ] }
+
+        do!
+            expectRefusal
+                app
+                prepared
+                "ana.bsky.social"
+                "Accounts on bsky.test cannot sign in here."
+                "bluesky:server_not_allowed;server=bsky.test"
+
+        // The PDS was asked who its server is, and that is all the unlisted server was
+        // spared: nothing reached it, not even its published metadata.
+        Assert.Equal(1, fake.CountOf "https://pds.test/.well-known/oauth-protected-resource")
+        Assert.Equal(0, fake.CountOf "oauth-authorization-server")
+        Assert.Equal(0, fake.CountOf "https://bsky.test")
+        noPar fake
+    }
+
+[<Fact>]
+let ``under only these servers, a listed server is asked for its metadata`` () =
+    task {
+        let! fake, app, prepared = setup ()
+
+        let! _ = ConnectorStore.setFediverseAccess app.DbConfig app.Clock "bluesky" { OnlyListed = true; Servers = [ "bsky.test" ] }
+
+        let! _, posted = startWith app prepared "openid profile" "ana.bsky.social"
+        Assert.Equal(HttpStatusCode.Found, posted.StatusCode)
+        Assert.Equal(1, fake.CountOf "GET https://bsky.test/.well-known/oauth-authorization-server")
+    }
+
+[<Fact>]
+let ``a PDS on another port is refused and never asked`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        fake.AddAccount({ ana with Pds = "https://pds.test:8443" }, true)
+
+        do!
+            expectRefusal
+                app
+                prepared
+                "ana.bsky.social"
+                "No Bluesky account was found for ana.bsky.social."
+                "bluesky:handle_not_found"
+
+        Assert.Equal(0, fake.CountOf ":8443")
+        noPar fake
+    }
+
+[<Fact>]
+let ``an authorization server on another port is refused and never asked`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        fake.SetResource(ana.Pds, """{"authorization_servers":["https://bsky.test:8443"]}""")
+
+        do!
+            expectRefusal
+                app
+                prepared
+                "ana.bsky.social"
+                "does not offer the sign-in Umbral uses."
+                "bluesky:server_unsupported;server=pds.test"
+
+        Assert.Equal(0, fake.CountOf ":8443")
+        noPar fake
+    }
+
+[<Theory>]
+[<InlineData("token_endpoint", "https://elsewhere.test/oauth/token")>]
+[<InlineData("pushed_authorization_request_endpoint", "https://bsky.test:8443/oauth/par")>]
+[<InlineData("authorization_endpoint", "https://other.test/oauth/authorize")>]
+let ``an endpoint that is not the issuer's own origin is server_unsupported and nothing is pushed`` (name: string, endpoint: string) =
+    task {
+        let! fake, app, prepared = setup ()
+        (fake.Server ana.Issuer).Metadata[name] <- JsonValue.Create endpoint
+
+        do!
+            expectRefusal
+                app
+                prepared
+                "ana.bsky.social"
+                "does not offer the sign-in Umbral uses."
+                "bluesky:server_unsupported;server=pds.test"
+
+        Assert.Equal(0, fake.CountOf "elsewhere.test")
+        Assert.Equal(0, fake.CountOf "POST ")
+        noPar fake
+    }
+
+// ---------------------------------------------------------------------------
+// The correlation cookie is bounded (N2)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a payload too large for a cookie is server_unsupported and no cookie is set`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        // A token endpoint of about 2,000 characters, on the server's own origin.
+        (fake.Server ana.Issuer).Metadata["token_endpoint"] <- JsonValue.Create("https://bsky.test/oauth/token?pad=" + String('a', 1990))
+        (fake.Server ana.Issuer).Nonce <- String('n', 512)
+
+        let! browser, posted = attempt app prepared "ana.bsky.social"
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, posted.StatusCode)
+        let! html = posted.Content.ReadAsStringAsync()
+        Assert.Contains("does not offer the sign-in Umbral uses.", html)
+        let! details = failures app
+        Assert.Equal("bluesky:server_unsupported;server=bsky.test", Assert.Single details)
+        Assert.False(browser.Cookies.ContainsKey "umbral_connect", "no correlation cookie may be set")
+    }
+
+[<Fact>]
+let ``a normal payload sets the cookie, well under the bound`` () =
+    task {
+        let! _, app, prepared = setup ()
+        let! browser, _ = start app prepared "ana.bsky.social"
+        Assert.True(browser.Cookies.ContainsKey "umbral_connect")
+        Assert.True(browser.Cookies["umbral_connect"].Length < 3800)
+    }
+
+[<Fact>]
+let ``a DPoP nonce past 512 characters is server_unsupported`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        (fake.Server ana.Issuer).Nonce <- String('n', 513)
+
+        do!
+            expectRefusal
+                app
+                prepared
+                "ana.bsky.social"
+                "does not offer the sign-in Umbral uses."
+                "bluesky:server_unsupported;server=bsky.test"
+    }

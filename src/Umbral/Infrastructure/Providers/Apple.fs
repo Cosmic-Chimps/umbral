@@ -183,14 +183,20 @@ let claimIsTrue (payload: JsonElement) (name: string) : bool =
 let private maxPostedUserLength = 8192
 let private maxNameLength = 200
 
-/// Characters that never belong in a display name: the control characters (Cc)
-/// and the format characters (Cf), which are invisible but change how the text
+/// Characters that never belong in a display name: the control characters (Cc),
+/// the line and paragraph separators U+2028 and U+2029 (Zl, Zp), which break lines
+/// in an app that renders the name, and the format characters (Cf), which are invisible but change how the text
 /// reads, such as the right-to-left override U+202E, the isolates U+2066 to
 /// U+2069 and the zero-width characters. The text is walked as code points, not
 /// as UTF-16 chars, so a surrogate pair (an emoji) stays whole and a format
 /// character outside the basic plane (the tag characters) is dropped too.
 let private isDroppedInName (rune: Text.Rune) =
-    Text.Rune.IsControl rune || Text.Rune.GetUnicodeCategory rune = Globalization.UnicodeCategory.Format
+    Text.Rune.IsControl rune
+    || (match Text.Rune.GetUnicodeCategory rune with
+        | Globalization.UnicodeCategory.Format
+        | Globalization.UnicodeCategory.LineSeparator
+        | Globalization.UnicodeCategory.ParagraphSeparator -> true
+        | _ -> false)
 
 let private withoutDropped (text: string) =
     let builder = Text.StringBuilder()

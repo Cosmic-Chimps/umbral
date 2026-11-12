@@ -172,7 +172,7 @@ the sign-in page with a notice, as for any connector. See
 | --- | --- |
 | `sub` | Umbral's own opaque identifier for the user, as for every connector. |
 | `name` | The display name on the person's Bluesky profile, or their handle when there is none. Refreshed at every sign-in. |
-| `preferred_username` | The handle, such as `alice.bsky.social`. |
+| `preferred_username` | The handle, such as `alice.bsky.social`, only when it is confirmed both ways: the handle leads to this account and the account names the handle. Otherwise none, and an earlier one is cleared. |
 | `picture` | The avatar's address, when the profile has one. |
 | `profile` | `https://bsky.app/profile/<did>`. |
 | `idp` | `bluesky`. |
@@ -305,7 +305,10 @@ account). One more reason can appear when the handle step opens or a handle is s
 - **Private and loopback addresses are refused.** Every fetch Umbral makes for
   this connector (the handle's address, the account's identity, the servers'
   descriptions and the profile) refuses private, loopback and link-local
-  addresses, follows no redirect, and has a time limit and a size limit.
+  addresses, connects only to the standard https port, follows no redirect,
+  and has a size limit. One attempt has 20 seconds in all. A sign-in server's
+  endpoints must be on its own address, and with **Only these servers** an
+  unlisted sign-in server is not contacted at all.
 - **Rate limit.** The handle step and the callback share the sign-in limit: 30 a
   minute per address.
 - **The security log** records a failed sign-in as a `sign_in_failed` event

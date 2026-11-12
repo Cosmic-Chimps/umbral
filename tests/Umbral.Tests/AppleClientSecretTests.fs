@@ -317,6 +317,13 @@ let ``format characters are dropped from a name`` () =
     Assert.Equal(Some "Maria", user "{\"name\":{\"firstName\":\"Mar\\udb40\\udc41ia\"}}")
 
 [<Fact>]
+let ``line and paragraph separators are dropped from a name`` () =
+    // U+2028 and U+2029 break lines in an app that renders the name.
+    Assert.Equal(Some "Maria Ruiz", user "{\"name\":{\"firstName\":\"Ma\\u2028ria\",\"lastName\":\"Ruiz\"}}")
+    Assert.Equal(Some "Maria Ruiz", user "{\"name\":{\"firstName\":\"Maria\",\"lastName\":\"Ru\\u2029iz\"}}")
+    Assert.Equal(None, user "{\"name\":{\"firstName\":\"\\u2028\\u2029\"}}")
+
+[<Fact>]
 let ``accents and an emoji in a name are kept`` () =
     Assert.Equal(Some "José Núñez", user "{\"name\":{\"firstName\":\"José\",\"lastName\":\"Núñez\"}}")
     // U+1F600 as a surrogate pair, whole.

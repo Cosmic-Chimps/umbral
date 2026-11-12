@@ -47,7 +47,12 @@ let private lookup () : LookupClient =
     | :? LookupClient as client -> client
     | _ ->
         let client =
-            LookupClient(LookupClientOptions(Timeout = TimeSpan.FromSeconds 3.0, Retries = 0, UseCache = true))
+            // No cache and no TCP fallback: a handle is looked up once, so a
+            // cache only lets an anonymous visitor fill memory with names under
+            // a wildcard record, and only one `did=` value is ever read.
+            LookupClient(
+                LookupClientOptions(Timeout = TimeSpan.FromSeconds 3.0, Retries = 0, UseCache = false, UseTcpFallback = false)
+            )
 
         lookupClient <- box client
         client
@@ -123,11 +128,21 @@ type private Answer =
       /// The `DPoP-Nonce` header of the answer.
       Nonce: string option }
 
-/// One call: its own 10 second limit, a bounded body, `Accept: application/json`.
-/// A transport failure is an `Error`; an HTTP status is not, the caller reads it.
-let private send (client: HttpClient) (build: unit -> HttpRequestMessage) : Task<Result<Answer, ClientError>> =
+/// The one deadline of an attempt (a start, or a callback): every call and the
+/// TXT lookup of it share a token that is cancelled after this long.
+let attemptDeadline = TimeSpan.FromSeconds 20.0
+
+/// One call: its own 10 second limit, inside the attempt's `token`; a bounded
+/// body, `Accept: application/json`. A transport failure, or the attempt's
+/// deadline, is an `Error`; an HTTP status is not, the caller reads it.
+let private send
+    (client: HttpClient)
+    (build: unit -> HttpRequestMessage)
+    (token: CancellationToken)
+    : Task<Result<Answer, ClientError>> =
     task {
-        use cts = new CancellationTokenSource(Fediverse.requestTimeout)
+        use cts = CancellationTokenSource.CreateLinkedTokenSource token
+        cts.CancelAfter Fediverse.requestTimeout
         let mutable host = ""
 
         try
@@ -169,22 +184,27 @@ let resolveHandle
     (txt: TxtResolver)
     (allowDev: bool)
     (handle: string)
+    (token: CancellationToken)
     : Task<Result<string, ClientError>> =
     task {
-        let! records = txt.Invoke("_atproto." + handle, CancellationToken.None)
+        let! records = txt.Invoke("_atproto." + handle, token)
 
         match atprotoDidOfTxt records with
         | Some did -> return Ok did
+        // The deadline passed during the lookup: not "no such handle".
+        | None when token.IsCancellationRequested -> return Error(Unreachable handle)
         | None ->
             let url = $"{scheme allowDev}://{handle}/.well-known/atproto-did"
-            let! answer = send client (Fediverse.get url)
+            let! answer = send client (Fediverse.get url) token
 
             match answer with
             | Ok { Status = 200; Body = body } ->
                 match parseDid (body.Trim()) with
                 | Some did -> return Ok did
                 | None -> return Error NotFound
-            // A handle with no web server is a handle with no answer there.
+            // A handle with no web server is a handle with no answer there; the
+            // attempt's deadline is not.
+            | Error(Unreachable _) when token.IsCancellationRequested -> return Error(Unreachable handle)
             | Ok _
             | Error(Unreachable _) -> return Error NotFound
             | Error error -> return Error error
@@ -196,7 +216,12 @@ let resolveHandle
 
 /// The DID document of `did`: `did:plc` from the PLC directory, `did:web` from
 /// the DID's own host.
-let resolveDid (client: HttpClient) (options: Options) (did: string) : Task<Result<DidDocument, ClientError>> =
+let resolveDid
+    (client: HttpClient)
+    (options: Options)
+    (did: string)
+    (token: CancellationToken)
+    : Task<Result<DidDocument, ClientError>> =
     task {
         let url =
             match didWebHost did with
@@ -207,7 +232,7 @@ let resolveDid (client: HttpClient) (options: Options) (did: string) : Task<Resu
         match url with
         | None -> return Error NotFound
         | Some url ->
-            let! answer = send client (Fediverse.get url)
+            let! answer = send client (Fediverse.get url) token
 
             match answer with
             | Ok { Status = 200; Body = body } ->
@@ -224,28 +249,58 @@ let resolveDid (client: HttpClient) (options: Options) (did: string) : Task<Resu
 // PDS -> authorization server (research R5)
 // ---------------------------------------------------------------------------
 
-/// The authorization server of `pds` (an origin): the protected-resource
-/// document names it, its metadata is read and judged.
-let discover (client: HttpClient) (allowDev: bool) (pds: string) : Task<Result<ServerMetadata, ClientError>> =
+/// The origin of the authorization server `pds` (an origin) names, from its
+/// protected-resource document. Nothing is sent to that server yet: the step
+/// judges the connector's list on this origin before reading its metadata.
+let authorizationServerOf
+    (client: HttpClient)
+    (allowDev: bool)
+    (pds: string)
+    (token: CancellationToken)
+    : Task<Result<string, ClientError>> =
     task {
-        let! resource = send client (Fediverse.get $"{pds}/.well-known/oauth-protected-resource")
+        let! resource = send client (Fediverse.get $"{pds}/.well-known/oauth-protected-resource") token
 
         match resource with
         | Error error -> return Error error
         | Ok { Status = 200; Body = body } ->
             match parseProtectedResource allowDev body with
             | None -> return Error(Unsupported "resource")
-            | Some origin ->
-                let! metadata = send client (Fediverse.get $"{origin}/.well-known/oauth-authorization-server")
-
-                match metadata with
-                | Error error -> return Error error
-                | Ok { Status = 200; Body = body } ->
-                    match parseServerMetadata allowDev origin body with
-                    | Ok server -> return Ok server
-                    | Error word -> return Error(Unsupported word)
-                | Ok _ -> return Error(Unsupported "malformed")
+            | Some origin -> return Ok origin
         | Ok _ -> return Error(Unsupported "resource")
+    }
+
+/// The metadata of the authorization server at `origin`, read and judged.
+let serverMetadataOf
+    (client: HttpClient)
+    (allowDev: bool)
+    (origin: string)
+    (token: CancellationToken)
+    : Task<Result<ServerMetadata, ClientError>> =
+    task {
+        let! metadata = send client (Fediverse.get $"{origin}/.well-known/oauth-authorization-server") token
+
+        match metadata with
+        | Error error -> return Error error
+        | Ok { Status = 200; Body = body } ->
+            match parseServerMetadata allowDev origin body with
+            | Ok server -> return Ok server
+            | Error word -> return Error(Unsupported word)
+        | Ok _ -> return Error(Unsupported "malformed")
+    }
+
+/// The authorization server of `pds` (an origin): the protected-resource
+/// document names it, its metadata is read and judged.
+let discover
+    (client: HttpClient)
+    (allowDev: bool)
+    (pds: string)
+    (token: CancellationToken)
+    : Task<Result<ServerMetadata, ClientError>> =
+    task {
+        match! authorizationServerOf client allowDev pds token with
+        | Error error -> return Error error
+        | Ok origin -> return! serverMetadataOf client allowDev origin token
     }
 
 // ---------------------------------------------------------------------------
@@ -269,8 +324,13 @@ let private proofFor (jwk: string) (url: string) (nonce: string option) : string
 let private errorWord (body: string) : string option =
     Fediverse.parseObject body |> Option.bind (fun json -> Fediverse.optString json "error")
 
+/// The longest DPoP nonce Umbral keeps: it travels in the correlation cookie.
+let maxNonceLength = 512
+
 /// A POST of a form with a DPoP proof. A `use_dpop_nonce` answer with a fresh
-/// nonce is repeated once with it; a second one is `Unsupported "dpop_nonce"`.
+/// nonce is repeated once with it; a second one is `Unsupported "dpop_nonce"`,
+/// and so is a nonce longer than `maxNonceLength`. A proof that cannot be made
+/// (an unusable key) is `Unsupported "dpop_proof"`, never an exception.
 /// The answer's `Nonce` is the last one seen.
 let private postDpop
     (client: HttpClient)
@@ -278,12 +338,32 @@ let private postDpop
     (fields: (string * string) list)
     (jwk: string)
     (nonce: string option)
+    (token: CancellationToken)
     : Task<Result<Answer, ClientError>> =
     let attempt (nonce: string option) =
-        send client (fun () ->
-            let request = Fediverse.postForm url fields ()
-            request.Headers.Add("DPoP", proofFor jwk url nonce)
-            request)
+        task {
+            let proof =
+                try
+                    Some(proofFor jwk url nonce)
+                with _ ->
+                    None
+
+            match proof with
+            | None -> return Error(Unsupported "dpop_proof")
+            | Some proof ->
+                let! answer =
+                    send
+                        client
+                        (fun () ->
+                            let request = Fediverse.postForm url fields ()
+                            request.Headers.Add("DPoP", proof)
+                            request)
+                        token
+
+                match answer with
+                | Ok { Nonce = Some seen } when seen.Length > maxNonceLength -> return Error(Unsupported "dpop_nonce")
+                | other -> return other
+        }
 
     let challenged (answer: Answer) =
         (answer.Status = 400 || answer.Status = 401)
@@ -319,6 +399,7 @@ let pushAuthorization
     (codeChallenge: string)
     (loginHint: string)
     (jwk: string)
+    (token: CancellationToken)
     : Task<Result<PushResult, ClientError>> =
     task {
         let fields =
@@ -331,7 +412,7 @@ let pushAuthorization
               "code_challenge_method", "S256"
               "login_hint", loginHint ]
 
-        match! postDpop client meta.Par fields jwk None with
+        match! postDpop client meta.Par fields jwk None token with
         | Error error -> return Error error
         | Ok { Status = status; Body = body; Nonce = nonce } when status = 200 || status = 201 ->
             match Fediverse.parseObject body |> Option.bind (fun json -> Fediverse.optString json "request_uri") with
@@ -363,6 +444,7 @@ let exchange
     (verifier: string)
     (jwk: string)
     (nonce: string option)
+    (token: CancellationToken)
     : Task<Result<TokenAnswer, string>> =
     task {
         let fields =
@@ -372,7 +454,7 @@ let exchange
               "code_verifier", verifier
               "client_id", clientId ]
 
-        match! postDpop client tokenEndpoint fields jwk nonce with
+        match! postDpop client tokenEndpoint fields jwk nonce token with
         | Ok { Status = 200; Body = body } ->
             match parseTokenAnswer body with
             | Some answer -> return Ok answer
@@ -386,12 +468,17 @@ let exchange
 
 /// The display name and the picture address of `did`, read from its PDS with no
 /// DPoP and no authentication. Any failure is no name and no picture.
-let profile (client: HttpClient) (pds: string) (did: string) : Task<string option * string option> =
+let profile
+    (client: HttpClient)
+    (pds: string)
+    (did: string)
+    (token: CancellationToken)
+    : Task<string option * string option> =
     task {
         let url =
             $"{pds}/xrpc/com.atproto.repo.getRecord?repo={did}&collection=app.bsky.actor.profile&rkey=self"
 
-        match! send client (Fediverse.get url) with
+        match! send client (Fediverse.get url) token with
         | Ok { Status = 200; Body = body } ->
             let picture =
                 avatarCid body

@@ -195,6 +195,9 @@ type FakeAtproto() =
     let unreachable = ConcurrentDictionary<string, bool>()
     let privateHosts = ConcurrentDictionary<string, bool>()
     let requests = ConcurrentQueue<string>()
+    let txtQueries = ConcurrentQueue<string>()
+    let alsoKnownAs = ConcurrentDictionary<string, string list>()
+    let documentId = ConcurrentDictionary<string, string>()
     let proofs = ConcurrentQueue<RecordedProof>()
 
     let originOf (uri: Uri) = $"{uri.Scheme}://{uri.Authority}"
@@ -213,6 +216,16 @@ type FakeAtproto() =
 
     member this.CountOf(part: string) =
         this.Requests |> Array.filter (fun r -> r.Contains part) |> Array.length
+
+    /// Every TXT name asked of the resolver, in order.
+    member _.TxtQueries = txtQueries.ToArray()
+
+    /// What the DID document of `did` lists as `alsoKnownAs` from now on, verbatim
+    /// (the account's own handle is no longer listed): a document is its owner's word.
+    member _.SetAlsoKnownAs(did: string, entries: string list) = alsoKnownAs[did] <- entries
+
+    /// The DID document of `did` is served with this `id` from now on.
+    member _.SetDocumentId(did: string, id: string) = documentId[did] <- id
 
     /// Every DPoP proof that passed its signature check.
     member _.Proofs = proofs.ToArray()
@@ -253,6 +266,8 @@ type FakeAtproto() =
     /// The TXT lookup, for `Providers.Bluesky.TxtResolver`.
     member _.TxtResolver() : Bluesky.TxtResolver =
         Bluesky.TxtResolver(fun name _ ->
+            txtQueries.Enqueue name
+
             match txt.TryGetValue name with
             | true, values -> Task.FromResult values
             | _ -> Task.FromResult Array.empty<string>)
@@ -486,8 +501,15 @@ type FakeAtproto() =
         let services = JsonArray()
         services.Add service
         let document = JsonObject()
-        document["id"] <- JsonValue.Create account.Did
-        document["alsoKnownAs"] <- strings [ "at://" + account.Handle ]
+        document["id"] <- JsonValue.Create(match documentId.TryGetValue account.Did with | true, id -> id | _ -> account.Did)
+
+        document["alsoKnownAs"] <-
+            strings (
+                match alsoKnownAs.TryGetValue account.Did with
+                | true, entries -> entries
+                | _ -> [ "at://" + account.Handle ]
+            )
+
         document["service"] <- services
         document.ToJsonString()
 

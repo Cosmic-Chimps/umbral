@@ -199,9 +199,11 @@ let private stringList (element: JsonElement) (name: string) : string list =
                   | text -> yield text ]
     | _ -> []
 
-/// An `https` origin (`http` with `allowDev`): scheme, host and an optional
-/// port, with no path other than `/`, no query, no fragment, no userinfo.
-/// Returned in its one spelling, without a trailing slash.
+/// An `https` origin (`http` with `allowDev`): scheme, host and, only under
+/// `allowDev`, a port other than the scheme's own, with no path other than `/`,
+/// no query, no fragment, no userinfo. Returned in its one spelling, without a
+/// trailing slash. Like the Fediverse connector's `normaliseServer`, production
+/// connects to the default port only.
 let private originOf (allowDev: bool) (text: string) : string option =
     let schemeOk =
         text.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
@@ -217,6 +219,7 @@ let private originOf (allowDev: bool) (text: string) : string option =
             && uri.AbsolutePath = "/"
             && uri.Query = ""
             && uri.Fragment = ""
+            && (allowDev || uri.IsDefaultPort)
             ->
             Some(uri.GetLeftPart UriPartial.Authority)
         | _ -> None
@@ -357,8 +360,19 @@ let parseServerMetadata (allowDev: bool) (origin: string) (json: string | null) 
             match failed with
             | Some word -> Error word
             | None ->
+                // PAR, authorize and token must be the issuer's own: same scheme,
+                // host and port. Uri.GetLeftPart drops a default port and lowers
+                // the host, so the comparison is ordinal on both spellings.
+                let sameOrigin (url: string) =
+                    match Uri.TryCreate(url, UriKind.Absolute) with
+                    | true, NonNull uri ->
+                        String.Equals(uri.GetLeftPart UriPartial.Authority, origin, StringComparison.OrdinalIgnoreCase)
+                    | _ -> false
+
                 let endpoint name =
-                    stringProp root name |> Option.bind (endpointOf allowDev)
+                    stringProp root name
+                    |> Option.bind (endpointOf allowDev)
+                    |> Option.filter sameOrigin
 
                 match endpoint "pushed_authorization_request_endpoint", endpoint "authorization_endpoint", endpoint "token_endpoint" with
                 | Some par, Some authorize, Some token ->
@@ -420,13 +434,20 @@ let checkTokenAnswer (expectedDid: string) (answer: TokenAnswer) : Result<string
 
 let private maxNameLength = 200
 
-/// Control (Cc) and format (Cf) characters never belong in a display name: the
-/// same rule as Apple's `nameOf` (a copy: that one is private to the provider),
-/// walked as code points so a surrogate pair stays whole.
+/// Control (Cc), format (Cf), line separator (Zl) and paragraph separator (Zp)
+/// characters never belong in a display name: the same rule as Apple's `nameOf`
+/// (a copy: that one is private to the provider), walked as code points so a
+/// surrogate pair stays whole. U+2028 and U+2029 break lines in an app that
+/// renders the name.
 let private isDroppedInName (rune: Rune) =
-    Rune.IsControl rune || Rune.GetUnicodeCategory rune = Globalization.UnicodeCategory.Format
+    Rune.IsControl rune
+    || (match Rune.GetUnicodeCategory rune with
+        | Globalization.UnicodeCategory.Format
+        | Globalization.UnicodeCategory.LineSeparator
+        | Globalization.UnicodeCategory.ParagraphSeparator -> true
+        | _ -> false)
 
-/// A display name with no control or format characters, trimmed and cut to 200
+/// A display name with no control, format or line-separating characters, trimmed and cut to 200
 /// characters (never inside a surrogate pair). Empty is None.
 let cleanName (text: string option) : string option =
     match text with

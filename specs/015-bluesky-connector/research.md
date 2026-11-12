@@ -115,7 +115,7 @@ The DID doesn't contain the server, unlike Fediverse's `host#id` subject. So sch
 
 ## R12. Idle memory (the code reviewer's point 6)
 
-DnsClient and Duende load only on the first Bluesky sign-in. Neither is touched at startup:
+DnsClient and Duende load only on the first Bluesky sign-in. Neither is touched at startup (code review N7: the resolver delegate is an ordinary top-level value; what stays unloaded is the `LookupClient`, built on the first lookup behind a field typed `obj | null`, and Duende's types, touched only inside the proof functions):
 - the `TxtResolver`'s default instance is created lazily;
 - the `LookupClient` is built on first use.
 

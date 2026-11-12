@@ -144,10 +144,22 @@ let ``recheckServer admits a listed server`` () =
         })
 
 [<Fact>]
-let ``recheckServer admits a link with no server recorded`` () =
+let ``recheckServer refuses a link with no server recorded, fail closed`` () =
     withDb (fun config ->
         task {
             do! saveConnector config (connector "bluesky" Bluesky (onlyListed [ "bsky.social" ]))
+            do! addUser config
+            do! exec config (link "bluesky" "did:plc:abc" None)
+
+            let! refused = BlueskyAccounts.recheckServer config (Some "bluesky") "u-1"
+            Assert.Equal(Some "", refused)
+        })
+
+[<Fact>]
+let ``recheckServer admits a link with no server recorded when any server is allowed`` () =
+    withDb (fun config ->
+        task {
+            do! saveConnector config (connector "bluesky" Bluesky FediverseAccess.Any)
             do! addUser config
             do! exec config (link "bluesky" "did:plc:abc" None)
 

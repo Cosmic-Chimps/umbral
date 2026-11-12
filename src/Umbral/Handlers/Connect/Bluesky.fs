@@ -18,6 +18,7 @@ open System
 open System.Net.Http
 open System.Text.Json
 open System.Text.Json.Nodes
+open System.Threading
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.DataProtection
@@ -203,6 +204,11 @@ let private issuerHost (allowDev: bool) (issuer: string) : string option =
         | _ -> None
     | _ -> None
 
+/// The longest protected correlation payload Umbral lets itself set as a cookie:
+/// a browser drops one past about 4 KB without a word.
+[<Literal>]
+let private MaxCookiePayload = 3800
+
 let private andThen (f: 'a -> Task<Result<'b, 'e>>) (task': Task<Result<'a, 'e>>) : Task<Result<'b, 'e>> =
     task {
         match! task' with
@@ -236,6 +242,7 @@ let private begin'
     (clientId: string)
     (returnUrl: string)
     (input: Rules.Input)
+    (token: CancellationToken)
     : Task<Result<Uri, Refusal>> =
     let options = ctx.GetService<Client.Options>()
     let allowDev = options.AllowDev
@@ -255,14 +262,14 @@ let private begin'
             match input with
             | Rules.Did did -> Task.FromResult(Ok did)
             | Rules.Handle handle ->
-                Client.resolveHandle http txt allowDev handle |> mapError (fail (Some handle))
+                Client.resolveHandle http txt allowDev handle token |> mapError (fail (Some handle))
 
         // 2. Its document; for a handle, the document must name it back.
         let! documented =
             resolved
             |> Task.FromResult
             |> andThen (fun did ->
-                Client.resolveDid http options did
+                Client.resolveDid http options did token
                 |> mapError (fail (hostOf $"https://{subject}"))
                 |> andThen (fun (doc: Rules.DidDocument) ->
                     match input with
@@ -270,26 +277,29 @@ let private begin'
                         Task.FromResult(Error(refusal (t.BlueskyNotFound handle) "handle_not_found" None))
                     | _ -> Task.FromResult(Ok(did, doc))))
 
-        // 3. The authorization server of its PDS.
-        let! discovered =
+        // 3. The authorization server its PDS names, and the list, before that
+        //    server is sent anything: not even a read of its metadata.
+        let! allowedOrigin =
             documented
             |> Task.FromResult
             |> andThen (fun (did, doc: Rules.DidDocument) ->
-                Client.discover http allowDev doc.Pds
+                Client.authorizationServerOf http allowDev doc.Pds token
                 |> mapError (fail (hostOf doc.Pds))
-                |> andThen (fun meta -> Task.FromResult(Ok(did, doc, meta))))
+                |> andThen (fun origin ->
+                    match issuerHost allowDev origin with
+                    | None -> Task.FromResult(Error(refusal (t.BlueskyUnsupported subject) "server_unsupported" None))
+                    | Some host when not (Umbral.Domains.Fediverse.allows connector.FediverseAccess host) ->
+                        Task.FromResult(Error(refusal (t.BlueskyNotAllowed host) "server_not_allowed" (Some host)))
+                    | Some host -> Task.FromResult(Ok(did, doc, origin, host))))
 
-        // 4. The list, before the server is sent anything it has not already
-        //    published itself.
+        // 4. Its metadata, judged.
         let! allowed =
-            discovered
+            allowedOrigin
             |> Task.FromResult
-            |> andThen (fun (did, doc, meta: Rules.ServerMetadata) ->
-                match issuerHost allowDev meta.Issuer with
-                | None -> Task.FromResult(Error(refusal (t.BlueskyUnsupported subject) "server_unsupported" None))
-                | Some host when not (Umbral.Domains.Fediverse.allows connector.FediverseAccess host) ->
-                    Task.FromResult(Error(refusal (t.BlueskyNotAllowed host) "server_not_allowed" (Some host)))
-                | Some host -> Task.FromResult(Ok(did, doc, meta, host)))
+            |> andThen (fun (did, doc: Rules.DidDocument, origin, host) ->
+                Client.serverMetadataOf http allowDev origin token
+                |> mapError (fail (hostOf doc.Pds))
+                |> andThen (fun meta -> Task.FromResult(Ok(did, doc, meta, host))))
 
         // 5. The pushed authorization request, with a key made for this attempt.
         return!
@@ -313,6 +323,7 @@ let private begin'
                             (Ids.codeChallengeS256 verifier)
                             subject
                             jwk
+                            token
                     with
                     | Error error -> return Error(refusalOf t subject (Some host) error)
                     | Ok pushed ->
@@ -323,20 +334,24 @@ let private begin'
 
                         let extra = extraOf did handle meta.Token jwk (Option.defaultValue "" pushed.Nonce)
 
-                        OAuthRoundTrip.startWith
-                            (ctx.GetService<IDataProtectionProvider>())
-                            (ctx.GetService<TimeProvider>())
-                            ctx
-                            OAuthRoundTrip.Redirect
-                            "bluesky"
-                            meta.Issuer
-                            returnUrl
-                            extra
-                            state
-                            verifier
-                        |> ignore
-
-                        return Ok(Client.authorizeUrl meta clientId pushed.RequestUri)
+                        // The cookie is set only when it will fit: past about 4 KB a
+                        // browser drops it and the callback would fail with no reason.
+                        match
+                            OAuthRoundTrip.tryStartWith
+                                (ctx.GetService<IDataProtectionProvider>())
+                                (ctx.GetService<TimeProvider>())
+                                ctx
+                                OAuthRoundTrip.Redirect
+                                "bluesky"
+                                meta.Issuer
+                                returnUrl
+                                extra
+                                state
+                                verifier
+                                MaxCookiePayload
+                        with
+                        | None -> return Error(refusal (t.BlueskyUnsupported subject) "server_unsupported" (Some host))
+                        | Some _ -> return Ok(Client.authorizeUrl meta clientId pushed.RequestUri)
                 })
     }
 
@@ -353,6 +368,8 @@ let private postHandler: EndpointHandler =
                 let typed = WebForms.value form "handle"
                 let returnUrl = Picker.sanitizeReturnUrl (WebForms.value form "returnUrl")
                 let allowDev = (ctx.GetService<Client.Options>()).AllowDev
+                // One deadline for everything this start asks of other servers.
+                use deadline = new CancellationTokenSource(Client.attemptDeadline)
 
                 let refuse (r: Refusal) =
                     task {
@@ -373,7 +390,7 @@ let private postHandler: EndpointHandler =
                 match Rules.parseInput allowDev typed with
                 | None -> return! refuse (refusal t.BlueskyNotAHandle "not_a_handle" None)
                 | Some input ->
-                    match! begin' ctx t connector (clientIdText clientId) returnUrl input with
+                    match! begin' ctx t connector (clientIdText clientId) returnUrl input deadline.Token with
                     | Error r -> return! refuse r
                     | Ok url -> ctx.Response.Redirect(url.ToString())
         }
@@ -422,6 +439,9 @@ let private callbackHandler: EndpointHandler =
             let protectors = ctx.GetService<IDataProtectionProvider>()
             let options = ctx.GetService<Client.Options>()
             let allowDev = options.AllowDev
+            // One deadline for everything this callback asks of other servers.
+            use deadline = new CancellationTokenSource(Client.attemptDeadline)
+            let token = deadline.Token
 
             // Read before `complete` consumes the cookie, so its own failures can
             // still return to the app's page.
@@ -502,6 +522,7 @@ let private callbackHandler: EndpointHandler =
                         correlation.CodeVerifier
                         stored.Jwk
                         (if stored.Nonce = "" then None else Some stored.Nonce)
+                        token
                 with
                 | Error _ -> return! fail "exchange_failed"
                 | Ok answer ->
@@ -516,10 +537,10 @@ let private callbackHandler: EndpointHandler =
                 //    is a refusal, never a pass.
                 let! fresh =
                     task {
-                        match! Client.resolveDid http options did with
+                        match! Client.resolveDid http options did token with
                         | Error _ -> return None
                         | Ok doc ->
-                            match! Client.discover http allowDev doc.Pds with
+                            match! Client.discover http allowDev doc.Pds token with
                             | Ok meta when meta.Issuer = issuer -> return Some doc
                             | _ -> return None
                     }
@@ -528,15 +549,28 @@ let private callbackHandler: EndpointHandler =
                 | None -> return! fail "not_authoritative"
                 | Some doc ->
 
-                // 8. The handle shown is one the document still names.
-                let handle =
-                    if stored.Handle <> "" && Rules.claimsHandle doc stored.Handle then
-                        Some stored.Handle
-                    else
-                        Rules.handleOf doc
+                // 8. The handle shown is one that is verified both ways. The typed
+                //    one was resolved forward at the start, so the fresh document
+                //    still naming it is enough. Any other is the document's own
+                //    claim, and a document can claim any handle: it counts only
+                //    when resolving that handle gives exactly this DID.
+                let! handle =
+                    task {
+                        if stored.Handle <> "" && Rules.claimsHandle doc stored.Handle then
+                            return Some stored.Handle
+                        else
+                            match Rules.handleOf doc with
+                            | None -> return None
+                            | Some claimed ->
+                                let txt = ctx.GetService<Client.TxtResolver>()
+
+                                match! Client.resolveHandle http txt allowDev claimed token with
+                                | Ok resolved when resolved = did -> return Some claimed
+                                | _ -> return None
+                    }
 
                 // 9. The profile, from the PDS, without authentication.
-                let! name, picture = Client.profile http doc.Pds did
+                let! name, picture = Client.profile http doc.Pds did token
 
                 let displayName =
                     name |> Option.orElse handle |> Option.orElse (Some did)
@@ -550,8 +584,16 @@ let private callbackHandler: EndpointHandler =
                       Username = handle
                       ProfileUrl = Some $"https://bsky.app/profile/{did}" }
 
+                // Before the sign-in, so a link that already exists is never left
+                // without a server (the re-check refuses one with none); after it,
+                // for a link this sign-in has just created.
+                do! BlueskyAccounts.recordServer config did host
                 do! Callback.finishSignIn ctx connector profile correlation.ReturnUrl false
                 do! BlueskyAccounts.recordServer config did host
+
+                // No verified handle: an old one must not stay on the user.
+                if handle.IsNone then
+                    do! BlueskyAccounts.clearHandle config did
 
             | _ -> return! fail "exchange_failed"
         }

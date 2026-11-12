@@ -286,16 +286,130 @@ let ``a handle served over HTTPS only, with no TXT record, signs in`` () =
     }
 
 [<Fact>]
-let ``a DID typed directly signs in, and the handle shown is the document's`` () =
+let ``a DID typed directly signs in, and the handle shown is the document's, once it resolves back to the DID`` () =
     task {
         let! fake, app, prepared = setup ()
         let! done' = signIn fake app prepared ana.Did
         Assert.Equal("ana.bsky.social", strOf done'.IdToken "preferred_username")
         Assert.Equal("Ana", strOf done'.IdToken "name")
-        // No handle was resolved on the way: the DID went straight to the directory.
+        // No handle was typed, so none was resolved at the start: the DID went
+        // straight to the directory. The document's claim was resolved forward at
+        // the callback, once, and only that makes it a handle.
         Assert.Equal(0, fake.CountOf "atproto-did")
+        Assert.Equal<string array>([| "_atproto.ana.bsky.social" |], fake.TxtQueries)
         let! avatar = Flows.scalar app "SELECT avatar_url FROM users WHERE display_name = 'Ana'" []
         Assert.Contains("cid=bafkreiavatar", avatar)
+    }
+
+[<Fact>]
+let ``a handle the document claims over HTTPS is verified over HTTPS`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        fake.AddAccount(bob, false)
+        let! done' = signIn fake app prepared bob.Did
+        Assert.Equal("bob.example.org", strOf done'.IdToken "preferred_username")
+        Assert.Equal(1, fake.CountOf "GET https://bob.example.org/.well-known/atproto-did")
+    }
+
+/// A document that claims `claimed` for Ana's DID, a handle of someone else.
+let private claimsSomeoneElsesHandle (fake: FakeAtproto) =
+    fake.AddAccount(bob, true)
+    fake.SetAlsoKnownAs(ana.Did, [ "at://" + bob.Handle ])
+
+[<Fact>]
+let ``a document that claims another account's handle gets no preferred_username`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        claimsSomeoneElsesHandle fake
+        let! done' = signIn fake app prepared ana.Did
+
+        // The handle resolves to Bob's DID, not to this one: it is not shown.
+        Assert.Equal<string array>([| "_atproto." + bob.Handle |], fake.TxtQueries)
+        Assert.False(fst (done'.IdToken.TryGetProperty "preferred_username"))
+        // The name falls back to the profile's.
+        Assert.Equal("Ana", strOf done'.IdToken "name")
+        let! stored = Flows.scalar app "SELECT ifnull(preferred_username, '') FROM users WHERE display_name = 'Ana'" []
+        Assert.Equal("", stored)
+    }
+
+[<Fact>]
+let ``a claimed handle that resolves to nothing gets no preferred_username and the name falls back to the DID`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        fake.ProfileFails <- true
+        fake.SetAlsoKnownAs(ana.Did, [ "at://nobody.example.org" ])
+        let! done' = signIn fake app prepared ana.Did
+        Assert.False(fst (done'.IdToken.TryGetProperty "preferred_username"))
+        Assert.Equal(ana.Did, strOf done'.IdToken "name")
+    }
+
+[<Fact>]
+let ``a handle no longer verified is cleared from the user, and the app stops getting it`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        let! first = signIn fake app prepared "ana.bsky.social"
+        Assert.Equal("ana.bsky.social", strOf first.IdToken "preferred_username")
+        let! users = userCount app
+
+        // The document now claims a handle that is not hers; the person types the DID.
+        claimsSomeoneElsesHandle fake
+        let! second = signIn fake app prepared ana.Did
+
+        Assert.Equal(strOf first.IdToken "sub", strOf second.IdToken "sub")
+        Assert.False(fst (second.IdToken.TryGetProperty "preferred_username"))
+        let! stored = Flows.scalar app "SELECT ifnull(preferred_username, 'NULL') FROM users WHERE display_name = 'Ana'" []
+        Assert.Equal("NULL", stored)
+        let! after = userCount app
+        Assert.Equal(users, after)
+    }
+
+[<Fact>]
+let ``a handle still verified stays on the user when the person types the DID`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        let! _ = signIn fake app prepared "ana.bsky.social"
+        let! again = signIn fake app prepared ana.Did
+        Assert.Equal("ana.bsky.social", strOf again.IdToken "preferred_username")
+    }
+
+// ---------------------------------------------------------------------------
+// did:web
+// ---------------------------------------------------------------------------
+
+let private wendy =
+    { Did = "did:web:wendy.example.org"
+      Handle = "wendy.example.org"
+      DisplayName = Some "Wendy"
+      AvatarCid = None
+      Pds = "https://pds.wendy.test"
+      Issuer = "https://as.wendy.test" }
+
+[<Fact>]
+let ``a did:web account signs in by its handle and by its DID`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        fake.AddAccount(wendy, true)
+
+        let! byHandle = signIn fake app prepared "wendy.example.org"
+        Assert.Equal("Wendy", strOf byHandle.IdToken "name")
+        Assert.Equal("wendy.example.org", strOf byHandle.IdToken "preferred_username")
+        let! subject = Flows.scalar app "SELECT provider_subject FROM linked_accounts WHERE provider_kind = 'bluesky' AND provider_subject LIKE 'did:web:%'" []
+        Assert.Equal(wendy.Did, subject)
+
+        // The document came from the DID's own host, not the PLC directory.
+        Assert.True(fake.CountOf "GET https://wendy.example.org/.well-known/did.json" >= 2, "the step and the callback each read it")
+        Assert.Equal(0, fake.CountOf "plc.test/did:web")
+
+        let! users = userCount app
+        let! byDid = signIn fake app prepared wendy.Did
+        Assert.Equal(strOf byHandle.IdToken "sub", strOf byDid.IdToken "sub")
+        Assert.Equal("wendy.example.org", strOf byDid.IdToken "preferred_username")
+        let! after = userCount app
+        Assert.Equal(users, after)
+
+        // The server was recorded for the did:web link too.
+        let! host = Flows.scalar app $"SELECT provider_server FROM linked_accounts WHERE provider_subject = '{wendy.Did}'" []
+        Assert.Equal("as.wendy.test", host)
     }
 
 [<Fact>]
