@@ -186,9 +186,12 @@ let ``a good paste is saved and the pane shows the preview, the replace field an
         Assert.Contains(t.AppleLogoReplaceHint, section)
         Assert.Matches("<textarea[^>]*id=\"appleLogo\"[^>]*></textarea>", section)
 
-        // Remove logo: its own form, confirmed first.
+        // Remove logo: its own form, confirmed first. Its button sits on Save's row and
+        // posts that form through `form`, never the pasted text.
         Assert.Contains(t.AppleLogoRemove, section)
-        Assert.Matches("<form[^>]*action=\"/admin/connectors/apple/logo/remove\"[^>]*data-confirm=\"" + Regex.Escape(t.AppleLogoRemoveConfirm) + "\"", section)
+        Assert.Matches("<form[^>]*id=\"apple-logo-remove\"[^>]*action=\"/admin/connectors/apple/logo/remove\"[^>]*data-confirm=\"" + Regex.Escape(t.AppleLogoRemoveConfirm) + "\"", section)
+        Assert.Matches("<button[^>]*form=\"apple-logo-remove\"[^>]*>" + Regex.Escape(t.AppleLogoRemove) + "</button>", section)
+        Assert.Matches("<form id=\"apple-logo-remove\"[^>]*>\\s*<input[^>]*__RequestVerificationToken[^>]*>\\s*</form>", section)
     }
 
 [<Fact>]

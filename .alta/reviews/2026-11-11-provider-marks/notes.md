@@ -115,3 +115,19 @@ sit a little differently.
 - `picker-focus-1280-dark`: focus on the Apple button with its logo.
 - No state overflows at 360. Every button is 318×44; the Apple logo is 31×44, the other marks
   18×18.
+
+## Part B re-check (after the design review)
+
+- **Blocking, the Last used badge's gap:** `.um-btn-apple` keeps the button's 8px gap again;
+  a filled slot takes it back with `.um-apple-logo:not(:empty) { margin-right: -0.5rem }`, so
+  only the logo-to-title space closes. `picker-last-used-360-dark` and
+  `picker-last-used-1280-light` show the badge spaced on the white and the black button.
+  `AppleButtonTests` asserts the rule and that `.um-btn-apple` has no `gap:0`.
+- **Nit, one row:** Save logo and Remove logo share one `flex flex-wrap items-center gap-2`
+  row. Remove is a button on that row with `form="apple-logo-remove"`, posting a separate form
+  that holds only the antiforgery token and carries `data-confirm`, so it never sends the
+  pasted text. `AppleLogoAdminTests` asserts both.
+- Every part B capture was retaken from the fixed build.
+- **Code review N1:** `numberPattern` is now `[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?`
+  (one way to match a run of digits). New test: 32,000 digits then a letter in a `viewBox`, a
+  `width` and a `transform`, each refused in under a second. `AppleLogoTests` 36 of 36.

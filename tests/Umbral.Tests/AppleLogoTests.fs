@@ -369,6 +369,24 @@ let ``a logo whose rebuilt text would pass the limit is too large, so what is st
     refusedWith TooLarge text
 
 [<Fact>]
+let ``a long run of digits followed by a letter is refused quickly, wherever a number is read`` () =
+    // Code review N1: the old number pattern backtracked quadratically, about 29 s
+    // for 32,000 digits then a letter. Each case is close to `MaxChars`.
+    let digits = String('9', 32000) + "x"
+
+    let cases =
+        [ $"""<svg viewBox="0 0 1 {digits}"><path d="M0 0 Z"/></svg>"""
+          $"""<svg width="{digits}" height="1"><path d="M0 0 Z"/></svg>"""
+          wrap $"""<g transform="translate({digits})"><path d="M0 0 Z"/></g>""" ]
+
+    for text in cases do
+        Assert.True(text.Length <= MaxChars, "each case must reach the parser, not the size check")
+        let watch = Diagnostics.Stopwatch.StartNew()
+        Assert.True(Result.isError (parse text))
+        watch.Stop()
+        Assert.True(watch.ElapsedMilliseconds < 1000L, $"took {watch.ElapsedMilliseconds} ms")
+
+[<Fact>]
 let ``null is not an svg`` () =
     refusedWith NotSvg null
 

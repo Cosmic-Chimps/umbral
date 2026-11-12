@@ -218,4 +218,7 @@ let ``the generated stylesheet carries the Apple button's rules`` () =
         let! css = response.Content.ReadAsStringAsync()
         Assert.Contains(".um-btn-apple{", css)
         Assert.Contains(".um-apple-logo:empty{", css)
+        // A logo takes back the gap to the title only; the badge keeps its gap.
+        Assert.Contains(".um-apple-logo:not(:empty){margin-right:-.5rem}", css)
+        Assert.DoesNotMatch("\\.um-btn-apple\\{[^}]*gap:0", css)
     }

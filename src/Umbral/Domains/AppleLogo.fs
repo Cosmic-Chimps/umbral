@@ -78,8 +78,11 @@ let private svgNamespace = "http://www.w3.org/2000/svg"
 /// back from the parser unchanged.
 let private space = "[ \t\r\n]"
 
-/// An SVG number. `[0-9]`, because `\d` matches digits of other scripts.
-let private numberPattern = @"[-+]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][-+]?[0-9]+)?"
+/// An SVG number. `[0-9]`, because `\d` matches digits of other scripts. The
+/// fraction is one optional group, so a long run of digits has one way to match:
+/// `[0-9]+\.?[0-9]*` could split it at every place and backtracked
+/// quadratically on 32 KiB of digits followed by a letter (code review, N1).
+let private numberPattern = @"[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?"
 
 let private numberRegex =
     Regex($"^{numberPattern}\\z", RegexOptions.CultureInvariant)

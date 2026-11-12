@@ -36,3 +36,54 @@ Whoever builds it should choose one of these, and say which in its spec:
 - **or sanitise it to an allowlist** before storing: `svg`, `path`, `g`, `rect`, `circle` and presentation attributes only; no `script`, `foreignObject`, `use`, `image` or `on*`; no `href` of any kind; and a size cap.
 
 Either way, a test should paste a hostile SVG and check that it does nothing.
+
+## Part B: the operator pastes Apple's logo (`12ce8b7`, `61a8ee6`, reviewed at `dc93dcf`)
+
+**Clear to merge, with one nit worth taking (N1).** It meets the requirement above, and does better than filter: it rebuilds.
+
+### What was checked
+
+- **Nothing pasted is ever echoed.** `render` writes the SVG from values `parse` rebuilt, never from the pasted text:
+  - the `viewBox` and every transform are re-formatted from parsed, finite numbers;
+  - `d` passes a one-class path-data alphabet;
+  - `fill-rule` is one of exactly two words.
+
+  None of these can hold a quote, `<` or `&`, so no attribute can be closed and no element opened, whatever was pasted. The rules on `on*`, `href` and `style` with `url(` refuse suspicious input but aren't what keeps the page safe; the rebuild is. Only `svg` and `path` are ever written.
+- **Only a parsed logo can reach `raw`.** `AppleLogo`'s fields are private, so `parse` is the only way to make one, and `Components.appleLogoSlot` takes an `AppleLogo option`, not a string. A later change can't pass pasted text to it by mistake. `ConnectorStore.appleLogo` parses the column again on every read, so a value written into the database by hand is refused before it reaches a page (tested with SQL).
+- **The parser.**
+  - `DtdProcessing.Prohibit` and no resolver, so no entity expansion and no external fetch.
+  - CDATA and text outside `title` and `desc` are refused, and any element outside the list is refused.
+  - Nesting is capped at 16, paths at 64, `d` at 16 KiB and the input at 32 KiB. The rendered size is checked too, because group transforms are written into each path.
+  - No exception escapes.
+- **The routes.** `POST /admin/connectors/apple/logo` and `/logo/remove` sit behind `requireOperator` and `readValidated` (picked up by `CsrfTests`). A refusal is a 422 that never draws the paste back. The events are `connector_updated` with fixed details, `apple-logo=saved|removed`. The picker reads the logo only when Apple is offered.
+- **Tests run by the reviewer**, from a git checkout of `dc93dcf`'s files: `dotnet build -c Release` with 0 warnings, and `build-css.sh --check` exits 0.
+
+  | Class | Passed |
+  | --- | --- |
+  | `AppleLogoTests` | 35 of 35 |
+  | `AppleLogoAdminTests` | 14 of 14 |
+  | `AppleButtonTests` | 9 of 9 |
+  | `ProviderMarkTests` | 8 of 8 |
+  | `DatabaseTests` (schema 11) | 35 of 35 |
+  | `CsrfTests` | 6 of 6 |
+  | `SignInFlowTests` | 39 of 39 |
+  | `MetaTests` | 46 of 46 |
+
+### Nit
+
+- **N1. The number pattern backtracks quadratically.** In `numberPattern`, `[0-9]+\.?[0-9]*` lets two digit runs compete. When the `.` is absent and the token ends in a character that isn't a digit, .NET's backtracking engine tries every split. Measured with the same pattern and options:
+
+  | Input | Time |
+  | --- | --- |
+  | 1,000 digits, then `x` | 23 ms |
+  | 4,000 digits, then `x` | 0.4 s |
+  | 16,000 digits, then `x` | 6.3 s |
+  | 32,000 digits, then `x` | 29 s |
+
+  The input cap allows the last one, as a `viewBox`, a root `width` or `height`, or a transform's arguments. So one paste can hold a request thread and a core for half a minute. The reach is small: only a signed-in operator can paste, and a valid stored number matches at once. But the fix is one line, and the pattern exists to be the safe part. Write it so the runs can't overlap:
+
+  ```fsharp
+  let private numberPattern = @"[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?"
+  ```
+
+  On 13 cases (`1`, `-1.5`, `1.`, `.5`, `1e5`, `1.5E-3`, `+0.25`, `1.2.3`, `e5`, `.`, `--1`, `1e`, `01.10`) it gives the same answers as today's pattern, and the 32,000-digit case takes 5 ms. `RegexOptions.NonBacktracking` on the current pattern also works (1 ms). Add the 32,000-digit `viewBox` as a test with a time bound.

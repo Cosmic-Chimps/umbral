@@ -188,24 +188,32 @@ let private appleLogoSection
                     | Some _ -> Components.textareaField t.AppleLogoReplaceLabel "appleLogo" 6 (Some t.AppleLogoReplaceHint) problem
                     | None -> Components.textareaField t.AppleLogoLabel "appleLogo" 6 (Some t.AppleLogoHint) problem
 
+                    // Save and Remove on one row, as in the branding section. Remove belongs
+                    // to the form below through its `form` attribute, so it posts that form
+                    // (and its confirm) and never this one's pasted text.
                     div(class' = "flex flex-wrap items-center gap-2") {
                         button(type' = "submit", class' = Components.btnSm Components.Secondary) { t.AppleLogoSave }
+
+                        // Reversible (the operator can paste it again), so a ghost in the
+                        // error colour with a confirm, never the red fill.
+                        match logo with
+                        | Some _ ->
+                            button(
+                                type' = "submit",
+                                class' = Components.btnSm Components.Ghost + " text-error hover:text-error"
+                            )
+                                .attr("form", "apple-logo-remove") {
+                                t.AppleLogoRemove
+                            }
+                            :> HtmlElement
+                        | None -> Fragment() :> HtmlElement
                     }
                 }
 
-                // Reversible (the operator can paste it again), so a ghost in the error colour
-                // with a confirm, never the red fill.
                 match logo with
                 | Some _ ->
-                    (form(method = "post", action = "/admin/connectors/apple/logo/remove") {
+                    (form(id = "apple-logo-remove", method = "post", action = "/admin/connectors/apple/logo/remove") {
                         ctx.GetAntiforgeryInput()
-
-                        button(
-                            type' = "submit",
-                            class' = Components.btnSm Components.Ghost + " text-error hover:text-error"
-                        ) {
-                            t.AppleLogoRemove
-                        }
                     })
                     |> Components.confirmSubmit t.AppleLogoRemoveConfirm
                     :> HtmlElement
