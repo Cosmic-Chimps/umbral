@@ -257,24 +257,34 @@ let handler: EndpointHandler =
                                         (Sessions.currentSubject principal |> Option.defaultValue "")
 
                                 // The Bluesky server list (specs/015), only when the
-                                // Fediverse one admits.
+                                // Fediverse one admits; then the Microsoft tenant
+                                // (specs/016 FR-011). Each refusal carries its whole
+                                // detail for the security log.
+                                let subject = Sessions.currentSubject principal |> Option.defaultValue ""
+
                                 let! refusedServer =
                                     match fediverseRefused with
-                                    | Some host -> Task.FromResult(Some("fediverse", host))
+                                    | Some host -> Task.FromResult(Some $"fediverse:server_not_allowed;server={host}")
                                     | None ->
                                         task {
                                             let! refused =
-                                                BlueskyAccounts.recheckServer
-                                                    config
-                                                    (Sessions.currentConnector principal)
-                                                    (Sessions.currentSubject principal |> Option.defaultValue "")
+                                                BlueskyAccounts.recheckServer config (Sessions.currentConnector principal) subject
 
-                                            return refused |> Option.map (fun host -> "bluesky", host)
+                                            match refused with
+                                            | Some host -> return Some $"bluesky:server_not_allowed;server={host}"
+                                            | None ->
+                                                let! tenant =
+                                                    MicrosoftAccounts.recheckTenant
+                                                        config
+                                                        (Sessions.currentConnector principal)
+                                                        subject
+
+                                                return tenant |> Option.map (fun tid -> $"microsoft:tenant_not_allowed;tenant={tid}")
                                         }
 
                                 match refusedServer with
                                 | None -> return true
-                                | Some(kind, host) ->
+                                | Some detail ->
                                     do! Sessions.signOut ctx
 
                                     do!
@@ -286,7 +296,7 @@ let handler: EndpointHandler =
                                                 ClientId = Option.ofObj request.ClientId
                                                 ConnectorSlug = Sessions.currentConnector principal
                                                 RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
-                                                Detail = Some $"{kind}:server_not_allowed;server={host}" }
+                                                Detail = Some detail }
 
                                     return false
                             | EmailDomains.Refused(level, reason) ->

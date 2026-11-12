@@ -108,18 +108,25 @@ let handler: EndpointHandler =
             // Code review B4: the Fediverse server list, judged at the same place.
             let! fediverseRefused = FediverseServers.recheckServer config connectorSlug u.Id
 
-            // The Bluesky server list (specs/015), only when the Fediverse one admits.
+            // The Bluesky server list (specs/015), only when the Fediverse one admits;
+            // then the Microsoft tenant (specs/016 FR-011). Each refusal carries its
+            // whole detail for the security log.
             let! refusedServer =
                 match fediverseRefused with
-                | Some host -> System.Threading.Tasks.Task.FromResult(Some("fediverse", host))
+                | Some host -> System.Threading.Tasks.Task.FromResult(Some $"fediverse:server_not_allowed;server={host}")
                 | None ->
                     task {
                         let! refused = BlueskyAccounts.recheckServer config connectorSlug u.Id
-                        return refused |> Option.map (fun host -> "bluesky", host)
+
+                        match refused with
+                        | Some host -> return Some $"bluesky:server_not_allowed;server={host}"
+                        | None ->
+                            let! tenant = MicrosoftAccounts.recheckTenant config connectorSlug u.Id
+                            return tenant |> Option.map (fun tid -> $"microsoft:tenant_not_allowed;tenant={tid}")
                     }
 
             match refusedServer with
-            | Some(kind, host) ->
+            | Some detail ->
                 do!
                     SecurityEvents.record
                         config
@@ -129,7 +136,7 @@ let handler: EndpointHandler =
                             ClientId = Option.ofObj request.ClientId
                             ConnectorSlug = connectorSlug
                             RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
-                            Detail = Some $"{kind}:server_not_allowed;server={host}" }
+                            Detail = Some detail }
 
                 return! Authorize.forbid ctx Errors.InvalidGrant "This account can no longer be used to sign in."
 

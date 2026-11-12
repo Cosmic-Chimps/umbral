@@ -39,6 +39,7 @@
     <Compile Include="MicrosoftDomainTests.fs" />
     <Compile Include="MicrosoftAdapterTests.fs" />
     <Compile Include="MicrosoftSignInTests.fs" />
+    <Compile Include="MicrosoftRecheckTests.fs" />
     <Compile Include="OidcConnectorStoreTests.fs" />
     <Compile Include="StartResolveTests.fs" />
     <Compile Include="LinkingRuleTests.fs" />
@@ -116,6 +117,7 @@
     <Compile Include="FediverseReRegistrationTests.fs" />
     <Compile Include="FediverseSessionRecheckTests.fs" />
     <Compile Include="BlueskyAccountsTests.fs" />
+    <Compile Include="MicrosoftAccountsTests.fs" />
     <Compile Include="AllowedDomainsSignInTests.fs" />
     <Compile Include="CraftedLinkTests.fs" />
     <Compile Include="AllowedDomainsAdminTests.fs" />

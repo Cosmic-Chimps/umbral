@@ -110,7 +110,12 @@ at the first choice.
 This is a rule about who can become a user, like the passkey enrolment and the
 Fediverse server list (Principle VII). It says nothing about what anyone may do.
 Narrowing it reaches people already signed in, at their next authorization, as
-the Fediverse and Bluesky server lists do (FR-011).
+the Fediverse and Bluesky server lists do (FR-011). The re-check is per user, as
+theirs is (spec 015's code review, N3): a session does not record which link it
+was made with, so a user with two Microsoft links (a personal one and a work one,
+joined by a verified email) passes while either is admitted. It fails closed: a
+Microsoft connector whose audience cannot be read, or a user with no readable
+Microsoft link, is refused.
 
 ## R4. The identity: `tid` and `oid`
 
