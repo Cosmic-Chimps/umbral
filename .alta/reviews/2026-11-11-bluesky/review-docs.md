@@ -125,3 +125,24 @@ branch merges second. Either way it must be done before both are on main.
 4. **Step 2, the empty list.** "the pane says so" could quote it: *The list is empty, so nobody
    can sign in through Bluesky. Add a server, or choose Any server.* Optional, but the
    walkthrough quotes every other message on the pane.
+
+## Re-check at ca31ec0 (2026-11-12)
+
+**Clear to merge.** All four blocking items and all four nits are fixed as suggested
+(`9226e14..ca31ec0`: 54717b8 merges `alta/indigo-pheasant-5jd9`, ca31ec0 has the fixes).
+
+- B1: "Before you start" covers both cases and quotes the Enable refusal. Right.
+- B2: the gotcha says people go back to the sign-in page with *Sign-in didn't complete…*, and
+  `origin_unsuitable` is in the gotcha and in Troubleshooting. Right.
+- B3: the scope line names the four claims and says `idp` is always there. Right.
+- B4: PRODUCT.md has the Apple branch's three commits (85d75f3 is an ancestor, no conflict
+  markers) and the three Bluesky changes on top. Because the Apple branch is now an ancestor,
+  the two branches merge in either order.
+- N1-N4: in, worded as suggested.
+- The design nits (a4bd928) leave "with a copy button" true.
+- `check-links.py`: 343 links in 37 files, all resolve. `changelog.sh check`: in order.
+
+One optional wording point, not a condition: `origin_unsuitable` is recorded both when the
+handle step opens (`Connect/Bluesky.fs:160`) and when a handle is submitted (`:370`), so
+"before the handle step even shows" is half the story. "when the handle step opens or a
+handle is submitted" would be exact.
