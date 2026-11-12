@@ -111,7 +111,7 @@ The cookie is Data Protection-encrypted and HttpOnly, its path is `/connect`, an
 
 ## R11. The re-check after sign-in
 
-The DID doesn't contain the server, unlike Fediverse's `host#id` subject. So schema version 12 adds `linked_accounts.provider_server TEXT NULL`, written for Bluesky links at every sign-in with the issuer's host. `BlueskyAccounts.recheckServer` mirrors `FediverseServers.recheckServer` and is called in the same two places (`Authorize.fs`, `Token.fs`). A link with no server (none can exist before this feature) admits.
+The DID doesn't contain the server, unlike Fediverse's `host#id` subject. So schema version 12 adds `linked_accounts.provider_server TEXT NULL`. The Bluesky callback writes the issuer's host there after every sign-in (`BlueskyAccounts.recordServer`). `BlueskyAccounts.recheckServer` mirrors `FediverseServers.recheckServer` and is called in the same two places (`Authorize.fs`, `Token.fs`). A link with no server (none can exist before this feature) admits.
 
 ## R12. Idle memory (the code reviewer's point 6)
 

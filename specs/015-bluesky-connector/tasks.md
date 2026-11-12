@@ -8,16 +8,15 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 - [ ] **T001** The packages `Duende.IdentityModel.OidcClient.Extensions` 7.1.1 and `DnsClient` 1.8.0, with comments. Then:
   - the `Bluesky` kind wherever `Fediverse` is matched, in `Domains/Connectors.fs`, `ConnectorStore.fs`, `EmailDomainRules.fs` (NoRule), `Apps.fs` (limited iff Only these servers), and `Handlers/Admin/Connectors.fs`, compiling, with the pane still a placeholder;
-  - `ProviderProfile.Server`, `None` in every adapter;
   - the suite green.
 
   Files: `Umbral.fsproj`, `Domains/Connectors.fs`, `Infrastructure/*`, `Handlers/Admin/*`, test literals.
-- [ ] **T002** Schema 12: `linked_accounts.provider_server`, with `UserStore.resolve` writing it. Then `BlueskyAccounts.recheckServer`, called in `Authorize.fs` and `Token.fs` beside the Fediverse re-check. Tests:
+- [ ] **T002** Schema 12: `linked_accounts.provider_server`. Then `BlueskyAccounts.recordServer` and `recheckServer`, the re-check called in `Authorize.fs` and `Token.fs` beside the Fediverse re-check. Tests:
   - a version 11 database upgrades;
   - the column round-trips;
   - the re-check admits for Any, for a listed server and for a null server, and refuses an unlisted one.
 
-  Files: `Infrastructure/Database.fs`, `UserStore.fs`, `BlueskyAccounts.fs` (new), `Handlers/Connect/Authorize.fs`, `Token.fs`, `tests/Umbral.Tests/DatabaseTests.fs`, `tests/Umbral.Tests/BlueskyAccountsTests.fs` (new).
+  Files: `Infrastructure/Database.fs`, `BlueskyAccounts.fs` (new), `Handlers/Connect/Authorize.fs`, `Token.fs`, `tests/Umbral.Tests/DatabaseTests.fs`, `tests/Umbral.Tests/BlueskyAccountsTests.fs` (new).
 
 ## Phase 2: Pure rules
 

@@ -4,7 +4,7 @@
 
 - `ProviderKind.Bluesky`, with value `bluesky` and display name `Bluesky`. It is a built-in kind: never in the add form, at most one connector, and that connector's slug is `bluesky`. It has no client ID or secret; `client_id` and `client_secret_ref` stay empty, as Fediverse's do.
 - The connector reuses `Connector.FediverseAccess` (`OnlyListed`, `Servers`) as its server scope. The record and its columns are kind-neutral in all but name. Renaming them would touch every connector literal for no behaviour, so a comment on the type says both kinds use it. For Bluesky the hosts are authorization-server hosts.
-- `ProviderProfile.Server: string option`, new. It is the host the identity signed in through: the issuer's host for Bluesky, and `None` for every other adapter, Fediverse included, since its subject already holds the host.
+- `ProviderProfile` is unchanged. It has about 45 record literals, and only Bluesky needs the server. The Bluesky callback writes the server itself, after the shared tail has created or found the link (below).
 
 `Domains/Bluesky.fs` (new, pure):
 
@@ -33,7 +33,7 @@
 ALTER TABLE linked_accounts ADD COLUMN provider_server TEXT NULL;
 ```
 
-- **Writes.** `UserStore.resolve` writes `provider_server` from `ProviderProfile.Server` on insert, and updates it on every sign-in when the profile carries one (`COALESCE(@server, provider_server)`).
+- **Writes.** `BlueskyAccounts.recordServer config did host` runs `UPDATE linked_accounts SET provider_server = @host WHERE provider_kind = 'bluesky' AND provider_subject = @did`. The Bluesky callback calls it right after `Callback.finishSignIn` returns, so the link exists by then, even on a first sign-in.
 - **Reads.** `BlueskyAccounts.recheckServer config connectorSlug userId` lives in `Infrastructure/BlueskyAccounts.fs`. It reads `provider_server` for the user's `bluesky` links and refuses when Only these servers lists none of them. A link whose `provider_server` is null admits.
 - **Unchanged.**
   - the connector's columns: `fediverse_scope` and `fediverse_servers` hold Bluesky's scope too;

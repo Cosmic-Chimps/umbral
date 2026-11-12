@@ -69,11 +69,9 @@ Under `src/Umbral/`:
 - `Domains/Connectors.fs`: `Bluesky` kind, with every `match` on the kind (`Value`, `DisplayName`, `parseKind`, `isBuiltIn` or its equivalent, `endpointsFor`, `setupCaveat`). The `FediverseAccess` comment names both kinds.
 - `Domains/Bluesky.fs` (new, after `Domains/Fediverse.fs`): pure parsing and checks (data model).
 - `Infrastructure/Database.fs`: `UpgradeToVersion12`, `SchemaVersion = 12`.
-- `Infrastructure/ProviderAdapters.fs`: `ProviderProfile.Server`.
-- `Infrastructure/UserStore.fs`: writes `provider_server`.
 - `Infrastructure/OAuthRoundTrip.fs`: `Correlation.Extra`, an eighth field.
 - `Infrastructure/Providers/Bluesky.fs` (new, after `Providers/Fediverse.fs`): `Options`, `TxtResolver`, `resolveHandle`, `resolveDid`, `discover`, `pushAuthorization`, `exchange`, `profile`, and the DPoP calls (R1).
-- `Infrastructure/BlueskyAccounts.fs` (new, after `FediverseServers.fs`): `recheckServer`.
+- `Infrastructure/BlueskyAccounts.fs` (new, after `FediverseServers.fs`): `recordServer`, `recheckServer`.
 - `Infrastructure/ConnectorStore.fs`, `Infrastructure/EmailDomainRules.fs`: the kind wherever Fediverse is matched.
 - `Handlers/Connect/Bluesky.fs` (new, after `Handlers/Connect/Fediverse.fs`): the step GET and POST, the callback, and the client metadata route.
 - `Handlers/Connect/Authorize.fs`, `Handlers/Connect/Token.fs`: call `BlueskyAccounts.recheckServer` beside the Fediverse re-check.
