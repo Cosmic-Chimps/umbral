@@ -12,6 +12,79 @@ Each section has the changes that matter to whoever runs Umbral, in this order a
 needed: Added, Changed, Fixed, Security, then Upgrade when an upgrade needs more than pulling the
 new image.
 
+## 0.10.0 - 2026-11-11
+
+### Added
+
+- An app can have up to 10 redirect URIs and up to 10 post-logout redirect URIs,
+  one for each place it runs (your machine, staging, production). Add and remove
+  them on the app's page on the **Apps** screen. The client ID and the secret
+  stay the same, so there is no need to delete and register an app again to
+  change its redirect URI. Each one is still matched exactly, an app keeps at
+  least one redirect URI, and every addition and removal is written to the
+  security log.
+- A documentation site, at <https://cosmic-chimps.github.io/umbral/>, with a sidebar and search. It
+  is built from the Markdown in `docs/`, which still reads the same on GitHub, and it loads nothing
+  from another host: no analytics, no CDN script, no external font.
+- A desktop app can sign in through a loopback redirect on any free port, as RFC 8252 §7.3 asks.
+  Register the address with no port, such as `http://127.0.0.1/callback` or
+  `http://[::1]/callback`, on a **Single-page or native app**, and the app may send it with any
+  port. Only `http`, only those two addresses (never `localhost`), and the path and query must
+  match exactly. A loopback address registered with a port still accepts only that port, and the
+  post-logout redirect URI follows the same rule. See "Desktop apps" in `docs/native-apps.md`.
+- Samples: an Android (Kotlin, AppAuth) sample in `samples/android/`: a Jetpack Compose app
+  signing in through Umbral with AppAuth-Android as a **Single-page or native app**, in a Custom
+  Tab, with a custom-scheme redirect URI and sign-out through Umbral. CI builds it; its sign-in
+  is checked by hand on a device or an emulator.
+- Samples: a FastAPI sample in `samples/fastapi/`: a Python app signing in through Umbral
+  with Authlib's Starlette client as a **Web application**. The samples workflow walks it too.
+- Samples: an iOS (Swift, AppAuth) sample in `samples/ios/`: a SwiftUI app signing in through
+  Umbral with AppAuth-iOS as a **Single-page or native app**, in an `ASWebAuthenticationSession`,
+  with a custom-scheme redirect URI and sign-out through Umbral. CI builds it; its sign-in is
+  checked by hand in the iOS Simulator.
+- Samples: a .NET MAUI sample in `samples/maui/`: one C# project for Android and iOS signing in
+  through Umbral with `Duende.IdentityModel.OidcClient` and MAUI's `WebAuthenticator` as a
+  **Single-page or native app**, with a custom-scheme redirect URI, tokens in `SecureStorage`
+  and sign-out through Umbral. CI builds the Android target; its sign-in is checked by hand.
+- Samples: a Next.js sample in `samples/nextjs/`: a Next.js app (App Router) signing in
+  through Umbral with Auth.js (`next-auth` v5) as a **Web application**. Sign out also ends
+  the Umbral session. The samples workflow walks it too.
+
+### Changed
+
+- The "Documentation" link at the foot of every page opens the documentation site,
+  <https://cosmic-chimps.github.io/umbral/>, in place of the README on GitHub.
+- A message about a secret store that fails (the warning at startup, the notice on Connectors, a
+  save that is refused, a connector whose secret cannot be read) gives the address of that store's
+  page on the documentation site. It used to say `docs/secret-stores/`, a folder the image does
+  not have.
+- The documentation site carries a Content-Security-Policy, so the browser itself refuses anything
+  a page would load from another host. Until now only a check of the built files guaranteed it.
+- The README is shorter: it keeps what Umbral is, the requirements, the quick start to a first
+  login and a short "Integrate an app", and links to the documentation site for the rest. The
+  sections that left it are pages under `docs/`: an anchor into the old README (for example
+  `#troubleshooting`) no longer resolves, and the README's Contents block says where each one is.
+- When an address you add to an app's redirect URIs or post-logout redirect
+  URIs is refused as invalid, the field keeps what you typed, so you can correct
+  it instead of typing it again.
+
+### Fixed
+
+- The warning the upgrade to schema version 9 writes to the log, when it sets `email_verified`
+  back to false for some users, gives the address of the Troubleshooting page. It named a
+  Troubleshooting section of the README, which moved to the documentation site.
+- The **Choose File** button of an app's logo upload has the same plain outline as the other
+  buttons, instead of the browser's two-tone bevelled border.
+
+### Security
+
+- A **Single-page or native app** registered with a loopback address and no port accepted that
+  address on any other port, also for `localhost` and `https://` addresses, and for sign-out as
+  well as sign-in. The OpenIddict library behind Umbral did this by default, while the
+  documentation said the port had to match. Umbral now applies only the narrower rule above. If an
+  app registered `http://localhost/...` or `https://127.0.0.1/...` without a port and relied on
+  another port, register `http://127.0.0.1/...` instead.
+
 ## 0.9.0 - 2026-11-06
 
 ### Added
