@@ -378,6 +378,16 @@ let configureServices (config: IConfiguration) (services: IServiceCollection) =
         :> ProviderAdapters.IProviderAdapter)
     |> ignore
 
+    // Sign in with Microsoft: the same cache and the same token exchange and
+    // validation, with Microsoft's own issuer and identity rules on top.
+    services.AddSingleton<ProviderAdapters.IProviderAdapter>(fun sp ->
+        Providers.Microsoft.MicrosoftAdapter(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient ProviderAdapters.HttpClientName,
+            sp.GetRequiredService<OidcDiscovery.OidcDiscovery>(),
+            sp.GetRequiredService<TimeProvider>())
+        :> ProviderAdapters.IProviderAdapter)
+    |> ignore
+
     services.AddSingleton<ProviderAdapters.Registry>(fun sp ->
         ProviderAdapters.Registry(sp.GetServices<ProviderAdapters.IProviderAdapter>()))
     |> ignore

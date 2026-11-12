@@ -11,7 +11,7 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 ## Phase 2: Protocol
 
-- [ ] **T003** `OidcDiscovery.CheckAt` / `RefreshAt`; `Oidc.validateIdToken` split as the plan says. Existing OIDC and Apple tests unchanged and green; new discovery tests: a template-issuer document accepted at `CheckAt` with the template, refused when the expected issuer differs.
+- [x] **T003** `OidcDiscovery.CheckAt` / `RefreshAt`; `Oidc.validateIdToken` split as the plan says. Existing OIDC and Apple tests unchanged and green; new discovery tests: a template-issuer document accepted at `CheckAt` with the template, refused when the expected issuer differs.
 - [ ] **T004** `Providers/Microsoft.fs`, registered in `Program.fs`. `tests/Umbral.Tests/Infrastructure/FakeMicrosoft.fs` (on `StubOidcProvider`: discovery per segment with R3's issuers, a key set with `issuer` per key, a token endpoint issuing `id_token`s with chosen `tid`, `iss`, `oid`, `email`, `xms_edov`, key). `MicrosoftSignInTests.fs`: SC-001's list, plus the unknown-`kid` refresh, a missing `oid`, the `nonce`, and the security-log words.
 
 ## Phase 3: Re-check and screens

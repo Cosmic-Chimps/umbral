@@ -37,7 +37,9 @@ let private requestTimeout = TimeSpan.FromSeconds 10.0
 /// whose provider runs fast sees "expired" and knows where to look.
 let private clockSkew = TimeSpan.FromMinutes 2.0
 
-let private optString (element: JsonElement) (name: string) : string option =
+/// A string claim, absent when it is missing, not a string or empty. The
+/// Microsoft adapter reads its claims with it too.
+let optString (element: JsonElement) (name: string) : string option =
     match element.TryGetProperty name with
     | true, prop when prop.ValueKind = JsonValueKind.String ->
         Option.ofObj (prop.GetString()) |> Option.filter (fun s -> s <> "")
@@ -46,7 +48,7 @@ let private optString (element: JsonElement) (name: string) : string option =
 /// Only the JSON literal `true` counts (FR-018, research R6). The string
 /// `"true"`, which some providers send, is NOT a verified address: linking
 /// accounts on it would let one person claim another's email.
-let private isJsonTrue (element: JsonElement) (name: string) =
+let isJsonTrue (element: JsonElement) (name: string) =
     match element.TryGetProperty name with
     | true, prop -> prop.ValueKind = JsonValueKind.True
     | _ -> false
@@ -223,13 +225,16 @@ let private reasonFor (error: exn | null) =
 let private validationParameters
     (time: TimeProvider)
     (clientId: string)
-    (issuer: string)
+    (validIssuers: string list)
     (keys: SecurityKey seq)
     =
     let parameters = TokenValidationParameters()
-    // The issuer is stored without a trailing slash; providers differ on
-    // whether the claim has one, and discovery accepted either (research R2).
-    parameters.ValidIssuers <- [ issuer; issuer + "/" ]
+    // Which `iss` values are the provider's is the caller's to say: the OIDC
+    // connector's stored issuer with and without a trailing slash, since
+    // providers differ on whether the claim has one and discovery accepted
+    // either (research R2); Microsoft's, exactly one string built from the
+    // token's own tenant (specs/016 research R2).
+    parameters.ValidIssuers <- validIssuers
     parameters.ValidateIssuer <- true
     parameters.ValidAudience <- clientId
     parameters.ValidateAudience <- true
@@ -262,24 +267,36 @@ let private validationParameters
 
     parameters
 
-/// Validate an `id_token` against the provider's published keys and return its
-/// payload, once the signature, the standard claims, `nonce`, `azp` and a present
-/// `sub` have been checked. The Apple adapter uses it too.
+/// A validated `id_token`: the payload as the JSON it arrived as, the parsed token
+/// (header, `kid`, `iss`), and the configuration whose keys judged it, which is
+/// the fresher one when the keys had to be fetched again.
+type IdTokenValidated =
+    { Payload: JsonElement
+      Token: JsonWebToken
+      Configuration: OpenIdConnectConfiguration }
+
+/// Validate an `id_token` against the provider's published keys, once the
+/// signature, the standard claims, `nonce`, `azp` and a present `sub` have been
+/// checked, and return it with the configuration that was used.
 ///
-/// The signing keys come from the discovery cache. A token whose `kid` the
-/// cache has never seen means the provider rotated its keys (FR-013): the
-/// cache is asked to fetch again — once, throttled by the cache to one forced
-/// refresh per issuer per five minutes — and the token is judged against what
+/// `validIssuers` are the `iss` values the library accepts: the caller's rule.
+/// `refresh` is how the keys are fetched again, and it is the caller's too, since
+/// where a provider's document lives is not always its issuer.
+///
+/// The signing keys come from `configuration`, the discovery cache's. A token
+/// whose `kid` the cache has never seen means the provider rotated its keys
+/// (FR-013): `refresh` is asked once — the cache throttles it to one forced
+/// refresh per document per five minutes — and the token is judged against what
 /// that returns. A `kid` that is still unknown then is a signature failure.
-let validateIdToken
-    (discovery: OidcDiscovery)
+let validateIdTokenWith
     (time: TimeProvider)
     (clientId: string)
-    (issuer: string)
+    (validIssuers: string list)
+    (refresh: unit -> Task<DiscoveryResult>)
     (configuration: OpenIdConnectConfiguration)
     (idToken: string)
     (expectedNonce: string)
-    : Task<Result<JsonElement, ConnectorError>> =
+    : Task<Result<IdTokenValidated, ConnectorError>> =
     task {
         // Reading the header is not trusting it: it only picks the keys and
         // lets the two cheap refusals (`alg`, `kid`) happen before any
@@ -307,7 +324,7 @@ let validateIdToken
                 if known then
                     return Ok configuration
                 else
-                    let! refreshed = discovery.Refresh issuer
+                    let! refreshed = refresh ()
                     return mapDiscovery refreshed
             }
 
@@ -317,7 +334,7 @@ let validateIdToken
 
         let! result =
             JsonWebTokenHandler()
-                .ValidateTokenAsync(idToken, validationParameters time clientId issuer configuration.SigningKeys)
+                .ValidateTokenAsync(idToken, validationParameters time clientId validIssuers configuration.SigningKeys)
 
         if not result.IsValid then
             return invalid (reasonFor result.Exception)
@@ -344,7 +361,40 @@ let validateIdToken
                 | None -> return invalid "subject"
                 // Cloned: the document is disposed when this block ends, and the
                 // caller reads the payload after it.
-                | Some _ -> return Ok(payload.Clone())
+                | Some _ ->
+                    return
+                        Ok
+                            { Payload = payload.Clone()
+                              Token = token
+                              Configuration = configuration }
+    }
+
+/// `validateIdTokenWith` for a provider whose document is at its issuer and whose
+/// `iss` is that issuer with or without a trailing slash: the OIDC connector's
+/// case, and Apple's. Returns the payload. The Apple adapter uses it too.
+let validateIdToken
+    (discovery: OidcDiscovery)
+    (time: TimeProvider)
+    (clientId: string)
+    (issuer: string)
+    (configuration: OpenIdConnectConfiguration)
+    (idToken: string)
+    (expectedNonce: string)
+    : Task<Result<JsonElement, ConnectorError>> =
+    task {
+        // The issuer is stored without a trailing slash; providers differ on
+        // whether the claim has one, and discovery accepted either (research R2).
+        let! validated =
+            validateIdTokenWith
+                time
+                clientId
+                [ issuer; issuer + "/" ]
+                (fun () -> discovery.Refresh issuer)
+                configuration
+                idToken
+                expectedNonce
+
+        return validated |> Result.map (fun v -> v.Payload)
     }
 
 type OidcAdapter(httpClient: HttpClient, discovery: OidcDiscovery, time: TimeProvider) =

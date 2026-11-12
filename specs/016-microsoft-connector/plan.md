@@ -58,9 +58,8 @@ package: `Microsoft.IdentityModel.*` 8.19.2 is already there.
 2. Code exchange; `id_token` required.
 3. Parse the token (no trust); `alg` asymmetric; `tid` canonical GUID, else `tenant`.
 4. Keys: known `kid` or one throttled `RefreshAt`.
-5. Library validation with `ValidIssuers = [ issuerFor tid ]`, audience, keys, lifetime.
-6. Key issuer: `issuer` of the JWK with the token's `kid`, `{tenantid}` → `tid`, equal to `iss`; else `key_issuer`.
-7. `nonce`, `azp`.
-8. `oid` canonical GUID, else `subject`.
-9. `audience.Admits tid`, else `AccountRefused`.
-10. Profile: subject `tid#oid`, email, `email_verified` per FR-009, name.
+5. Library validation with `ValidIssuers = [ issuerFor tid ]`, audience, keys, lifetime; then `nonce`, `azp` and a present `sub` (`Oidc.validateIdTokenWith`).
+6. Key issuer: `issuer` of the JWK with the token's `kid`, in the key set that judged the token, `{tenantid}` → `tid`, equal to `iss`; else `key_issuer`.
+7. `oid` canonical GUID, else `subject`.
+8. `audience.Admits tid`, else `AccountRefused`.
+9. Profile: subject `tid#oid`, email, `email_verified` per FR-009, name.
