@@ -179,6 +179,10 @@ type StubOidcProvider(issuer: string) =
     /// The keys the JWKS lists. Starts as `SigningKey` alone.
     member val PublishedKeys: List<RsaSecurityKey> = List<RsaSecurityKey>() with get
 
+    /// The `issuer` member the key set publishes on a key, by `kid`: what
+    /// Microsoft's key sets carry (specs/016). A key with no entry has none.
+    member val KeyIssuers: Dictionary<string, string> = Dictionary<string, string>() with get, set
+
     /// A key that is NOT published, with the same `kid` as the real one so a
     /// forged signature is looked up and then fails, not skipped.
     member val Attacker: RsaSecurityKey = newKey "key-1" with get
@@ -301,6 +305,11 @@ type StubOidcProvider(issuer: string) =
             jwk["kid"] <- node (key.KeyId)
             jwk["n"] <- node (Base64UrlEncoder.Encode parameters.Modulus)
             jwk["e"] <- node (Base64UrlEncoder.Encode parameters.Exponent)
+
+            match this.KeyIssuers.TryGetValue key.KeyId with
+            | true, keyIssuer -> jwk["issuer"] <- node keyIssuer
+            | _ -> ()
+
             keys.Add jwk
 
         let set = JsonObject()

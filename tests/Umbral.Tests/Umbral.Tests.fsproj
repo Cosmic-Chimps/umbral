@@ -18,6 +18,7 @@
     <Compile Include="Infrastructure/OperatorFlows.fs" />
     <Compile Include="Infrastructure/StubOidcProvider.fs" />
     <Compile Include="Infrastructure/FakeApple.fs" />
+    <Compile Include="Infrastructure/FakeMicrosoft.fs" />
     <Compile Include="Infrastructure/StubMastodon.fs" />
     <Compile Include="Infrastructure/PngBuilder.fs" />
     <Compile Include="Infrastructure/ImageEnvironment.fs" />
@@ -37,6 +38,7 @@
     <Compile Include="StubOidcProviderTests.fs" />
     <Compile Include="MicrosoftDomainTests.fs" />
     <Compile Include="MicrosoftAdapterTests.fs" />
+    <Compile Include="MicrosoftSignInTests.fs" />
     <Compile Include="OidcConnectorStoreTests.fs" />
     <Compile Include="StartResolveTests.fs" />
     <Compile Include="LinkingRuleTests.fs" />
