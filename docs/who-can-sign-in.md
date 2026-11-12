@@ -91,3 +91,10 @@ someone from a server taken off it is refused at their next sign-in, the next
 time an app authorizes them with their existing session, or the next time an
 app refreshes their token. See the
 [Fediverse walkthrough](connectors/fediverse.md#the-server-list).
+
+The Bluesky connector is the same: a Bluesky account carries no email. Who can
+sign in through it is its server choice, **Any server** or **Only these
+servers**, and the list holds the servers where people sign in (all
+Bluesky-hosted accounts sign in at `bsky.social`). A change to the list reaches
+people who are already signed in in the same way. See the
+[Bluesky walkthrough](connectors/bluesky.md#the-server-list).

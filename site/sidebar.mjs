@@ -27,6 +27,7 @@ export const sidebar = [
       { label: 'Your own OpenID Connect provider', slug: 'connectors/oidc' },
       { label: 'Passkeys', slug: 'connectors/passkey' },
       { label: 'Fediverse', slug: 'connectors/fediverse' },
+      { label: 'Bluesky', slug: 'connectors/bluesky' },
     ],
   },
   {

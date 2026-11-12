@@ -5,7 +5,8 @@ community that already lives on Discord.
 
 Back to the [README](../../README.md). Other providers:
 [GitHub](github.md) · [Google](google.md) · [Apple](apple.md) ·
-[OpenID Connect](oidc.md) · [Passkeys](passkey.md) · [Fediverse](fediverse.md).
+[OpenID Connect](oidc.md) · [Passkeys](passkey.md) · [Fediverse](fediverse.md) ·
+[Bluesky](bluesky.md).
 
 ## Before you start
 

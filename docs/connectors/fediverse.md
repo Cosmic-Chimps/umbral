@@ -24,7 +24,7 @@ is asked of you.
 
 Back to the [README](../../README.md). Other providers:
 [Discord](discord.md) · [GitHub](github.md) · [Google](google.md) · [Apple](apple.md) ·
-[OpenID Connect](oidc.md) · [Passkeys](passkey.md).
+[OpenID Connect](oidc.md) · [Passkeys](passkey.md) · [Bluesky](bluesky.md).
 
 ## Before you start
 

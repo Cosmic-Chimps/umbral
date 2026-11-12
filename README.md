@@ -17,7 +17,7 @@ It has three concepts, and that is the whole product:
 | Concept | What it is |
 | --- | --- |
 | **App** | A program that signs people in through Umbral. It gets a client ID and a client secret. |
-| **Connector** | Umbral's identity at an upstream provider (Discord, GitHub, Google, Apple, or an OpenID Connect provider of your own): the OAuth application you create there, with its credentials. There can be several per provider, except Apple, where there is one per instance. Two other connectors are one per instance too: **passkey**, where Umbral is the provider and there is nothing to create anywhere, and **Fediverse**, where there is nothing to create either because Umbral registers itself with each Mastodon or GoToSocial server the first time someone from it signs in. |
+| **Connector** | Umbral's identity at an upstream provider (Discord, GitHub, Google, Apple, or an OpenID Connect provider of your own): the OAuth application you create there, with its credentials. There can be several per provider, except Apple, where there is one per instance. Three other connectors are one per instance too: **passkey**, where Umbral is the provider and there is nothing to create anywhere, **Fediverse**, where there is nothing to create either because Umbral registers itself with each Mastodon or GoToSocial server the first time someone from it signs in, and **Bluesky**, where there is nothing to create because Umbral publishes a small document about itself that each person's server reads. |
 | **User** | A person who has signed in at least once. |
 
 **What Umbral is not.** It has no realms, tenants, groups, roles or permissions,
@@ -55,7 +55,8 @@ reads the same here on GitHub.
   [Apple](https://cosmic-chimps.github.io/umbral/connectors/apple/) ·
   [Your own OpenID Connect provider](https://cosmic-chimps.github.io/umbral/connectors/oidc/) ·
   [Passkeys](https://cosmic-chimps.github.io/umbral/connectors/passkey/) ·
-  [Fediverse](https://cosmic-chimps.github.io/umbral/connectors/fediverse/)
+  [Fediverse](https://cosmic-chimps.github.io/umbral/connectors/fediverse/) ·
+  [Bluesky](https://cosmic-chimps.github.io/umbral/connectors/bluesky/)
 - **Who can sign in:**
   [Who can sign in](https://cosmic-chimps.github.io/umbral/who-can-sign-in/) ·
   [Brand an app's sign-in page](https://cosmic-chimps.github.io/umbral/branding/) ·
@@ -95,7 +96,10 @@ reads the same here on GitHub.
   such as a phone, a laptop or a security key. See [Passkeys](docs/connectors/passkey.md). Or the
   **Fediverse connector**, which also needs no account to create: people sign in
   with an account on a Mastodon or GoToSocial server. See the
-  [Fediverse walkthrough](docs/connectors/fediverse.md).
+  [Fediverse walkthrough](docs/connectors/fediverse.md). Or the **Bluesky
+  connector**, which needs no account to create either: people sign in with
+  their Bluesky handle, but Umbral must be at an https address without a port.
+  See the [Bluesky walkthrough](docs/connectors/bluesky.md).
 
 The quick start builds the image from this repository, so it works from any
 checkout. Each release is also published as `ghcr.io/cosmic-chimps/umbral`, for
@@ -242,8 +246,9 @@ detail and the gotchas are in the [GitHub walkthrough](docs/connectors/github.md
 
 GitHub is one way to get a first login. The other is the **Passkey** entry in the
 same list, which needs no account anywhere: see [Passkeys](docs/connectors/passkey.md). The
-**Fediverse** entry needs nothing created either: see the
-[Fediverse walkthrough](docs/connectors/fediverse.md).
+**Fediverse** and **Bluesky** entries need nothing created either: see the
+[Fediverse walkthrough](docs/connectors/fediverse.md) and the
+[Bluesky walkthrough](docs/connectors/bluesky.md).
 
 ### 5. Register an app
 

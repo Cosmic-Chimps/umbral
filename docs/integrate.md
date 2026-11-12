@@ -32,8 +32,8 @@ how people are identified.
   provider's ID. If you delete a user and they sign in again, they get a
   *different* `sub`.
 - **`email` and `email_verified`** come with the `email` scope, both or
-  neither. Neither, when Umbral has no address for the person: a fediverse or
-  passkey-only user, or a GitHub account with no verified primary address or
+  neither. Neither, when Umbral has no address for the person: a fediverse,
+  Bluesky or passkey-only user, or a GitHub account with no verified primary address or
   whose addresses GitHub did not return on that sign-in. When
   they are there, `email_verified` is a JSON boolean and can be **`false`**:
   Discord, Google and your own OpenID Connect provider can give an address they
@@ -49,11 +49,12 @@ how people are identified.
   provider gave, the name a passkey user typed, or, when a provider gave none, a
   placeholder such as `OpenID Connect user`. **`picture`** comes with it when the
   provider gave one. A fediverse sign-in adds **`preferred_username`**
-  (`user@server`) and **`profile`** (the person's page); the other providers send
-  neither.
+  (`user@server`) and **`profile`** (the person's page). A Bluesky sign-in adds
+  both too: `preferred_username` is the handle and `profile` is
+  `https://bsky.app/profile/<did>`. The other providers send neither.
 - **`idp`** is always there, and is Umbral's one extra claim: the provider the
   person used (`github`, `discord`, `google`, `apple`, `oidc` for any OpenID Connect
-  provider you added, `passkey`, or `fediverse`). It is the provider's kind,
+  provider you added, `passkey`, `fediverse`, or `bluesky`). It is the provider's kind,
   never a connector's identifier: with several Discord connectors it is still
   `discord`. Ignore it freely.
 - **Access tokens are opaque.** They are not JWTs: do not try to decode them.

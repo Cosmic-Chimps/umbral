@@ -11,7 +11,8 @@ walkthroughs of their own, and no provider of your own to run.
 
 Back to the [README](../../README.md). Other providers:
 [Discord](discord.md) · [GitHub](github.md) · [Google](google.md) · [Apple](apple.md) ·
-[Passkeys](passkey.md) · [Fediverse](fediverse.md).
+[Passkeys](passkey.md) · [Fediverse](fediverse.md) ·
+[Bluesky](bluesky.md).
 
 ## Before you start
 

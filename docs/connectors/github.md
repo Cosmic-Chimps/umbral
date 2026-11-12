@@ -6,7 +6,8 @@ publish, and `http://localhost` callbacks are accepted for a laptop trial.
 
 Back to the [README](../../README.md). Other providers:
 [Discord](discord.md) · [Google](google.md) · [Apple](apple.md) ·
-[OpenID Connect](oidc.md) · [Passkeys](passkey.md) · [Fediverse](fediverse.md).
+[OpenID Connect](oidc.md) · [Passkeys](passkey.md) · [Fediverse](fediverse.md) ·
+[Bluesky](bluesky.md).
 
 ## Before you start
 
