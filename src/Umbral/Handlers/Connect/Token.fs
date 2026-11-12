@@ -111,11 +111,15 @@ let handler: EndpointHandler =
             // The Bluesky server list (specs/015), only when the Fediverse one admits.
             let! refusedServer =
                 match fediverseRefused with
-                | Some _ -> System.Threading.Tasks.Task.FromResult fediverseRefused
-                | None -> BlueskyAccounts.recheckServer config connectorSlug u.Id
+                | Some host -> System.Threading.Tasks.Task.FromResult(Some("fediverse", host))
+                | None ->
+                    task {
+                        let! refused = BlueskyAccounts.recheckServer config connectorSlug u.Id
+                        return refused |> Option.map (fun host -> "bluesky", host)
+                    }
 
             match refusedServer with
-            | Some host ->
+            | Some(kind, host) ->
                 do!
                     SecurityEvents.record
                         config
@@ -125,7 +129,7 @@ let handler: EndpointHandler =
                             ClientId = Option.ofObj request.ClientId
                             ConnectorSlug = connectorSlug
                             RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
-                            Detail = Some $"fediverse:server_not_allowed;server={host}" }
+                            Detail = Some $"{kind}:server_not_allowed;server={host}" }
 
                 return! Authorize.forbid ctx Errors.InvalidGrant "This account can no longer be used to sign in."
 

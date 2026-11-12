@@ -85,6 +85,8 @@ type ParRecord =
       State: string
       Challenge: string
       LoginHint: string
+      Scope: string
+      ChallengeMethod: string
       Thumbprint: string }
 
 type CodeRecord =
@@ -174,6 +176,9 @@ type FakeAuthorizationServer(issuer: string) =
     member val Token = Honest with get, set
 
     member val Pars = ConcurrentDictionary<string, ParRecord>()
+
+    /// Every access token this server issued, for a test that looks for one in a log.
+    member val AccessTokens = ConcurrentQueue<string>()
     member val Codes = ConcurrentDictionary<string, CodeRecord>()
 
 /// Any number of AT Protocol hosts behind one handler.
@@ -199,6 +204,9 @@ type FakeAtproto() =
 
     /// The profile record answers 500 (no name, no picture).
     member val ProfileFails = false with get, set
+
+    /// The PLC directory answers 500 to every DID.
+    member val PlcFails = false with get, set
 
     /// Every request, `METHOD url`, in order.
     member _.Requests = requests.ToArray()
@@ -238,6 +246,9 @@ type FakeAtproto() =
 
     /// What the PDS's protected-resource document says, verbatim.
     member _.SetResource(pds: string, body: string) = resourceOverride[pds] <- body
+
+    /// The TXT records of `name` (e.g. `_atproto.example.org`), verbatim.
+    member _.SetTxt(name: string, values: string array) = txt[name] <- values
 
     /// The TXT lookup, for `Providers.Bluesky.TxtResolver`.
     member _.TxtResolver() : Bluesky.TxtResolver =
@@ -402,6 +413,8 @@ type FakeAtproto() =
                           State = field "state"
                           Challenge = field "code_challenge"
                           LoginHint = field "login_hint"
+                          Scope = field "scope"
+                          ChallengeMethod = field "code_challenge_method"
                           Thumbprint = proof.Thumbprint }
 
                     return
@@ -450,7 +463,9 @@ type FakeAtproto() =
                                 | _ -> "atproto"
 
                             let answer = JsonObject()
-                            answer["access_token"] <- JsonValue.Create(randomToken ())
+                            let accessToken = randomToken ()
+                            server.AccessTokens.Enqueue accessToken
+                            answer["access_token"] <- JsonValue.Create accessToken
                             answer["token_type"] <- JsonValue.Create tokenType
                             answer["scope"] <- JsonValue.Create scope
                             answer["sub"] <- JsonValue.Create sub
@@ -487,6 +502,8 @@ type FakeAtproto() =
                 | None -> Task.FromResult ""
 
             match request.Method.Method, path with
+            | "GET", _ when uri.Host = plcHost && this.PlcFails -> return json 500 "{}"
+
             | "GET", _ when uri.Host = plcHost ->
                 match accounts.TryGetValue(Uri.UnescapeDataString(path.TrimStart '/')) with
                 | true, account -> return json 200 (this.DidDocument account)

@@ -260,16 +260,21 @@ let handler: EndpointHandler =
                                 // Fediverse one admits.
                                 let! refusedServer =
                                     match fediverseRefused with
-                                    | Some _ -> Task.FromResult fediverseRefused
+                                    | Some host -> Task.FromResult(Some("fediverse", host))
                                     | None ->
-                                        BlueskyAccounts.recheckServer
-                                            config
-                                            (Sessions.currentConnector principal)
-                                            (Sessions.currentSubject principal |> Option.defaultValue "")
+                                        task {
+                                            let! refused =
+                                                BlueskyAccounts.recheckServer
+                                                    config
+                                                    (Sessions.currentConnector principal)
+                                                    (Sessions.currentSubject principal |> Option.defaultValue "")
+
+                                            return refused |> Option.map (fun host -> "bluesky", host)
+                                        }
 
                                 match refusedServer with
                                 | None -> return true
-                                | Some host ->
+                                | Some(kind, host) ->
                                     do! Sessions.signOut ctx
 
                                     do!
@@ -281,7 +286,7 @@ let handler: EndpointHandler =
                                                 ClientId = Option.ofObj request.ClientId
                                                 ConnectorSlug = Sessions.currentConnector principal
                                                 RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
-                                                Detail = Some $"fediverse:server_not_allowed;server={host}" }
+                                                Detail = Some $"{kind}:server_not_allowed;server={host}" }
 
                                     return false
                             | EmailDomains.Refused(level, reason) ->

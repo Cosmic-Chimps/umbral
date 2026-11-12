@@ -6,6 +6,7 @@ module Umbral.Tests.BlueskySignInTests
 open System
 open System.Net
 open System.Text.RegularExpressions
+open System.Text.Json
 open System.Threading.Tasks
 open Xunit
 open Umbral.Domains.Connectors
@@ -14,7 +15,7 @@ open Umbral.Tests.Infrastructure
 open Umbral.Tests.Infrastructure.FakeAtproto
 open Umbral.Tests.Infrastructure.Journeys
 
-let private connector (app: Fixtures.TestApp) enabled =
+let connector (app: Fixtures.TestApp) enabled =
     ConnectorStore.save
         app.DbConfig
         app.Clock
@@ -35,7 +36,7 @@ let private connector (app: Fixtures.TestApp) enabled =
           UpdatedUtc = app.Clock.GetUtcNow() }
         None
 
-let private ana =
+let ana =
     { Did = "did:plc:ewvi7nxzyoun6zhxrhs64oiz"
       Handle = "ana.bsky.social"
       DisplayName = Some "Ana"
@@ -43,7 +44,7 @@ let private ana =
       Pds = "https://pds.test"
       Issuer = "https://bsky.test" }
 
-let private mallory =
+let mallory =
     { Did = "did:plc:z72i7hdynmk6r22z27h6tvur"
       Handle = "mallory.evil.social"
       DisplayName = Some "Mallory"
@@ -51,26 +52,40 @@ let private mallory =
       Pds = "https://pds.evil.test"
       Issuer = "https://as.evil.test" }
 
-let private setup () =
+/// The app with Ana on the fake, the connector on, and a registered client app.
+let setupWith (settings: (string * string) list) (customize: Microsoft.AspNetCore.Builder.WebApplicationBuilder -> unit) =
     task {
         let fake = new FakeAtproto()
         fake.AddAccount(ana, true)
-        let! app = Fixtures.createAppWithBlueskyFake fake fakeSettings ignore
+        let! app = Fixtures.createAppWithBlueskyFake fake settings customize
         do! connector app true
         let browser = Browser(app.Client)
         let! prepared = prepare app browser
         return fake, app, prepared
     }
 
-/// From the app's authorize address to the handle POST.
-let private start (app: Fixtures.TestApp) (prepared: Prepared) (handle: string) =
+let setup () = setupWith fakeSettings ignore
+
+/// The step's POST, whatever it answers: a new browser, the app's authorize
+/// request (asking for `scope`), and the handle typed.
+let attemptWith (app: Fixtures.TestApp) (prepared: Prepared) (scope: string) (handle: string) =
     task {
         let browser = Browser(app.Client)
-        let! toPicker = browser.Get(authorizeUrl prepared.ClientId "openid profile")
+        let! toPicker = browser.Get(authorizeUrl prepared.ClientId scope)
         let pickerUrl = toPicker.Headers.Location |> string
         let returnUrl = Uri.UnescapeDataString(Regex.Match(pickerUrl, "returnUrl=([^&]+)").Groups[1].Value)
         let step = "/connect/bluesky/start?returnUrl=" + Uri.EscapeDataString returnUrl
         let! posted = browser.PostForm(step, "/connect/bluesky/start", [ "handle", handle; "returnUrl", returnUrl ])
+        return browser, posted
+    }
+
+let attempt (app: Fixtures.TestApp) (prepared: Prepared) (handle: string) =
+    attemptWith app prepared "openid profile" handle
+
+/// From the app's authorize address to the handle POST, which must redirect.
+let startWith (app: Fixtures.TestApp) (prepared: Prepared) (scope: string) (handle: string) =
+    task {
+        let! browser, posted = attemptWith app prepared scope handle
 
         // A refusal shows its text, so a failing test says why.
         if posted.StatusCode <> HttpStatusCode.Found then
@@ -80,6 +95,79 @@ let private start (app: Fixtures.TestApp) (prepared: Prepared) (handle: string) 
             failwith $"the step answered {int posted.StatusCode}: {message} ({reason})"
 
         return browser, posted
+    }
+
+let start (app: Fixtures.TestApp) (prepared: Prepared) (handle: string) =
+    startWith app prepared "openid profile" handle
+
+/// The sign-in's result: the browser (with its session), both tokens' claims and the codes.
+type Completed =
+    { Browser: Browser
+      Tokens: JsonElement
+      IdToken: JsonElement
+      /// What the authorization server issued.
+      ProviderCode: string
+      /// What Umbral issued to the app.
+      AppCode: string }
+
+/// The whole journey: the step, the person agreeing, the callback, the app's code and
+/// the exchange.
+let signInWith (fake: FakeAtproto) (app: Fixtures.TestApp) (prepared: Prepared) (scope: string) (handle: string) =
+    task {
+        let! browser, posted = startWith app prepared scope handle
+        let callback = Uri(fake.Approve(posted.Headers.Location |> string))
+        let! back = browser.Get callback.PathAndQuery
+        let replayed = back.Headers.Location |> string
+        Assert.Contains("/connect/authorize", replayed)
+        let! issued = browser.Get replayed
+        let appCode = Regex.Match(issued.Headers.Location |> string, "code=([^&]+)").Groups[1].Value |> Uri.UnescapeDataString
+        let! exchanged = exchangeCode app.Client prepared.ClientId prepared.ClientSecret appCode
+        let! tokens = json exchanged
+
+        return
+            { Browser = browser
+              Tokens = tokens
+              IdToken = segmentOf 1 (strOf tokens "id_token")
+              ProviderCode = Web.HttpUtility.ParseQueryString(callback.Query)["code"] |> Option.ofObj |> Option.defaultValue ""
+              AppCode = appCode }
+    }
+
+let signIn (fake: FakeAtproto) app prepared handle = signInWith fake app prepared "openid profile" handle
+
+/// The details of every sign-in failure, oldest first.
+let failures (app: Fixtures.TestApp) =
+    task {
+        use! connection = Database.openConnection app.DbConfig
+        use command = connection.CreateCommand()
+        command.CommandText <- "SELECT ifnull(detail, '') FROM security_events WHERE event_type = 'sign_in_failed' ORDER BY id"
+        use! reader = command.ExecuteReaderAsync()
+        let rows = ResizeArray<string>()
+
+        while reader.Read() do
+            rows.Add(reader.GetString 0)
+
+        return List.ofSeq rows
+    }
+
+/// Every security event's detail, whatever its kind.
+let allDetails (app: Fixtures.TestApp) =
+    task {
+        use! connection = Database.openConnection app.DbConfig
+        use command = connection.CreateCommand()
+        command.CommandText <- "SELECT ifnull(detail, '') FROM security_events ORDER BY id"
+        use! reader = command.ExecuteReaderAsync()
+        let rows = ResizeArray<string>()
+
+        while reader.Read() do
+            rows.Add(reader.GetString 0)
+
+        return List.ofSeq rows
+    }
+
+let userCount (app: Fixtures.TestApp) =
+    task {
+        let! count = Flows.scalar app "SELECT count(*) FROM users" []
+        return Convert.ToInt64 count
     }
 
 [<Fact>]
@@ -171,4 +259,139 @@ let ``a PDS that resolves only to a private address is refused before anything i
         Assert.Equal(0, fake.CountOf "https://pds.test")
         let! events = Flows.scalar app "SELECT count(*) FROM security_events WHERE detail = 'bluesky:not_a_handle'" []
         Assert.Equal(1L, Convert.ToInt64 events)
+    }
+
+
+// ---------------------------------------------------------------------------
+// T008: more sign-ins
+// ---------------------------------------------------------------------------
+
+let private bob =
+    { Did = "did:plc:77777777777777777777aaaa"
+      Handle = "bob.example.org"
+      DisplayName = Some "Bob"
+      AvatarCid = None
+      Pds = "https://pds.test"
+      Issuer = "https://bsky.test" }
+
+[<Fact>]
+let ``a handle served over HTTPS only, with no TXT record, signs in`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        fake.AddAccount(bob, false)
+        let! done' = signIn fake app prepared "Bob.Example.Org"
+        Assert.Equal("Bob", strOf done'.IdToken "name")
+        Assert.Equal("bob.example.org", strOf done'.IdToken "preferred_username")
+        Assert.Equal(1, fake.CountOf "GET https://bob.example.org/.well-known/atproto-did")
+    }
+
+[<Fact>]
+let ``a DID typed directly signs in, and the handle shown is the document's`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        let! done' = signIn fake app prepared ana.Did
+        Assert.Equal("ana.bsky.social", strOf done'.IdToken "preferred_username")
+        Assert.Equal("Ana", strOf done'.IdToken "name")
+        // No handle was resolved on the way: the DID went straight to the directory.
+        Assert.Equal(0, fake.CountOf "atproto-did")
+        let! avatar = Flows.scalar app "SELECT avatar_url FROM users WHERE display_name = 'Ana'" []
+        Assert.Contains("cid=bafkreiavatar", avatar)
+    }
+
+[<Fact>]
+let ``a moved handle signs in as the same user, and the handle shown follows the document`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        let! first = signIn fake app prepared "ana.bsky.social"
+        let! users = userCount app
+
+        // The document now names another handle, served over HTTPS.
+        fake.AddAccount({ ana with Handle = "ana.example.social" }, false)
+
+        // The old name no longer works: its document does not name it.
+        let! _, refused = attempt app prepared "ana.bsky.social"
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode)
+
+        let! second = signIn fake app prepared "ana.example.social"
+        Assert.Equal(strOf first.IdToken "sub", strOf second.IdToken "sub")
+        Assert.Equal("ana.example.social", strOf second.IdToken "preferred_username")
+        let! after = userCount app
+        Assert.Equal(users, after)
+    }
+
+[<Fact>]
+let ``a profile that cannot be read still signs in, named by the handle and with no picture`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        fake.ProfileFails <- true
+        let! done' = signIn fake app prepared "ana.bsky.social"
+        Assert.Equal("ana.bsky.social", strOf done'.IdToken "name")
+        Assert.False(fst (done'.IdToken.TryGetProperty "picture"))
+        let! avatar = Flows.scalar app "SELECT avatar_url FROM users WHERE display_name = 'ana.bsky.social'" []
+        Assert.Equal("", avatar)
+    }
+
+[<Fact>]
+let ``a display name with a control character and 300 characters comes back cleaned and at most 200`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        fake.AddAccount({ ana with DisplayName = Some("An\u0007a" + String('b', 299)) }, true)
+        let! done' = signIn fake app prepared "ana.bsky.social"
+        let name = strOf done'.IdToken "name"
+        Assert.True(name.Length <= 200)
+        Assert.StartsWith("Anab", name)
+        Assert.DoesNotContain("\u0007", name)
+    }
+
+[<Fact>]
+let ``the pushed request carries the normalised handle, the atproto scope and S256, and the redirect only the request`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        let! _, posted = start app prepared "@Ana.Bsky.Social"
+        let par = (fake.Server ana.Issuer).Pars.Values |> Seq.exactlyOne
+        Assert.Equal("ana.bsky.social", par.LoginHint)
+        Assert.Equal("atproto", par.Scope)
+        Assert.Equal("S256", par.ChallengeMethod)
+        Assert.Equal("https://umbral.test/connect/bluesky/client-metadata.json", par.ClientId)
+
+        let query = Web.HttpUtility.ParseQueryString(Uri(posted.Headers.Location |> string).Query)
+        Assert.Equal<string list>([ "client_id"; "request_uri" ], query.AllKeys |> Seq.choose Option.ofObj |> Seq.sort |> List.ofSeq)
+    }
+
+[<Fact>]
+let ``a nonce asked for at the pushed request and at the token request is retried, with no query in any proof's htu`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        let server = fake.Server ana.Issuer
+        let! browser, posted = start app prepared "ana.bsky.social"
+
+        // The server moves on to another nonce before the code is exchanged.
+        server.Nonce <- "n2"
+
+        let callback = Uri(fake.Approve(posted.Headers.Location |> string))
+        let! back = browser.Get callback.PathAndQuery
+        Assert.Contains("/connect/authorize", back.Headers.Location |> string)
+        let! failed = failures app
+        Assert.Empty failed
+
+        let nonces endpoint =
+            fake.Proofs |> Array.filter (fun p -> p.Endpoint = endpoint) |> Array.map _.Nonce |> List.ofArray
+
+        Assert.Equal<string option list>([ None; Some "n1" ], nonces "par")
+        Assert.Equal<string option list>([ Some "n1"; Some "n2" ], nonces "token")
+        Assert.All(fake.Proofs, fun p -> Assert.DoesNotContain("?", p.Url))
+        Assert.Equal(4, fake.Proofs.Length)
+    }
+
+[<Fact>]
+let ``a server that refuses every nonce shows the unsupported message`` () =
+    task {
+        let! fake, app, prepared = setup ()
+        (fake.Server ana.Issuer).RefuseNonces <- true
+        let! _, posted = attempt app prepared "ana.bsky.social"
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, posted.StatusCode)
+        let! html = posted.Content.ReadAsStringAsync()
+        Assert.Contains("does not offer the sign-in Umbral uses", html)
+        let! details = failures app
+        Assert.Equal("bluesky:server_unsupported;server=bsky.test", Assert.Single details)
     }
