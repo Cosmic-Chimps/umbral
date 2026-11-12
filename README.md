@@ -3,7 +3,7 @@
 A self-hosted OpenID Connect provider whose only job is **signing people in
 without passwords**: with a social provider they already use, or with a
 passkey. Your apps talk to Umbral using any standard OIDC library. Umbral talks
-to Discord, GitHub, Google and Apple, to Mastodon and GoToSocial servers, and to any
+to Discord, GitHub, Google, Apple and Microsoft, to Mastodon and GoToSocial servers, and to any
 OpenID Connect provider you already run, such as Authentik, Keycloak, Pocket ID
 or Authelia, and it can sign people in with a passkey on its own. You wire each
 provider up once, in one place, instead of in every app.
@@ -17,7 +17,7 @@ It has three concepts, and that is the whole product:
 | Concept | What it is |
 | --- | --- |
 | **App** | A program that signs people in through Umbral. It gets a client ID and a client secret. |
-| **Connector** | Umbral's identity at an upstream provider (Discord, GitHub, Google, Apple, or an OpenID Connect provider of your own): the OAuth application you create there, with its credentials. There can be several per provider, except Apple, where there is one per instance. Three other connectors are one per instance too: **passkey**, where Umbral is the provider and there is nothing to create anywhere, **Fediverse**, where there is nothing to create either because Umbral registers itself with each Mastodon or GoToSocial server the first time someone from it signs in, and **Bluesky**, where there is nothing to create because Umbral publishes a small document about itself that each person's server reads. |
+| **Connector** | Umbral's identity at an upstream provider (Discord, GitHub, Google, Apple, Microsoft, or an OpenID Connect provider of your own): the OAuth application you create there, with its credentials. There can be several per provider, except Apple and Microsoft, where there is one per instance. Three other connectors are one per instance too: **passkey**, where Umbral is the provider and there is nothing to create anywhere, **Fediverse**, where there is nothing to create either because Umbral registers itself with each Mastodon or GoToSocial server the first time someone from it signs in, and **Bluesky**, where there is nothing to create because Umbral publishes a small document about itself that each person's server reads. |
 | **User** | A person who has signed in at least once. |
 
 **What Umbral is not.** It has no realms, tenants, groups, roles or permissions,
@@ -53,6 +53,7 @@ reads the same here on GitHub.
   [GitHub](https://cosmic-chimps.github.io/umbral/connectors/github/) ·
   [Google](https://cosmic-chimps.github.io/umbral/connectors/google/) ·
   [Apple](https://cosmic-chimps.github.io/umbral/connectors/apple/) ·
+  [Microsoft](https://cosmic-chimps.github.io/umbral/connectors/microsoft/) ·
   [Your own OpenID Connect provider](https://cosmic-chimps.github.io/umbral/connectors/oidc/) ·
   [Passkeys](https://cosmic-chimps.github.io/umbral/connectors/passkey/) ·
   [Fediverse](https://cosmic-chimps.github.io/umbral/connectors/fediverse/) ·

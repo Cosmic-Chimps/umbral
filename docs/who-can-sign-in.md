@@ -75,6 +75,7 @@ an **Allowed email domains** section:
 [GitHub](connectors/github.md#allowed-email-domains) ·
 [Google](connectors/google.md#allowed-email-domains) ·
 [Apple](connectors/apple.md#allowed-email-domains) ·
+[Microsoft](connectors/microsoft.md#allowed-email-domains) ·
 [Your own OpenID Connect provider](connectors/oidc.md#allowed-email-domains).
 
 These rules do not govern the passkey connector: passkeys carry no email, so

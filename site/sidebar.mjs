@@ -24,6 +24,7 @@ export const sidebar = [
       { label: 'GitHub', slug: 'connectors/github' },
       { label: 'Google', slug: 'connectors/google' },
       { label: 'Apple', slug: 'connectors/apple' },
+      { label: 'Microsoft', slug: 'connectors/microsoft' },
       { label: 'Your own OpenID Connect provider', slug: 'connectors/oidc' },
       { label: 'Passkeys', slug: 'connectors/passkey' },
       { label: 'Fediverse', slug: 'connectors/fediverse' },
