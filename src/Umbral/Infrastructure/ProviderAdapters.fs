@@ -46,6 +46,10 @@ type ConnectorError =
     | ProviderRejected of error: string
     | ProviderUnreachable of detail: string
     | MalformedResponse of detail: string
+    /// The provider proved who the person is, and the operator's rule does not
+    /// admit them (a Microsoft tenant outside the chosen audience, specs/016).
+    /// Not a malformed answer and not the person's mistake to repair.
+    | AccountRefused of detail: string
 
     /// What the operator sees in the security log.
     member this.Detail =
@@ -54,6 +58,7 @@ type ConnectorError =
         | ProviderRejected error -> $"rejected: {error}"
         | ProviderUnreachable detail -> $"unreachable: {detail}"
         | MalformedResponse detail -> $"malformed_response: {detail}"
+        | AccountRefused detail -> $"refused: {detail}"
 
 /// Everything a provider needs to build its authorize URL. Passed in rather
 /// than read, so BuildAuthorizeUrl stays pure and golden-testable.

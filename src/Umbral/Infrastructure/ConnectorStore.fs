@@ -17,7 +17,7 @@ open Umbral.Domains.Passkeys
 let private Columns =
     "SELECT slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
             is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains, passkey_enrolment,
-            fediverse_scope, fediverse_servers, apple_team_id, apple_key_id FROM connectors"
+            fediverse_scope, fediverse_servers, apple_team_id, apple_key_id, microsoft_audience FROM connectors"
 
 let private readOptional (reader: SqliteDataReader) (ordinal: int) =
     if reader.IsDBNull ordinal then None else Some(reader.GetString ordinal)
@@ -57,6 +57,11 @@ let private read (reader: SqliteDataReader) =
         match readOptional reader 15, readOptional reader 16 with
         | Some teamId, Some keyId -> Some { TeamId = teamId; KeyId = keyId }
         | _ -> None
+      MicrosoftAudience =
+        // NULL for every kind but `microsoft`. A value this build cannot read (a
+        // hand-edited row) reads as no audience: the connector cannot be enabled
+        // or used until the operator chooses one again (specs/016 data-model).
+        readOptional reader 17 |> Option.bind Microsoft.parseStoredAudience
       CreatedUtc = DateTimeOffset.Parse(reader.GetString 8, Globalization.CultureInfo.InvariantCulture)
       UpdatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture) }
 
@@ -161,6 +166,11 @@ let private appleKeyParameter (connector: Connector) : obj =
     | Some key -> key.KeyId :> obj
     | None -> DBNull.Value :> obj
 
+let private microsoftAudienceParameter (connector: Connector) : obj =
+    match connector.MicrosoftAudience with
+    | Some audience -> Microsoft.stored audience :> obj
+    | None -> DBNull.Value :> obj
+
 let private issuerParameter (connector: Connector) : obj =
     match connector.IssuerUrl with
     | Some issuer -> issuer :> obj
@@ -195,9 +205,10 @@ let save
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
                   is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains,
-                  passkey_enrolment, fediverse_scope, fediverse_servers, apple_team_id, apple_key_id)
+                  passkey_enrolment, fediverse_scope, fediverse_servers, apple_team_id, apple_key_id,
+                  microsoft_audience)
              VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains,
-                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey)
+                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey, @microsoftAudience)
              ON CONFLICT (slug) DO UPDATE SET
                  display_name      = @name,
                  client_id         = @clientId,
@@ -211,6 +222,7 @@ let save
                  fediverse_servers = @fediServers,
                  apple_team_id     = @appleTeam,
                  apple_key_id      = @appleKey,
+                 microsoft_audience = @microsoftAudience,
                  updated_utc       = @now"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -228,6 +240,7 @@ let save
         command.Parameters.AddWithValue("@fediServers", Fediverse.serialiseServers connector.FediverseAccess.Servers) |> ignore
         command.Parameters.AddWithValue("@appleTeam", appleTeamParameter connector) |> ignore
         command.Parameters.AddWithValue("@appleKey", appleKeyParameter connector) |> ignore
+        command.Parameters.AddWithValue("@microsoftAudience", microsoftAudienceParameter connector) |> ignore
         command.Parameters.AddWithValue("@now", now) |> ignore
 
         let! _ = command.ExecuteNonQueryAsync()
@@ -273,9 +286,10 @@ let create
             "INSERT INTO connectors
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
                   is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains,
-                  passkey_enrolment, fediverse_scope, fediverse_servers, apple_team_id, apple_key_id)
+                  passkey_enrolment, fediverse_scope, fediverse_servers, apple_team_id, apple_key_id,
+                  microsoft_audience)
              VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains,
-                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey)
+                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey, @microsoftAudience)
              ON CONFLICT (slug) DO NOTHING"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -293,6 +307,7 @@ let create
         command.Parameters.AddWithValue("@fediServers", Fediverse.serialiseServers connector.FediverseAccess.Servers) |> ignore
         command.Parameters.AddWithValue("@appleTeam", appleTeamParameter connector) |> ignore
         command.Parameters.AddWithValue("@appleKey", appleKeyParameter connector) |> ignore
+        command.Parameters.AddWithValue("@microsoftAudience", microsoftAudienceParameter connector) |> ignore
         command.Parameters.AddWithValue("@now", now.ToUniversalTime().ToString "o") |> ignore
 
         try
@@ -365,6 +380,61 @@ let update
         | None ->
             command.Parameters.AddWithValue("@appleTeam", DBNull.Value) |> ignore
             command.Parameters.AddWithValue("@appleKey", DBNull.Value) |> ignore
+
+        command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+
+        let! changed = command.ExecuteNonQueryAsync()
+        return changed > 0
+    }
+
+/// Saves what the Microsoft pane edits on a stored `microsoft` connector: display
+/// name, client ID, the shared setting, the allowed email domains, the audience
+/// and, when one is supplied, the secret (reference and hint). Like `update`, the
+/// stored secret stays when `newSecretRef` is None; unlike it, the domains are
+/// always replaced (the pane always carries the field) and the audience is always
+/// written. Slug, kind and the enabled flag are left alone. Returns false when no
+/// `microsoft` connector has that slug.
+let saveMicrosoft
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (slug: string)
+    (displayName: string)
+    (clientId: string)
+    (isShared: bool)
+    (allowedDomains: string list)
+    (newSecretRef: (string * string) option)
+    (audience: MicrosoftAudience)
+    : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+
+        command.CommandText <-
+            "UPDATE connectors SET
+                 display_name       = @name,
+                 client_id          = @clientId,
+                 is_shared          = @shared,
+                 allowed_email_domains = @domains,
+                 client_secret_ref  = coalesce(@secretRef, client_secret_ref),
+                 client_secret_hint = coalesce(@secretHint, client_secret_hint),
+                 microsoft_audience = @audience,
+                 updated_utc        = @now
+             WHERE slug = @slug AND kind = 'microsoft'"
+
+        command.Parameters.AddWithValue("@slug", slug) |> ignore
+        command.Parameters.AddWithValue("@name", displayName) |> ignore
+        command.Parameters.AddWithValue("@clientId", clientId) |> ignore
+        command.Parameters.AddWithValue("@shared", (if isShared then 1 else 0)) |> ignore
+        command.Parameters.AddWithValue("@domains", EmailDomains.serialise allowedDomains) |> ignore
+        command.Parameters.AddWithValue("@audience", Microsoft.stored audience) |> ignore
+
+        match newSecretRef with
+        | Some(ref, hint) ->
+            command.Parameters.AddWithValue("@secretRef", ref) |> ignore
+            command.Parameters.AddWithValue("@secretHint", hint) |> ignore
+        | None ->
+            command.Parameters.AddWithValue("@secretRef", DBNull.Value) |> ignore
+            command.Parameters.AddWithValue("@secretHint", DBNull.Value) |> ignore
 
         command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
 

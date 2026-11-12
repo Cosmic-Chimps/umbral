@@ -623,6 +623,7 @@ let ``a legacy connector of another kind holding the slug keeps its entry and ge
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
+                  MicrosoftAudience = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = world.App.Clock.GetUtcNow()

@@ -836,6 +836,7 @@ let private googleStartUrl (connectorList: string list) (instanceList: string li
                   PasskeyEnrolment = Connectors.InvitationsOnly
                   FediverseAccess = Connectors.FediverseAccess.Any
                   AppleKey = None
+                  MicrosoftAudience = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
@@ -925,6 +926,7 @@ let private addOpenConnector (app: Fixtures.TestApp) (slug: string) =
                   PasskeyEnrolment = Connectors.InvitationsOnly
                   FediverseAccess = Connectors.FediverseAccess.Any
                   AppleKey = None
+                  MicrosoftAudience = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

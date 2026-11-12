@@ -57,6 +57,7 @@ let failureCode (error: ProviderAdapters.ConnectorError) =
     | ProviderAdapters.ProviderRejected _ -> "sign-in-failed"
     | ProviderAdapters.ProviderUnreachable _ -> "provider-unreachable"
     | ProviderAdapters.MalformedResponse _ -> "sign-in-failed"
+    | ProviderAdapters.AccountRefused _ -> "account-not-allowed"
 
 /// Back to the sign-in page with a failure code. With a `returnUrl` it goes
 /// back to the page of the app the person started from, so the page still names

@@ -138,6 +138,7 @@ let private claimAndConfigure (app: Fixtures.TestApp) (browser: Browser) : Task<
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
+                  MicrosoftAudience = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

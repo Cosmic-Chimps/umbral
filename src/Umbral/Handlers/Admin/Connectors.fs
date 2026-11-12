@@ -1151,11 +1151,12 @@ let private rowsFor (existing: Connector list) =
         | GitHub -> 1
         | Google -> 2
         | Apple -> 3
-        | Oidc -> 4
-        | Fake -> 5
-        | Fediverse -> 6
-        | Bluesky -> 7
-        | Passkey -> 8
+        | Microsoft -> 4
+        | Oidc -> 5
+        | Fake -> 6
+        | Fediverse -> 7
+        | Bluesky -> 8
+        | Passkey -> 9
 
     let stored =
         existing
@@ -1512,6 +1513,7 @@ let saveFediverse: EndpointHandler =
                                   PasskeyEnrolment = InvitationsOnly
                                   FediverseAccess = access
                                   AppleKey = None
+                                  MicrosoftAudience = None
                                   IsEnabled = true
                                   IsShared = shared
                                   CreatedUtc = now
@@ -1621,6 +1623,7 @@ let saveBluesky: EndpointHandler =
                                   PasskeyEnrolment = InvitationsOnly
                                   FediverseAccess = access
                                   AppleKey = None
+                                  MicrosoftAudience = None
                                   IsEnabled = true
                                   IsShared = shared
                                   CreatedUtc = now
@@ -1738,8 +1741,10 @@ let private mayCreate (ctx: HttpContext) (kind: ProviderKind) =
     match kind with
     | Fake -> (ctx.GetService<Providers.Fake.FakeGate>()).IsAllowed
     // Apple has four values and a route of its own (specs/013): it is not
-    // created through the generic card path.
+    // created through the generic card path. Nor is Microsoft (specs/016): it has
+    // a pane and a route of its own (task T006).
     | Apple
+    | Microsoft
     | Oidc
     | Fediverse
     | Bluesky
@@ -1877,6 +1882,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
+                  MicrosoftAudience = None
                   IsEnabled = enabled
                   IsShared = state.Shared
                   CreatedUtc = now
@@ -2011,6 +2017,7 @@ let create: EndpointHandler =
                       PasskeyEnrolment = InvitationsOnly
                       FediverseAccess = FediverseAccess.Any
                       AppleKey = None
+                      MicrosoftAudience = None
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
@@ -2279,6 +2286,7 @@ let save (slug: string) : EndpointHandler =
                           PasskeyEnrolment = InvitationsOnly
                           FediverseAccess = FediverseAccess.Any
                           AppleKey = None
+                          MicrosoftAudience = None
                           // A connector arrives enabled: the operator came here to
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true
@@ -2415,6 +2423,7 @@ let saveApple: EndpointHandler =
                           PasskeyEnrolment = InvitationsOnly
                           FediverseAccess = FediverseAccess.Any
                           AppleKey = Some parsed.Ids
+                          MicrosoftAudience = None
                           IsEnabled = unreachable.IsNone
                           IsShared = parsed.Shared
                           CreatedUtc = now

@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="Domains/Ids.fs" />
     <Compile Include="Domains/Connectors.fs" />
+    <Compile Include="Domains/Microsoft.fs" />
     <Compile Include="Domains/Passkeys.fs" />
     <Compile Include="Domains/Linking.fs" />
     <Compile Include="Domains/EmailDomains.fs" />

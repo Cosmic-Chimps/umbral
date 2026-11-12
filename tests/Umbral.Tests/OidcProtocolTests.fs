@@ -132,6 +132,7 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
                   PasskeyEnrolment = InvitationsOnly
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
+                  MicrosoftAudience = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
