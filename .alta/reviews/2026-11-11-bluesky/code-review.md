@@ -130,3 +130,44 @@ The blocking items are around that core: what is shown about the person, a re-ch
 - **R10.** The profile is fetched through the guard, a failure means no name, and the name is cleaned of Cc and Cf, cut at 200 on a scalar boundary.
 - **The admin side.** `saveBluesky` and the toggle sit behind `requireOperator` and `readValidated`. `parseServers` refuses wildcards, ports and IP literals in production. Logs carry fixed words only.
 - **Idle memory.** Neither Duende nor DnsClient is touched at startup. Your three runs per variant, at 141–143 MiB, are consistent with that.
+
+### The tests, run by the reviewer
+
+From a git checkout of `ddcf64d`'s files, with CI's commands: `dotnet build -c Release` with **0 warnings**, then `dotnet test -c Release --no-build --filter-not-class "Umbral.Tests.IdleMemoryTests"`, **2462 of 2462 passed**, the same figure as yours.
+
+## Answers (implementer, 2026-11-12, at `0150acf`)
+
+Everything below is in `0150acf`. The full suite, run without `IdleMemoryTests`, gives 2505 of 2505, with 0 warnings.
+
+- **B1, fixed.** In step 8, a handle from `handleOf` is used only when `resolveHandle` (TXT, then HTTPS, inside the attempt's deadline) gives exactly this DID. Otherwise `Username = None`, and the name falls back to the profile name, else the DID. The typed handle keeps `claimsHandle`, because it was resolved forward at the start. Tests:
+  - the typed-DID test now asserts that the forward lookup happens;
+  - a document claiming another account's handle gets no `preferred_username`;
+  - a claimed handle that resolves to nothing gets none either.
+- **B2, fixed.**
+  - `recheckServer` refuses (`Some ""`) when a user's `bluesky` links have no server and the list is "Only these servers".
+  - The callback calls `recordServer` before `finishSignIn` and after it. Before covers an existing link; after covers a link this sign-in created.
+  - Tests: the accounts test now asserts the refusal, and its companion still admits under "Any server". A callback test uses SQLite triggers to check the write order (server, user, server).
+- **B3, fixed.** `UseCache = false` and `UseTcpFallback = false`.
+- **B4, fixed.**
+  1. Outside development, `originOf` accepts the scheme's default port only, for the PDS and the authorization server alike.
+  2. The PAR, authorize and token endpoints must share the issuer's scheme, host and port; otherwise the result is `endpoint_invalid`.
+  3. `discover` is split into `authorizationServerOf` and `serverMetadataOf`, and the step checks the list between the two. A test asserts that an unlisted server's metadata is never requested.
+
+  Domain and step tests cover a foreign port, a foreign host, the scheme, a look-alike host, and the spellings that are accepted.
+- **N1, taken.** `attemptDeadline` is 20 s, with one `CancellationTokenSource` for the start and one for the callback. Every client call takes the token, the TXT lookup included. A deadline counts as `Unreachable`, which the step shows as "did not answer". The `ConcurrencyLimiter` is not added: the sign-in rate limit and the deadline already bound an attempt, and the Fediverse connector has the same shape.
+- **N2, taken.**
+  - A nonce longer than 512 characters gives `Unsupported "dpop_nonce"`.
+  - `OAuthRoundTrip.tryStartWith` takes a bound on the payload; the step passes 3800. When the payload is longer, the step refuses with `server_unsupported` and sets no cookie.
+  - `startWith` stays as a thin wrapper.
+- **N3, not taken now.** The session carries the user and the connector, not the provider subject, so a per-DID re-check needs the DID in the session first. A user can't hold two Bluesky DIDs today, because there is no email and so no linking. The day linking arrives, that change should bring this one with it. Until then, "any of the user's Bluesky links" and "the signed-in DID" are the same link.
+- **N4, taken.** `BlueskyAccounts.clearHandle` runs after the sign-in when no handle is verified. Tests cover the id token and the `users` row, plus a companion where a still-verified handle stays.
+- **N5, taken.** A failure inside `proofFor` gives `Unsupported "dpop_proof"` at PAR, and `exchange_failed` at the token request. Tests use an invalid JWK and check that nothing was sent.
+- **N6, taken.** `cleanName` and Apple's `nameOf` both drop U+2028 and U+2029, with one test each.
+- **N7, taken.** R12 now says that the resolver delegate is an ordinary value, and that it is `LookupClient` (behind an `obj | null` field) and Duende's types that stay unloaded.
+- **Test gaps, covered.**
+  - A `did:web` account signs in by its handle and by its DID, and is the same user both times.
+  - Step 7 has its own cases, each giving `not_authoritative` after the exchange with no user created: the PLC directory answers 500; the document's `id` differs; the issuer has a trailing slash; the issuer differs only by case; the metadata fails a condition.
+- **Docs.** `docs/connectors/bluesky.md` now says three things:
+  - `preferred_username` is sent only when the handle is confirmed both ways, and an earlier one is cleared;
+  - fetches go to the standard https port only, within 20 s in all;
+  - endpoints must be on the server's own address, and an unlisted sign-in server is not contacted.
