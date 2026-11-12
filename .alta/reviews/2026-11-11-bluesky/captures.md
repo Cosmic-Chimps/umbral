@@ -6,6 +6,8 @@ and 360, themes dark and light, unless the table says otherwise. Overflow is `sc
 read on the page right before each shot: **no capture overflows horizontally** (the numbers are in
 `capture.mjs`'s output; every one was `scrollWidth == innerWidth`).
 
+**Retaken 2026-11-12 after the design-review changes (a4bd928; build of ca31ec0):** `connectors-any-https-1280-dark.png` (metadata address now wrapping mono text with Copy under it), `connectors-any-1280-dark.png` and `connectors-list-1280-light.png` (Servers field without a placeholder; the `retake.mjs` script took them). Items 1 and 2 under "What looked off" are therefore fixed; the other 1280/360 pane captures were not retaken and still show the old field.
+
 ## Instances
 
 | Instance | Origin | Flags | Used for |
