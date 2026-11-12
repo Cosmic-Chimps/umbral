@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-12
 
-**Status**: Draft
+**Status**: Implemented; design, documentation and code reviews clear on 2026-11-12; not merged
 
 **Input**: Task `2026-11-11-3-connector-bluesky-atproto-b5ky`: "3. Connector: Bluesky (AT Protocol OAuth), after a feasibility check". It is the third of five tasks. Step 0, the feasibility check, passed on 2026-11-12 ([feasibility](../../.alta/reviews/2026-11-11-bluesky/feasibility.md)), and the code reviewer agreed with it the same day.
 

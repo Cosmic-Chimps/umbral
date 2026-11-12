@@ -6,12 +6,12 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 ## Phase 1: Foundation
 
-- [ ] **T001** The packages `Duende.IdentityModel.OidcClient.Extensions` 7.1.1 and `DnsClient` 1.8.0, with comments. Then:
+- [x] **T001** The packages `Duende.IdentityModel.OidcClient.Extensions` 7.1.1 and `DnsClient` 1.8.0, with comments. Then:
   - the `Bluesky` kind wherever `Fediverse` is matched, in `Domains/Connectors.fs`, `ConnectorStore.fs`, `EmailDomainRules.fs` (NoRule), `Apps.fs` (limited iff Only these servers), and `Handlers/Admin/Connectors.fs`, compiling, with the pane still a placeholder;
   - the suite green.
 
   Files: `Umbral.fsproj`, `Domains/Connectors.fs`, `Infrastructure/*`, `Handlers/Admin/*`, test literals.
-- [ ] **T002** Schema 12: `linked_accounts.provider_server`. Then `BlueskyAccounts.recordServer` and `recheckServer`, the re-check called in `Authorize.fs` and `Token.fs` beside the Fediverse re-check. Tests:
+- [x] **T002** Schema 12: `linked_accounts.provider_server`. Then `BlueskyAccounts.recordServer` and `recheckServer`, the re-check called in `Authorize.fs` and `Token.fs` beside the Fediverse re-check. Tests:
   - a version 11 database upgrades;
   - the column round-trips;
   - the re-check admits for Any, for a listed server and for a null server, and refuses an unlisted one.
@@ -20,7 +20,7 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 ## Phase 2: Pure rules
 
-- [ ] **T003** `Domains/Bluesky.fs` (data model table) and `tests/Umbral.Tests/BlueskyDomainTests.fs`:
+- [x] **T003** `Domains/Bluesky.fs` (data model table) and `tests/Umbral.Tests/BlueskyDomainTests.fs`:
   - handle syntax and reserved names;
   - DID syntax;
   - TXT selection;
@@ -33,8 +33,8 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 ## Phase 3: The round trip and the client
 
-- [ ] **T004** `Correlation.Extra` as an eighth encoded field. Payloads of six and seven fields still decode. Tests in `OAuthRoundTripTests.fs`.
-- [ ] **T005** `Infrastructure/Providers/Bluesky.fs`, the `umbral-bluesky` client and the seams in `Program.fs`. Tests in `tests/Umbral.Tests/BlueskyClientTests.fs` with a stub handler:
+- [x] **T004** `Correlation.Extra` as an eighth encoded field. Payloads of six and seven fields still decode. Tests in `OAuthRoundTripTests.fs`.
+- [x] **T005** `Infrastructure/Providers/Bluesky.fs`, the `umbral-bluesky` client and the seams in `Program.fs`. Tests in `tests/Umbral.Tests/BlueskyClientTests.fs` with a stub handler:
   - `htu` without query or fragment;
   - a nonce retry at PAR and at the token request, and only once;
   - the proof's header `typ`, `alg` ES256 and a public-only `jwk`;
@@ -43,9 +43,9 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 ## Phase 4: Sign-in (User Stories 1, 3, 4)
 
-- [ ] **T006** `tests/Umbral.Tests/Infrastructure/FakeAtproto.fs`: DNS map, PLC, `did:web`, PDS, AS (PAR, authorize redirect, token, nonces, proof verification), and modes for every refusal.
-- [ ] **T007** `Handlers/Connect/Bluesky.fs`: the step GET and POST, the callback (R6), the client metadata route. Also the Texts of the step and its errors, and the endpoints in `Program.fs`.
-- [ ] **T008** `tests/Umbral.Tests/BlueskySignInTests.fs`, through the real pipeline. Sign-in:
+- [x] **T006** `tests/Umbral.Tests/Infrastructure/FakeAtproto.fs`: DNS map, PLC, `did:web`, PDS, AS (PAR, authorize redirect, token, nonces, proof verification), and modes for every refusal.
+- [x] **T007** `Handlers/Connect/Bluesky.fs`: the step GET and POST, the callback (R6), the client metadata route. Also the Texts of the step and its errors, and the endpoints in `Program.fs`.
+- [x] **T008** `tests/Umbral.Tests/BlueskySignInTests.fs`, through the real pipeline. Sign-in:
   - a full sign-in by DNS handle and by HTTPS handle, the app getting `name`, `preferred_username`, `picture` and `profile`, with no `email`;
   - a moved handle gives the same `sub`;
   - a DID typed directly.
@@ -61,17 +61,17 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 ## Phase 5: The Connectors screen (User Story 2)
 
-- [ ] **T009** `Handlers/Admin/BlueskyConnector.fs`; in `Connectors.fs`, order, dispatch, save route and notices; the Enable check in `ConnectorToggle.fs`; the origin-blocked pane; the Texts. Tests in `tests/Umbral.Tests/BlueskyAdminTests.fs`:
+- [x] **T009** `Handlers/Admin/BlueskyConnector.fs`; in `Connectors.fs`, order, dispatch, save route and notices; the Enable check in `ConnectorToggle.fs`; the origin-blocked pane; the Texts. Tests in `tests/Umbral.Tests/BlueskyAdminTests.fs`:
   - not set up, enable, list save, a refused entry, the empty list;
   - the origin blocked (pane, crafted save, crafted Enable);
   - the dev loopback note;
   - the order;
   - no antiforgery token, no change.
-- [ ] **T010** The picker: the button, its link and the Last used badge, checked and tested (one test).
+- [x] **T010** The picker: the button, its link and the Last used badge, checked and tested (one test).
 
 ## Phase 6: Docs
 
-- [ ] **T011** [P]
+- [x] **T011** [P]
   - `docs/connectors/bluesky.md`;
   - Bluesky in the "Other providers" line of every walkthrough, the README's introduction and connector list, `site/sidebar.mjs`;
   - schema 12 in `docs/run/backup.md`;
@@ -79,4 +79,4 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 ## Phase 7: Verify
 
-- [ ] **T012** The full suite green with 0 warnings; the idle-memory test with the connector enabled (figure in `notes.md`); the site builds; the changelog check; the walk at 1280 and 360, dark and light (design note 6); the three reviews.
+- [x] **T012** The full suite green with 0 warnings; the idle-memory test with the connector enabled (figure in `notes.md`); the site builds; the changelog check; the walk at 1280 and 360, dark and light (design note 6); the three reviews.
