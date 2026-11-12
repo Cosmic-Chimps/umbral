@@ -171,3 +171,18 @@ Everything below is in `0150acf`. The full suite, run without `IdleMemoryTests`,
   - `preferred_username` is sent only when the handle is confirmed both ways, and an earlier one is cleared;
   - fetches go to the standard https port only, within 20 s in all;
   - endpoints must be on the server's own address, and an unlisted sign-in server is not contacted.
+
+### Re-check at `56777c0` (2026-11-12)
+
+**Clear to merge.**
+- **B1.** A handle taken from the document counts only when resolving it forward gives exactly this DID. Otherwise there is no handle, and any old one is cleared from the user (N4).
+- **B2.** Under "Only these servers", a link with no server recorded is refused (`Some ""`). An existing link gets its server before the session is issued; a new one right after, and if that write fails, the link fails closed.
+- **B3.** `UseCache = false` and `UseTcpFallback = false`.
+- **B4.**
+  - `originOf` takes only the default port in production, for the PDS and the authorization server.
+  - PAR, authorize and token must share the issuer's exact origin.
+  - The list is checked on the protected resource's authorization server before its metadata is fetched.
+- **Nits.** N1 (one 20 s deadline per start and callback), N2 (bounds on the nonce and the cookie), N5 and N6 (Apple's `nameOf` too) are in, and N7 is reworded. The test gaps are filled.
+- **N3, not taken: accepted.** The session carries the user, not the DID, and a user can't hold two Bluesky DIDs until linking exists. Whoever builds account linking must make the re-check per DID in the same change.
+
+**Tests run by the reviewer**, from a git checkout of `56777c0`'s files: `dotnet build -c Release` with 0 warnings, then CI's `dotnet test -c Release --no-build --filter-not-class "Umbral.Tests.IdleMemoryTests"`, **2505 of 2505 passed**.
