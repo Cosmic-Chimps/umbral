@@ -39,6 +39,8 @@ setup token from an argument):
   read of Umbral's own `id_token` and userinfo for each.
 - `umbral-gitlab.mjs`: the same for the GitLab connector, on the running instance.
 - `ui.mjs`: dumps the headings, labels and menu of each forge's application pages.
+- `primary.mjs`: the re-check with confirmation on, up to adding an unconfirmed address (the
+  Forgejo make-primary reproduction is held locally, outside the repo; see B3 above).
 
 Playwright 1.64.1 with the installed Chrome; Node 22.23.4.
 
@@ -160,16 +162,40 @@ no mailer is configured):
    issued, Umbral sees nothing. So an inactive account never reaches Umbral and the absent claim is
    never observed in practice.
 
-Consequence for the documentation: a Forgejo or Gitea whose registration is open **and** does not
-confirm addresses hands out `email_verified: true` for any address anyone types. It is safe to add
-only when registration is closed (`[service] DISABLE_REGISTRATION = true`) or requires confirmation
-(`[service] REGISTER_EMAIL_CONFIRM = true`, which needs `[mailer]`), or when the operator accepts
-that everyone who can register there can claim any address. Codeberg's own docs say a new account
-must confirm its address by clicking the link in the email before it is usable, so codeberg.org is in
-the confirming group (not tried with an account; see the gap above).
+Consequence for the documentation, before the re-check below: a Forgejo or Gitea whose registration
+is open **and** does not confirm addresses hands out `email_verified: true` for any address anyone
+types. Codeberg's own docs say a new account must confirm its address by clicking the link in the
+email before it is usable (not tried with an account; see the gap above).
 
-Not tried: whether an active Forgejo or Gitea account can make an unconfirmed address its primary
-one while confirmation is on (the claim would still be `true`). The docs do not claim it either way.
+### Re-check for the documentation review (B1): confirmation on, and an existing account
+
+The review asked whether an **active** account can carry an address it never confirmed, which is
+the question that matters when `email_verified` is "the account is active". Both forges were
+re-created with `[service] REGISTER_EMAIL_CONFIRM = true` and a dummy `[mailer]` (checked in the
+effective `app.ini`):
+
+1. **Self-registration** (`mallory`): the account is created inactive; at the authorization page
+   both forges show **"Activate your account"** and issue nothing. Confirmation on means sign-up no
+   longer lets anyone claim an address.
+2. **An active account adds an address** (`ana` adds a second address on **Settings → Account**):
+   the list shows it as **Requires activation**, and neither forge's UI offers to make an
+   unactivated address primary. Ana's token still carried her original address.
+3. **Gitea 1.26.4** kept the primary address confirmed under that setting. **Forgejo 14.0.5** could
+   not be shown to: an existing account was able to end up with a primary address it never
+   confirmed, after which Forgejo's own API reported that address as primary and unverified and the
+   next `id_token` and userinfo presented it as `email_verified: true`.
+
+So on Forgejo 14.0.5, confirmation being on is not enough: an existing account can present Umbral an
+address it never proved it can read. Gitea did not show that.
+
+> **Held out of the repository on the documentation reviewer's advice (B3).** The exact way the
+> Forgejo result was produced, and the script that does it, are **not** in this branch: this
+> repository is public, and this looks like an unreported Forgejo bug. A search on 2026-11-13 found
+> only a related, already-fixed Forgejo issue (primary-email validation bypass, v11.0.4 / v12.0.2,
+> forgejo/security-announcements #39), not this one. The reproduction is kept locally (outside the
+> repo) for a private report to Forgejo's security contact, which is **the maintainer's to make**;
+> it was not reported from here, and the method should come back into the notes and the walkthrough
+> only once a Forgejo release names it fixed.
 
 ## Through Umbral (`umbral.mjs`, `umbral-gitlab.mjs`)
 
@@ -199,7 +225,8 @@ secret; none required or refused it. The callback is the one Umbral shows,
 ## Verdict
 
 - **All three work through the generic connector unchanged.** No connector, no code change, no
-  small fix to propose.
+  small fix to propose. The Forgejo make-primary finding (re-check above) is the forge's, not
+  Umbral's; the documentation says what it means for an operator.
 - **Documentation:** rows in the issuer table, a section "A public forge: GitLab, Codeberg, or one
   you run" in `docs/connectors/oidc.md`, the README's connector list, a `changelog.d` file. No page
   per forge: the steps differ only in menu names and in what `email_verified` means.

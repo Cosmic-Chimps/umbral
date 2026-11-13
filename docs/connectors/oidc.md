@@ -7,13 +7,17 @@ speaks OpenID Connect. Instead of wiring
 every app to that provider by hand, you wire it to Umbral once and your apps
 keep talking to Umbral.
 
-You do not need this if you only want Discord, GitHub or Google. Those have
-walkthroughs of their own, and no provider of your own to run.
+You do not need this if you only want Discord, GitHub, Google, Apple or
+Microsoft. Those have walkthroughs of their own, and no provider of your own to
+run.
 
 **A forge, public or your own.** "Sign in with GitLab", "Sign in with Codeberg"
 or a Forgejo or Gitea you run is this connector too: GitLab, Forgejo (what
 Codeberg runs) and Gitea are OpenID Connect providers. The steps below apply as
-written; what differs, and what their `email_verified` means, is in
+written, with one thing to read before you add a Forgejo or Gitea:
+[what its `email_verified` means](#what-email_verified-means-on-a-forge), because
+an account there can claim an address it never confirmed. The rest of what
+differs is in
 [A public forge: GitLab, Codeberg, or one you run](#a-public-forge-gitlab-codeberg-or-one-you-run).
 
 **Microsoft: which connector.** Use this one when the people who sign in belong
@@ -98,8 +102,8 @@ Where each product puts it:
 | **Pocket ID** | `https://id.example.com` | The instance root: the address you open Pocket ID at, with no path. |
 | **Authelia** | `https://auth.example.com` | The instance root: the address of your Authelia portal, with no path. |
 | **GitLab** | `https://gitlab.com`, or `https://git.example.com` for your own | The instance root, with no path: the address people open GitLab at. Your own GitLab builds it from `external_url`. |
-| **Forgejo, Codeberg** | `https://codeberg.org`, or `https://git.example.com` for your own | The instance root, with no path. Your own Forgejo builds it from `ROOT_URL` (without the trailing slash). |
-| **Gitea** | `https://git.example.com` | The instance root, with no path: `ROOT_URL` without the trailing slash. |
+| **Forgejo, Codeberg** | `https://codeberg.org`, or `https://git.example.com` for your own | The instance root, with no path. Your own Forgejo builds it from `ROOT_URL` (without the trailing slash). **Before adding one, Codeberg included, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): as of Forgejo 14.0, an account there may claim an address it never confirmed.** |
+| **Gitea** | `https://git.example.com` | The instance root, with no path: `ROOT_URL` without the trailing slash. **Before adding one, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): open registration without email confirmation lets people claim any address.** |
 | **Another provider** | its discovery page without `/.well-known/openid-configuration` | Look for "Issuer", "Discovery URL" or "OpenID configuration" in its settings, or try the test above. |
 
 *Menu names and issuer shapes for Authentik, Keycloak, Pocket ID and Authelia
@@ -312,8 +316,10 @@ account's numeric id, so renaming the account changes nothing. The name is the
 full name, or on Forgejo and Gitea the username when there is none; the picture
 is the forge's avatar.
 
-**What `email_verified` means there.** Read this before adding a forge, because
-it decides whether people get linked to someone else's account:
+### What `email_verified` means on a forge
+
+Read this before adding a forge, because it decides whether people get linked to
+someone else's account:
 
 - **GitLab** marks an address verified when the account's primary address has
   been confirmed, and refuses to authorize any application for an account whose
@@ -322,21 +328,30 @@ it decides whether people get linked to someone else's account:
   say. An address from GitLab, gitlab.com included, is one its holder proved
   they can read.
 - **Forgejo and Gitea** send `email_verified: true` for **every active account**,
-  and say nothing about the address itself. On a forge where anyone can register
-  and addresses are not confirmed, which is their default when no mailer is
-  configured, a newcomer who types your address at sign-up gets it marked
-  verified, and Umbral would link them to you. Codeberg asks every new account to
-  confirm its address before it can be used, so it is in the safe group. Before
-  you add a Forgejo or Gitea of your own, make sure one of these holds: registration
-  is closed (`DISABLE_REGISTRATION = true` under `[service]`), or new accounts
-  must confirm their address (`REGISTER_EMAIL_CONFIRM = true`, which needs a
-  `[mailer]`), or everyone who can register there is someone you trust with any
-  address. The [email warning](#before-you-start) at the top of this page is
-  about exactly this. A deactivated account is refused by the forge before Umbral
-  hears of it.
+  and say nothing about the address itself. What that is worth depends on the
+  forge's settings, and on the forge. Tried in November 2026 on Forgejo 14.0.5
+  and Gitea 1.26.4:
+  - With registration open and addresses not confirmed, which is their default
+    when no mailer is configured, a newcomer who types your address at sign-up
+    gets it marked verified, and Umbral would link them to you. Both forges.
+  - With confirmation required (`REGISTER_EMAIL_CONFIRM = true` under
+    `[service]`, which needs a `[mailer]`), a new account is stopped at
+    "Activate your account" until it confirms, so sign-up no longer lets anyone
+    claim an address. **Gitea** (tried on 1.26.4) kept an existing account's
+    primary address confirmed under that setting. **Forgejo** (tried on 14.0.5)
+    could not be shown to: an existing account was able to end up with a primary
+    address it never confirmed, which then reached Umbral as verified. Codeberg
+    runs Forgejo, and was not tried (it may run another version).
+
+  So: add a **Gitea** when its registration is closed (`DISABLE_REGISTRATION =
+  true`) or requires confirmation. Add a **Forgejo, Codeberg included**, only if
+  you trust everyone who has an account there with any address, until a Forgejo
+  release names this fixed. The [email warning](#before-you-start) at the top of
+  this page is about exactly this. A deactivated account is refused by the forge
+  before Umbral hears of it.
 
 A [domain rule](#allowed-email-domains) on a Forgejo or Gitea connector is only
-as strong as that registration rule.
+as strong as that.
 
 ## A provider that is only on plain http
 

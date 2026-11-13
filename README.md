@@ -56,7 +56,7 @@ reads the same here on GitHub.
   [Apple](https://cosmic-chimps.github.io/umbral/connectors/apple/) ·
   [Microsoft](https://cosmic-chimps.github.io/umbral/connectors/microsoft/) ·
   [Your own OpenID Connect provider](https://cosmic-chimps.github.io/umbral/connectors/oidc/) ·
-  [GitLab, Codeberg, Forgejo and Gitea](https://cosmic-chimps.github.io/umbral/connectors/oidc/#a-public-forge-gitlab-codeberg-or-one-you-run) (through the OpenID Connect connector) ·
+  [GitLab, Codeberg, Forgejo and Gitea](https://cosmic-chimps.github.io/umbral/connectors/oidc/#a-public-forge-gitlab-codeberg-or-one-you-run) (through the OpenID Connect connector; read its email note) ·
   [Passkeys](https://cosmic-chimps.github.io/umbral/connectors/passkey/) ·
   [Fediverse](https://cosmic-chimps.github.io/umbral/connectors/fediverse/) ·
   [Bluesky](https://cosmic-chimps.github.io/umbral/connectors/bluesky/)
