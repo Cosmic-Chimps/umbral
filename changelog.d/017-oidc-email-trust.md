@@ -13,6 +13,8 @@
   add whoever can register there. Turning trust off also makes unverified the stored addresses
   that only this provider verified, so an account a stranger registered earlier no longer holds
   someone else's address as verified. The page asks first and says how many.
+  It does not remove a link already made: see "Changing the email setting later" in the OpenID
+  Connect walkthrough for how to look for one.
 
 ### Upgrade
 

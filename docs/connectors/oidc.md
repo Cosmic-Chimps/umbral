@@ -503,6 +503,18 @@ The connector's page shows **Verified email addresses from this provider** with
 its current value, and saves it with the other settings. A change applies from
 the next sign-in. Turning trust off unlinks nobody who is already linked.
 
+That includes a link the provider should never have made. If people could sign
+up at this provider while it was **Trusted**, someone may have claimed another
+person's address and been linked into that person's account: they sign in as
+that person, in every app, and turning trust off does not stop them. Look for
+it on the **Users** screen: a user who has this provider **and** another one
+among their providers, where you do not recognise the link. Umbral cannot remove
+one link from a user. **Disable** stops both people, the real one included,
+because both sign in as that user. **Delete** removes the user and every link:
+the real person then signs in again through their own provider and gets a new
+account, and the other person, with trust off, gets a separate one. Apps see the
+new account as a new person.
+
 Turning it **off** does one more thing, and asks first. Every stored address that
 only this provider verified becomes unverified, so that it can no longer join
 someone into an account, and the page says how many: "Turning trust off makes
@@ -512,13 +524,14 @@ trust off** to go on. An address that another provider also verified stays
 verified. Turning trust **on** raises nothing: an address is verified again the
 next time its owner signs in through a provider that is Trusted.
 
-People who were admitted through an [allowed email domains](#allowed-email-domains)
-rule are refused at their next authorization or token refresh, because their
+People who signed in through this provider under an
+[allowed email domains](#allowed-email-domains) rule are refused at their next authorization or token refresh, because their
 address is no longer verified. Their user stays on the **Users** screen.
 
-The security log records it: `connector_created` and `connector_updated` carry
-`email_trust=on`, or `email_trust=off;lowered=<n>` with the number of users whose
-address became unverified. Nothing is logged for a save that did not change it.
+The security log records it. A new connector's `connector_created` carries
+`email_trust=on` or `email_trust=off`. A change on its page is a
+`connector_updated` with `email_trust=on`, or `email_trust=off;lowered=<n>` with
+the number of users whose address became unverified. Nothing is logged for a save that did not change it.
 Providers you added before this setting existed were set to **Trusted** when you
 upgraded, so nobody's sign-in changed: look at the setting on each one.
 

@@ -14,7 +14,8 @@ form is removed: its substance is the group's lead.
 | Part | Words |
 | --- | --- |
 | Legend | Verified email addresses from this provider |
-| Lead (hint text under the legend) | Some providers mark an address as verified without checking it. Where anyone can sign up, a person could claim someone else's address. |
+| Lead on the add form (design review, blocking 1) | Only for an OpenID Connect provider. Some providers mark an address as verified without checking it. Where anyone can sign up, a person could claim someone else's address. |
+| Lead on the pane (hint text under the legend) | Some providers mark an address as verified without checking it. Where anyone can sign up, a person could claim someone else's address. |
 | Card `on`, title | Trusted |
 | Card `on`, body | An address this provider marks as verified counts as verified here. People with the same address at another provider are the same account, and allowed email domains apply. For a provider you run or trust. |
 | Card `off`, title | Not trusted |
@@ -58,7 +59,8 @@ unshare confirmation (`strandWarning`):
 
 `n` is computed by the same statements as the real save, rolled back.
 A typed new secret is not carried by the confirm form; the pane's secret field
-then shows the "type it again" hint.
+then shows the "type it again" hint, and the confirm line ends "The new client
+secret was not saved: type it again after you turn trust off." (code review N2).
 
 ## Log
 

@@ -1275,7 +1275,9 @@ let ``the add form carries the email-trust group's lead and both cards in full``
 
         let! screen = operator.GetHtml "/admin/connectors/new"
         Assert.Contains("Verified email addresses from this provider", screen)
-        Assert.Contains("Some providers mark an address as verified without checking it.", screen)
+        // The form serves every kind, so the lead says whom the choice is for
+        // (specs/017 design review, blocking 1).
+        Assert.Contains("Only for an OpenID Connect provider. Some providers mark an address as verified without checking it.", screen)
         Assert.Contains("Where anyone can sign up", screen)
         Assert.Contains("For a provider you run or trust.", screen)
         Assert.Contains("For a provider where anyone can sign up, such as a public forge.", screen)

@@ -613,6 +613,11 @@ let ``saving off from on asks first: the count, nothing saved, the typed values 
         Assert.Contains("value=\"Renamed\"", html)
         Assert.DoesNotContain(typedSecret, html)
         Assert.Contains("Type the client secret again", html)
+        // The confirmation carries no secret, and says so (code review N2).
+        Assert.Contains("The new client secret was not saved: type it again after you turn trust off.", html)
+        // The pane's lead is the plain one: the "Only for" opening is the add form's.
+        Assert.Contains("Some providers mark an address as verified without checking it.", html)
+        Assert.DoesNotContain("Only for an OpenID Connect provider. Some providers", html)
         Assert.Equal<string list>([ "off" ], checkedChoices html)
 
         // The confirming form carries the typed values and no secret.
@@ -675,6 +680,8 @@ let ``the confirmation says so when nobody depends on the provider's addresses``
         Assert.Contains("data-email-trust-count=\"0\"", html)
         Assert.Contains("Turning trust off makes no stored email address unverified. Nobody is unlinked.", html)
         Assert.DoesNotContain("stored email address unverified: only", html)
+        // No secret was typed, so nothing is said about one.
+        Assert.DoesNotContain("The new client secret was not saved", html)
     }
 
 [<Fact>]

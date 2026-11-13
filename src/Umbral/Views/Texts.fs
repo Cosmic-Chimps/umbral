@@ -359,6 +359,9 @@ type Texts =
       /// allowed domains with trust off.
       ConnectorEmailTrustLegend: string
       ConnectorEmailTrustLead: string
+      /// The add form's lead: the form serves every kind, and the choice applies
+      /// to an OpenID Connect provider only (design review, blocking 1).
+      ConnectorEmailTrustAddLead: string
       ConnectorEmailTrustOnTitle: string
       ConnectorEmailTrustOnBody: string
       ConnectorEmailTrustOffTitle: string
@@ -378,6 +381,9 @@ type Texts =
       ConnectorEmailTrustConfirm: int -> string
       ConnectorEmailTrustConfirmNone: string
       ConnectorEmailTrustConfirmButton: string
+      /// Said in the confirmation when the refused save carried a new client
+      /// secret, which the confirmation does not carry (code review N2).
+      ConnectorEmailTrustConfirmSecret: string
       ConnectorOidcClientIdHint: string
       ConnectorOidcSecretAgainHint: string
       /// What the operator calls the provider where a built-in kind's name would
@@ -1420,6 +1426,9 @@ let en: Texts =
       ConnectorEmailTrustLegend = "Verified email addresses from this provider"
       ConnectorEmailTrustLead =
         "Some providers mark an address as verified without checking it. Where anyone can sign up, a person could claim someone else's address."
+      ConnectorEmailTrustAddLead =
+        "Only for an OpenID Connect provider. Some providers mark an address as verified without checking it. "
+        + "Where anyone can sign up, a person could claim someone else's address."
       ConnectorEmailTrustOnTitle = "Trusted"
       ConnectorEmailTrustOnBody =
         "An address this provider marks as verified counts as verified here. People with the same address at another provider are the same account, "
@@ -1446,6 +1455,7 @@ let en: Texts =
             + (if n = 1 then "Nobody is unlinked, and turning trust on again doesn't verify it again." else "Nobody is unlinked, and turning trust on again doesn't verify them again.")
       ConnectorEmailTrustConfirmNone = "Turning trust off makes no stored email address unverified. Nobody is unlinked."
       ConnectorEmailTrustConfirmButton = "Turn trust off"
+      ConnectorEmailTrustConfirmSecret = "The new client secret was not saved: type it again after you turn trust off."
       ConnectorRuleUntrusted =
         "Who can sign in: anyone with an account at this provider. Each is a separate account, because its addresses are not trusted."
       ConnectorOidcClientIdHint = "From the client you created for Umbral in your provider's admin area."

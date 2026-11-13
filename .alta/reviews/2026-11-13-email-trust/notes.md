@@ -41,6 +41,18 @@ and the n = 1 confirm sentence is singular.
 - The add form draws the trust group for Discord, GitHub and Google too (captured as
   `add-discord-1280-light.png`); it is required and stored only for OpenID Connect. For the designer.
 
+## After the reviews (2026-11-14)
+
+| Item | What was done |
+| --- | --- |
+| Design blocking 1 | The add form's lead starts "Only for an OpenID Connect provider."; the pane's lead is unchanged. |
+| Design nit 2 | `.um-choice-lead`: the lead sits 6px under the legend and 12px above the cards (`umbral.input.css`, CSS rebuilt). |
+| Docs B1 | oidc.md "Changing the email setting later": turning trust off does not undo a link already made; how to look for one on the Users screen; Disable stops both people, Delete gives each an account of their own. The changelog's Security bullet points there. |
+| Docs nits 1, 2 | "signed in through this provider under a rule"; created events carry `email_trust=on|off` without `lowered`. |
+| Code N1 | `finishSignIn` reads the trust again by slug before the clamp (trusted only when both reads say so). Test `trust turned off during the code exchange is honoured by that sign-in`, which fails without the re-read. |
+| Code N2 | The confirm line says a typed secret was not saved. |
+| Code N3 | Left as the known limit above. |
+
 ## Tests
 
 `OidcEmailTrustSignInTests.fs`, `OidcEmailTrustAdminTests.fs`, `OidcConnectorStoreTests.fs`,

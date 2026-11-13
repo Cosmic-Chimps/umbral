@@ -203,6 +203,43 @@ let ``off: a new person is stored unverified, with the address, and so is their 
     }
 
 [<Fact>]
+let ``trust turned off during the code exchange is honoured by that sign-in`` () =
+    // Code review N1: the connector is read before the exchange; the operator's
+    // save lands while the provider is being asked. The sign-in must not raise
+    // what that save just lowered.
+    task {
+        let stub = create issuer
+
+        do!
+            withHome stub (fun app browser clientId _ ->
+                task {
+                    stub.ClientCheck <-
+                        Some(fun _ ->
+                            task {
+                                do! configure app false None
+                                return true
+                            })
+
+                    let! result = signInHome browser stub clientId Scopes
+                    codeOf result |> ignore
+
+                    let! trust = Flows.scalar app "SELECT email_trust FROM connectors WHERE slug = 'home'" []
+                    Assert.Equal("0", string trust)
+
+                    let! user = Flows.scalar app "SELECT email || '|' || email_verified FROM users" []
+                    Assert.Equal("jane@example.com|0", user)
+
+                    let! link =
+                        Flows.scalar
+                            app
+                            "SELECT asserted_email_verified FROM linked_accounts WHERE provider_kind = 'oidc'"
+                            []
+
+                    Assert.Equal("0", string link)
+                })
+    }
+
+[<Fact>]
 let ``off: an existing verified user with the same address is not linked, a second user is created`` () =
     task {
         let stub = create issuer

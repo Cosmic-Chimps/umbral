@@ -115,10 +115,10 @@ let private emailTrustCard (selected: string) (refused: bool) (value: string) (t
 /// The trust setting of an OpenID Connect provider (specs/017): two cards side by
 /// side from `md`, neither checked until `selected` names one, and the refusal
 /// under the group when there is one.
-let private emailTrustGroup (t: Texts.Texts) (selected: string) (problem: string option) =
+let private emailTrustGroup (t: Texts.Texts) (lead: string) (selected: string) (problem: string option) =
     fieldset(class' = "um-choice-group").data("email-trust", "") {
         legend(class' = "um-label") { t.ConnectorEmailTrustLegend }
-        p(class' = "um-hint") { t.ConnectorEmailTrustLead }
+        p(class' = "um-hint um-choice-lead").data("email-trust-lead", "") { lead }
 
         div(class' = "grid gap-3 md:grid-cols-2") {
             emailTrustCard selected problem.IsSome "on" t.ConnectorEmailTrustOnTitle t.ConnectorEmailTrustOnBody
@@ -504,12 +504,15 @@ let private providerPane
                       // the save waits for; Cancel goes back to the pane as it is stored.
                       match confirmTrustOff, oidcDraft with
                       | Some n, Some draft ->
+                          // The confirmation carries no secret (code review N2), so a
+                          // typed one is said to be lost.
+                          let line = if n = 0 then t.ConnectorEmailTrustConfirmNone else t.ConnectorEmailTrustConfirm n
+                          let secretLine = if draft.SecretTyped then " " + t.ConnectorEmailTrustConfirmSecret else ""
+
                           (div(class' = "space-y-2")
                               .data("email-trust-confirm", "")
                               .data("email-trust-count", string n) {
-                              Components.alert
-                                  Components.Warning
-                                  (if n = 0 then t.ConnectorEmailTrustConfirmNone else t.ConnectorEmailTrustConfirm n)
+                              Components.alert Components.Warning (line + secretLine)
 
                               div(class' = "flex flex-wrap items-center gap-2") {
                                   form(method = "post", action = detailPath slug + "?confirm=trust-off", class' = "inline") {
@@ -699,7 +702,7 @@ let private providerPane
                               | Some draft -> draft.Trust
                               | None -> if trustsProviderEmail existing then "on" else "off"
 
-                          emailTrustGroup t selected (oidcDraft |> Option.bind (fun d -> d.TrustProblem))
+                          emailTrustGroup t t.ConnectorEmailTrustLead selected (oidcDraft |> Option.bind (fun d -> d.TrustProblem))
                           :> HtmlElement
 
                           (p(class' = "um-hint").data("email-trust-hint", "") { t.ConnectorEmailTrustPaneHint })
@@ -980,7 +983,7 @@ let private addForm
 
                   // FR-009, before the operator submits and not after: what they are
                   // agreeing to by adding a provider (specs/017).
-                  emailTrustGroup t state.EmailTrust (problemAt "emailTrust")
+                  emailTrustGroup t t.ConnectorEmailTrustAddLead state.EmailTrust (problemAt "emailTrust")
 
                   connectorDomainsField t instance state.AllowedDomains (problemAt "allowedDomains")
                   limitOneAppNote t.ConnectorLimitOneAppNote

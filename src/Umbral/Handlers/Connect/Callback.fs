@@ -48,13 +48,25 @@ let finishSignIn
         // rule, `UserStore.resolve`: linking, the users row and the link's
         // asserted flag, and the session's admitted domain) sees this profile;
         // the address itself is kept.
+        //
+        // `connector` was read before the code exchange. The setting is read
+        // again here, with no network call left before the writes below, so a
+        // save that turned trust off during that round trip is honoured: this
+        // sign-in cannot raise again what that save just lowered. Trusted only
+        // when both reads say so.
+        let config = ctx.GetService<Database.DbConfig>()
+        let! current = ConnectorStore.findBySlug config connector.Slug
+
+        let trusted =
+            Connectors.trustsProviderEmail connector
+            && (current |> Option.forall Connectors.trustsProviderEmail)
+
         let profile =
-            if Connectors.trustsProviderEmail connector then
+            if trusted then
                 profile
             else
                 { profile with EmailVerified = false }
 
-        let config = ctx.GetService<Database.DbConfig>()
         let clock = ctx.GetService<TimeProvider>()
         let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
 

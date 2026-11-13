@@ -154,6 +154,8 @@
   .um-choice-radio { appearance: none; flex: none; margin-top: 0.125rem; width: 1.125rem; height: 1.125rem; border-radius: 9999px; border: 2px solid var(--color-outline); background: transparent; }
   .um-choice-radio:checked { border-color: var(--color-primary); background: radial-gradient(circle, var(--color-primary) 0 42%, transparent 48%); }
   .um-choice-group .um-hint { @apply mt-3; }
+  /* A lead between the legend and the cards (specs/017): 6px under the legend, 12px above the cards. */
+  .um-choice-group .um-choice-lead { @apply mb-3 mt-0; }
   .um-choice-body { @apply flex min-w-0 flex-col gap-1; }
   .um-choice-title { @apply text-body-md font-semibold text-on-surface; }
   .um-choice-desc { @apply text-label-md font-normal text-on-surface-variant; }
