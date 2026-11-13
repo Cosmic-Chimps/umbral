@@ -162,6 +162,38 @@ let addFakeConnector (app: Fixtures.TestApp) (secret: string) =
                 None
     }
 
+/// Delete the connector under `slug` and put a generic OIDC connector (enabled,
+/// shared, so authorize still offers it) under the same slug. Written straight
+/// to the store because the admin screens refuse a kind's own name
+/// (`microsoft`, `fediverse`, `bluesky`) for another kind: the row is what a
+/// database written before those kinds existed, or edited by hand, would hold.
+let replaceWithOidc (app: Fixtures.TestApp) (slug: string) =
+    task {
+        let! _ = ConnectorStore.delete app.DbConfig slug
+
+        do!
+            ConnectorStore.save
+                app.DbConfig
+                app.Clock
+                { Slug = slug
+                  Kind = ProviderKind.Oidc
+                  DisplayName = "Replacement"
+                  ClientId = "replacement"
+                  ClientSecretRef = "local:unused"
+                  ClientSecretHint = "used"
+                  IssuerUrl = Some "https://replacement.example.test/o/umbral"
+                  AllowedEmailDomains = []
+                  PasskeyEnrolment = InvitationsOnly
+                  FediverseAccess = FediverseAccess.Any
+                  AppleKey = None
+                  MicrosoftAudience = None
+                  IsEnabled = true
+                  IsShared = true
+                  CreatedUtc = app.Clock.GetUtcNow()
+                  UpdatedUtc = app.Clock.GetUtcNow() }
+                None
+    }
+
 /// Register an app through the Apps screen. Returns the generated client id and
 /// secret, read off the single-use reveal page as an operator would.
 let createClientApp (browser: Browser) =

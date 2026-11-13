@@ -22,7 +22,9 @@ let private LinkSubjects =
 /// in the audience. It fails closed: a Microsoft connector whose audience cannot
 /// be read is refused (`Some ""`, or the first tenant read), and so is a user
 /// with no readable Microsoft link (`Some ""`). No slug, or a connector of
-/// another kind, admits: the rule belongs to the Microsoft kind only.
+/// another kind, admits: the rule belongs to the Microsoft kind only. The
+/// callers refuse that case first (`ConnectorStore.recheckKind`, task s1ug), so
+/// a session or token made through Microsoft never reaches another kind's rules.
 let recheckTenant (config: Database.DbConfig) (connectorSlug: string option) (userId: string) : Task<string option> =
     task {
         match connectorSlug with

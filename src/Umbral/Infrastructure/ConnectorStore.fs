@@ -97,6 +97,33 @@ let findBySlug (config: Database.DbConfig) (slug: string) =
         return List.tryHead rows
     }
 
+/// What became of the connector a remembered sign-in went through (task s1ug).
+type KindChange =
+    /// No connector has the slug any more.
+    | Deleted
+    /// The slug now names a connector of another kind.
+    | OtherKind of now: ProviderKind
+
+/// Whether a remembered sign-in (a session, a code or a refresh token) still
+/// goes through the connector it was made through: `None` admits, `Some` says
+/// what changed. `kind` is the `ProviderKind.Value` the sign-in carries. A slug
+/// is only a name an operator can delete and give to another kind, and the
+/// per-kind re-checks (Fediverse, Bluesky, Microsoft) act only on their own
+/// kind, so without this a new connector under an old slug would judge the old
+/// sign-ins by its own rules, and a deleted one would judge them by none. Fails
+/// closed: a sign-in that carries no kind cannot be shown to match, so it counts
+/// as another kind.
+let recheckKind (config: Database.DbConfig) (slug: string) (kind: string option) : Task<KindChange option> =
+    task {
+        let! found = findBySlug config slug
+
+        return
+            match found with
+            | None -> Some Deleted
+            | Some c when Some c.Kind.Value = kind -> None
+            | Some c -> Some(OtherKind c.Kind)
+    }
+
 /// The slug of the one Apple connector (`Apple.Value`): there is at most one.
 [<Literal>]
 let private AppleSlug = "apple"

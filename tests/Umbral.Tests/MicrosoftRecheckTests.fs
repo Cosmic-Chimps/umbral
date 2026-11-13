@@ -324,3 +324,44 @@ let ``a person with a personal and a work link passes the re-check under persona
         let! details = failureDetails world
         Assert.Empty details
     }
+
+[<Fact>]
+let ``a work account's session ends at authorize once an oidc connector takes the slug microsoft`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        use _ = world.Fake
+
+        let! browser, _ = signInAs world FakeMicrosoft.WorkTenantA
+        do! replaceWithOidc world.App "microsoft"
+
+        let! response = browser.Get(authorizeUrl world.ClientId "openid")
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.StartsWith("/signin?returnUrl=", location response)
+
+        // The session is gone, not just skipped once.
+        let! again = browser.Get(authorizeUrl world.ClientId "openid")
+        Assert.StartsWith("/signin?returnUrl=", location again)
+
+        let! details = failureDetails world
+        Assert.Equal("connector_changed;reason=other_kind;stage=authorize;kind=oidc", Assert.Single details)
+    }
+
+[<Fact>]
+let ``a work account's refresh token is invalid_grant once an oidc connector takes the slug microsoft`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        use _ = world.Fake
+
+        let! _, refreshToken = signInAs world FakeMicrosoft.WorkTenantA
+        do! replaceWithOidc world.App "microsoft"
+
+        let! response = refresh world.App.Client world.ClientId world.ClientSecret refreshToken
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        let! body = json response
+        Assert.Equal("invalid_grant", strOf body "error")
+
+        let! details = failureDetails world
+        Assert.Equal("connector_changed;reason=other_kind;stage=token;kind=oidc", Assert.Single details)
+    }

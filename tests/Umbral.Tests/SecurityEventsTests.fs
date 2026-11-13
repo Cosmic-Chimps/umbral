@@ -164,6 +164,18 @@ let ``the refusal detail is built from closed words and the domain`` () =
         refusalDetail NoEmail Instance Token None
     )
 
+[<Fact>]
+let ``the connector-changed detail names a deleted connector, or the kind the slug names now`` () =
+    Assert.Equal(
+        "connector_changed;reason=deleted;stage=token",
+        connectorChangedDetail None Token
+    )
+
+    Assert.Equal(
+        "connector_changed;reason=other_kind;stage=authorize;kind=oidc",
+        connectorChangedDetail (Some Umbral.Domains.Connectors.ProviderKind.Oidc) Authorize
+    )
+
 [<Theory>]
 [<InlineData("evil;rule=x")>]
 [<InlineData("a b.com")>]
