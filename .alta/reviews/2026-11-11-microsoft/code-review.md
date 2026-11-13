@@ -71,3 +71,14 @@ The fix should also:
 ## The tests, run by the reviewer
 
 From a git checkout of `07b350e`'s files, with CI's commands: `dotnet build -c Release` with **0 warnings**, then `dotnet test -c Release --no-build --filter-not-class "Umbral.Tests.IdleMemoryTests"`, **2677 of 2677 passed**. Your 2682 includes the idle-memory tests.
+
+## Re-check at `1572212` (2026-11-13)
+
+**Clear to merge.**
+- **The save rule (documentation review B1).** In `saveMicrosoft`, an existing connector with a changed choice and a failed check writes nothing, not even a secret typed with it, and answers 422. The form is drawn again with only the tenant ID and domains as typed, and the reason under the choice: separate wording for a tenant Microsoft doesn't know, another choice it refuses, and Microsoft not answering. With the choice unchanged, the other changes are saved, the state is kept, and an enabled connector gets the "unchecked" notice.
+- **`invalid_tenant`.** `OidcDiscovery.isInvalidTenant` reads only the status (400) and a JSON object whose `error` is exactly `invalid_tenant`, from the library's exception `Data`, and maps it to `Wrong "No Microsoft tenant has this ID"`. `error_description` is never kept.
+- **N1.** `audience=` goes in the create detail, and in the update detail only when the stored audience actually changes, judged under the lease. A refused change logs nothing.
+- **N2.** `keyIssuerMatches` now judges the published key whose RSA public key equals the one the library verified with (`validated.SigningKey`). If that can't be told, every key with the token's `kid` must name the same issuer; disagreeing keys, a key without an issuer, or no such key are refused. The X509 branch has no test, which is acceptable: Microsoft publishes RSA JWKs.
+- **N3** is pinned per person, as R3 says. **N4:** `parseStoredAudience` refuses the personal tenant as "one organization". The test gaps I listed are filled.
+
+**Tests run by the reviewer**, from a git checkout of `1572212`'s files: `dotnet build -c Release` with 0 warnings, then CI's `dotnet test -c Release --no-build --filter-not-class "Umbral.Tests.IdleMemoryTests"`, **2722 of 2722 passed**. Your 2727 includes the idle-memory tests.

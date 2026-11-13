@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-12
 
-**Status**: Draft
+**Status**: Implemented; design, documentation and code reviews and re-checks clear on 2026-11-13; not merged
 
 **Input**: Task `2026-11-11-4-connector-microsoft-accounts-m5ft`: "4. Connector: Microsoft accounts (personal, work and school)". The fourth of five; task 3 (Bluesky, spec 015) merged before it started.
 

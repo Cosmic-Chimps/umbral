@@ -23,4 +23,4 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 
 - [x] **T007** Docs (FR-015).
 - [x] **T008** Captures for the design review (contract's list) in `.alta/reviews/2026-11-11-microsoft/`.
-- [ ] **T009** Full suite green; design, documentation and code reviews; one re-check each.
+- [x] **T009** Full suite green; design, documentation and code reviews; one re-check each.
