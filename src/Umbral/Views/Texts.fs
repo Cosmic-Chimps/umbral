@@ -1414,10 +1414,10 @@ let en: Texts =
             $"{name} already uses this issuer, and two connectors for one provider would share every person under two names. Use that one, or delete it first."
       ConnectorAddOidcUnreachable =
         fun issuer reason ->
-            $"Umbral could not reach {issuer}: {reason}. The provider was saved but is disabled — enable it once {issuer}/.well-known/openid-configuration opens in a browser."
+            $"Umbral could not reach {issuer} ({reason}). The provider was saved but is disabled — enable it once {issuer}/.well-known/openid-configuration opens in a browser."
       ConnectorEnableOidcUnreachable =
         fun issuer reason ->
-            $"Umbral could not reach {issuer}: {reason}. It stays disabled — try again once {issuer}/.well-known/openid-configuration opens in a browser."
+            $"Umbral could not reach {issuer} ({reason}). It stays disabled — try again once {issuer}/.well-known/openid-configuration opens in a browser."
       ConnectorEnableOidcWrong = fun reason -> $"Not enabled. {reason}"
 
       UsersTitle = "Users"

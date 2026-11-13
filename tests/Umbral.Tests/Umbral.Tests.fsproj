@@ -35,6 +35,7 @@
     <Compile Include="ProviderMarkTests.fs" />
     <Compile Include="OidcDiscoveryTests.fs" />
     <Compile Include="OidcDiscoveryCheckAtTests.fs" />
+    <Compile Include="OidcDiscoveryReasonTests.fs" />
     <Compile Include="OidcAdapterTests.fs" />
     <Compile Include="StubOidcProviderTests.fs" />
     <Compile Include="MicrosoftDomainTests.fs" />

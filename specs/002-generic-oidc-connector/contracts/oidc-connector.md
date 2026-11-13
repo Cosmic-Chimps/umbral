@@ -41,7 +41,7 @@ the short name is typed or after save, the callback URL
 | Outcome | Save | Enable |
 | --- | --- | --- |
 | Document fetched and every check passes | Saved **enabled**; notice with the callback URL to register | Enabled |
-| Provider unreachable (network error, timeout, non-2xx, not a JSON object) | Saved **disabled**; warning: "Umbral could not reach `<issuer>`: `<reason>`. The provider was saved but is disabled — enable it once `<issuer>/.well-known/openid-configuration` opens in a browser." | Refused with the same reason |
+| Provider unreachable (network error, timeout, non-2xx, not a JSON object) | Saved **disabled**; warning: "Umbral could not reach `<issuer>` (`<reason>`). The provider was saved but is disabled — enable it once `<issuer>/.well-known/openid-configuration` opens in a browser." | Refused with the same reason |
 | Reachable but `issuer` differs | Refused: "That address describes itself as `<actual>`, not `<typed>`. Use exactly the issuer your provider shows, including any path." | Refused (same text) |
 | Reachable but a required endpoint is missing or not https | Refused, naming the field | Refused |
 | No asymmetric signing algorithm advertised | Refused. HS-only: "This provider only signs with a shared secret. Switch its signing key to RS256 or ES256 — see the walkthrough." Anything else (e.g. EdDSA): names the advertised algorithms and the accepted ones. | Refused |

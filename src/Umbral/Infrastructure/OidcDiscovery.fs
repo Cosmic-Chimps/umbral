@@ -155,6 +155,29 @@ let private isInvalidTenant (e: exn) : bool =
             false
     | _ -> false
 
+/// A transport error's message as one flat phrase, for a reason that a notice
+/// puts in brackets of its own: the first line, without its closing full stop,
+/// and the trailing ` (<detail>)` .NET appends (the host and port, as in
+/// `Connection refused (127.0.0.1:9)`) turned into `, <detail>`. A full stop
+/// before that bracket goes too (`No such host is known. (host:443)` on Windows).
+/// Cut to 160 characters, as the message was before. Nothing is added: the
+/// result holds only words of the message.
+let flatTransportMessage (message: string) : string =
+    let line = message.Split('\n').[0].Trim().TrimEnd('.').TrimEnd()
+
+    let flat =
+        let opening = line.LastIndexOf '('
+
+        if line.EndsWith ")" && opening >= 0 then
+            let detail = line.Substring(opening + 1, line.Length - opening - 2).Trim()
+            let head = line.Substring(0, opening).TrimEnd().TrimEnd('.').TrimEnd()
+
+            if head = "" || detail = "" || detail.Contains ')' then line else $"{head}, {detail}"
+        else
+            line
+
+    if flat.Length > 160 then flat.Substring(0, 160) + "…" else flat
+
 /// The cause of a failed fetch, in a phrase an operator can act on. The library
 /// wraps whatever went wrong in an `InvalidOperationException`, so the cause is
 /// the innermost exception.
@@ -167,10 +190,6 @@ let private classify (timeout: TimeSpan) (error: exn) : DiscoveryResult =
           | inner -> yield! chain inner ]
 
     let causes = chain error
-
-    let firstLine (text: string) =
-        let line = text.Split('\n').[0].Trim()
-        if line.Length > 160 then line.Substring(0, 160) + "…" else line
 
     // The jwks_uri is fetched through the same retriever, with https required
     // (RequireHttps below). IDX20108 is that refusal: it is a document that
@@ -203,9 +222,12 @@ let private classify (timeout: TimeSpan) (error: exn) : DiscoveryResult =
     elif causes |> List.exists (fun e -> e.Message.Contains "IDX20807") then
         Unreachable "it answered with an error instead of a discovery document"
     else
-        // The innermost transport error says why: refused, no such host, TLS.
+        // The innermost transport error says why: refused, no such host, TLS. The
+        // notices put the reason in brackets, so it carries none of its own.
         match causes |> List.rev |> List.tryPick (function | :? HttpRequestException as e -> Some e | _ -> None) with
-        | Some e -> Unreachable $"the connection failed ({firstLine e.Message})"
+        | Some e when flatTransportMessage e.Message <> "" ->
+            Unreachable $"the connection failed: {flatTransportMessage e.Message}"
+        | Some _ -> Unreachable "the connection failed"
         | None when causes |> List.exists (fun e -> e :? System.IO.IOException) -> Unreachable "the connection failed"
         | None -> Unreachable "the answer was not an OpenID Connect discovery document"
 

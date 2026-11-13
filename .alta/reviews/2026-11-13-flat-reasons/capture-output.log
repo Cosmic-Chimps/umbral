@@ -1,0 +1,24 @@
+oidc-added-unreachable 1280 dark: /admin/connectors/home1?msg=connector-added-oidc-unreachable&slug=home1
+  Umbral could not reach http://127.0.0.1:9/realm1 (the connection failed: Connection refused, 127.0.0.1:9). The provider was saved but is disabled — enable it once http://127.0.0.1:9/realm1/.well-known/openid-configuration opens in a browser.
+oidc-added-unreachable 360 dark: /admin/connectors/home2?msg=connector-added-oidc-unreachable&slug=home2
+  Umbral could not reach http://127.0.0.1:9/realm2 (the connection failed: Connection refused, 127.0.0.1:9). The provider was saved but is disabled — enable it once http://127.0.0.1:9/realm2/.well-known/openid-configuration opens in a browser.
+oidc-added-unreachable 1280 light: /admin/connectors/home3?msg=connector-added-oidc-unreachable&slug=home3
+  Umbral could not reach http://127.0.0.1:9/realm3 (the connection failed: Connection refused, 127.0.0.1:9). The provider was saved but is disabled — enable it once http://127.0.0.1:9/realm3/.well-known/openid-configuration opens in a browser.
+oidc-added-unreachable 360 light: /admin/connectors/home4?msg=connector-added-oidc-unreachable&slug=home4
+  Umbral could not reach http://127.0.0.1:9/realm4 (the connection failed: Connection refused, 127.0.0.1:9). The provider was saved but is disabled — enable it once http://127.0.0.1:9/realm4/.well-known/openid-configuration opens in a browser.
+microsoft-saved-unreachable 1280 dark: /admin/connectors/microsoft?msg=connector-saved-microsoft-unreachable&slug=microsoft
+  Saved, but not enabled: Umbral could not reach Microsoft (the connection failed: Connection refused, 127.0.0.1:9). Press Enable to try again.
+microsoft-saved-unreachable 360 dark: /admin/connectors/microsoft?msg=connector-saved-microsoft-unreachable&slug=microsoft
+  Saved, but not enabled: Umbral could not reach Microsoft (the connection failed: Connection refused, 127.0.0.1:9). Press Enable to try again.
+microsoft-saved-unreachable 1280 light: /admin/connectors/microsoft?msg=connector-saved-microsoft-unreachable&slug=microsoft
+  Saved, but not enabled: Umbral could not reach Microsoft (the connection failed: Connection refused, 127.0.0.1:9). Press Enable to try again.
+microsoft-saved-unreachable 360 light: /admin/connectors/microsoft?msg=connector-saved-microsoft-unreachable&slug=microsoft
+  Saved, but not enabled: Umbral could not reach Microsoft (the connection failed: Connection refused, 127.0.0.1:9). Press Enable to try again.
+oidc-added-unreachable-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+oidc-added-unreachable-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+oidc-added-unreachable-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+oidc-added-unreachable-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+microsoft-saved-unreachable-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+microsoft-saved-unreachable-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+microsoft-saved-unreachable-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+microsoft-saved-unreachable-360-light: overflow=false (scrollWidth 360, innerWidth 360)
