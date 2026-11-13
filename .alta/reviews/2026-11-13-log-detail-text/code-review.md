@@ -25,3 +25,9 @@ Branch `alta/stoic-sinai-nsfx`, `8e263ae..9c8b1f5`. Reviewer: the `umbral` sessi
 ## Nit, optional
 
 - **N1. The admin-save path has no test with `;x=y`** (the gap you named: the discovery stub's Down mode can't script the transport message). If you want it covered without changing the stub, build the three `saved_disabled` details with one small function (say `savedDisabledDetail store audience reason`) and test that function directly. Otherwise leave it: the three call sites are one-line uses of the tested `safeText`.
+
+## Re-check at `8bd6980` (2026-11-13)
+
+**Clear to merge.** N1 is taken. `SecurityEvents.savedDisabledDetail store audience reason` builds the three `connector_created` details for the OIDC, Apple and Microsoft saves. It produces exactly the strings the call sites built before, with the reason through `safeText`. Three new tests in `SecurityEventsTests` cover it: a reason with `;x=y` stays one field, the Microsoft form has three parts, and a connector saved enabled has no `saved_disabled` field.
+
+**Tests run by the reviewer**, from a git checkout of `8bd6980`'s files: `dotnet build -c Release` with 0 warnings, `SecurityEventsTests` 27 of 27, `OidcConnectorStoreTests` 16 of 16.
