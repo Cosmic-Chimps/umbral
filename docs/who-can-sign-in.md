@@ -42,10 +42,7 @@ person comes back: at their next sign-in, the next time an app asks Umbral to
 authorize them with their existing session, or the next time an app refreshes
 their token. If the rule no longer admits them, they are refused there. Access
 tokens already issued keep working until they run out, within an hour. Their
-user stays on the **Users** screen, enabled and unchanged. Sessions and refresh
-tokens created before you updated Umbral to this version do not record what was
-checked, so while a rule applies to them they are not accepted, and the person
-signs in again.
+user stays on the **Users** screen, enabled and unchanged.
 
 **To limit one app.** There is no rule per app. Instead, create a connector for
 the app with the domain rule and offer only that connector to the app: for
