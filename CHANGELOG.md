@@ -12,6 +12,69 @@ Each section has the changes that matter to whoever runs Umbral, in this order a
 needed: Added, Changed, Fixed, Security, then Upgrade when an upgrade needs more than pulling the
 new image.
 
+## 0.11.0 - 2026-11-13
+
+### Added
+
+- "Sign in with Apple": a built-in Apple connector. You enter the Services ID, the Team ID, the
+  Key ID and the `.p8` key from Apple's developer site, and people can sign in with their Apple
+  Account. Umbral signs Apple's client secret itself for each sign-in, from the key it keeps in
+  the secret store, so there is no token to generate and nothing to renew every six months. The
+  name Apple sends only the first time a person signs in is kept. Apple accepts only an https
+  address on a real domain name as the return URL, and there is one Apple connector per
+  instance. The button follows Apple's rules for it (its title, black or white) but does not
+  carry Apple's logo yet. The walkthrough is `docs/connectors/apple.md`.
+- Apple's logo on the "Sign in with Apple" button. Apple's licence for its logo artwork forbids
+  redistributing it, so Umbral cannot ship it: you paste the SVG you download from Apple Design
+  Resources into the new **Sign-in button logo** section of the Apple pane, and the button shows
+  it. Umbral keeps only the logo's outline and refuses a file with anything else in it. Apple's
+  rules and App Review expect the logo, so add it before you submit an app that offers Sign in
+  with Apple. See step 4 of `docs/connectors/apple.md`.
+- "Sign in with Bluesky": a built-in Bluesky connector. People type their handle and sign in
+  at their own server, whether Bluesky hosts the account or it is a self-hosted AT Protocol
+  server. There is nothing to create at any provider: you turn the connector on, and choose
+  **Any server** or **Only these servers**. Apps receive `name`, `preferred_username` (the
+  handle), `picture` and `profile`, and no email; a person who changes handle stays the same
+  user, because Umbral identifies them by their DID. It needs Umbral at an https address
+  without a port that servers can reach from the internet; the pane says so otherwise.
+  There is one Bluesky connector per instance. The walkthrough is
+  `docs/connectors/bluesky.md`.
+- "Sign in with Microsoft": a built-in Microsoft connector. You register an app in the Microsoft
+  Entra admin center, enter its client ID and client secret, and choose who may sign in:
+  personal Microsoft accounts, the people of one organization (by its tenant ID), any work or
+  school account, or both kinds. Umbral checks each person's tenant against that choice, and
+  checks the identity token's issuer against exactly the tenant it names. People are identified by
+  their tenant and account together, so replacing the app registration keeps everyone. An email
+  address counts as verified only when Microsoft's optional claim `xms_edov` says so, which you
+  add in the registration; without it no address is verified. Narrowing the choice turns away people no
+  longer admitted the next time an app authorizes them or refreshes their token. Microsoft client secrets expire (180
+  days is the recommended lifetime, 2 years the longest): the walkthrough says how to renew one.
+  There is one Microsoft connector per instance, no avatar, and the button carries no Microsoft
+  logo yet. The one-tenant case can stay on the OpenID Connect connector. The walkthrough is
+  `docs/connectors/microsoft.md`.
+
+### Changed
+
+- The sign-in page's GitHub button now shows the GitHub logo, in white or black as GitHub's
+  logo rules require, and the passkey button shows a key. Google, Discord, Fediverse and
+  OpenID Connect buttons keep the link icon: Google's rules allow its "G" only on Google's own
+  button colours and typeface, and Discord's terms do not cover a sign-in button.
+- When Umbral cannot reach a provider, the warning now gives the reason in one pair of brackets
+  instead of brackets inside brackets: "Umbral could not reach Microsoft (the connection failed:
+  Connection refused, 127.0.0.1:9)". The OpenID Connect provider warning puts its reason in
+  brackets too, like the Apple and Microsoft ones.
+
+### Upgrade
+
+- The database becomes schema version 10. An older image refuses to start on it: take a backup
+  before you upgrade.
+- The database becomes schema version 11. An older image refuses to start on it: take a backup
+  before you upgrade.
+- The database becomes schema version 12, which adds one nullable column. It is automatic and
+  needs no action. An older image refuses to start on it: take a backup before you upgrade.
+- The database becomes schema version 13, which adds one nullable column. It is automatic and
+  needs no action. An older image refuses to start on it: take a backup before you upgrade.
+
 ## 0.10.0 - 2026-11-11
 
 ### Added
