@@ -53,6 +53,8 @@ and the n = 1 confirm sentence is singular.
 | Code N2 | The confirm line says a typed secret was not saved. |
 | Code N3 | Left as the known limit above. |
 
+Full suite at `02aabcc`: 2826 of 2826 passed (Debug, 17 min 24 s). Re-checks: design 887bfdc, documentation f7b833f, code 391af60, all clear to merge.
+
 ## Tests
 
 `OidcEmailTrustSignInTests.fs`, `OidcEmailTrustAdminTests.fs`, `OidcConnectorStoreTests.fs`,

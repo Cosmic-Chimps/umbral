@@ -21,4 +21,4 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/` or `chang
 
 - [x] **T005** Docs (FR-011).
 - [x] **T006** Captures in `.alta/reviews/2026-11-13-email-trust/` (contract's list) and `notes.md`.
-- [ ] **T007** Full suite green; design, documentation and code reviews; one re-check each.
+- [x] **T007** Full suite green; design, documentation and code reviews; one re-check each.

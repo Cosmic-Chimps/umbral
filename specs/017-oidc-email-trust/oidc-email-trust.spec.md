@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-13
 
-**Status**: Implemented (full suite 2825 green at eb9b894); design, documentation and code reviews pending
+**Status**: Implemented; design, documentation and code reviews and re-checks clear on 2026-11-14 at 02aabcc (full suite 2826 green); not merged
 
 **Input**: Task `2026-11-13-oidc-connector-trust-its-verified-emails-switch-tr5t`.
 
