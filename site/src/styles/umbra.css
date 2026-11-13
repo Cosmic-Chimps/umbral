@@ -101,6 +101,15 @@ main h1 {
   line-height: 2rem;
   letter-spacing: -0.03em;
 }
+/* Starlight sizes a heading's anchor icon, and the space kept for it, from the
+   wrapper around the heading, which still has Starlight's own h2 size. Give the
+   wrapper ours, so the icon is drawn at the heading's size and its space is
+   measured in the same unit: otherwise the icon is too large and is pulled back
+   over the last letters of the heading. */
+.sl-markdown-content .sl-heading-wrapper.level-h2 {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
 .sl-markdown-content :is(h3, h4, h5, h6) {
   font-weight: 600;
 }
