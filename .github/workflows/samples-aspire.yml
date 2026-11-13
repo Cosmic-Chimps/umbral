@@ -1,0 +1,40 @@
+# The Aspire sample, built.
+#
+# samples/aspire/ is an AppHost, not a web server, so the harness of samples.yml
+# (which runs the web samples from their Dockerfiles) cannot walk it. This job
+# only builds the AppHost, with warnings as errors, so a change that breaks it,
+# or the ASP.NET Core sample it references, is caught. The sign-in is walked by
+# hand: samples/aspire/README.md says how, and the task's review notes record it.
+name: samples-aspire
+
+on:
+  push:
+    branches: [main]
+    paths: ['samples/aspire/**', 'samples/aspnetcore/**', '.github/workflows/samples-aspire.yml']
+  pull_request:
+    paths: ['samples/aspire/**', 'samples/aspnetcore/**', '.github/workflows/samples-aspire.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: samples/aspire
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      # working-directory applies to run steps only, so the path is relative to
+      # the root of the repository.
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build -c Release -warnaserror

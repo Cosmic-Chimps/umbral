@@ -14,12 +14,14 @@ behaves the same way, so the one for your stack is the one to read.
 | [Android](android/README.md) | Kotlin, Jetpack Compose, AppAuth-Android | **Single-page or native app** (no secret: PKCE alone) |
 | [iOS](ios/README.md) | Swift, SwiftUI, AppAuth-iOS | **Single-page or native app** (no secret: PKCE alone) |
 | [.NET MAUI](maui/README.md) | C#, .NET MAUI (Android and iOS), `Duende.IdentityModel.OidcClient` | **Single-page or native app** (no secret: PKCE alone) |
+| [Aspire](aspire/README.md) | .NET Aspire 13 AppHost (C#) that runs Umbral and the ASP.NET Core sample together | **Web application** (the ASP.NET Core sample's) |
 
 CI runs each web sample against a real Umbral, built from this repository, and
 walks through it in a headless browser: see [The harness](#the-harness). A
 phone app is built in CI and walked by hand: see [A phone app](#a-phone-app). The
 samples are also where the claims an app receives are tested from the app's
 side, so they say the same thing as [Integrate an app](../README.md#integrate-an-app).
+The [Aspire](aspire/README.md) sample is not a new stack: it is an AppHost that runs Umbral and the ASP.NET Core sample side by side with `aspire run`, and its own workflow builds it.
 
 ## What every sample does
 
