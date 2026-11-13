@@ -72,3 +72,19 @@ history, and that history holds material the f0rg documentation review asked to 
 public repository until the maintainer decides on a report to Forgejo. GitHub does not have those
 commits. Do not push this branch as it is. Once the maintainer has put f0rg on main as one squashed
 commit, rebase 7af4a1d and cb86f70 onto that main.
+
+## Re-check at b6f9a07 (2026-11-13)
+
+**Clear for the documentation.** B1 and the four nits are fixed as suggested
+(`ea4a93b..b6f9a07`):
+
+- B1: the README and the AppHost's steps select the container by `volume=umbral-aspire-data`
+  (`{VolumeName}`), and the README says why. With no such container running, the command fails
+  harmlessly instead of reaching another instance. Right.
+- N1–N4: `reset-credential` claims and prints a password; `Umbral:Port` moves the setup page and the
+  issuer; the changelog says "shown in the Aspire dashboard"; the main README says "(CI builds it)".
+  Right.
+- `check-links.py` and `changelog.sh check`: clean.
+
+The condition on the base still holds: do not push this branch until it is rebased onto a main that
+has f0rg as one squashed commit.
