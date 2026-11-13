@@ -88,3 +88,49 @@ switch". Principle III ("secure by default, not by configuration") argues for a 
 option: a per-connector choice to treat a provider's `email_verified` as unverified. It would be off
 by default for most providers, and the add form would suggest it for a forge. The documentation is
 right to describe today's behaviour. Whether Umbral should change is the maintainer's call.
+
+## Re-check at 24d362b (2026-11-13)
+
+**Not clear to merge, for one new reason: disclosure.** B1, B2 and the three nits are fixed, and
+B1 was settled by a walk instead of a hedge, which was the better choice. The section now says what
+was tried and no more. The Forgejo/Codeberg and Gitea rows point at the new heading
+(`#what-email_verified-means-on-a-forge`), and the intro does too. `check-links.py`: 393 links
+resolve. `changelog.sh check`: in order.
+
+### B3 (new). The branch publishes how to reproduce an apparently unreported Forgejo security bug
+
+The B1 walk found that Forgejo 14.0.5 lets an active account make an address it never confirmed its
+primary one, which then reaches every OpenID Connect client as `email_verified: true`. Codeberg
+runs Forgejo. A search on 2026-11-13 found a related Forgejo fix (primary-email validation bypass,
+v11.0.4 and v12.0.2: <https://codeberg.org/forgejo/security-announcements/issues/39>) but nothing
+for this case. As far as can be seen, it has not been reported.
+
+On this branch, three places spell it out: the exact request in `notes.md`, the script
+`force.mjs`, and the oidc.md sentences contrasting Gitea's refusal with Forgejo's acceptance of
+"a request … sent outside the page". This repository is public. Merging it publishes a working
+recipe for taking over accounts at any service that trusts a Forgejo's `email_verified`, before
+Forgejo can fix it.
+
+Before this merges:
+
+1. **The maintainer decides on a private report** to Forgejo's security contact (their security
+   policy names it), with the reproduction. This review does not make that report: it is the
+   maintainer's to make.
+2. **Take the method out of the branch until Forgejo has a fix out:** `force.mjs`, and step 3 of
+   the notes' re-check subsection (keep both outside the repository, for the report). Keep the
+   result in general terms: "Forgejo 14.0.5 did not show that an active account's primary address
+   was confirmed; reported to Forgejo on <date>".
+3. **In oidc.md, keep the conclusion and drop the mechanism.** For the Forgejo bullet, for example:
+
+   > **Forgejo**, tried in November 2026 (14.0.5), could not be shown to confirm an existing
+   > account's primary address. Until that changes, add a Forgejo, Codeberg included, only if you
+   > trust everyone who has an account there with any address.
+
+   Keep the Gitea result as written, minus "also refuses a request to make it primary sent outside
+   the page". In the Forgejo/Codeberg row, "as of writing anyone with an account there can claim any
+   address" becomes "as of Forgejo 14.0, an account there may claim an address it never confirmed".
+   Codeberg itself was not tried, and may run another version.
+
+Once Forgejo has published a fix, the details can come back with the fixed version named.
+
+One re-check after this.
