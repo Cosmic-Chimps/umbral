@@ -110,3 +110,27 @@ This branch is on current main, whose PRODUCT.md names Apple and Bluesky. Three 
    their token". The changelog's "ends, at their next sign-in, the sessions" should say the same:
    "…turns away people no longer admitted the next time an app authorizes them or refreshes their
    token".
+
+## Re-check at 1572212 (2026-11-13)
+
+**Clear to merge.** All three blocking items and all four nits are fixed (`ad2ee92..1572212`:
+docs 0511a79, code 84cdaed, design nits and their doc rows 1572212).
+
+- **B1**: the new rule is better than the one I suggested. A changed choice that fails the check
+  is not saved at all (422, reason under the choice or the tenant ID). An unchanged choice saves
+  the other changes: an enabled connector stays enabled with the new *Saved. Umbral could not
+  check the connector…* notice, and a disabled one keeps the "Saved, but not enabled" notices,
+  which are now true. Code (`Connectors.fs:2737-2758`, the `unchecked` notice for an enabled
+  stored connector), FR-003, the contract and the walkthrough agree. `invalid_tenant` reads as
+  *No Microsoft tenant has this ID* (`OidcDiscovery.fs:199`). The four new strings are verbatim
+  in `Texts.fs`.
+- **B2**: the tenant ID row now says a saved form does not keep it. Right.
+- **B3**: PRODUCT.md names Microsoft in all three places. Right.
+- **N1-N4**: in. The changelog fragment's narrowing sentence is fixed as well.
+- `check-links.py`: 383 links in 38 files, all resolve. `changelog.sh check`: in order.
+
+One optional wording point, not a condition: "The notices about Microsoft appear at the top of
+the pane, except the last one" should say "except the last three". All three *Nothing was saved*
+messages are drawn under a field (`MicrosoftConnector.refusedChoice`: under the tenant ID with
+one organization, else under **Who may sign in**). That includes *Microsoft did not answer…*,
+whose row does not say where it appears.
