@@ -175,3 +175,44 @@ let ``a domain that is not in the normalised form is written as a dash`` (domain
     Assert.EndsWith(";domain=-", detail)
     // Whatever the provider sent, the detail still has exactly its five parts.
     Assert.Equal(5, detail.Split(';').Length)
+
+// ---------------------------------------------------------------------------
+// Free text at the end of a detail (it must not add fields)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``safeText leaves plain text unchanged`` () =
+    Assert.Equal("the connection failed (Connection refused)", safeText "the connection failed (Connection refused)")
+
+[<Fact>]
+let ``safeText turns the separators into harmless characters`` () =
+    Assert.Equal("a,x:y", safeText "a;x=y")
+
+[<Theory>]
+[<InlineData("a\nb", "a b")>]
+[<InlineData("a\r\nb", "a  b")>]
+[<InlineData("a\tb", "a b")>]
+[<InlineData("a\u001Fb", "a b")>]
+let ``safeText turns control characters into a space`` (input: string, expected: string) =
+    Assert.Equal(expected, safeText input)
+
+[<Fact>]
+let ``safeText of nothing is empty`` () =
+    Assert.Equal("", safeText "")
+    Assert.Equal("", safeText (Unchecked.defaultof<string>))
+
+[<Fact>]
+let ``safeText cuts long text to 300 characters ending in an ellipsis`` () =
+    let result = safeText (String('x', 1000))
+    Assert.Equal(300, result.Length)
+    Assert.EndsWith("…", result)
+    Assert.Equal(String('x', 299), result.Substring(0, 299))
+
+[<Fact>]
+let ``safeText does not leave a lone high surrogate where it cuts`` () =
+    // Characters 298 and 299 are a surrogate pair, so the cut falls inside it.
+    let text = String('x', 298) + "\U0001F600" + String('y', 100)
+    let result = safeText text
+    Assert.EndsWith("…", result)
+    Assert.False(Char.IsHighSurrogate result[result.Length - 2])
+    Assert.Equal(299, result.Length)

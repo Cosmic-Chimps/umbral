@@ -142,6 +142,15 @@ let ``a provider that cannot be resolved shows the end user a notice and records
     }
 
 [<Fact>]
+let ``free text in the cause cannot add fields to the recorded detail`` () =
+    task {
+        let adapter = ScriptedAdapter(Error(ProviderUnreachable "discovery failed;x=y (host)"))
+        let! _, detail = startWith adapter
+
+        Assert.Equal(Some "unreachable: discovery failed,x:y (host)", detail)
+    }
+
+[<Fact>]
 let ``a provider that answers wrongly shows the generic sign-in failure`` () =
     task {
         let adapter = ScriptedAdapter(Error(MalformedResponse "issuer mismatch"))

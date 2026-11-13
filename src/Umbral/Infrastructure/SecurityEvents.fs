@@ -10,6 +10,11 @@
 ///   2. Nothing secret reaches it. The API takes named fields rather than a
 ///      free-text message precisely so that `detail` never becomes the place
 ///      someone interpolates a token "just this once".
+///   3. A detail is `;`-separated `name=value` fields that Umbral writes. Any
+///      free text in it (an exception message, a provider's answer, a reason)
+///      goes through `safeText`, so it cannot add fields of its own. Closed
+///      words and normalised values (`safeDomain` here, `cleanErrorWord` in
+///      OAuthRoundTrip.fs) do not need it.
 module Umbral.Infrastructure.SecurityEvents
 
 open System
@@ -170,6 +175,30 @@ let private safeDomain (domain: string option) =
         ->
         name
     | _ -> "-"
+
+/// Free text made safe to put at the end of a detail. The detail is `;`- and
+/// `=`-separated, so a `;` or `=` in an exception message or a provider's
+/// answer would add a field nobody wrote: `;` becomes `,`, `=` becomes `:`,
+/// control characters (line breaks, tabs) become a space, and the text is cut
+/// to 300 characters (never in the middle of a surrogate pair). Fixed words and
+/// `safeDomain` or `cleanErrorWord` values are already closed and do not need it.
+let safeText (text: string) : string =
+    if String.IsNullOrEmpty text then
+        ""
+    else
+        let clean =
+            text
+            |> String.map (fun c ->
+                if c = ';' then ','
+                elif c = '=' then ':'
+                elif Char.IsControl c then ' '
+                else c)
+
+        if clean.Length <= 300 then
+            clean
+        else
+            let cut = if Char.IsHighSurrogate clean[298] then 298 else 299
+            clean.Substring(0, cut) + "…"
 
 /// The `Detail` of a `sign_in_failed` event for a refused email domain:
 /// `email_domain_refused;reason=…;rule=…;stage=…;domain=…`. Built from closed

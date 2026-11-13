@@ -54,10 +54,12 @@ type ConnectorError =
     /// What the operator sees in the security log.
     member this.Detail =
         match this with
-        | ProviderDeclined reason -> $"declined: {reason}"
-        | ProviderRejected error -> $"rejected: {error}"
-        | ProviderUnreachable detail -> $"unreachable: {detail}"
-        | MalformedResponse detail -> $"malformed_response: {detail}"
+        | ProviderDeclined reason -> $"declined: {SecurityEvents.safeText reason}"
+        | ProviderRejected error -> $"rejected: {SecurityEvents.safeText error}"
+        | ProviderUnreachable detail -> $"unreachable: {SecurityEvents.safeText detail}"
+        | MalformedResponse detail -> $"malformed_response: {SecurityEvents.safeText detail}"
+        // Not passed through safeText: Umbral itself writes this structure
+        // (`tenant_not_allowed;tenant=<canonical guid>`, Providers/Microsoft.fs).
         | AccountRefused detail -> $"refused: {detail}"
 
 /// Everything a provider needs to build its authorize URL. Passed in rather
