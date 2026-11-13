@@ -152,6 +152,16 @@ type FakeMicrosoft(audience: MicrosoftAudience) =
     /// bring back. `authorizeUri` is the URL Umbral redirected to.
     member _.Approve(authorizeUri: Uri) : Authorization = stub.Authorize authorizeUri
 
+    /// Answer the discovery request as Microsoft answers a tenant ID that names no
+    /// tenant: HTTP 400 and `invalid_tenant`, with its description (trace IDs).
+    member _.AnswerInvalidTenant() =
+        stub.DiscoveryResponse <-
+            Some(
+                Net.HttpStatusCode.BadRequest,
+                """{"error":"invalid_tenant","error_description":"AADSTS90002: Tenant 'x' not found. Check to make sure you have the correct tenant ID and authenticating to the correct cloud. Trace ID: 0000 Correlation ID: 1111 Timestamp: 2026-11-13 10:00:00Z"}""",
+                "application/json"
+            )
+
     /// How many times the key set was fetched.
     member _.KeyFetches = stub.CountOf "/keys"
 
@@ -165,6 +175,19 @@ type FakeMicrosoft(audience: MicrosoftAudience) =
 
         match issuer with
         | Some issuer -> stub.KeyIssuers[kid] <- issuer
+        | None -> ()
+
+        key
+
+    /// Publish one more key under the SAME `kid` as an earlier one, naming `issuer`
+    /// (None: none), after it in the list: a key set that lists one `kid` twice.
+    member _.PublishDuplicateKid(kid: string, issuer: string option) : RsaSecurityKey =
+        let key = RsaSecurityKey(RSA.Create 2048)
+        key.KeyId <- kid
+        stub.PublishedKeys.Add key
+
+        match issuer with
+        | Some issuer -> stub.IssuerOfKey[key] <- issuer
         | None -> ()
 
         key

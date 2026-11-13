@@ -140,3 +140,44 @@ let ``a key's unknown issuer member is kept as a string on the discovered key se
             Assert.Equal(template, Assert.IsType<string>(key.AdditionalData["issuer"]))
         | other -> failwith $"expected Discovered, got {other}"
     }
+
+let private invalidTenantBody =
+    """{"error":"invalid_tenant","error_description":"AADSTS90002: Tenant 'x' not found. Trace ID: 0000 Correlation ID: 1111"}"""
+
+/// Microsoft's answer to a tenant ID that names no tenant: HTTP 400 and
+/// `invalid_tenant`. It is a wrong address, not an outage, and Microsoft's
+/// description (trace IDs) is not kept.
+[<Fact>]
+let ``a 400 with the error invalid_tenant is wrong, without Microsoft's description`` () =
+    task {
+        let stub = templated ()
+        stub.DiscoveryResponse <- Some(Net.HttpStatusCode.BadRequest, invalidTenantBody, "application/json")
+
+        match! (discoveryOver stub).CheckAt(documentBase, template) with
+        | Wrong reason ->
+            Assert.Equal("No Microsoft tenant has this ID", reason)
+            Assert.DoesNotContain("AADSTS", reason)
+            Assert.DoesNotContain("Trace", reason)
+        | other -> failwith $"expected Wrong, got {other}"
+    }
+
+/// Nothing but that exact pair reads as wrong: another status, another error,
+/// a body that is not an object or not JSON, an error that is not a string.
+[<Theory>]
+[<InlineData(500, """{"error":"invalid_tenant"}""")>]
+[<InlineData(404, """{"error":"invalid_tenant"}""")>]
+[<InlineData(400, """{"error":"invalid_request"}""")>]
+[<InlineData(400, """{"error":{"x":"invalid_tenant"}}""")>]
+[<InlineData(400, """{"error_description":"invalid_tenant"}""")>]
+[<InlineData(400, """["invalid_tenant"]""")>]
+[<InlineData(400, "invalid_tenant")>]
+[<InlineData(400, "")>]
+let ``any other failed answer stays unreachable`` (status: int, body: string) =
+    task {
+        let stub = templated ()
+        stub.DiscoveryResponse <- Some(enum<Net.HttpStatusCode> status, body, "application/json")
+
+        match! (discoveryOver stub).CheckAt(documentBase, template) with
+        | Unreachable _ -> ()
+        | other -> failwith $"expected Unreachable, got {other}"
+    }

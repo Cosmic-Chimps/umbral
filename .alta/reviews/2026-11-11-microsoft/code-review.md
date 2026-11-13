@@ -67,3 +67,7 @@ The fix should also:
 - **Tell a mistyped tenant from an outage.** I asked Microsoft on 2026-11-13: discovery for an unknown tenant GUID answers **HTTP 400** with `{"error":"invalid_tenant","error_description":"AADSTS90002: Tenant '…' not found…"}`, while `consumers` answers 200. Map that 400 to `Wrong` ("No Microsoft tenant has this ID"), and keep `Unreachable` for a timeout, a 5xx or a network error ("Microsoft didn't answer; nothing was saved"). Never quote Microsoft's description on the page; it carries trace IDs. Give the fake that exact 400 body.
 - **Draw nothing secret back on the 422**, and write nothing to the store.
 - **Log the audience (N1) only for a change actually saved.**
+
+## The tests, run by the reviewer
+
+From a git checkout of `07b350e`'s files, with CI's commands: `dotnet build -c Release` with **0 warnings**, then `dotnet test -c Release --no-build --filter-not-class "Umbral.Tests.IdleMemoryTests"`, **2677 of 2677 passed**. Your 2682 includes the idle-memory tests.

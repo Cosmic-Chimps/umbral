@@ -167,6 +167,24 @@ let parse
               Domains = domains
               Problems = Map.ofList problems }
 
+/// The form of a well-formed save whose choice Microsoft did not confirm, drawn
+/// again: every typed value but the secret, and `message` under the tenant ID when
+/// "one organization" is chosen, else under the "Who may sign in" group.
+/// `tenantId` and `domains` are as typed.
+let refusedChoice (parsed: Parsed) (tenantId: string) (domains: string) (message: string) : Draft =
+    let field =
+        match parsed.Audience with
+        | OneOrganization _ -> TenantIdField
+        | _ -> AudienceField
+
+    { DisplayName = parsed.DisplayName
+      ClientId = parsed.ClientId
+      Audience = Some(cardOf parsed.Audience)
+      TenantId = tenantId
+      Shared = parsed.Shared
+      Domains = domains
+      Problems = Map.ofList [ field, message ] }
+
 /// One card, drawn like the Passkey pane's enrolment modes (`.um-choice`). When
 /// the group was refused every radio is marked invalid and points at the message.
 let private card (selected: string option) (refused: bool) (value: string) (title: string) (description: string) =

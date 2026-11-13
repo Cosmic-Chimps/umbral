@@ -723,7 +723,13 @@ type Texts =
       /// The reason Microsoft's answer was not usable, said after the connector was saved disabled.
       MicrosoftSavedWrong: string -> string
       /// The reason Microsoft's answer was not usable, said when enabling.
-      MicrosoftEnableWrong: string -> string }
+      MicrosoftEnableWrong: string -> string
+      /// The reason Microsoft could not be asked, said after an enabled connector was saved with its choice unchanged.
+      MicrosoftSavedUnchecked: string -> string
+      /// Under the choice, when Microsoft's answer was not usable for a changed choice: nothing was saved.
+      MicrosoftNotConfirmed: string -> string
+      /// Under the choice, when Microsoft did not answer for a changed choice: nothing was saved.
+      MicrosoftNotAnswered: string -> string }
 
 /// The display name of a store, by the id a `SecretRef` carries.
 let private secretStoreNameEn (storeId: string) : string =
@@ -1029,6 +1035,8 @@ let private noticeEn (code: string) : string option =
         Some "Saved, but not enabled: Microsoft's answer was not usable. Check the tenant ID, then press Enable."
     | "connector-enable-microsoft-wrong" ->
         Some "Not enabled: Microsoft's answer was not usable. Check the tenant ID, then press Enable again."
+    | "connector-saved-microsoft-unchecked" ->
+        Some "Saved. Umbral could not check the connector with Microsoft, so it stays enabled as it was."
     // The Apple button's logo (spec 014).
     | "apple-logo-saved" -> Some "Logo saved."
     | "apple-logo-removed" -> Some "Logo removed. The button shows its title alone."
@@ -1732,7 +1740,15 @@ let en: Texts =
             $"Saved, but not enabled: Microsoft's answer was not usable ({reason}). Check the tenant ID, then press Enable."
       MicrosoftEnableWrong =
         fun reason ->
-            $"Not enabled: Microsoft's answer was not usable ({reason}). Check the tenant ID, then press Enable again." }
+            $"Not enabled: Microsoft's answer was not usable ({reason}). Check the tenant ID, then press Enable again."
+      MicrosoftSavedUnchecked =
+        fun reason ->
+            $"Saved. Umbral could not check the connector with Microsoft ({reason}), so it stays enabled as it was."
+      MicrosoftNotConfirmed =
+        fun reason ->
+            $"Microsoft did not confirm this choice: {reason}. Nothing was saved: check the tenant ID, then save again."
+      MicrosoftNotAnswered =
+        fun reason -> $"Microsoft did not answer ({reason}). Nothing was saved: try again in a moment." }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.

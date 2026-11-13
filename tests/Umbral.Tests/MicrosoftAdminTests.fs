@@ -521,18 +521,16 @@ let ``a new secret replaces the stored one and leaves the connector enabled`` ()
     }
 
 [<Fact>]
-let ``changing the card on a saved connector changes the audience`` () =
+let ``changing the card on a saved connector changes the audience when Microsoft confirms the new choice`` () =
     task {
-        let! world = startFor (OneOrganization tenantA)
+        // The fake serves "consumers"; the connector was saved for one organization.
+        let! world = startFor PersonalAccounts
         use _ = world.App
-        let! _ = save world (fields |> with' [ "audience", "tenant"; "tenantId", FakeMicrosoft.WorkTenantA ])
-        let! first = stored world
-        Assert.Equal(Some(OneOrganization tenantA), first.Value.MicrosoftAudience)
+        do! FakeMicrosoft.seedConnector world.App (OneOrganization tenantA)
 
-        // Another card: Microsoft's document for it is not served by this fake, so
-        // the connector is saved with the new audience and keeps its enabled state.
         let! response = save world (fields |> with' [ "audience", "consumers"; "clientSecret", "" ])
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.Contains("msg=connector-saved", location response)
         let! after = stored world
         Assert.Equal(Some PersonalAccounts, after.Value.MicrosoftAudience)
         Assert.True after.Value.IsEnabled
@@ -619,13 +617,60 @@ let ``Microsoft answering with another issuer at save stores the connector disab
         Assert.Contains("Check the tenant ID, then press Enable again.", decode page)
     }
 
+// ---------------------------------------------------------------------------
+// Saving a saved connector when Microsoft cannot confirm it (spec FR-003,
+// documentation review B1)
+// ---------------------------------------------------------------------------
+
 [<Fact>]
-let ``saving a saved connector while Microsoft is unreachable keeps it enabled and still says so`` () =
+let ``an enabled connector saved with its choice unchanged while Microsoft is unreachable stays enabled and says it was not checked`` () =
     task {
         let! world = start ()
         use _ = world.App
-        // A stored connector, with nothing of Microsoft's in the discovery cache yet.
         do! FakeMicrosoft.seedConnector world.App PersonalAndAnyOrganization
+        world.Fake.Stub.Mode <- Down
+
+        let! response = save world (fields |> with' [ "clientSecret", ""; "displayName", "Renamed" ])
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.Contains("msg=connector-saved-microsoft-unchecked", location response)
+
+        let! connector = stored world
+        Assert.Equal("Renamed", connector.Value.DisplayName)
+        Assert.True connector.Value.IsEnabled
+
+        let! html = world.Operator.GetHtml(location response)
+        let decoded = decode html
+        Assert.Contains("data-notice=\"connector-saved-microsoft-unchecked\"", html)
+        Assert.Contains("Saved. Umbral could not check the connector with Microsoft (", decoded)
+        Assert.Contains("so it stays enabled as it was.", decoded)
+        // The notice that would be false for a connector that stays enabled.
+        Assert.DoesNotContain("not enabled", decoded)
+        Assert.Contains("data-connector-state=\"enabled\"", html)
+    }
+
+[<Fact>]
+let ``an enabled connector saved with its choice unchanged while Microsoft's answer is wrong stays enabled and says it was not checked`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAndAnyOrganization
+        world.Fake.Stub.Discovery["issuer"] <- node (Ms.issuerFor FakeMicrosoft.WorkTenantB)
+
+        let! response = save world (fields |> with' [ "clientSecret", ""; "displayName", "Renamed" ])
+        Assert.Contains("msg=connector-saved-microsoft-unchecked", location response)
+
+        let! connector = stored world
+        Assert.True connector.Value.IsEnabled
+    }
+
+[<Fact>]
+let ``a disabled connector saved with its choice unchanged while Microsoft is unreachable stays disabled and says so`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAndAnyOrganization
+        // Written straight to the store: the toggle refuses to disable the last enabled connector.
+        do! ConnectorStore.setEnabled world.App.DbConfig world.App.Clock "microsoft" false
         world.Fake.Stub.Mode <- Down
 
         let! response = save world (fields |> with' [ "clientSecret", ""; "displayName", "Renamed" ])
@@ -633,7 +678,278 @@ let ``saving a saved connector while Microsoft is unreachable keeps it enabled a
 
         let! connector = stored world
         Assert.Equal("Renamed", connector.Value.DisplayName)
-        Assert.True connector.Value.IsEnabled
+        Assert.False connector.Value.IsEnabled
+
+        let! html = world.Operator.GetHtml(location response)
+        Assert.Contains("Saved, but not enabled: Umbral could not reach Microsoft (", decode html)
+    }
+
+/// A saved connector (personal accounts) as the tests below leave it: what the
+/// store holds of it, to compare after a refusal.
+type private Snapshot =
+    { Audience: MicrosoftAudience option
+      DisplayName: string
+      ClientId: string
+      SecretRef: string
+      Hint: string
+      IsEnabled: bool
+      Secret: string option }
+
+let private snapshot (world: World) =
+    task {
+        let! connector = stored world
+        let c = connector.Value
+        let! secret = storedSecret world
+
+        return
+            { Audience = c.MicrosoftAudience
+              DisplayName = c.DisplayName
+              ClientId = c.ClientId
+              SecretRef = c.ClientSecretRef
+              Hint = c.ClientSecretHint
+              IsEnabled = c.IsEnabled
+              Secret = secret }
+    }
+
+let private newSecret = "the-replacement-secret-1234"
+
+/// A refused change of choice on a saved connector: 422, the reason under
+/// `field`, every typed value kept but the secret, and nothing changed or logged.
+let private assertChoiceRefused
+    (world: World)
+    (posted: (string * string) list)
+    (field: string)
+    (assertMessage: string -> unit)
+    =
+    task {
+        let! before = snapshot world
+        let! updatedBefore = events world "connector_updated"
+
+        let! response = save world posted
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode)
+        let! html = body response
+
+        match errorOf html field with
+        | Some message -> assertMessage message
+        | None -> failwith $"no message under {field}"
+
+        // The other field of the pair has none.
+        let other = if field = "audience" then "tenantId" else "audience"
+        Assert.Equal(None, errorOf html other)
+
+        // Typed values kept; the secret never drawn back.
+        for name in [ "displayName"; "clientId"; "tenantId" ] do
+            Assert.Equal(posted |> List.find (fun (n, _) -> n = name) |> snd, valueOf html name)
+
+        let chosen = posted |> List.find (fun (n, _) -> n = "audience") |> snd
+        Assert.Equal<string list>([ chosen ], checkedRadios html)
+        Assert.DoesNotContain(newSecret, html)
+        Assert.Matches("<input[^>]*id=\"clientSecret\"[^>]*value=\"\"", html)
+
+        // Nothing written: the row, the secret and the log are as they were.
+        let! after = snapshot world
+        Assert.Equal(before, after)
+        let! updatedAfter = events world "connector_updated"
+        Assert.Equal(updatedBefore, updatedAfter)
+    }
+
+[<Fact>]
+let ``a changed choice that Microsoft says names no tenant is refused with the wrong message under the tenant field, and nothing is saved`` () =
+    task {
+        let! world = startFor (OneOrganization tenantA)
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAccounts
+        world.Fake.AnswerInvalidTenant()
+
+        let posted =
+            fields
+            |> with' [ "audience", "tenant"; "tenantId", FakeMicrosoft.WorkTenantA; "displayName", "Renamed"; "clientSecret", newSecret ]
+
+        do!
+            assertChoiceRefused world posted "tenantId" (fun message ->
+                Assert.Equal(
+                    "Microsoft did not confirm this choice: No Microsoft tenant has this ID. Nothing was saved: check the tenant ID, then save again.",
+                    message
+                )
+                Assert.DoesNotContain("AADSTS", message))
+    }
+
+[<Fact>]
+let ``a changed choice that Microsoft does not answer is refused with the did-not-answer message under the tenant field, and nothing is saved`` () =
+    task {
+        let! world = startFor (OneOrganization tenantA)
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAccounts
+        world.Fake.Stub.Mode <- Down
+
+        let posted =
+            fields
+            |> with' [ "audience", "tenant"; "tenantId", FakeMicrosoft.WorkTenantA; "displayName", "Renamed"; "clientSecret", newSecret ]
+
+        do!
+            assertChoiceRefused world posted "tenantId" (fun message ->
+                Assert.StartsWith("Microsoft did not answer (", message)
+                Assert.EndsWith("). Nothing was saved: try again in a moment.", message))
+    }
+
+[<Fact>]
+let ``a changed choice to any organization that Microsoft cannot confirm is refused under the choice, not under a tenant field`` () =
+    task {
+        // The fake serves "consumers" only; "organizations" finds Microsoft unreachable.
+        let! world = startFor PersonalAccounts
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAccounts
+
+        let posted =
+            fields |> with' [ "audience", "organizations"; "displayName", "Renamed"; "clientSecret", newSecret ]
+
+        do!
+            assertChoiceRefused world posted "audience" (fun message ->
+                Assert.StartsWith("Microsoft did not answer (", message)
+                Assert.EndsWith("). Nothing was saved: try again in a moment.", message))
+    }
+
+[<Fact>]
+let ``a changed choice whose document names another issuer is refused with the wrong message under the choice`` () =
+    task {
+        let! world = startFor PersonalAndAnyOrganization
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAccounts
+        world.Fake.Stub.Discovery["issuer"] <- node (Ms.issuerFor FakeMicrosoft.WorkTenantB)
+
+        let posted = fields |> with' [ "audience", "common"; "clientSecret", newSecret ]
+
+        do!
+            assertChoiceRefused world posted "audience" (fun message ->
+                Assert.StartsWith("Microsoft did not confirm this choice: ", message)
+                Assert.EndsWith(". Nothing was saved: check the tenant ID, then save again.", message))
+    }
+
+[<Fact>]
+let ``a refused edit of a saved connector leaves the audience, secret reference, hint and secret as they were`` () =
+    task {
+        let! world = startFor (OneOrganization tenantA)
+        use _ = world.App
+        let! _ = save world (fields |> with' [ "audience", "tenant"; "tenantId", FakeMicrosoft.WorkTenantA ])
+        let! before = snapshot world
+        Assert.False(String.IsNullOrEmpty before.Hint)
+
+        // A tenant ID that is not a GUID, with a new secret typed into the same form.
+        let! response =
+            save
+                world
+                (fields
+                 |> with' [ "audience", "tenant"; "tenantId", "not-a-tenant"; "displayName", "Renamed"; "clientSecret", newSecret ])
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode)
+        let! html = body response
+        Assert.Equal(Some((texts ()).MicrosoftTenantIdInvalid), errorOf html "tenantId")
+        Assert.DoesNotContain(newSecret, html)
+        Assert.Matches("<input[^>]*id=\"clientSecret\"[^>]*value=\"\"", html)
+
+        let! after = snapshot world
+        Assert.Equal(before, after)
+        let! updated = events world "connector_updated"
+        Assert.Equal(0, updated)
+    }
+
+// ---------------------------------------------------------------------------
+// The security log records who may sign in (code review N1)
+// ---------------------------------------------------------------------------
+
+let private detailOf (world: World) (eventType: string) =
+    scalar
+        world.App
+        $"SELECT coalesce(group_concat(detail, char(10)), '') FROM security_events WHERE event_type = '{eventType}'"
+        []
+
+[<Fact>]
+let ``creating the connector records the audience in its stored form`` () =
+    task {
+        for card, audience, tenantTyped in audiences do
+            let! world = startFor audience
+            use _ = world.App
+
+            let! _ = save world (fields |> with' [ "audience", card; "tenantId", tenantTyped ])
+
+            let! detail = detailOf world "connector_created"
+            Assert.Contains($"audience={Ms.stored audience}", detail)
+            // No secret, no tenant typed in another spelling.
+            Assert.DoesNotContain(FakeMicrosoft.ClientSecret, detail)
+    }
+
+[<Fact>]
+let ``a connector created disabled records the audience too`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        world.Fake.Stub.Mode <- Down
+
+        let! _ = save world fields
+
+        let! detail = detailOf world "connector_created"
+        Assert.Contains("audience=common;saved_disabled: ", detail)
+    }
+
+[<Fact>]
+let ``changing the audience records the new one when it is saved`` () =
+    task {
+        let! world = startFor PersonalAndAnyOrganization
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAccounts
+
+        let! _ = save world (fields |> with' [ "audience", "common"; "clientSecret", "" ])
+
+        let! detail = detailOf world "connector_updated"
+        Assert.Equal("audience=common", detail)
+    }
+
+[<Fact>]
+let ``saving with the audience unchanged records no audience`` () =
+    task {
+        let! world = startFor PersonalAndAnyOrganization
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAndAnyOrganization
+
+        let! _ = save world (fields |> with' [ "clientSecret", ""; "displayName", "Renamed" ])
+        let! detail = detailOf world "connector_updated"
+        Assert.DoesNotContain("audience", detail)
+
+        // A new secret with the audience unchanged names the store, and still no audience.
+        let! _ = save world (fields |> with' [ "clientSecret", newSecret ])
+        let! detail = detailOf world "connector_updated"
+        Assert.DoesNotContain("audience", detail)
+        Assert.Contains("store=", detail)
+    }
+
+[<Fact>]
+let ``changing the audience together with the secret records both`` () =
+    task {
+        let! world = startFor PersonalAndAnyOrganization
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAccounts
+
+        let! _ = save world (fields |> with' [ "audience", "common"; "clientSecret", newSecret ])
+
+        let! detail = detailOf world "connector_updated"
+        Assert.Matches("^store=[^;]+;audience=common$", detail)
+    }
+
+[<Fact>]
+let ``a refused change of audience logs nothing`` () =
+    task {
+        let! world = startFor PersonalAccounts
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAccounts
+
+        // "organizations" is not served by this fake: refused, nothing saved.
+        let! response = save world (fields |> with' [ "audience", "organizations"; "clientSecret", "" ])
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode)
+
+        let! updated = events world "connector_updated"
+        Assert.Equal(0, updated)
+        let! created = events world "connector_created"
+        Assert.Equal(0, created)
     }
 
 // ---------------------------------------------------------------------------

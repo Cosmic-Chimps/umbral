@@ -268,11 +268,13 @@ let private validationParameters
     parameters
 
 /// A validated `id_token`: the payload as the JSON it arrived as, the parsed token
-/// (header, `kid`, `iss`), and the configuration whose keys judged it, which is
-/// the fresher one when the keys had to be fetched again.
+/// (header, `kid`, `iss`), the key the library verified the signature with (None
+/// if it does not say), and the configuration whose keys judged it, which is the
+/// fresher one when the keys had to be fetched again.
 type IdTokenValidated =
     { Payload: JsonElement
       Token: JsonWebToken
+      SigningKey: SecurityKey option
       Configuration: OpenIdConnectConfiguration }
 
 /// Validate an `id_token` against the provider's published keys, once the
@@ -366,6 +368,10 @@ let validateIdTokenWith
                         Ok
                             { Payload = payload.Clone()
                               Token = token
+                              SigningKey =
+                                match result.SecurityToken with
+                                | :? JsonWebToken as verified -> Option.ofObj verified.SigningKey
+                                | _ -> None
                               Configuration = configuration }
     }
 

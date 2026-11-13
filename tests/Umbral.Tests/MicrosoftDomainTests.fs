@@ -115,8 +115,15 @@ let ``personal and any organization admits every tenant`` () =
 
 [<Fact>]
 let ``parseStoredAudience is the inverse of stored`` () =
-    for audience in everyAudience @ [ OneOrganization tenantB; OneOrganization personalTenant ] do
+    for audience in everyAudience @ [ OneOrganization tenantB ] do
         Assert.Equal(Some audience, parseStoredAudience (stored audience))
+
+/// The form refuses the personal tenant for "one organization"; a stored row that
+/// holds it was not written by Umbral, and loads as unreadable (fails closed).
+[<Fact>]
+let ``a stored tenant that is the personal tenant loads as unreadable`` () =
+    Assert.Equal(None, parseStoredAudience (stored (OneOrganization personalTenant)))
+    Assert.Equal(None, parseStoredAudience "9188040d-6c67-4c5b-b112-36a304b66dad")
 
 [<Theory>]
 [<InlineData("")>]

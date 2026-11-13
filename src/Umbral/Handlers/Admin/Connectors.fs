@@ -1385,7 +1385,7 @@ let private render
                     Some(said |> Option.defaultValue (t.Notice code))
                 // Microsoft's: the reason is what Microsoft's address did, or why its
                 // answer could not be used; it comes from the same kind of cookie.
-                | Some("connector-saved-microsoft-unreachable" | "connector-enable-microsoft-unreachable" | "connector-saved-microsoft-wrong" | "connector-enable-microsoft-wrong" as code) ->
+                | Some("connector-saved-microsoft-unreachable" | "connector-enable-microsoft-unreachable" | "connector-saved-microsoft-wrong" | "connector-enable-microsoft-wrong" | "connector-saved-microsoft-unchecked" as code) ->
                     let said =
                         ctx.TryGetQueryValue "slug"
                         |> Option.bind (fun slug -> WebForms.NoticeReason.consume ctx code "slug" slug)
@@ -1394,6 +1394,7 @@ let private render
                             | "connector-saved-microsoft-unreachable" -> t.MicrosoftSavedUnreachable reason
                             | "connector-enable-microsoft-unreachable" -> t.MicrosoftEnableUnreachable reason
                             | "connector-saved-microsoft-wrong" -> t.MicrosoftSavedWrong reason
+                            | "connector-saved-microsoft-unchecked" -> t.MicrosoftSavedUnchecked reason
                             | _ -> t.MicrosoftEnableWrong reason)
 
                     Some(said |> Option.defaultValue (t.Notice code))
@@ -2185,12 +2186,23 @@ let private applyChanges
                     return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
                 else
                     // FR-022: a changed secret names the store that now holds it.
+                    // The audience too, when it actually changed, judged against the
+                    // row as read under the lease (it says who may sign in, and is no secret).
+                    let detail =
+                        [ match written with
+                          | Some(reference, _) -> $"store={reference.Store}"
+                          | None -> ()
+                          match microsoft with
+                          | Some { Audience = audience } when stored.MicrosoftAudience <> Some audience ->
+                              $"audience={Umbral.Domains.Microsoft.stored audience}"
+                          | _ -> () ]
+
                     do!
                         recordEventWith
                             ctx
                             SecurityEvents.ConnectorUpdated
                             slug
-                            (written |> Option.map (fun (reference, _) -> $"store={reference.Store}"))
+                            (if detail.IsEmpty then None else Some(String.concat ";" detail))
 
                     // FR-021: only when the stored list actually changed,
                     // judged against the row as read under the lease.
@@ -2596,9 +2608,12 @@ let private refuseMicrosoft (ctx: HttpContext) (draft: MicrosoftConnector.Draft)
 /// nothing. Then Microsoft is asked for the discovery document of the chosen
 /// audience (`CheckAt`). A new connector is saved enabled only when that worked;
 /// unreachable or not usable saves it disabled and says why. A saved connector
-/// keeps its enabled state whatever the check says, because a moment in which
-/// Microsoft cannot be reached must not switch off a connector that works; the
-/// notice is still shown.
+/// whose choice of who may sign in changed is not saved at all when the check
+/// fails (422, the reason under the choice, nothing written). One whose choice
+/// did not change keeps its enabled state whatever the check says, because a
+/// moment in which Microsoft cannot be reached must not switch off a connector
+/// that works; an enabled one says it was not checked, a disabled one that it is
+/// not enabled.
 let saveMicrosoft: EndpointHandler =
     AdminAuth.requireOperator (fun ctx ->
         task {
@@ -2681,9 +2696,11 @@ let saveMicrosoft: EndpointHandler =
                         SecurityEvents.ConnectorCreated
                         slug
                         (Some(
+                            let audience = Umbral.Domains.Microsoft.stored parsed.Audience
+
                             match failed with
-                            | Some(_, reason) -> $"store={reference.Store};saved_disabled: {reason}"
-                            | None -> $"store={reference.Store}"
+                            | Some(_, reason) -> $"store={reference.Store};audience={audience};saved_disabled: {reason}"
+                            | None -> $"store={reference.Store};audience={audience}"
                         ))
 
                 if not parsed.Domains.IsEmpty then
@@ -2692,6 +2709,26 @@ let saveMicrosoft: EndpointHandler =
                 match failed with
                 | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-saved"
                 | Some(code, reason) -> return! WebForms.NoticeReason.redirect ctx (detailPath slug) code "slug" slug reason
+
+            // A changed choice that Microsoft does not confirm is not saved at all
+            // (spec FR-003): a mistyped tenant ID must not reach a connector that
+            // people use. Nothing is written, not even the secret typed with it;
+            // the form is drawn again with the reason under the choice.
+            | Some stored when failed.IsSome && stored.MicrosoftAudience <> Some parsed.Audience ->
+                let message =
+                    match discovered with
+                    | OidcDiscovery.Wrong reason -> t.MicrosoftNotConfirmed(WebForms.truncate 300 reason)
+                    | OidcDiscovery.Unreachable reason -> t.MicrosoftNotAnswered(WebForms.truncate 300 reason)
+                    | OidcDiscovery.Discovered _ -> ""
+
+                return!
+                    refuseMicrosoft
+                        ctx
+                        (MicrosoftConnector.refusedChoice
+                            parsed
+                            (WebForms.value form MicrosoftConnector.TenantIdField)
+                            (WebForms.value form MicrosoftConnector.DomainsField)
+                            message)
 
             | Some stored ->
                 // Turning sharing off can leave an all-shared app with nothing to
@@ -2716,6 +2753,14 @@ let saveMicrosoft: EndpointHandler =
                         WebForms.NoticeReason.redirect ctx (detailPath slug) "connector-strands-apps" "slug" slug "unshare"
                 else
 
+                // The choice did not change here. An enabled connector stays so, and
+                // the notice says it was not checked; a disabled one is still not
+                // enabled, so the "Saved, but not enabled" notices are true.
+                let notice =
+                    match failed with
+                    | Some(_, reason) when stored.IsEnabled -> Some("connector-saved-microsoft-unchecked", reason)
+                    | other -> other
+
                 // A new secret goes through the path of a replaced client secret (the
                 // lease, the write, the removal of the old copy).
                 return!
@@ -2731,7 +2776,7 @@ let saveMicrosoft: EndpointHandler =
                         None
                         (Some
                             { Audience = parsed.Audience
-                              CheckNotice = failed })
+                              CheckNotice = notice })
         })
 
 /// Save the instance list (FR-016, FR-019). Emptying a list that is not empty

@@ -26,14 +26,13 @@ type private World =
       ClientId: string
       ClientSecret: string }
 
-let private start () =
+let private startWith (audience: MicrosoftAudience) =
     task {
-        // Everyone signs in under the widest audience; each test narrows after.
-        let fake = FakeMicrosoft.create PersonalAndAnyOrganization
+        let fake = FakeMicrosoft.create audience
         let! app = Fixtures.createAppWithProviderHandler fake.Handler fakeSettings ignore
         FakeMicrosoft.attach app fake
         let! prepared = prepare app (Browser app.Client)
-        do! FakeMicrosoft.seedConnector app PersonalAndAnyOrganization
+        do! FakeMicrosoft.seedConnector app audience
 
         return
             { App = app
@@ -44,11 +43,14 @@ let private start () =
 
 let private location (response: Net.Http.HttpResponseMessage) = response.Headers.Location |> string
 
-/// One whole sign-in through Microsoft as the person of `tid`; returns the
-/// browser (with its session) and the tokens the app got.
-let private signInAs (world: World) (tid: string) =
+/// Everyone signs in under the widest audience; each test narrows after.
+let private start () = startWith PersonalAndAnyOrganization
+
+/// A sign-in through Microsoft as the person of `tid` (whose token `asserts` says),
+/// up to the authorization code the app is given and not yet redeemed.
+let private signInToCode (world: World) (asserts: unit -> unit) =
     task {
-        world.Fake.Asserts(tid, FakeMicrosoft.Oid, email = FakeMicrosoft.Email)
+        asserts ()
         let browser = Browser world.App.Client
         let! toPicker = browser.Get(authorizeUrl world.ClientId scope)
         let! toMicrosoft = browser.Get((location toPicker).Replace("/signin", "/connect/microsoft/start"))
@@ -60,6 +62,16 @@ let private signInAs (world: World) (tid: string) =
 
         let! issued = browser.Get(location back)
         let code = Regex.Match(location issued, "code=([^&]+)").Groups[1].Value |> Uri.UnescapeDataString
+        return browser, code
+    }
+
+/// One whole sign-in through Microsoft as the person of `tid`; returns the
+/// browser (with its session) and the tokens the app got.
+let private signInAs (world: World) (tid: string) =
+    task {
+        let! browser, code =
+            signInToCode world (fun () -> world.Fake.Asserts(tid, FakeMicrosoft.Oid, email = FakeMicrosoft.Email))
+
         let! exchanged = exchangeCode world.App.Client world.ClientId world.ClientSecret code
         let! tokens = json exchanged
         return browser, strOf tokens "refresh_token"
@@ -196,4 +208,119 @@ let ``widening the audience again admits the same work account as the same user`
 
         let! refreshed = refresh world.App.Client world.ClientId world.ClientSecret refreshToken
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode)
+    }
+
+// ---------------------------------------------------------------------------
+// Code review of task m5ft: the narrowings the first tests did not cover
+// ---------------------------------------------------------------------------
+
+let private opensAtAuthorize (world: World) (browser: Browser) =
+    task {
+        let! response = browser.Get(authorizeUrl world.ClientId "openid")
+        return (location response).Contains "code="
+    }
+
+[<Fact>]
+let ``common narrowed to one tenant keeps that tenant's people and ends the others' sessions`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        use _ = world.Fake
+
+        let! inA, _ = signInAs world FakeMicrosoft.WorkTenantA
+        let! inB, _ = signInAs world FakeMicrosoft.WorkTenantB
+        let! personal, _ = signInAs world FakeMicrosoft.PersonalTenant
+
+        do! narrowTo world (OneOrganization(Guid.Parse FakeMicrosoft.WorkTenantA))
+
+        let! a = opensAtAuthorize world inA
+        let! b = opensAtAuthorize world inB
+        let! p = opensAtAuthorize world personal
+        Assert.True(a, "the tenant that is still admitted lost its session")
+        Assert.False(b, "another work tenant kept its session")
+        Assert.False(p, "a personal account kept its session")
+
+        let! details = failureDetails world
+        Assert.Equal<string list>(
+            [ $"microsoft:tenant_not_allowed;tenant={FakeMicrosoft.WorkTenantB}"
+              $"microsoft:tenant_not_allowed;tenant={FakeMicrosoft.PersonalTenant}" ],
+            details
+        )
+    }
+
+[<Fact>]
+let ``organizations narrowed to one tenant keeps that tenant's people and ends the others' sessions`` () =
+    task {
+        let! world = startWith AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        let! inA, _ = signInAs world FakeMicrosoft.WorkTenantA
+        let! inB, refreshB = signInAs world FakeMicrosoft.WorkTenantB
+
+        do! narrowTo world (OneOrganization(Guid.Parse FakeMicrosoft.WorkTenantA))
+
+        let! a = opensAtAuthorize world inA
+        let! b = opensAtAuthorize world inB
+        Assert.True(a, "the tenant that is still admitted lost its session")
+        Assert.False(b, "another work tenant kept its session")
+
+        let! response = refresh world.App.Client world.ClientId world.ClientSecret refreshB
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+    }
+
+[<Fact>]
+let ``an authorization code issued before the narrowing is invalid_grant at the token endpoint`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        use _ = world.Fake
+
+        let! _, code =
+            signInToCode world (fun () ->
+                world.Fake.Asserts(FakeMicrosoft.WorkTenantA, FakeMicrosoft.Oid, email = FakeMicrosoft.Email))
+
+        // The app has the code and has not redeemed it yet.
+        do! narrowTo world PersonalAccounts
+
+        let! exchanged = exchangeCode world.App.Client world.ClientId world.ClientSecret code
+        Assert.Equal(HttpStatusCode.BadRequest, exchanged.StatusCode)
+        let! body = json exchanged
+        Assert.Equal("invalid_grant", strOf body "error")
+
+        let! details = failureDetails world
+        Assert.Equal($"microsoft:tenant_not_allowed;tenant={FakeMicrosoft.WorkTenantA}", Assert.Single details)
+    }
+
+/// The per-person rule (research R3, spec 015's code review N3): a person with a
+/// personal link and a work link, joined by a verified email, passes the re-check
+/// under "personal only" through the personal one, whichever account the session
+/// was opened with.
+[<Fact>]
+let ``a person with a personal and a work link passes the re-check under personal only`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+        use _ = world.Fake
+
+        let verified tid () =
+            world.Fake.Asserts(tid, FakeMicrosoft.Oid, email = FakeMicrosoft.Email, xmsEdov = (true :> obj))
+
+        // The session is opened with the work account...
+        let! viaWork, _ = signInToCode world (verified FakeMicrosoft.WorkTenantA)
+        // ...and the personal account joins the same user (same verified email).
+        let! _ = signInToCode world (verified FakeMicrosoft.PersonalTenant)
+
+        let! users = Flows.scalar world.App "SELECT count(*) FROM users" []
+        Assert.Equal("1", users)
+        let! links = Flows.scalar world.App "SELECT count(*) FROM linked_accounts WHERE provider_kind = 'microsoft'" []
+        Assert.Equal("2", links)
+
+        do! narrowTo world PersonalAccounts
+
+        let! stays = opensAtAuthorize world viaWork
+        Assert.True(stays, "the person holds an admitted account and must pass")
+
+        let! details = failureDetails world
+        Assert.Empty details
     }

@@ -70,15 +70,74 @@ let private keyIssuer (key: JsonWebKey) : string option =
     | true, (:? JsonElement as element) when element.ValueKind = JsonValueKind.String -> Option.ofObj (element.GetString())
     | _ -> None
 
-/// The key-issuer rule: the key with the token's `kid`, from the key set that
-/// judged it, names an issuer that is the token's `iss` once `{tenantid}` is the
-/// `tid`. No `kid`, no such key, no `issuer` on it, or any difference: false.
-let private keyIssuerMatches (configuration: OpenIdConnectConfiguration) (token: JsonWebToken) (tid: Guid) : bool =
+/// The public RSA parameters of a key as the library holds it (modulus and exponent,
+/// without leading zeros), None for a key that is not RSA.
+let private rsaPublicOf (key: SecurityKey) : (byte[] * byte[]) option =
+    let trim (bytes: byte[]) = bytes |> Array.skipWhile ((=) 0uy)
+
+    let ofParameters (p: System.Security.Cryptography.RSAParameters) =
+        match Option.ofObj p.Modulus, Option.ofObj p.Exponent with
+        | Some n, Some e -> Some(trim n, trim e)
+        | _ -> None
+
+    match key with
+    | :? RsaSecurityKey as rsa ->
+        match Option.ofObj rsa.Rsa with
+        | Some algorithm -> ofParameters (algorithm.ExportParameters false)
+        | None -> ofParameters rsa.Parameters
+    | :? X509SecurityKey as x509 ->
+        match Option.ofObj (System.Security.Cryptography.X509Certificates.RSACertificateExtensions.GetRSAPublicKey x509.Certificate) with
+        | Some algorithm -> ofParameters (algorithm.ExportParameters false)
+        | None -> None
+    | :? JsonWebKey as jwk ->
+        match Option.ofObj jwk.N, Option.ofObj jwk.E with
+        | Some n, Some e -> Some(trim (Base64UrlEncoder.DecodeBytes n), trim (Base64UrlEncoder.DecodeBytes e))
+        | _ -> None
+    | _ -> None
+
+/// The `issuer` member of the published key that verified the signature: the one
+/// whose public key is the key the library used. When that cannot be told (a key
+/// type it does not know), every published key with the token's `kid` must name the
+/// same issuer. None when there is no such key, it has no issuer, or the keys that
+/// could be it disagree.
+let private issuerOfVerifyingKey
+    (keySet: JsonWebKeySet)
+    (kid: string)
+    (signingKey: SecurityKey option)
+    : string option =
+    let candidates = keySet.Keys |> Seq.filter (fun key -> key.Kid = kid) |> List.ofSeq
+
+    let used =
+        match signingKey |> Option.bind rsaPublicOf with
+        | Some material ->
+            candidates
+            |> List.filter (fun key ->
+                match rsaPublicOf key with
+                | Some other -> other = material
+                | None -> false)
+        | None -> []
+
+    // The key itself when it was found; else all the candidates, which must agree.
+    match (if used.IsEmpty then candidates else used) |> List.map keyIssuer |> List.distinct with
+    | [ only ] -> only
+    | _ -> None
+
+/// The key-issuer rule: the key that verified the token's signature names an issuer
+/// that is the token's `iss` once `{tenantid}` is the `tid`. No `kid`, no such key,
+/// no `issuer` on it, or any difference: false.
+///
+/// The key judged is the one the library used (`signingKey`), not the first with
+/// that `kid`: a key set may list one `kid` twice, and the answer must not depend on
+/// the order of the list.
+let private keyIssuerMatches
+    (configuration: OpenIdConnectConfiguration)
+    (token: JsonWebToken)
+    (signingKey: SecurityKey option)
+    (tid: Guid)
+    : bool =
     match Option.ofObj configuration.JsonWebKeySet, Option.ofObj token.Kid, Option.ofObj token.Issuer with
     | Some keySet, Some kid, Some iss when kid <> "" ->
-        keySet.Keys
-        |> Seq.tryFind (fun key -> key.Kid = kid)
-        |> Option.bind keyIssuer
+        issuerOfVerifyingKey keySet kid signingKey
         |> Option.exists (fun published ->
             String.Equals(published.Replace("{tenantid}", tid.ToString "D"), iss, StringComparison.Ordinal))
     | _ -> false
@@ -181,7 +240,7 @@ type MicrosoftAdapter(httpClient: HttpClient, discovery: OidcDiscovery, time: Ti
                     // The key that signed it was issued for this tenant's tokens.
                     // Judged against the configuration that did the validating,
                     // which is the refreshed one when the keys were fetched again.
-                    if not (keyIssuerMatches validated.Configuration validated.Token tid) then
+                    if not (keyIssuerMatches validated.Configuration validated.Token validated.SigningKey tid) then
                         return invalid "key_issuer"
                     else
 

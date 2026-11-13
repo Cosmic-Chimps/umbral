@@ -135,6 +135,26 @@ let private validate (allowLocalhostHttp: bool) (issuer: string) (document: Open
           None ]
     |> List.tryPick id
 
+/// Whether this exception is the library's record of an HTTP 400 whose body is a
+/// JSON object with `"error": "invalid_tenant"` (what Microsoft answers for a
+/// tenant ID that names no tenant). `HttpDocumentRetriever` puts the status and the
+/// body of a failed fetch in `Data`; nothing else counts.
+let private isInvalidTenant (e: exn) : bool =
+    match e.Data[HttpDocumentRetriever.StatusCode], e.Data[HttpDocumentRetriever.ResponseContent] with
+    | (:? System.Net.HttpStatusCode as status), (:? string as body) when status = System.Net.HttpStatusCode.BadRequest ->
+        try
+            use document = System.Text.Json.JsonDocument.Parse body
+
+            document.RootElement.ValueKind = System.Text.Json.JsonValueKind.Object
+            && (match document.RootElement.TryGetProperty "error" with
+                | true, error ->
+                    error.ValueKind = System.Text.Json.JsonValueKind.String
+                    && error.GetString() = "invalid_tenant"
+                | _ -> false)
+        with :? System.Text.Json.JsonException ->
+            false
+    | _ -> false
+
 /// The cause of a failed fetch, in a phrase an operator can act on. The library
 /// wraps whatever went wrong in an `InvalidOperationException`, so the cause is
 /// the innermost exception.
@@ -171,6 +191,12 @@ let private classify (timeout: TimeSpan) (error: exn) : DiscoveryResult =
         Unreachable $"its answer was larger than {MaxDocumentBytes / 1_000_000L} MB, so it is not a discovery document or a key set"
     elif causes |> List.exists (fun e -> e :? OperationCanceledException) then
         Unreachable $"no answer within {timeout.TotalSeconds} seconds"
+    // Microsoft answers the discovery of a tenant ID that names no tenant with
+    // HTTP 400 and {"error":"invalid_tenant", ...}: a wrong address, not an outage.
+    // The library keeps the status and the body in the exception's Data. Only that
+    // exact pair is read; `error_description` (it carries trace IDs) is never kept.
+    elif causes |> List.exists isInvalidTenant then
+        Wrong "No Microsoft tenant has this ID"
     // IDX20807 is the library's "the answer was not a success". It hides the
     // status itself from exception messages (it may be PII), so all that can be
     // said is that there was one.

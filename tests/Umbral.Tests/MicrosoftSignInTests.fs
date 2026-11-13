@@ -925,3 +925,188 @@ let ``an expired client secret is refused by the token endpoint and logged as re
 
         do! assertRefusedWith world "sign-in-failed" "rejected: invalid_client"
     }
+
+// ---------------------------------------------------------------------------
+// Code review of task m5ft: the key that verified the signature, the shared
+// validator on this path, the claims that must not verify or fill in an email
+// ---------------------------------------------------------------------------
+
+// Microsoft.IdentityModel verifies a signature with the first key of the set that
+// has the token's `kid`; a later key with the same `kid` never verifies anything.
+// The rule judges the key the library used, so the order of the list cannot make
+// a different key's issuer count.
+
+[<Fact>]
+let ``a kid listed twice judges the key that verified, not another with the same kid`` () =
+    task {
+        let! world = start AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        // The key that signs (first with this kid) names the personal tenant; a
+        // second key with the same kid names the template, which would fit a work
+        // tenant. The token says work: the key that verified is the one judged.
+        world.Fake.Stub.KeyIssuers["key-1"] <- Ms.issuerFor FakeMicrosoft.PersonalTenant
+        world.Fake.PublishDuplicateKid("key-1", Some Ms.issuerTemplate) |> ignore
+
+        do! assertRefusedWith world "sign-in-failed" (invalidDetail "key_issuer")
+    }
+
+[<Fact>]
+let ``a kid listed twice does not make a good key refused because another with the same kid names a mismatch`` () =
+    task {
+        let! world = start AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        // The key that signs (first) names the template; a second key with the same
+        // kid names the personal tenant. Only the first verifies, and it is the one judged.
+        world.Fake.PublishDuplicateKid("key-1", Some(Ms.issuerFor FakeMicrosoft.PersonalTenant)) |> ignore
+
+        let! outcome = signIn (newBrowser world) world
+        signedIn outcome |> ignore
+    }
+
+[<Fact>]
+let ``a token signed by a second key with a kid already listed is refused as a bad signature`` () =
+    task {
+        let! world = start AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        let second = world.Fake.PublishDuplicateKid("key-1", Some Ms.issuerTemplate)
+        world.Fake.Asserts(FakeMicrosoft.WorkTenantA, FakeMicrosoft.Oid, email = FakeMicrosoft.Email, key = second)
+
+        do! assertRefusedWith world "sign-in-failed" (invalidDetail "signature")
+    }
+
+[<Fact>]
+let ``a one-organization key set carries that tenant's own issuer and its token is accepted`` () =
+    task {
+        let! world = start (OneOrganization(Guid.Parse FakeMicrosoft.WorkTenantA))
+        use _ = world.App
+        use _ = world.Fake
+
+        world.Fake.Stub.KeyIssuers["key-1"] <- Ms.issuerFor FakeMicrosoft.WorkTenantA
+
+        let! outcome = signIn (newBrowser world) world
+        signedIn outcome |> ignore
+    }
+
+[<Fact>]
+let ``a one-organization key set whose key was issued to another tenant is refused`` () =
+    task {
+        let! world = start (OneOrganization(Guid.Parse FakeMicrosoft.WorkTenantA))
+        use _ = world.App
+        use _ = world.Fake
+
+        world.Fake.Stub.KeyIssuers["key-1"] <- Ms.issuerFor FakeMicrosoft.WorkTenantB
+
+        do! assertRefusedWith world "sign-in-failed" (invalidDetail "key_issuer")
+    }
+
+[<Fact>]
+let ``an unsigned token (alg none) is refused on the Microsoft path`` () =
+    task {
+        let! world = start AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        world.Fake.Stub.IdToken <- { world.Fake.Stub.IdToken with Unsigned = true }
+
+        // Not `assertRefusedWith`: an unsigned token has an empty signature, which
+        // its search of the log for the signature would find everywhere.
+        let browser = newBrowser world
+        let! seen = visit browser world
+        let! back = callback browser seen.Authorization
+        assertRefused browser back "sign-in-failed"
+
+        let! logged = lastFailure world
+        Assert.Equal(invalidDetail "algorithm", logged)
+        do! assertNobodyMade world
+    }
+
+[<Fact>]
+let ``a token signed with a shared secret (HS256) is refused on the Microsoft path`` () =
+    task {
+        let! world = start AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        let shared = SymmetricSecurityKey(Encoding.UTF8.GetBytes(world.ClientSecret.PadRight(48, 'x')))
+
+        world.Fake.Stub.IdToken <-
+            { world.Fake.Stub.IdToken with
+                Algorithm = SecurityAlgorithms.HmacSha256
+                Key = Some(shared :> SecurityKey) }
+
+        do! assertRefusedWith world "sign-in-failed" (invalidDetail "algorithm")
+    }
+
+[<Fact>]
+let ``an expired token is refused on the Microsoft path`` () =
+    task {
+        let! world = start AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        let now = world.App.Clock.GetUtcNow()
+        world.Fake.Stub.IdToken <- { world.Fake.Stub.IdToken with ExpiresAt = Some(now - TimeSpan.FromMinutes 3.0) }
+
+        do! assertRefusedWith world "sign-in-failed" (invalidDetail "expired")
+    }
+
+[<Fact>]
+let ``a token that is not valid yet is refused on the Microsoft path`` () =
+    task {
+        let! world = start AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        // Microsoft's clock is ten minutes ahead of Umbral's.
+        world.Fake.Stub.Now <- fun () -> world.App.Clock.GetUtcNow() + TimeSpan.FromMinutes 10.0
+
+        do! assertRefusedWith world "sign-in-failed" (invalidDetail "not_yet_valid")
+    }
+
+[<Fact>]
+let ``the standard email_verified claim without xms_edov leaves the email unverified`` () =
+    task {
+        let! world = start AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        world.Fake.Asserts(
+            FakeMicrosoft.WorkTenantA,
+            FakeMicrosoft.Oid,
+            email = FakeMicrosoft.Email,
+            claims = [ "email_verified", (true :> obj) ]
+        )
+
+        let! outcome = signIn (newBrowser world) world
+        signedIn outcome |> ignore
+
+        let! stored = userOf world (subjectOf FakeMicrosoft.WorkTenantA)
+        Assert.Equal($"{FakeMicrosoft.Name}|{FakeMicrosoft.Email}|0", stored)
+    }
+
+[<Fact>]
+let ``preferred_username and upn are not an email: with no email claim the stored email is empty`` () =
+    task {
+        let! world = start AnyOrganization
+        use _ = world.App
+        use _ = world.Fake
+
+        world.Fake.Asserts(
+            FakeMicrosoft.WorkTenantA,
+            FakeMicrosoft.Oid,
+            xmsEdov = (true :> obj),
+            claims = [ "preferred_username", ("maria@contoso.example" :> obj); "upn", ("maria@contoso.example" :> obj) ]
+        )
+
+        let! outcome = signIn (newBrowser world) world
+        signedIn outcome |> ignore
+
+        let! stored = userOf world (subjectOf FakeMicrosoft.WorkTenantA)
+        Assert.Equal($"{FakeMicrosoft.Name}||0", stored)
+    }

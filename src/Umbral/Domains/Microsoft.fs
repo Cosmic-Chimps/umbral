@@ -82,7 +82,10 @@ let parseStoredAudience (s: string | null) : MicrosoftAudience option =
     | "consumers" -> Some PersonalAccounts
     | "organizations" -> Some AnyOrganization
     | "common" -> Some PersonalAndAnyOrganization
-    | s -> tryCanonicalGuid s |> Option.map OneOrganization
+    // The personal tenant is not "one organization": the form refuses it, so a row
+    // that holds it was not written by Umbral, and it loads as unreadable (which
+    // fails closed).
+    | s -> tryCanonicalGuid s |> Option.filter (fun g -> g <> personalTenant) |> Option.map OneOrganization
 
 /// A GUID in .NET's `D` spelling (dashes, no braces), either case, after
 /// trimming: what an operator copies from the Entra admin centre.
