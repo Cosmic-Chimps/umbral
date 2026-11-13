@@ -165,15 +165,20 @@ let ``the refusal detail is built from closed words and the domain`` () =
     )
 
 [<Fact>]
-let ``the connector-changed detail names a deleted connector, or the kind the slug names now`` () =
+let ``the connector-changed detail names a deleted connector, the kind the slug names now, or none recorded`` () =
     Assert.Equal(
         "connector_changed;reason=deleted;stage=token",
-        connectorChangedDetail None Token
+        connectorChangedDetail Umbral.Domains.Connectors.Deleted Token
     )
 
     Assert.Equal(
         "connector_changed;reason=other_kind;stage=authorize;kind=oidc",
-        connectorChangedDetail (Some Umbral.Domains.Connectors.ProviderKind.Oidc) Authorize
+        connectorChangedDetail (Umbral.Domains.Connectors.OtherKind Umbral.Domains.Connectors.ProviderKind.Oidc) Authorize
+    )
+
+    Assert.Equal(
+        "connector_changed;reason=unrecorded;stage=token",
+        connectorChangedDetail Umbral.Domains.Connectors.Unrecorded Token
     )
 
 [<Theory>]

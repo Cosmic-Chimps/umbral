@@ -61,21 +61,35 @@ and the same kind before the refresh admits it again, as the delete confirmation
 A disabled connector is unchanged: it still exists, its rules still apply, and its tokens
 still refresh. Disabling stops new sign-ins; deleting now also stops refreshes.
 
-A code or refresh token with no `connector` claim (issued before specs/006) is unchanged:
-nothing says which connector to compare, and `EmailDomainRules.recheck` already judges it.
+A code or refresh token with no `connector` claim (issued before specs/006) is refused too,
+`reason=unrecorded` (code review N2): nothing says which connector's rules would apply, so it
+cannot be shown to match. Allowed email domains shipped in 0.1.0, so no released version
+issued such a token; only a pre-release build's refresh chain can meet it.
+
+## What this does not cover (code review N1)
+
+`recheckKind` compares kinds, not connectors: the `connectors` table has no immutable id (the
+slug is the primary key). A connector deleted and re-created under the same slug and kind (an
+OIDC connector, even with another issuer) carries the old sign-ins over, judged by its own
+settings. That is the operator's deliberate act, and binding a session to one connector row
+would need a new column and claim. It is written down in `docs/connectors/oidc.md` (the
+delete-and-re-add advice), the troubleshooting entry and the changelog fragment.
 
 ## The rule in code
 
-- `ConnectorStore.recheckKind config slug kind : Task<KindChange option>`:
+- `Connectors.ConnectorChange` (`Deleted`, `OtherKind of now`, `Unrecorded`), in the domain so
+  `SecurityEvents` can take it.
+- `ConnectorStore.recheckKind config slug kind : Task<ConnectorChange option>`:
   `None` admits; `Some Deleted` when no connector has the slug; `Some(OtherKind now)` when
   the connector's kind is not `kind` (also when the session has no kind at all).
 - `SecurityEvents.connectorChangedDetail change stage`:
-  `connector_changed;reason=deleted;stage=token` or
-  `connector_changed;reason=other_kind;stage=authorize;kind=oidc`. Closed words only.
+  `connector_changed;reason=deleted;stage=token`,
+  `connector_changed;reason=other_kind;stage=authorize;kind=oidc` or
+  `connector_changed;reason=unrecorded;stage=token`. Closed words only.
 - `Authorize.fs`: run first, inside the "offered" branch, before the email-domain check.
   A refusal signs the person out and records `sign_in_failed` with that detail.
-- `Token.fs`: run first when the token has a `connector` claim, before the email-domain
-  check. A refusal records `sign_in_failed` and answers `invalid_grant`.
+- `Token.fs`: run first, before the email-domain check; a token with no `connector` claim is
+  `Unrecorded`. A refusal records `sign_in_failed` and answers `invalid_grant`.
 
 ## Tests
 

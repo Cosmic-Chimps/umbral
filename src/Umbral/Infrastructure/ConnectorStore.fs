@@ -97,13 +97,6 @@ let findBySlug (config: Database.DbConfig) (slug: string) =
         return List.tryHead rows
     }
 
-/// What became of the connector a remembered sign-in went through (task s1ug).
-type KindChange =
-    /// No connector has the slug any more.
-    | Deleted
-    /// The slug now names a connector of another kind.
-    | OtherKind of now: ProviderKind
-
 /// Whether a remembered sign-in (a session, a code or a refresh token) still
 /// goes through the connector it was made through: `None` admits, `Some` says
 /// what changed. `kind` is the `ProviderKind.Value` the sign-in carries. A slug
@@ -112,8 +105,12 @@ type KindChange =
 /// kind, so without this a new connector under an old slug would judge the old
 /// sign-ins by its own rules, and a deleted one would judge them by none. Fails
 /// closed: a sign-in that carries no kind cannot be shown to match, so it counts
-/// as another kind.
-let recheckKind (config: Database.DbConfig) (slug: string) (kind: string option) : Task<KindChange option> =
+/// as another kind. It compares kinds, not connectors: the slug is the table's
+/// only key, so a connector deleted and re-created under the same slug and kind
+/// (an OIDC one, even with another issuer) carries the old sign-ins over, judged
+/// by its own settings. That is the operator's own act, and docs/connectors/oidc.md
+/// says so.
+let recheckKind (config: Database.DbConfig) (slug: string) (kind: string option) : Task<ConnectorChange option> =
     task {
         let! found = findBySlug config slug
 

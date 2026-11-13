@@ -268,12 +268,7 @@ let handler: EndpointHandler =
 
                             match changed with
                             | Some change ->
-                                let now =
-                                    match change with
-                                    | ConnectorStore.Deleted -> None
-                                    | ConnectorStore.OtherKind kind -> Some kind
-
-                                return! refuse (SecurityEvents.connectorChangedDetail now SecurityEvents.Authorize)
+                                return! refuse (SecurityEvents.connectorChangedDetail change SecurityEvents.Authorize)
                             | None ->
 
                             // The allowed email domains (specs/006), judged again

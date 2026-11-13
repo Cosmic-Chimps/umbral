@@ -239,15 +239,17 @@ let refusalDetail
     $"email_domain_refused;reason={reasonWord};rule={levelWord};stage={stage.Value};domain={safeDomain domain}"
 
 /// The `Detail` of a `sign_in_failed` event for a remembered sign-in whose
-/// connector is gone or is now another kind (task s1ug): `now` is None when no
-/// connector has the slug any more, else the kind the slug names now.
-/// `connector_changed;reason=deleted;stage=…` or
-/// `connector_changed;reason=other_kind;stage=…;kind=…`. Closed words only: the
+/// connector is gone, is now another kind, or was never recorded (task s1ug):
+/// `connector_changed;reason=deleted;stage=…`,
+/// `connector_changed;reason=other_kind;stage=…;kind=…` (the kind the slug names
+/// now) or `connector_changed;reason=unrecorded;stage=…`. Closed words only: the
 /// slug is already in the event's own column.
-let connectorChangedDetail (now: Umbral.Domains.Connectors.ProviderKind option) (stage: RefusalStage) =
-    match now with
-    | None -> $"connector_changed;reason=deleted;stage={stage.Value}"
-    | Some kind -> $"connector_changed;reason=other_kind;stage={stage.Value};kind={kind.Value}"
+let connectorChangedDetail (change: Umbral.Domains.Connectors.ConnectorChange) (stage: RefusalStage) =
+    match change with
+    | Umbral.Domains.Connectors.Deleted -> $"connector_changed;reason=deleted;stage={stage.Value}"
+    | Umbral.Domains.Connectors.OtherKind kind ->
+        $"connector_changed;reason=other_kind;stage={stage.Value};kind={kind.Value}"
+    | Umbral.Domains.Connectors.Unrecorded -> $"connector_changed;reason=unrecorded;stage={stage.Value}"
 
 type Outcome =
     | Success

@@ -107,22 +107,18 @@ let handler: EndpointHandler =
             // The connector the token was issued through must still exist and be of
             // the kind it was issued with (task s1ug): a refresh is judged by the
             // connector's own rules, and a deleted or replaced one has none of the
-            // original's. A token with no connector claim (from before specs/006)
-            // has nothing to compare and goes on to the domain check as before.
+            // original's. A token with no connector claim (a refresh chain begun
+            // before specs/006) is refused too: nothing says which connector's
+            // rules would apply, so such a chain ends once and the person signs
+            // in again.
             let! changed =
                 match connectorSlug with
                 | Some slug ->
                     ConnectorStore.recheckKind config slug (Option.ofObj (principal.GetClaim OpenIddictSetup.IdpClaim))
-                | None -> System.Threading.Tasks.Task.FromResult None
+                | None -> System.Threading.Tasks.Task.FromResult(Some Connectors.Unrecorded)
 
             match changed with
-            | Some change ->
-                let now =
-                    match change with
-                    | ConnectorStore.Deleted -> None
-                    | ConnectorStore.OtherKind kind -> Some kind
-
-                return! refuse (SecurityEvents.connectorChangedDetail now SecurityEvents.Token)
+            | Some change -> return! refuse (SecurityEvents.connectorChangedDetail change SecurityEvents.Token)
 
             | None ->
 
