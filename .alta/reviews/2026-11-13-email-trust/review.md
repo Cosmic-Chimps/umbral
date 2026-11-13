@@ -50,3 +50,15 @@ to stored addresses is the spec's and the code review's.
 ## Re-check
 
 `add-discord` and `add-nochoice` at 1280 in one theme.
+
+## Re-check, 2026-11-14, at `02aabcc`
+
+**Clear to merge.** Looked at `add-discord-1280-light`; the other retakes were not opened.
+
+- Blocking item fixed: the add form's lead begins "Only for an OpenID Connect provider.", so an
+  operator adding a Discord, GitHub or Google connector is told the choice is not for them.
+- Nit fixed: the lead sits close under the legend with space before the cards, and reads as the
+  group's own.
+- The extra sentence from the code review, on the confirm line when a new client secret was
+  typed ("The new client secret was not saved: type it again after you turn trust off."): right.
+  It says what was lost and when to redo it. Accepted from the description, not captured.
