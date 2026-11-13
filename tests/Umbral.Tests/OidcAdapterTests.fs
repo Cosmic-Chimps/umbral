@@ -42,6 +42,7 @@ let private connector: Connector =
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
+      MicrosoftAudience = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UtcNow

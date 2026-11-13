@@ -416,6 +416,7 @@ let private connector (slug: string) (kind: ProviderKind) : Connector =
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
+      MicrosoftAudience = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch

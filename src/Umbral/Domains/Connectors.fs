@@ -19,6 +19,11 @@ type ProviderKind =
     /// An OpenID Connect provider with a fixed issuer whose client secret Umbral
     /// signs itself and whose answer is a form post (specs/013-apple-connector).
     | Apple
+    /// Microsoft accounts, personal and work or school: a built-in kind, at most
+    /// one connector, slug `microsoft`. An OpenID Connect provider whose issuer
+    /// depends on the tenant of whoever signs in, so Umbral checks the `tid`
+    /// itself (specs/016-microsoft-connector).
+    | Microsoft
     /// Development and tests only. Hard-gated: Umbral refuses to start if a
     /// connector of this kind exists outside Development with the flag unset.
     /// A fake identity provider that ships enabled is a total authentication
@@ -52,6 +57,7 @@ type ProviderKind =
         | GitHub -> "github"
         | Google -> "google"
         | Apple -> "apple"
+        | Microsoft -> "microsoft"
         | Fake -> "fake"
         | Oidc -> "oidc"
         | Fediverse -> "fediverse"
@@ -64,6 +70,7 @@ type ProviderKind =
         | GitHub -> "GitHub"
         | Google -> "Google"
         | Apple -> "Apple"
+        | Microsoft -> "Microsoft"
         | Fake -> "Fake (development)"
         | Oidc -> "OpenID Connect"
         | Fediverse -> "Fediverse"
@@ -83,6 +90,7 @@ let parseKind (value: string) =
     | "github" -> Some GitHub
     | "google" -> Some Google
     | "apple" -> Some Apple
+    | "microsoft" -> Some Microsoft
     | "fake" -> Some Fake
     | "oidc" -> Some Oidc
     | "fediverse" -> Some Fediverse
@@ -158,6 +166,17 @@ let endpointsFor (kind: ProviderKind) =
           UsesNonce = true
           AnswersByFormPost = true }
 
+    | Microsoft ->
+        // Like `Oidc`, the URLs are empty: they come from the discovery document
+        // of the operator's audience (`Microsoft.documentBase`), read at sign-in.
+        { AuthorizationUrl = ""
+          TokenUrl = ""
+          UserInfoUrl = ""
+          Scopes = [ "openid"; "email"; "profile" ]
+          SupportsPkce = true
+          UsesNonce = true
+          AnswersByFormPost = false }
+
     | Fake ->
         { AuthorizationUrl = "/dev/fake-provider/authorize"
           TokenUrl = ""
@@ -230,6 +249,11 @@ let setupCaveat (kind: ProviderKind) =
         Some
             "Apple accepts only an https address on a real domain name: not localhost, not an IP \
              address. Sign in with Apple also needs a paid Apple Developer Program membership."
+    | Microsoft ->
+        Some
+            "A Microsoft client secret expires: after 6 months by default, 24 months at most. Note \
+             the date. Once it has passed, nobody can sign in through Microsoft until you replace \
+             the secret here."
     | Discord
     | GitHub
     | Fake
@@ -273,6 +297,19 @@ type AppleKeyIds =
       /// The Key ID of the `.p8` key: the `kid` of the client secret.
       KeyId: string }
 
+/// Who may sign in through the `Microsoft` kind: which accounts the operator
+/// chose in the app registration's audience (specs/016 data-model). The rules
+/// that go with it are in `Umbral.Domains.Microsoft`.
+type MicrosoftAudience =
+    /// Personal Microsoft accounts only (endpoint segment `consumers`).
+    | PersonalAccounts
+    /// Work or school accounts of one organization: the tenant's GUID.
+    | OneOrganization of tenant: Guid
+    /// Any work or school account (endpoint segment `organizations`).
+    | AnyOrganization
+    /// Personal accounts and any work or school account (segment `common`).
+    | PersonalAndAnyOrganization
+
 /// A configured connector, as stored.
 type Connector =
     { /// Immutable: it is in the callback URL the operator registered with the
@@ -306,6 +343,9 @@ type Connector =
       /// Only for `Apple`: the Team ID and Key ID. None for every other kind, as
       /// they have no `IssuerUrl`.
       AppleKey: AppleKeyIds option
+      /// Only for `Microsoft`: who may sign in. None for every other kind, and for
+      /// a Microsoft row whose stored value is missing or unreadable.
+      MicrosoftAudience: MicrosoftAudience option
       CreatedUtc: DateTimeOffset
       UpdatedUtc: DateTimeOffset }
 

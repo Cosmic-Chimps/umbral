@@ -376,6 +376,7 @@ let save: EndpointHandler =
                               PasskeyEnrolment = enrolment
                               FediverseAccess = FediverseAccess.Any
                               AppleKey = None
+                              MicrosoftAudience = None
                               IsEnabled = true
                               IsShared = shared
                               CreatedUtc = now

@@ -2,16 +2,29 @@
 
 Lets people sign in to your apps through an identity provider **you already
 run**: Authentik, Keycloak, Pocket ID, Authelia, Zitadel, Kanidm, GitLab,
-Microsoft Entra, or anything else that speaks OpenID Connect. Instead of wiring
+Microsoft Entra (one tenant: see below), or anything else that speaks OpenID
+Connect. Instead of wiring
 every app to that provider by hand, you wire it to Umbral once and your apps
 keep talking to Umbral.
 
 You do not need this if you only want Discord, GitHub or Google. Those have
 walkthroughs of their own, and no provider of your own to run.
 
+**Microsoft: which connector.** Use this one when the people who sign in belong
+to **one** organization's Microsoft Entra tenant: give it that tenant's issuer,
+`https://login.microsoftonline.com/<tenant ID>/v2.0`. It works, and it can stay
+as it is. Use the [Microsoft connector](microsoft.md) instead when personal
+Microsoft accounts should sign in, or people from more than one organization.
+Microsoft serves those through shared addresses (`consumers`, `organizations`,
+`common`) that this connector refuses on purpose, because their discovery
+document names a different issuer from the address it is served at. The
+Microsoft connector also identifies people by tenant and account together, and
+reads Microsoft's own signal that an email is verified (`xms_edov`), which this
+connector does not.
+
 Back to the [README](../../README.md). Other providers:
 [Discord](discord.md) · [GitHub](github.md) · [Google](google.md) · [Apple](apple.md) ·
-[Passkeys](passkey.md) · [Fediverse](fediverse.md) ·
+[Microsoft](microsoft.md) · [Passkeys](passkey.md) · [Fediverse](fediverse.md) ·
 [Bluesky](bluesky.md).
 
 ## Before you start

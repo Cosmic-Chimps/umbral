@@ -135,6 +135,26 @@ let private validate (allowLocalhostHttp: bool) (issuer: string) (document: Open
           None ]
     |> List.tryPick id
 
+/// Whether this exception is the library's record of an HTTP 400 whose body is a
+/// JSON object with `"error": "invalid_tenant"` (what Microsoft answers for a
+/// tenant ID that names no tenant). `HttpDocumentRetriever` puts the status and the
+/// body of a failed fetch in `Data`; nothing else counts.
+let private isInvalidTenant (e: exn) : bool =
+    match e.Data[HttpDocumentRetriever.StatusCode], e.Data[HttpDocumentRetriever.ResponseContent] with
+    | (:? System.Net.HttpStatusCode as status), (:? string as body) when status = System.Net.HttpStatusCode.BadRequest ->
+        try
+            use document = System.Text.Json.JsonDocument.Parse body
+
+            document.RootElement.ValueKind = System.Text.Json.JsonValueKind.Object
+            && (match document.RootElement.TryGetProperty "error" with
+                | true, error ->
+                    error.ValueKind = System.Text.Json.JsonValueKind.String
+                    && error.GetString() = "invalid_tenant"
+                | _ -> false)
+        with :? System.Text.Json.JsonException ->
+            false
+    | _ -> false
+
 /// The cause of a failed fetch, in a phrase an operator can act on. The library
 /// wraps whatever went wrong in an `InvalidOperationException`, so the cause is
 /// the innermost exception.
@@ -171,6 +191,12 @@ let private classify (timeout: TimeSpan) (error: exn) : DiscoveryResult =
         Unreachable $"its answer was larger than {MaxDocumentBytes / 1_000_000L} MB, so it is not a discovery document or a key set"
     elif causes |> List.exists (fun e -> e :? OperationCanceledException) then
         Unreachable $"no answer within {timeout.TotalSeconds} seconds"
+    // Microsoft answers the discovery of a tenant ID that names no tenant with
+    // HTTP 400 and {"error":"invalid_tenant", ...}: a wrong address, not an outage.
+    // The library keeps the status and the body in the exception's Data. Only that
+    // exact pair is read; `error_description` (it carries trace IDs) is never kept.
+    elif causes |> List.exists isInvalidTenant then
+        Wrong "No Microsoft tenant has this ID"
     // IDX20807 is the library's "the answer was not a success". It hides the
     // status itself from exception messages (it may be PII), so all that can be
     // said is that there was one.
@@ -235,6 +261,47 @@ type OidcDiscovery(client: HttpClient, allowLocalhostHttp: bool, timeout: TimeSp
     /// admin form and the cache cannot disagree about which addresses are allowed.
     member _.Normalise(issuer: string) : Result<string, IssuerError> = normaliseIssuer allowLocalhostHttp issuer
 
+    /// Ask the provider about itself, or the cache when it already has, at an
+    /// address that is not the issuer it names: the document is read from
+    /// `documentBase + "/.well-known/openid-configuration"` and its `issuer` must
+    /// be `expectedIssuer`, by the same rule as `Check`, and not the address.
+    /// Microsoft's shared endpoints are the case (specs/016 research R1): the
+    /// `common` document names a template as its issuer, so the caller says which
+    /// issuer it expects and the mix-up defence stays an exact comparison.
+    ///
+    /// The cache is keyed by `documentBase` (normalised as an issuer is), so two
+    /// addresses never share a document. `Check issuer` is `CheckAt(issuer, issuer)`
+    /// with the issuer normalised first. `expectedIssuer` is compared as given
+    /// (one trailing slash either way), not normalised: a template is not an address.
+    member _.CheckAt(documentBase: string, expectedIssuer: string) : Task<DiscoveryResult> =
+        task {
+            match normaliseIssuer allowLocalhostHttp documentBase with
+            | Error error -> return Wrong error.Message
+            | Ok documentBase ->
+
+            let manager = managers.GetOrAdd(documentBase, create)
+            use deadline = new CancellationTokenSource(timeout)
+
+            let! outcome =
+                task {
+                    try
+                        let! document = manager.GetConfigurationAsync deadline.Token
+
+                        match validate allowLocalhostHttp expectedIssuer document with
+                        | None -> return Discovered document
+                        | Some problem -> return Wrong problem
+                    with error ->
+                        return classify timeout error
+                }
+
+            match outcome with
+            | Discovered _ -> ()
+            | Unreachable _
+            | Wrong _ -> managers.TryRemove(KeyValuePair(documentBase, manager)) |> ignore
+
+            return outcome
+        }
+
     /// Ask the provider about itself, or the cache when it already has. Used by
     /// the admin save, the enable toggle, sign-in and the token exchange.
     ///
@@ -247,34 +314,29 @@ type OidcDiscovery(client: HttpClient, allowLocalhostHttp: bool, timeout: TimeSp
     /// answered by the provider and not by the last answer it gave. (The
     /// library itself would cache a wrong document for twelve hours, and
     /// remember a failed first fetch for a second.)
-    member _.Check(issuer: string) : Task<DiscoveryResult> =
-        task {
-            match normaliseIssuer allowLocalhostHttp issuer with
-            | Error error -> return Wrong error.Message
-            | Ok issuer ->
+    member this.Check(issuer: string) : Task<DiscoveryResult> =
+        match normaliseIssuer allowLocalhostHttp issuer with
+        | Error error -> Task.FromResult(Wrong error.Message)
+        | Ok issuer -> this.CheckAt(issuer, issuer)
 
-            let manager = managers.GetOrAdd(issuer, create)
-            use deadline = new CancellationTokenSource(timeout)
+    /// `Refresh` for a document read at `documentBase` that names `expectedIssuer`
+    /// (see `CheckAt`). The throttle is per `documentBase`.
+    member this.RefreshAt(documentBase: string, expectedIssuer: string) : Task<DiscoveryResult> =
+        match normaliseIssuer allowLocalhostHttp documentBase with
+        | Error error -> Task.FromResult(Wrong error.Message)
+        | Ok documentBase ->
+            let now = time.GetUtcNow()
 
-            let! outcome =
-                task {
-                    try
-                        let! document = manager.GetConfigurationAsync deadline.Token
+            let due =
+                match refreshedAt.TryGetValue documentBase with
+                | true, last -> now - last >= minimumRefreshInterval
+                | _ -> true
 
-                        match validate allowLocalhostHttp issuer document with
-                        | None -> return Discovered document
-                        | Some problem -> return Wrong problem
-                    with error ->
-                        return classify timeout error
-                }
+            if due then
+                refreshedAt[documentBase] <- now
+                managers.TryRemove documentBase |> ignore
 
-            match outcome with
-            | Discovered _ -> ()
-            | Unreachable _
-            | Wrong _ -> managers.TryRemove(KeyValuePair(issuer, manager)) |> ignore
-
-            return outcome
-        }
+            this.CheckAt(documentBase, expectedIssuer)
 
     /// Ask the provider again, because a token named a `kid` the cache has not
     /// seen: the provider rotated its keys (FR-013). Returns what `Check` would,
@@ -292,16 +354,4 @@ type OidcDiscovery(client: HttpClient, allowLocalhostHttp: bool, timeout: TimeSp
     member this.Refresh(issuer: string) : Task<DiscoveryResult> =
         match normaliseIssuer allowLocalhostHttp issuer with
         | Error error -> Task.FromResult(Wrong error.Message)
-        | Ok issuer ->
-            let now = time.GetUtcNow()
-
-            let due =
-                match refreshedAt.TryGetValue issuer with
-                | true, last -> now - last >= minimumRefreshInterval
-                | _ -> true
-
-            if due then
-                refreshedAt[issuer] <- now
-                managers.TryRemove issuer |> ignore
-
-            this.Check issuer
+        | Ok issuer -> this.RefreshAt(issuer, issuer)

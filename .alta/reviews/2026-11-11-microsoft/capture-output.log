@@ -1,0 +1,370 @@
+list text:
+Connectors
+
+Upstream providers people can sign in with. Enable the ones you've registered an OAuth app with.
+
+No connector set up yet
+Add connector
+Discord
+Not set up
+GitHub
+Not set up
+Google
+Not set up
+Apple
+Not set up
+Microsoft
+Not set up
+Fediverse
+Not set up
+Bluesky
+Not set up
+Passkey
+Not set up
+Allowed email domains
+Who may sign in, for every connector
+pane (not set up) text:
+Connectors
+Microsoft
+Not set up
+Set-up
+Give the app registration a name that names this Umbral instance (for example "Umbral — home"): Microsoft shows it to people when they first sign in.
+REDIRECT URI TO REGISTER WITH THE PROVIDER
+Copy
+A Microsoft client secret expires: after 6 months by default, 24 months at most. Note the date. Once it has passed, nobody can sign in through Microsoft until you replace the secret here.
+
+Who can sign in: anyone with an account
+
+Settings
+DISPLAY NAME
+
+Shown on the sign-in button as "Sign in with …" and on the admin screens.
+
+APPLICATION (CLIENT) ID
+
+On the app's Overview page in the Microsoft Entra admin center.
+
+CLIENT SECRET
+
+The secret's Value, not its Secret ID.
+
+WHO MAY SIGN IN
+Personal Microsoft accounts
+Outlook.com, Hotmail, Xbox and Skype accounts. In the registration: Personal accounts only.
+Work or school accounts from one organization
+The people of one Microsoft Entra tenant, given by its tenant ID below. In the registration: Single tenant only.
+Any work or school account
+People from any organization that uses Microsoft Entra. In the registration: Multiple Entra ID tenants.
+Personal and any work or school account
+Both of the above. In the registration: Any Entra ID Tenant + Personal Microsoft accounts.
+DIRECTORY (TENANT) ID
+
+The organization's tenant ID, a GUID. Used only with "Work or school accounts from one organization".
+
+Shared with every app
+
+Shared connectors are offered to every app set to "all shared connectors". Untick it to offer this one only to the apps that choose it.
+
+ALLOWED EMAIL DOMAINS
+
+Only people whose verified email is at one of these domains can sign in through this connector. Leave empty to use the instance list (none: anyone can sign in).
+
+To limit one app, create a connector for it with the domain rule and offer only that connector to the app.
+
+Save connector
+radios checked on a new connector: 0 of 4
+focus after Tab from the secret (dark): INPUT audience=consumers
+focus after Tab from the secret (light): INPUT audience=consumers
+refused-no-choice: [
+  'INPUT[name=audience] describedby=audience-error',
+  'INPUT[name=audience] describedby=audience-error',
+  'INPUT[name=audience] describedby=audience-error',
+  'INPUT[name=audience] describedby=audience-error'
+]
+refused-no-choice messages: ["Choose who may sign in. It must match the account types chosen when the app was registered."]
+announced: {
+  radios: 4,
+  invalid: 4,
+  describedby: [ 'audience-error' ],
+  errorText: 'Choose who may sign in. It must match the account types chosen when the app was registered.'
+}
+refused-tenant-missing: [ 'INPUT[name=tenantId] describedby=tenantId-hint tenantId-error' ]
+refused-tenant-missing messages: ["Enter the Directory (tenant) ID of the organization."]
+refused-tenant-not-guid: [ 'INPUT[name=tenantId] describedby=tenantId-hint tenantId-error' ]
+refused-tenant-not-guid messages: ["That is not a tenant ID. It is a GUID like 00000000-0000-0000-0000-000000000000."]
+refused-tenant-personal: [ 'INPUT[name=tenantId] describedby=tenantId-hint tenantId-error' ]
+refused-tenant-personal messages: ["That is the tenant of personal Microsoft accounts: choose Personal Microsoft accounts instead."]
+refused-several: [
+  'INPUT[name=clientId] describedby=clientId-hint clientId-error',
+  'INPUT[name=audience] describedby=audience-error',
+  'INPUT[name=audience] describedby=audience-error',
+  'INPUT[name=audience] describedby=audience-error',
+  'INPUT[name=audience] describedby=audience-error'
+]
+refused-several messages: ["Enter the Application (client) ID, a GUID like 00000000-0000-0000-0000-000000000000.","Choose who may sign in. It must match the account types chosen when the app was registered."]
+save personal -> 302 -> http://127.0.0.1:18096/admin/connectors/microsoft?msg=connector-saved
+pane (personal) after save:
+Connectors
+Microsoft
+Shared
+Kept in this instance (encrypted)
+Enabled
+
+microsoft
+
+Connector saved.
+Set-up
+Give the app registration a name that names this Umbral instance (for example "Umbral — home"): Microsoft shows it to people when they first sign in.
+REDIRECT URI TO REGISTER WITH THE PROVIDER
+Copy
+A Microsoft client secret expires: after 6 months by default, 24 months at most. Note the date. Once it has passed, nobody can sign in through Microsoft until you replace the secret here.
+
+Who can sign in: anyone with an account
+
+Settings
+DISPLAY NAME
+
+Shown on the sign-in button as "Sign in with …" and on the admin screens.
+
+APPLICATION (CLIENT) ID
+
+On the app's Overview page in the Microsoft Entra admin center.
+
+CLIENT SECRET
+••••••••6789
+REPLACE THE CLIENT SECRET
+
+Leave blank to keep the saved secret. A new one is the secret's Value, not its Secret ID.
+
+WHO MAY SIGN IN
+Personal Microsoft accounts
+Outlook.com, Hotmail, Xbox and Skype accounts. In the registration: Personal accounts only.
+Work or school accounts from one organization
+The people of one Microsoft Entra tenant, given by its tenant ID below. In the registration: Single tenant only.
+Any work or school account
+People from any organization that uses Microsoft Entra. In the registration: Multiple Entra ID tenants.
+Personal and any work or school account
+Both of the above. In the registration: Any Entra ID Tenant + Personal Microsoft accounts.
+DIRECTORY (TENANT) ID
+
+The organization's tenant ID, a GUID. Used only with "Work or school accounts from one organization".
+
+Shared with every app
+
+Shared connectors are offered to every app set to "all shared connectors". Untick it to offer this one only to the apps that choose it.
+
+ALLOWED EMAIL DOMAINS
+
+Only people whose verified email is at one of these domains can sign in through this connector. Leave empty to use the instance list (none: anyone can sign in).
+
+To limit one app, create a connector for it with the domain rule and offer only that connector to the app.
+
+Save connector
+Disable
+Delete
+state pill: Connectors
+Microsoft
+Shared
+Kept in this instance (encrypted)
+Enabled
+
+microsoft
+
+Connector saved.
+Set-up
+Give the app registration a name that names this Umbral instance (for example "Umbral — home"): Microsoft shows it to people when they first sign in.
+REDIRECT URI TO REGISTER WITH THE PROVIDER
+Copy
+A Microsoft client secret expires: after 6 months by default, 24 months at most. Note the date. Once it has passed, nobody can sign in through Microsoft until you replace the secret here.
+
+Who can sign in: anyone with an account
+
+Settings
+DISPLAY NAME
+
+Shown on the sign-in button as "Sign in with …" and on the admin screens.
+
+APPLICATION (CLIENT) ID
+
+On the app's Overview page in the Microsoft Entra admin center.
+
+CLIENT SECRET
+••••••••6789
+REPLACE THE CLIENT SECRET
+
+Leave blank to keep the saved secret. A new one is the secret's Value, not its Secret ID.
+
+WHO MAY SIGN IN
+Personal Microsoft accounts
+Outlook.com, Hotmail, Xbox and Skype accounts. In the registration: Personal accounts only.
+Work or school accounts from one organization
+The people of one Microsoft Entra tenant, given by its tenant ID below. In the registration: Single tenant only.
+Any work or school account
+People from any organization that uses Microsoft Entra. In the registration: Multiple Entra ID tenants.
+Personal and any work or school account
+Both of the above. In the registration: Any Entra ID Tenant + Personal Microsoft accounts.
+DIRECTORY (TENANT) ID
+
+The organization's tenant ID, a GUID. Used only with "Work or school accounts from one organization".
+
+Shared with every app
+
+Shared connectors are offered to every app set to "all shared connectors". Untick it to offer this one only to the apps that choose it.
+
+ALLOWED EMAIL DOMAINS
+
+Only people whose verified email is at one of these domains can sign in through this connector. Leave empty to use the instance list (none: anyone can sign in).
+
+To limit one app, create a connector for it with the domain rule and offer only that connector to the app.
+
+Save connector
+Disable
+Delete
+checked: consumers
+secret box value: ""
+save one org -> 302 -> http://127.0.0.1:18096/admin/connectors/microsoft?msg=connector-saved
+pane (one org) after save, notice: Connectors | Microsoft | Shared | Kept in this instance (encrypted) | Enabled | 
+checked: tenant tenant field: 72f988bf-86f1-41af-91ab-2d7cd011db47
+save any org -> 302 -> http://127.0.0.1:18096/admin/connectors/microsoft?msg=connector-saved
+tenant field kept: 
+save both -> 302 -> http://127.0.0.1:18096/admin/connectors/microsoft?msg=connector-saved
+save unknown tenant 1280-dark -> 302 -> http://127.0.0.1:18096/admin/connectors/microsoft?msg=connector-saved-microsoft-unreachable&slug=microsoft
+save unknown tenant 360-dark -> 302 -> http://127.0.0.1:18096/admin/connectors/microsoft?msg=connector-saved-microsoft-unreachable&slug=microsoft
+save unknown tenant 1280-light -> 302 -> http://127.0.0.1:18096/admin/connectors/microsoft?msg=connector-saved-microsoft-unreachable&slug=microsoft
+save unknown tenant 360-light -> 302 -> http://127.0.0.1:18096/admin/connectors/microsoft?msg=connector-saved-microsoft-unreachable&slug=microsoft
+notice (unknown tenant): Saved, but not enabled: Umbral could not reach Microsoft (it answered with an error instead of a discovery document). Press Enable to try again.
+buttons in that state: ["Sign out","","","","Copy","Save connector","Disable","Delete"]
+pill in that state: 3 Enabled labels; 1 Disabled labels
+save personal again -> 302 -> http://127.0.0.1:18096/admin/connectors/microsoft?msg=connector-saved
+state after: Connectors
+Microsoft
+Shared
+Kept in this instance (encrypted)
+Enabled
+
+microsoft
+
+Connector saved.
+Set-up
+Give the app registration a name that names this Umbral instance (for example "Umbral — home"): Microsoft shows it to people when they first sign in.
+REDIRECT URI TO REGISTER WITH THE PROVIDER
+Copy
+A Microsoft client secret expires: after 6 months by default, 24 months at most. Note the date. Once it has passed, nobody can sign in through Microsoft until you replace the secret here.
+
+Who can sign in: anyone with an account
+
+Settings
+DISPLAY NAME
+
+Shown on the sign-in button as "Sign in with …" and on the admin screens.
+
+APPLICATION (CLIENT) ID
+
+On the app's Overview page in the Microsoft Entra admin center.
+
+CLIENT SECRET
+••••••••6789
+REPLACE THE CLIENT SECRET
+
+Leave blank to keep the saved secret. A new one is the secret's Value, not its Secret ID.
+
+WHO MAY SIGN IN
+Personal Microsoft accounts
+Outlook.com, Hotmail, Xbox and Skype accounts. In the registration: Personal accounts only.
+Work or school accounts from one organization
+The people of one Microsoft Entra tenant, given by its tenant ID below. In the registration: Single tenant only.
+Any work or school account
+People from any organization that uses Microsoft Entra. In the registration: Multiple Entra ID tenants.
+Personal and any work or school account
+Both of the above. In the registration: Any Entra ID Tenant + Personal Microsoft accounts.
+DIRECTORY (TENANT) ID
+
+The organization's tenant ID, a GUID. Used only with "Work or school accounts from one organization".
+
+Shared with every app
+
+Shared connectors are offered to every app set to "all shared connectors". Untick it to offer this one only to the apps that choose it.
+
+ALLOWED EMAIL DOMAINS
+
+Only people whose verified email is at one of these domains can sign in through this connector. Leave empty to use the instance list (none: anyone can sign in).
+
+To limit one app, create a connector for it with the domain rule and offer only that connector to the app.
+
+Save connector
+Disable
+Delete
+github connector: /admin/connectors/github?msg=connector-saved
+fediverse connector: /admin/connectors/fediverse?msg=fediverse-connector-saved
+create Wiki /admin/apps/WFCoffsyRLzDItwQ?msg=app-created
+create Acme Notes /admin/apps/1MJ2HNE21JgoXUWj?msg=app-created
+accent: /admin/apps/1MJ2HNE21JgoXUWj?msg=app-accent-saved
+app logo: /admin/apps/1MJ2HNE21JgoXUWj?msg=app-logo-saved
+picker buttons: [{"c":"fediverse","t":"Sign in with Fediverse"},{"c":"github","t":"Sign in with GitHub"},{"c":"microsoft","t":"Sign in with Microsoft"}]
+button sizes at last viewport: fediverse: 278x44, github: 278x44, microsoft: 278x44
+
+METRICS
+connectors-list-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+connectors-list-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+connectors-list-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+connectors-list-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+pane-not-set-up-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+pane-not-set-up-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+pane-not-set-up-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+pane-not-set-up-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+card-focus-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-focus-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-no-choice-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-no-choice-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+refused-no-choice-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-no-choice-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+refused-tenant-missing-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-tenant-missing-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+refused-tenant-missing-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-tenant-missing-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+refused-tenant-not-guid-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-tenant-not-guid-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+refused-tenant-not-guid-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-tenant-not-guid-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+refused-tenant-personal-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-tenant-personal-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+refused-tenant-personal-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-tenant-personal-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+refused-several-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-several-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+refused-several-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-several-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+pane-set-up-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+pane-set-up-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+pane-set-up-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+pane-set-up-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+card-personal-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-personal-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+card-personal-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-personal-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+card-one-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-one-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+card-one-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-one-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+card-any-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-any-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+card-any-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-any-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+card-both-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-both-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+card-both-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-both-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+notice-tenant-unknown-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+notice-tenant-unknown-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+notice-tenant-unknown-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+notice-tenant-unknown-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+connectors-list-set-up-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+connectors-list-set-up-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+connectors-list-set-up-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+connectors-list-set-up-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+picker-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+picker-branded-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+picker-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+picker-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+picker-branded-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+picker-360-light: overflow=false (scrollWidth 360, innerWidth 360)

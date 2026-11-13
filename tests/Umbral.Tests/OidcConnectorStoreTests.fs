@@ -20,6 +20,7 @@ let private connector (slug: string) (kind: ProviderKind) (issuer: string option
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
+      MicrosoftAudience = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = System.DateTimeOffset.UnixEpoch

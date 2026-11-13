@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="Domains/Ids.fs" />
     <Compile Include="Domains/Connectors.fs" />
+    <Compile Include="Domains/Microsoft.fs" />
     <Compile Include="Domains/Passkeys.fs" />
     <Compile Include="Domains/Linking.fs" />
     <Compile Include="Domains/EmailDomains.fs" />
@@ -82,12 +83,14 @@
     <Compile Include="Infrastructure/Providers/Google.fs" />
     <Compile Include="Infrastructure/Providers/Oidc.fs" />
     <Compile Include="Infrastructure/Providers/Apple.fs" />
+    <Compile Include="Infrastructure/Providers/Microsoft.fs" />
     <Compile Include="Infrastructure/Providers/Fediverse.fs" />
     <Compile Include="Infrastructure/Providers/Bluesky.fs" />
     <Compile Include="Infrastructure/Users.fs" />
     <Compile Include="Infrastructure/ConnectorStore.fs" />
     <Compile Include="Infrastructure/FediverseServers.fs" />
     <Compile Include="Infrastructure/BlueskyAccounts.fs" />
+    <Compile Include="Infrastructure/MicrosoftAccounts.fs" />
     <Compile Include="Infrastructure/EmailDomainRules.fs" />
     <Compile Include="Infrastructure/AppConnectors.fs" />
     <Compile Include="Infrastructure/BrandingStore.fs" />
@@ -124,6 +127,7 @@
     <Compile Include="Handlers/Admin/FediverseConnector.fs" />
     <Compile Include="Handlers/Admin/BlueskyConnector.fs" />
     <Compile Include="Handlers/Admin/AppleConnector.fs" />
+    <Compile Include="Handlers/Admin/MicrosoftConnector.fs" />
     <Compile Include="Handlers/Admin/Connectors.fs" />
     <Compile Include="Handlers/Admin/ConnectorToggle.fs" />
     <Compile Include="Handlers/Admin/ConnectorDelete.fs" />

@@ -95,6 +95,7 @@ let private seedLocal (app: Fixtures.TestApp) (kind: ProviderKind) (slug: string
                       PasskeyEnrolment = InvitationsOnly
                       FediverseAccess = FediverseAccess.Any
                       AppleKey = None
+                      MicrosoftAudience = None
                       IsEnabled = true
                       IsShared = true
                       CreatedUtc = now
@@ -750,6 +751,7 @@ let private seedPasskey (app: Fixtures.TestApp) =
           PasskeyEnrolment = InvitationsOnly
           FediverseAccess = FediverseAccess.Any
           AppleKey = None
+          MicrosoftAudience = None
           IsEnabled = true
           IsShared = true
           CreatedUtc = app.Clock.GetUtcNow()

@@ -18,6 +18,7 @@ let private connector slug kind enabled shared : Connector =
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
+      MicrosoftAudience = None
       IsEnabled = enabled
       IsShared = shared
       CreatedUtc = DateTimeOffset.UnixEpoch

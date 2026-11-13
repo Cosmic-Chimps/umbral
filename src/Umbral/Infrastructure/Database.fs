@@ -132,7 +132,12 @@ let private schema =
         -- SVG `AppleLogo.render` wrote. NULL until an operator pastes one, and
         -- for every other kind. Deleting the row deletes the logo. A database
         -- from before schema version 11 gets this column from `upgradeSteps`.
-        apple_logo              TEXT        NULL
+        apple_logo              TEXT        NULL,
+        -- Only for kind `microsoft` (specs/016): who may sign in, in the form
+        -- `Microsoft.stored` writes (`consumers`, a tenant's GUID in lower case,
+        -- `organizations` or `common`). NULL for every other kind. A database
+        -- from before schema version 13 gets this column from `upgradeSteps`.
+        microsoft_audience      TEXT        NULL
     );
 
     -- A marker: one row per app limited to a chosen set. No row means "all
@@ -298,7 +303,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 12
+let SchemaVersion = 13
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -468,6 +473,12 @@ let private UpgradeToVersion11 =
 let private UpgradeToVersion12 =
     "ALTER TABLE linked_accounts ADD COLUMN provider_server TEXT NULL;"
 
+/// Spec 016. NULL for every connector that exists today: only the `microsoft`
+/// kind reads it, and none can predate it. No data is rewritten.
+[<Literal>]
+let private UpgradeToVersion13 =
+    "ALTER TABLE connectors ADD COLUMN microsoft_audience TEXT NULL;"
+
 /// What takes a database from the version before to the version named. Applied
 /// in order, inside `initializeSchema`'s transaction, to a database stamped
 /// lower than `SchemaVersion`; a fresh database skips them, because `schema`
@@ -491,7 +502,8 @@ let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
       9, (fun command -> command.CommandText <- UpgradeToVersion9)
       10, (fun command -> command.CommandText <- UpgradeToVersion10)
       11, (fun command -> command.CommandText <- UpgradeToVersion11)
-      12, (fun command -> command.CommandText <- UpgradeToVersion12) ]
+      12, (fun command -> command.CommandText <- UpgradeToVersion12)
+      13, (fun command -> command.CommandText <- UpgradeToVersion13) ]
 
 /// What `upgradeSchema` did. `EmailVerifiedLowered` is the number of users the
 /// version 9 step set back to unverified, or `None` when that step did not run

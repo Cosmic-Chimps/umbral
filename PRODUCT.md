@@ -29,7 +29,7 @@ per-app OAuth wiring. There is no landing page; the README is the front door.
 
 Umbral is a self-hosted OpenID Connect provider whose only job is signing
 people in without passwords: with a social provider they already use
-(Discord, GitHub, Google, Apple, any OpenID Connect provider the operator runs,
+(Discord, GitHub, Google, Apple, Microsoft, any OpenID Connect provider the operator runs,
 or an account on a Mastodon or GoToSocial server, or a Bluesky account), or with a passkey that Umbral
 verifies itself. Apps talk to Umbral with any
 standard OIDC library. The operator wires each provider up once, in one place,
@@ -67,10 +67,14 @@ product that offers those cannot truthfully claim this simplicity.
 - First run prints a setup token in the container log; the operator opens the
   setup page, pastes it, and chooses an operator credential.
 - Connector credentials come from OAuth apps the operator creates at Discord,
-  GitHub, Google, Apple or their own OIDC provider, following the walkthroughs in
+  GitHub, Google, Apple, Microsoft or their own OIDC provider, following the walkthroughs in
   `docs/connectors/`. Secrets can optionally live in AWS Secrets Manager,
   Google Cloud Secret Manager, Azure Key Vault or BellaBaxter
   (`docs/secret-stores/`).
+- The Microsoft connector's client secret expires (180 days recommended, two
+  years at most) and Umbral cannot see the date, so the operator renews it. The
+  operator chooses personal accounts, one organization, any work or school
+  account, or both.
 - The Fediverse connector needs nothing created anywhere either: Umbral
   registers itself with each Mastodon or GoToSocial server the first time
   someone from it signs in. The operator chooses any server or a list.
@@ -100,11 +104,12 @@ product that offers those cannot truthfully claim this simplicity.
   secret shown once. Created in the Apps screen's detail pane
   (`/admin/apps/new`).
 - Connector: Umbral's identity at an upstream provider; several per provider
-  are allowed. Kinds: `discord`, `github`, `google`, `oidc`, and four that are
+  are allowed. Kinds: `discord`, `github`, `google`, `oidc`, and five that are
   one per instance: `apple` (its button's title is fixed by Apple's rules, so
   two would look the same), `bluesky` (servers read Umbral's one metadata
-  document), `fediverse` (Umbral registers itself on each server) and
-  `passkey` (Umbral is the provider).
+  document), `fediverse` (Umbral registers itself on each server), `microsoft`
+  (Microsoft shows the registration's name, so one registration per instance)
+  and `passkey` (Umbral is the provider).
 - User: a person who has signed in at least once. A provider user can add up
   to ten passkeys to the same account; a passkey-only user has no email.
   Operators can invite a user to add a passkey as recovery from a lost

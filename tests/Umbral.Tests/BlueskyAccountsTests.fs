@@ -58,6 +58,7 @@ let private connector slug kind access : Connector =
       PasskeyEnrolment = InvitationsOnly
       FediverseAccess = access
       AppleKey = None
+      MicrosoftAudience = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = now

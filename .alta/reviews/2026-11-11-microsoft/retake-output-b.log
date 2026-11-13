@@ -1,0 +1,85 @@
+after login: http://127.0.0.1:18097/admin/connectors
+pane at start of phase b: 1 connector | Add connector | Microsoft | microsoft | Enabled | Discord | Not set up | GitHub | Not set up | Google | Not set up | Apple
+stored card: tenant tenant: 72f988bf-86f1-41af-91ab-2d7cd011db47
+unchanged-unchecked 1280-dark: 302 -> http://127.0.0.1:18097/admin/connectors/microsoft?msg=connector-saved-microsoft-unchecked&slug=microsoft
+unchanged-unchecked 360-dark: 302 -> http://127.0.0.1:18097/admin/connectors/microsoft?msg=connector-saved-microsoft-unchecked&slug=microsoft
+unchanged-unchecked 1280-light: 302 -> http://127.0.0.1:18097/admin/connectors/microsoft?msg=connector-saved-microsoft-unchecked&slug=microsoft
+unchanged-unchecked 360-light: 302 -> http://127.0.0.1:18097/admin/connectors/microsoft?msg=connector-saved-microsoft-unchecked&slug=microsoft
+notice (unchecked): Saved. Umbral could not check the connector with Microsoft (the connection failed (Connection refused (127.0.0.1:9))), so it stays enabled as it was.
+state pill after: Connectors
+Microsoft
+Shared
+Kept in this instance (encrypted)
+Enabled
+
+microsoft
+
+Saved. Umbral could not check the connector with Microsoft (the connection failed (Connection refused (127.0.0.1:9))), so it stays enabled as it was.
+Set-up
+Give the app registration a name that names this Umbral instance (for example "Umbral — home"): Microsoft shows it to people when they first sign in.
+REDIRECT URI TO REGISTER WITH THE PROVIDER
+Copy
+A Microsoft client secret expires: after 6 months by default, 24 months at most. Note the date. Once it has passed, nobody can sign in through Microsoft until you replace the secret here.
+
+Who can sign in: work or school accounts from one organization, with any email domain.
+
+Settings
+DISPLAY NAME
+
+Shown on the sign-in button as "Sign in with …" and on the admin screens.
+
+APPLICATION (CLIENT) ID
+
+On the app's Overview page in the Microsoft Entra admin center.
+
+CLIENT SECRET
+••••••••6789
+REPLACE THE CLIENT SECRET
+
+Leave blank to keep the saved secret. A new one is the secret's Value, not its Secret ID.
+
+WHO MAY SIGN IN
+Personal Microsoft accounts
+Outlook.com, Hotmail, Xbox and Skype accounts. In the registration: Personal accounts only.
+Work or school accounts from one organization
+The people of one Microsoft Entra tenant, given by its tenant ID below. In the registration: Single tenant only.
+Any work or school account
+People from any organization that uses Microsoft Entra. In the registration: Multiple Entra ID tenants.
+Personal and any work or school account
+Both of the above. In the registration: Any Entra ID Tenant + Personal Microsoft accounts.
+DIRECTORY (TENANT) ID
+
+The organization's tenant ID, a GUID. Used only with "Work or school accounts from one organization".
+
+Shared with every app
+
+Shared connectors are offered to every app set to "all shared connectors". Untick it to offer this one only to the apps that choose it.
+
+ALLOWED EMAIL DOMAINS
+
+Only people whose verified email is at one of these domains can sign in through this connector. Leave empty to use the instance list (none: anyone can sign in).
+
+To limit one app, create a connector for it with the domain rule and offer only that connector to the app.
+
+Save connector
+Disable
+Delete
+buttons after: ["Sign out","","","","Copy","Save connector","Disable","Delete"]
+refused-unanswered 1280-dark: 422 -> http://127.0.0.1:18097/admin/connectors/microsoft
+refused-unanswered 360-light: 422 -> http://127.0.0.1:18097/admin/connectors/microsoft
+unanswered messages: ["Microsoft did not answer (the connection failed (Connection refused (127.0.0.1:9))). Nothing was saved: try again in a moment."]
+invalid fields: [
+  'INPUT[name=audience] describedby=audience-error',
+  'INPUT[name=audience] describedby=audience-error',
+  'INPUT[name=audience] describedby=audience-error',
+  'INPUT[name=audience] describedby=audience-error'
+]
+after the refusal the pane holds: tenant tenant 72f988bf-86f1-41af-91ab-2d7cd011db47
+
+METRICS
+unchanged-unchecked-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+unchanged-unchecked-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+unchanged-unchecked-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+unchanged-unchecked-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+refused-unanswered-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+refused-unanswered-360-light: overflow=false (scrollWidth 360, innerWidth 360)

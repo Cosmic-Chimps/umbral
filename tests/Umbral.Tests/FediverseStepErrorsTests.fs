@@ -27,6 +27,7 @@ let private connector (app: Fixtures.TestApp) enabled =
           PasskeyEnrolment = InvitationsOnly
           FediverseAccess = FediverseAccess.Any
           AppleKey = None
+          MicrosoftAudience = None
           IsEnabled = enabled
           IsShared = true
           CreatedUtc = app.Clock.GetUtcNow()

@@ -36,8 +36,8 @@ how people are identified.
   Bluesky or passkey-only user, or a GitHub account with no verified primary address or
   whose addresses GitHub did not return on that sign-in. When
   they are there, `email_verified` is a JSON boolean and can be **`false`**:
-  Discord, Google and your own OpenID Connect provider can give an address they
-  have not verified, and Umbral passes it on as unverified. Trust the address
+  Discord, Google, Microsoft and your own OpenID Connect provider can give an address
+  they have not verified, and Umbral passes it on as unverified. Trust the address
   only when the flag is `true`.
 - **The email is the first one Umbral saw.** A person who changes their address
   at the provider keeps the old one in Umbral, so `email` does not change.
@@ -53,7 +53,7 @@ how people are identified.
   both too: `preferred_username` is the handle and `profile` is
   `https://bsky.app/profile/<did>`. The other providers send neither.
 - **`idp`** is always there, and is Umbral's one extra claim: the provider the
-  person used (`github`, `discord`, `google`, `apple`, `oidc` for any OpenID Connect
+  person used (`github`, `discord`, `google`, `apple`, `microsoft`, `oidc` for any OpenID Connect
   provider you added, `passkey`, `fediverse`, or `bluesky`). It is the provider's kind,
   never a connector's identifier: with several Discord connectors it is still
   `discord`. Ignore it freely.

@@ -51,6 +51,7 @@ let private seed (app: Fixtures.TestApp) (slug: string) (kind: ProviderKind) (di
           PasskeyEnrolment = InvitationsOnly
           FediverseAccess = FediverseAccess.Any
           AppleKey = None
+          MicrosoftAudience = None
           IsEnabled = true
           IsShared = true
           CreatedUtc = app.Clock.GetUtcNow()
