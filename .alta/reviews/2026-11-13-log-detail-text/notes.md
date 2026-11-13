@@ -12,7 +12,8 @@ itself (an exception message, a provider's answer) must not be able to add a fie
 | `Handlers/Admin/Connectors.fs` Apple save | `store=…;saved_disabled: <reason>` | Apple reachability reason |
 | `Handlers/Admin/Connectors.fs` Microsoft save | `store=…;audience=…;saved_disabled: <reason>` | OIDC discovery reason |
 
-All four go through `SecurityEvents.safeText`. `ConnectorError.Detail` is the one place
+All four go through `SecurityEvents.safeText`. The three admin saves build their detail with
+`SecurityEvents.savedDisabledDetail` (review nit N1), so the `;x=y` case is tested on that function. `ConnectorError.Detail` is the one place
 for every adapter, so the provider text is cleaned there and not at each call site.
 
 ## Details checked and left alone (already safe)

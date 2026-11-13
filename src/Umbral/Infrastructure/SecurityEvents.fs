@@ -200,6 +200,21 @@ let safeText (text: string) : string =
             let cut = if Char.IsHighSurrogate clean[298] then 298 else 299
             clean.Substring(0, cut) + "…"
 
+/// The `Detail` of a `connector_created` event from the admin saves:
+/// `store=…`, then `audience=…` for a Microsoft connector, then, when a check
+/// failed and the connector was saved disabled, `saved_disabled: <reason>`. The
+/// reason is an exception message or a provider's answer, so it goes through
+/// `safeText`: the detail keeps exactly the fields Umbral wrote.
+let savedDisabledDetail (store: string) (audience: string option) (reason: string option) =
+    let core =
+        match audience with
+        | Some audience -> $"store={store};audience={audience}"
+        | None -> $"store={store}"
+
+    match reason with
+    | Some reason -> $"{core};saved_disabled: {safeText reason}"
+    | None -> core
+
 /// The `Detail` of a `sign_in_failed` event for a refused email domain:
 /// `email_domain_refused;reason=…;rule=…;stage=…;domain=…`. Built from closed
 /// words and the normalised domain only, never from the address: the full

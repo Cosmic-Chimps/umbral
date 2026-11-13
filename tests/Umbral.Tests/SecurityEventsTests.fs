@@ -216,3 +216,24 @@ let ``safeText does not leave a lone high surrogate where it cuts`` () =
     Assert.EndsWith("…", result)
     Assert.False(Char.IsHighSurrogate result[result.Length - 2])
     Assert.Equal(299, result.Length)
+
+[<Fact>]
+let ``a saved-disabled detail keeps a reason with separators as one field`` () =
+    let detail =
+        savedDisabledDetail "local" None (Some "the connection failed: idp.example;x=y")
+
+    Assert.Equal("store=local;saved_disabled: the connection failed: idp.example,x:y", detail)
+    Assert.Equal(2, detail.Split(';').Length)
+
+[<Fact>]
+let ``a saved-disabled detail names the audience before the reason`` () =
+    let detail =
+        savedDisabledDetail "local" (Some "common") (Some "tenant=evil;audience=x")
+
+    Assert.Equal("store=local;audience=common;saved_disabled: tenant:evil,audience:x", detail)
+    Assert.Equal(3, detail.Split(';').Length)
+
+[<Fact>]
+let ``a connector saved enabled has no saved-disabled field`` () =
+    Assert.Equal("store=local", savedDisabledDetail "local" None None)
+    Assert.Equal("store=local;audience=common", savedDisabledDetail "local" (Some "common") None)

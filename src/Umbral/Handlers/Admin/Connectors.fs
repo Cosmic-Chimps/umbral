@@ -1979,11 +1979,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                     ctx
                     SecurityEvents.ConnectorCreated
                     state.Slug
-                    (Some(
-                        match reasonShort with
-                        | Some reason -> $"store={reference.Store};saved_disabled: {SecurityEvents.safeText reason}"
-                        | None -> $"store={reference.Store}"
-                    ))
+                    (Some(SecurityEvents.savedDisabledDetail reference.Store None reasonShort))
 
             if not domains.IsEmpty then
                 do! recordDomainsChanged ctx (Some state.Slug) domains
@@ -2557,11 +2553,7 @@ let saveApple: EndpointHandler =
                         ctx
                         SecurityEvents.ConnectorCreated
                         slug
-                        (Some(
-                            match unreachable with
-                            | Some reason -> $"store={reference.Store};saved_disabled: {SecurityEvents.safeText reason}"
-                            | None -> $"store={reference.Store}"
-                        ))
+                        (Some(SecurityEvents.savedDisabledDetail reference.Store None unreachable))
 
                 if not parsed.Domains.IsEmpty then
                     do! recordDomainsChanged ctx (Some slug) parsed.Domains
@@ -2720,11 +2712,10 @@ let saveMicrosoft: EndpointHandler =
                         SecurityEvents.ConnectorCreated
                         slug
                         (Some(
-                            let audience = Umbral.Domains.Microsoft.stored parsed.Audience
-
-                            match failed with
-                            | Some(_, reason) -> $"store={reference.Store};audience={audience};saved_disabled: {SecurityEvents.safeText reason}"
-                            | None -> $"store={reference.Store};audience={audience}"
+                            SecurityEvents.savedDisabledDetail
+                                reference.Store
+                                (Some(Umbral.Domains.Microsoft.stored parsed.Audience))
+                                (failed |> Option.map snd)
                         ))
 
                 if not parsed.Domains.IsEmpty then
