@@ -22,15 +22,17 @@ Was:
 Is:
 
 > A self-hosted sign-in server. Your apps offer passwordless sign-in through one OpenID Connect issuer:
-> a passkey, or an account people already have at Discord, GitHub, Google, Apple, Microsoft, any OpenID
-> Connect provider, a Mastodon-compatible server or Bluesky.
+> a passkey, or an account people already have at Discord, GitHub, Google, Apple, Microsoft, a
+> Mastodon-compatible server, Bluesky or any OpenID Connect provider.
 
-- **The order** is the Connectors screen's, read from `Handlers/Admin/Connectors.fs:1204-1214`
-  (`kindOrder`: Discord 0, GitHub 1, Google 2, Apple 3, Microsoft 4, OpenID Connect 5, Fediverse 7,
-  Bluesky 8, Passkey 9) and `rowsFor`, which closes the list with Fediverse, Bluesky, Passkey. The one
-  consequence: "any OpenID Connect provider" moves **before** the Mastodon-compatible server, where the old
-  sentence had it last as a catch-all. The passkey stays first in the sentence, as it was: the sentence
-  opens with what Umbral does on its own, then the accounts people already have.
+- **The order** of the named providers is the Connectors screen's, read from
+  `Handlers/Admin/Connectors.fs:1204-1214` (`kindOrder`: Discord 0, GitHub 1, Google 2, Apple 3,
+  Microsoft 4, OpenID Connect 5, Fediverse 7, Bluesky 8, Passkey 9) and `rowsFor`, which closes the list
+  with Fediverse, Bluesky, Passkey. "Any OpenID Connect provider" stays **last**, as the sentence's
+  catch-all: the design review's one nit (`review.md`, taken), which corrects the task's "screen's order"
+  for that one item. At `bda34fe` it sat before the Mastodon-compatible server. The passkey stays first in
+  the sentence, as it was: the sentence opens with what Umbral does on its own, then the accounts people
+  already have.
 - **The Fediverse** keeps its words, "a Mastodon-compatible server", as the task asks (the kind's display
   name on the screen is "Fediverse", `Connectors.fs:76`; the sentence stays in words a visitor knows).
 - **Bluesky** is named as "Bluesky", the kind's display name (`Connectors.fs:77`).
@@ -88,4 +90,12 @@ reviewer wants one. The README's opening is not a change to what Umbral does.
 - Captures: 4 shots, **none overflows horizontally** (`capture-output.log`: every one `scrollWidth == innerWidth`).
   The lead reads, in the page: "A self-hosted sign-in server. Your apps offer passwordless sign-in through one
   OpenID Connect issuer: a passkey, or an account people already have at Discord, GitHub, Google, Apple,
-  Microsoft, any OpenID Connect provider, a Mastodon-compatible server or Bluesky."
+  Microsoft, a Mastodon-compatible server, Bluesky or any OpenID Connect provider." (captures retaken after
+  the nit; the build at that point had 0 warnings too.)
+
+## Reviews
+
+- Design (`review.md`): clear to merge at `bda34fe`, one nit (the catch-all last), taken; no re-check asked.
+- Documentation (`review-docs.md`, committed by the reviewer as `f5a929b`): clear, no blocking, no nits; no
+  changelog fragment wanted. One condition about the base: the branch is on a local `main` that holds the
+  f0rg history; **do not push it** until f0rg is on GitHub's main as one squashed commit, then rebase.

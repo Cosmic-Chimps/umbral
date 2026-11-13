@@ -1442,7 +1442,7 @@ let en: Texts =
       HomeLead =
         "A self-hosted sign-in server. Your apps offer passwordless sign-in through one OpenID Connect issuer: "
         + "a passkey, or an account people already have at Discord, GitHub, Google, Apple, Microsoft, "
-        + "any OpenID Connect provider, a Mastodon-compatible server or Bluesky."
+        + "a Mastodon-compatible server, Bluesky or any OpenID Connect provider."
       HomeSigningInHeading = "Signing in?"
       HomeSigningInBody =
         "You don't start here. Open the app you want to use and choose to sign in; it brings you to Umbral's sign-in screen."
