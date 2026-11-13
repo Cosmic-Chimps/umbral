@@ -64,7 +64,7 @@ else
     var steps = $"""
         Umbral is starting at {umbralOrigin}, but the sample is not started yet: its client ID and secret are not set. Once per `{VolumeName}` volume:
 
-        1. **Claim Umbral**: open {umbralOrigin}/admin/setup and paste the **Setup token** from Umbral's console logs (the `umbral` resource), then choose an **Operator credential**. Or, from a shell: `docker exec $(docker ps -q -f name=umbral) /app/Umbral reset-credential`.
+        1. **Claim Umbral**: open {umbralOrigin}/admin/setup and paste the **Setup token** from Umbral's console logs (the `umbral` resource), then choose an **Operator credential**. Or, from a shell: `docker exec $(docker ps -q -f volume={VolumeName}) /app/Umbral reset-credential`, which claims Umbral and prints a password to sign in with (the filter is this sample's volume, which only its container mounts).
         2. On **Connectors**, choose **Passkey**, pick **Anyone can sign up** so that you can create your own account from the sign-in page, and press **Enable passkeys**. A passkey needs no account at any provider; any other connector works too, once it is registered with its provider.
         3. On **Apps**, press **Create app**: **Name** anything, **App type** **Web application**, **Redirect URI** `http://localhost:{samplePort}/signin-oidc`, **Post-logout redirect URI (optional)** `http://localhost:{samplePort}/signout-callback-oidc`. Copy the **Client ID** and the **Client secret** (shown once).
         4. From `samples/aspire`: `dotnet user-secrets set Parameters:umbral-client-id <client id>` and `dotnet user-secrets set Parameters:umbral-client-secret <client secret>`.

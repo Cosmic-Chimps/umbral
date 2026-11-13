@@ -130,3 +130,25 @@ this branch.
 ## Changelog
 
 `changelog.d/samples-aspire.md`, Added.
+
+## Answers to the reviews
+
+Code review (`code-review.md`, clear, one nit) and documentation review (`review.md`, one blocking,
+four nits), both 2026-11-13. Fixed in the commit after cb86f70:
+
+- **B1 and code N1, the `docker ps` filter.** Both reviews found that `-f name=umbral` matches any
+  container whose name contains `umbral`: the quick start's (named exactly `umbral`), the harness's.
+  The README and the AppHost's steps now select by this sample's volume,
+  `docker ps -q -f volume=umbral-aspire-data` (`{VolumeName}` in `AppHost.cs`), which only the
+  AppHost's container mounts.
+- **Docs N1.** Both say that `reset-credential` claims Umbral and prints a password to sign in with.
+- **Docs N2.** "If a port is taken" says that `Umbral:Port` moves the setup page and the issuer too,
+  and that the dashboard's steps use the real values.
+- **Docs N3.** The changelog says "shown in the Aspire dashboard the first time".
+- **Docs N4.** The main README's clause reads "(CI builds it)".
+- **The base.** Understood: the branch is not pushed. It is rebased onto main once f0rg is on it as one
+  squashed commit.
+
+Re-verified after the changes: `dotnet build -c Release -warnaserror` 0 warnings, `check-links.py`
+400 links, `changelog.sh check` in order. The filter was tried on this machine with the volume
+present and absent (see the check below).

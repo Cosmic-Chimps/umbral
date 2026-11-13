@@ -37,7 +37,9 @@ a notification (they are also in the AppHost's log).
 **If a port is taken.** The ports stay fixed, only the default changes. Set
 `Umbral:Port` (default 8080) or `Sample:Port` (default 5000) in the same user
 secrets, for example `dotnet user-secrets set Sample:Port 5001`, and register the
-redirect URIs below with that port instead. On macOS, AirPlay Receiver listens on
+redirect URIs below with that port instead; with `Umbral:Port`, open Umbral at
+that port instead of 8080 everywhere below (the setup page and the issuer move
+with it). The steps in the dashboard already use the real values. On macOS, AirPlay Receiver listens on
 5000: turn it off in System Settings, or use another port for the sample.
 
 ## What to create in Umbral
@@ -47,7 +49,10 @@ Once per `umbral-aspire-data` volume:
 1. **Claim Umbral.** Open `http://localhost:8080/admin/setup` and paste the
    **Setup token** from Umbral's console logs (the `umbral` resource in the
    dashboard), then choose an **Operator credential**. Or, from a shell:
-   `docker exec $(docker ps -q -f name=umbral) /app/Umbral reset-credential`.
+   `docker exec $(docker ps -q -f volume=umbral-aspire-data) /app/Umbral reset-credential`.
+   It claims Umbral and prints a password to sign in with. The filter is this
+   sample's volume, which only its container mounts, so it never reaches another
+   Umbral on the machine, such as the quick start's.
 2. On **Connectors**, choose **Passkey**, pick **Anyone can sign up** so that
    you can create your own account from the sign-in page, and press
    **Enable passkeys**. A passkey needs no account at any provider (see

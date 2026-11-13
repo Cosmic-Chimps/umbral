@@ -339,7 +339,7 @@ showing the claims on a private page. Today there are eight:
 [.NET MAUI app](samples/maui/README.md) for both (each a **Single-page or
 native app**, with no secret), and an
 [Aspire AppHost](samples/aspire/README.md) that runs Umbral and the ASP.NET Core
-sample together. CI runs each web sample against a real Umbral before every release. For an iPhone, Android or
+sample together (CI builds it). CI runs each web sample against a real Umbral before every release. For an iPhone, Android or
 desktop app, see [Native and mobile apps](docs/native-apps.md).
 
 And register one thing in Umbral: the app's **redirect URI**. Which one that is
