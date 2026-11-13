@@ -187,11 +187,12 @@ typed, except the secret, which is never drawn back.
 | "Saved. Umbral could not check the connector with Microsoft (&lt;reason&gt;), so it stays enabled as it was." | An enabled connector whose choice did not change. Your other changes are saved and sign-in goes on as before. Check that the machine can reach `login.microsoftonline.com`, and save again later if you want the check. |
 | "Microsoft did not confirm this choice: &lt;reason&gt;. Nothing was saved: check the tenant ID, then try again." | Under the tenant ID, for an existing connector changed to **one organization**. Nothing was saved, so the connector still works as before. The usual reason is "No Microsoft tenant has this ID". Correct the tenant ID. |
 | "Microsoft did not confirm this choice: &lt;reason&gt;. Nothing was saved: check that the choice matches the app's registration, then try again." | Under **Who may sign in**, for an existing connector changed to another card. Nothing was saved. Compare the card with the registration's **Supported account types**. |
-| "Microsoft did not answer (&lt;reason&gt;). Nothing was saved: try again in a moment." | An existing connector whose choice changed, while Microsoft could not be reached. Nothing was saved. Try again later. |
+| "Microsoft did not answer (&lt;reason&gt;). Nothing was saved: try again in a moment." | Under the tenant ID or **Who may sign in**, for an existing connector whose choice changed while Microsoft could not be reached. Nothing was saved. Try again later. |
 
-The notices about Microsoft appear at the top of the pane, except the last one,
-which is under the choice (or under the tenant ID). Several fields can be refused
-at once.
+The notices about Microsoft appear at the top of the pane, except the last
+three, the "Nothing was saved" messages, which are under the tenant ID with
+**one organization** and under **Who may sign in** otherwise. Several fields can
+be refused at once.
 
 ### Renewing the secret
 
