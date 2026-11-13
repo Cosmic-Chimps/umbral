@@ -61,3 +61,27 @@ point is nit 1.
 ## Re-check
 
 None needed for the nits beyond `pane-set-up` at 1280 in one theme if nit 2 is taken.
+
+## Re-check, 2026-11-13, at `1572212`
+
+**Clear to merge.** Looked at `refused-unanswered-360-light` and `unchanged-unchecked-1280-dark`;
+the other retakes were not opened.
+
+- Nit 1 taken: the failed-check messages end "then try again", with the tenant ending under
+  the tenant field. The group ending was not captured (it needs a real mismatching
+  registration); its text is accepted from the contract.
+- Nit 2 taken: the Set-up rule line leads with the saved choice ("Who can sign in: work or
+  school accounts from one organization, with any email domain.").
+- The notice fix reads right: an unchanged choice keeps the connector enabled and says so; a
+  changed one that Microsoft does not answer is not saved, with the message under the group.
+
+The walk's five points:
+
+1. No full stop after the list form of the rule line: leave it, as the other panes' list lines.
+2. After a 422 the cards show what was typed and the rule line what is stored: right. The form
+   is the draft, the rule line and the heading are what is saved.
+3. Nested brackets in the transport reason: not this task's. It is discovery's shared wording;
+   I will pass a small task to the queue to flatten it for every pane that shows it.
+4. The group's message below the fourth card at 360: leave it. It belongs to the group, sits
+   where every field's message sits, and is announced with all four radios.
+5. The GUID scrolling in its field at 360: accepted, as before.
