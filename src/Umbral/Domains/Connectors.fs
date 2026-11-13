@@ -356,6 +356,11 @@ type Connector =
       /// Only for `Microsoft`: who may sign in. None for every other kind, and for
       /// a Microsoft row whose stored value is missing or unreadable.
       MicrosoftAudience: MicrosoftAudience option
+      /// Only for `Oidc` (specs/017): Some true when the connector trusts its
+      /// provider's verified emails, Some false when it does not. None for every
+      /// other kind. A NULL on an `oidc` row reads as None, which is off
+      /// (`trustsProviderEmail`).
+      EmailTrust: bool option
       CreatedUtc: DateTimeOffset
       UpdatedUtc: DateTimeOffset }
 
@@ -363,6 +368,15 @@ type Connector =
 
     member this.ScopeString =
         this.Endpoints.Scopes |> List.distinct |> String.concat " "
+
+/// Whether the connector's provider's `email_verified` claim is believed
+/// (specs/017). An `Oidc` connector believes it only when the operator turned the
+/// trust on; a row with no value is off. Every other kind answers true: each of
+/// them keeps its own rule for the claim.
+let trustsProviderEmail (connector: Connector) : bool =
+    match connector.Kind with
+    | Oidc -> connector.EmailTrust = Some true
+    | _ -> true
 
 /// An app's connector choice (FR-005). No row in `app_connector_choices` means
 /// AllShared, which is also the default for a new app.

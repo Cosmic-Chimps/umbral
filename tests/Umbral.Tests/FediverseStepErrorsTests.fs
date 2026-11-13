@@ -28,6 +28,7 @@ let private connector (app: Fixtures.TestApp) enabled =
           FediverseAccess = FediverseAccess.Any
           AppleKey = None
           MicrosoftAudience = None
+          EmailTrust = None
           IsEnabled = enabled
           IsShared = true
           CreatedUtc = app.Clock.GetUtcNow()

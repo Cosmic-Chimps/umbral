@@ -133,6 +133,7 @@ let private prepare (app: Fixtures.TestApp) (client: Client) =
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

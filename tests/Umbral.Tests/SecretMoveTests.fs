@@ -96,6 +96,7 @@ let private seedLocal (app: Fixtures.TestApp) (kind: ProviderKind) (slug: string
                       FediverseAccess = FediverseAccess.Any
                       AppleKey = None
                       MicrosoftAudience = None
+                      EmailTrust = (if kind = ProviderKind.Oidc then Some true else None)
                       IsEnabled = true
                       IsShared = true
                       CreatedUtc = now
@@ -752,6 +753,7 @@ let private seedPasskey (app: Fixtures.TestApp) =
           FediverseAccess = FediverseAccess.Any
           AppleKey = None
           MicrosoftAudience = None
+          EmailTrust = None
           IsEnabled = true
           IsShared = true
           CreatedUtc = app.Clock.GetUtcNow()

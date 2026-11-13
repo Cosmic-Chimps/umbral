@@ -52,6 +52,7 @@ let private seed (app: Fixtures.TestApp) (slug: string) (kind: ProviderKind) (di
           FediverseAccess = FediverseAccess.Any
           AppleKey = None
           MicrosoftAudience = None
+          EmailTrust = (if kind = ProviderKind.Oidc then Some true else None)
           IsEnabled = true
           IsShared = true
           CreatedUtc = app.Clock.GetUtcNow()

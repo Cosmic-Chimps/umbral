@@ -56,6 +56,7 @@ let private connector slug kind audience : Connector =
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
       MicrosoftAudience = audience
+      EmailTrust = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = now

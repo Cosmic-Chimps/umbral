@@ -377,6 +377,7 @@ let ``the picker offers Bluesky as an ordinary button with the link icon and the
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

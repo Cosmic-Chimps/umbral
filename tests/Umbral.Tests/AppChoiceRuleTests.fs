@@ -19,6 +19,7 @@ let private connector slug kind enabled shared : Connector =
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
       MicrosoftAudience = None
+      EmailTrust = (if kind = ProviderKind.Oidc then Some true else None)
       IsEnabled = enabled
       IsShared = shared
       CreatedUtc = DateTimeOffset.UnixEpoch

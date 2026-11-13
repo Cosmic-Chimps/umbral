@@ -32,6 +32,7 @@ let private connector (audience: MicrosoftAudience option) : Connector =
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
       MicrosoftAudience = audience
+      EmailTrust = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UtcNow

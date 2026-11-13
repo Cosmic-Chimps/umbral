@@ -457,6 +457,7 @@ let ``every event type in the data model is emitted by the real product`` () =
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

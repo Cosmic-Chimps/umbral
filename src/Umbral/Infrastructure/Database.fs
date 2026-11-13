@@ -137,7 +137,12 @@ let private schema =
         -- `Microsoft.stored` writes (`consumers`, a tenant's GUID in lower case,
         -- `organizations` or `common`). NULL for every other kind. A database
         -- from before schema version 13 gets this column from `upgradeSteps`.
-        microsoft_audience      TEXT        NULL
+        microsoft_audience      TEXT        NULL,
+        -- Only for kind `oidc` (specs/017): 1 when the connector trusts its
+        -- provider's verified emails, 0 when it does not; NULL reads as off. NULL
+        -- for every other kind. A database from before schema version 14 gets
+        -- this column from `upgradeSteps`.
+        email_trust             INTEGER     NULL
     );
 
     -- A marker: one row per app limited to a chosen set. No row means "all
@@ -303,7 +308,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 13
+let SchemaVersion = 14
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -436,6 +441,19 @@ let private UpgradeToVersion8 =
          last_used_utc  TEXT        NULL
      );"
 
+/// Task h762, and specs/017. A user whose `email_verified` is set although no
+/// linked account verifies the stored address (case-insensitively): the flag is
+/// not backed. Used as a `WHERE` condition on `users` by upgrade step 9 and by
+/// `ConnectorStore.saveOidc` when an operator turns off the trust in an OpenID
+/// Connect provider's emails.
+[<Literal>]
+let UnbackedEmailVerified =
+    "email_verified = 1
+        AND NOT EXISTS (SELECT 1 FROM linked_accounts la
+                         WHERE la.user_id = users.id
+                           AND la.asserted_email_verified = 1
+                           AND la.asserted_email = users.email COLLATE NOCASE)"
+
 /// Task h762. `users.email_verified` used to be raised by any verified address
 /// a provider asserted, so a first address nobody proved could read as verified,
 /// and the linking query would join the real owner of that address into the
@@ -444,14 +462,14 @@ let private UpgradeToVersion8 =
 /// verifies the stored address (case-insensitively). It only lowers and never
 /// raises. A user who falls to unverified is the safe direction: linking by
 /// email stops matching that row until a provider verifies the address again.
+///
+/// The condition is the one `UnbackedEmailVerified` names, so this step and
+/// `ConnectorStore.saveOidc` (specs/017) cannot drift. The text is exactly what
+/// step 9 wrote when it shipped.
 [<Literal>]
 let private UpgradeToVersion9 =
     "UPDATE users SET email_verified = 0
-      WHERE email_verified = 1
-        AND NOT EXISTS (SELECT 1 FROM linked_accounts la
-                         WHERE la.user_id = users.id
-                           AND la.asserted_email_verified = 1
-                           AND la.asserted_email = users.email COLLATE NOCASE);"
+      WHERE " + UnbackedEmailVerified + ";"
 
 /// Spec 013. NULL for every connector that exists today: only the `apple` kind
 /// reads them, and none can predate it. No data is rewritten.
@@ -479,6 +497,15 @@ let private UpgradeToVersion12 =
 let private UpgradeToVersion13 =
     "ALTER TABLE connectors ADD COLUMN microsoft_audience TEXT NULL;"
 
+/// Spec 017. Every existing `oidc` connector gets 1, so it keeps trusting its
+/// provider's verified emails and an upgrade changes nobody's sign-in; the
+/// operator turns the trust off from the connector's pane. NULL for every other
+/// kind, which ignore it.
+[<Literal>]
+let private UpgradeToVersion14 =
+    "ALTER TABLE connectors ADD COLUMN email_trust INTEGER NULL;
+     UPDATE connectors SET email_trust = 1 WHERE kind = 'oidc';"
+
 /// What takes a database from the version before to the version named. Applied
 /// in order, inside `initializeSchema`'s transaction, to a database stamped
 /// lower than `SchemaVersion`; a fresh database skips them, because `schema`
@@ -503,7 +530,8 @@ let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
       10, (fun command -> command.CommandText <- UpgradeToVersion10)
       11, (fun command -> command.CommandText <- UpgradeToVersion11)
       12, (fun command -> command.CommandText <- UpgradeToVersion12)
-      13, (fun command -> command.CommandText <- UpgradeToVersion13) ]
+      13, (fun command -> command.CommandText <- UpgradeToVersion13)
+      14, (fun command -> command.CommandText <- UpgradeToVersion14) ]
 
 /// What `upgradeSchema` did. `EmailVerifiedLowered` is the number of users the
 /// version 9 step set back to unverified, or `None` when that step did not run

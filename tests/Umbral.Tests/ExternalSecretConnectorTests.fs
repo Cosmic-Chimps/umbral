@@ -299,6 +299,7 @@ let ``a create that loses the race for the slug deletes the secret it wrote`` ()
                               FediverseAccess = FediverseAccess.Any
                               AppleKey = None
                               MicrosoftAudience = None
+                              EmailTrust = None
                               IsEnabled = true
                               IsShared = true
                               CreatedUtc = now
@@ -395,6 +396,7 @@ let ``replacing a secret that lives in the local store moves it to the active st
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = now
@@ -579,6 +581,7 @@ let ``a replace that moves the secret between stores and cannot remove the old c
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = now
@@ -939,6 +942,7 @@ let ``a pane whose reference names a store this instance cannot build warns, wit
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()
@@ -990,6 +994,7 @@ let ``a pane whose store has credentials in the environment that cannot be used 
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

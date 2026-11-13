@@ -292,6 +292,7 @@ let seedConnectorWith (app: Fixtures.TestApp) (audience: MicrosoftAudience) (cli
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = Some audience
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

@@ -377,6 +377,7 @@ let save: EndpointHandler =
                               FediverseAccess = FediverseAccess.Any
                               AppleKey = None
                               MicrosoftAudience = None
+                              EmailTrust = None
                               IsEnabled = true
                               IsShared = shared
                               CreatedUtc = now

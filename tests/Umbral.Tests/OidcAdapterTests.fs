@@ -43,6 +43,7 @@ let private connector: Connector =
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
       MicrosoftAudience = None
+      EmailTrust = Some true
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UtcNow

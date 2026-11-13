@@ -417,6 +417,7 @@ let private connector (slug: string) (kind: ProviderKind) : Connector =
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
       MicrosoftAudience = None
+      EmailTrust = (if kind = ProviderKind.Oidc then Some true else None)
       IsEnabled = true
       IsShared = true
       CreatedUtc = DateTimeOffset.UnixEpoch

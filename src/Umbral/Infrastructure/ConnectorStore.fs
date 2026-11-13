@@ -17,7 +17,7 @@ open Umbral.Domains.Passkeys
 let private Columns =
     "SELECT slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
             is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains, passkey_enrolment,
-            fediverse_scope, fediverse_servers, apple_team_id, apple_key_id, microsoft_audience FROM connectors"
+            fediverse_scope, fediverse_servers, apple_team_id, apple_key_id, microsoft_audience, email_trust FROM connectors"
 
 let private readOptional (reader: SqliteDataReader) (ordinal: int) =
     if reader.IsDBNull ordinal then None else Some(reader.GetString ordinal)
@@ -62,6 +62,13 @@ let private read (reader: SqliteDataReader) =
         // hand-edited row) reads as no audience: the connector cannot be enabled
         // or used until the operator chooses one again (specs/016 data-model).
         readOptional reader 17 |> Option.bind Microsoft.parseStoredAudience
+      EmailTrust =
+        // A value only on an `oidc` row. NULL there reads as None, which is off
+        // (`trustsProviderEmail`); any other kind ignores whatever is stored.
+        if kind = Oidc && not (reader.IsDBNull 18) then
+            Some(reader.GetInt32 18 = 1)
+        else
+            None
       CreatedUtc = DateTimeOffset.Parse(reader.GetString 8, Globalization.CultureInfo.InvariantCulture)
       UpdatedUtc = DateTimeOffset.Parse(reader.GetString 9, Globalization.CultureInfo.InvariantCulture) }
 
@@ -195,6 +202,11 @@ let private microsoftAudienceParameter (connector: Connector) : obj =
     | Some audience -> Microsoft.stored audience :> obj
     | None -> DBNull.Value :> obj
 
+let private emailTrustParameter (connector: Connector) : obj =
+    match connector.Kind, connector.EmailTrust with
+    | Oidc, Some trust -> (if trust then 1 else 0) :> obj
+    | _ -> DBNull.Value :> obj
+
 let private issuerParameter (connector: Connector) : obj =
     match connector.IssuerUrl with
     | Some issuer -> issuer :> obj
@@ -230,9 +242,9 @@ let save
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
                   is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains,
                   passkey_enrolment, fediverse_scope, fediverse_servers, apple_team_id, apple_key_id,
-                  microsoft_audience)
+                  microsoft_audience, email_trust)
              VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains,
-                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey, @microsoftAudience)
+                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey, @microsoftAudience, @emailTrust)
              ON CONFLICT (slug) DO UPDATE SET
                  display_name      = @name,
                  client_id         = @clientId,
@@ -265,6 +277,7 @@ let save
         command.Parameters.AddWithValue("@appleTeam", appleTeamParameter connector) |> ignore
         command.Parameters.AddWithValue("@appleKey", appleKeyParameter connector) |> ignore
         command.Parameters.AddWithValue("@microsoftAudience", microsoftAudienceParameter connector) |> ignore
+        command.Parameters.AddWithValue("@emailTrust", emailTrustParameter connector) |> ignore
         command.Parameters.AddWithValue("@now", now) |> ignore
 
         let! _ = command.ExecuteNonQueryAsync()
@@ -311,9 +324,9 @@ let create
                  (slug, kind, display_name, client_id, client_secret_ref, client_secret_hint,
                   is_enabled, is_shared, created_utc, updated_utc, issuer_url, allowed_email_domains,
                   passkey_enrolment, fediverse_scope, fediverse_servers, apple_team_id, apple_key_id,
-                  microsoft_audience)
+                  microsoft_audience, email_trust)
              VALUES (@slug, @kind, @name, @clientId, @secretRef, @secretHint, @enabled, @shared, @now, @now, @issuer, @domains,
-                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey, @microsoftAudience)
+                     @enrolment, @fediScope, @fediServers, @appleTeam, @appleKey, @microsoftAudience, @emailTrust)
              ON CONFLICT (slug) DO NOTHING"
 
         command.Parameters.AddWithValue("@slug", connector.Slug) |> ignore
@@ -332,6 +345,7 @@ let create
         command.Parameters.AddWithValue("@appleTeam", appleTeamParameter connector) |> ignore
         command.Parameters.AddWithValue("@appleKey", appleKeyParameter connector) |> ignore
         command.Parameters.AddWithValue("@microsoftAudience", microsoftAudienceParameter connector) |> ignore
+        command.Parameters.AddWithValue("@emailTrust", emailTrustParameter connector) |> ignore
         command.Parameters.AddWithValue("@now", now.ToUniversalTime().ToString "o") |> ignore
 
         try
@@ -464,6 +478,170 @@ let saveMicrosoft
 
         let! changed = command.ExecuteNonQueryAsync()
         return changed > 0
+    }
+
+/// Lowers `users.email_verified` for the people a connector's provider alone
+/// vouched for (specs/017): first the links of that issuer's subjects stop
+/// asserting a verified address, then each of those users whose flag is no longer
+/// backed by any link (`Database.UnbackedEmailVerified`) falls to unverified. A
+/// user another link still verifies, or one that never had a link here, keeps the
+/// flag. `prefix` is `<issuer>#`, how `oidcSubject` starts every subject. Returns
+/// the number of users lowered. The caller owns the transaction.
+[<Literal>]
+let private LowerLinks =
+    "UPDATE linked_accounts SET asserted_email_verified = 0
+      WHERE provider_kind = 'oidc'
+        AND substr(provider_subject, 1, length(@prefix)) = @prefix"
+
+/// `Database.UnbackedEmailVerified` under a local name, so the SQL below is built
+/// from a constant of this file (the shape MetaTests accepts).
+[<Literal>]
+let private UnbackedEmailVerified = Database.UnbackedEmailVerified
+
+[<Literal>]
+let private LowerUsers =
+    "UPDATE users SET email_verified = 0
+      WHERE " + UnbackedEmailVerified + "
+        AND id IN (SELECT user_id FROM linked_accounts
+                    WHERE provider_kind = 'oidc'
+                      AND substr(provider_subject, 1, length(@prefix)) = @prefix)"
+
+let private lowerForIssuer (connection: SqliteConnection) (transaction: SqliteTransaction) (issuer: string) : Task<int> =
+    task {
+        use links = connection.CreateCommand()
+        links.Transaction <- transaction
+        links.CommandText <- LowerLinks
+        links.Parameters.AddWithValue("@prefix", issuer + "#") |> ignore
+        let! _ = links.ExecuteNonQueryAsync()
+
+        use users = connection.CreateCommand()
+        users.Transaction <- transaction
+        users.CommandText <- LowerUsers
+        users.Parameters.AddWithValue("@prefix", issuer + "#") |> ignore
+        return! users.ExecuteNonQueryAsync()
+    }
+
+/// Reads the stored `email_trust` (None when the value is NULL) and the issuer of
+/// the `oidc` row with this slug. None when no `oidc` connector has that slug.
+let private readOidcTrust
+    (connection: SqliteConnection)
+    (transaction: SqliteTransaction)
+    (slug: string)
+    : Task<(int option * string) option> =
+    task {
+        use command = connection.CreateCommand()
+        command.Transaction <- transaction
+
+        command.CommandText <-
+            "SELECT email_trust, issuer_url FROM connectors WHERE slug = @slug AND kind = 'oidc' AND issuer_url IS NOT NULL"
+
+        command.Parameters.AddWithValue("@slug", slug) |> ignore
+        use! reader = command.ExecuteReaderAsync()
+        let! found = reader.ReadAsync()
+
+        if found then
+            let stored = if reader.IsDBNull 0 then None else Some(reader.GetInt32 0)
+            return Some(stored, reader.GetString 1)
+        else
+            return None
+    }
+
+/// Saves what the OpenID Connect pane edits on a stored `oidc` connector: what
+/// `update` writes (display name, client ID, the shared setting, the allowed
+/// email domains, a new secret when one is supplied) and the trust in the
+/// provider's verified emails (specs/017). One transaction. When the trust is
+/// turned off (it was on, or NULL) the people that provider alone vouched for are
+/// lowered to unverified in the same transaction (`lowerForIssuer`); any failure
+/// rolls back everything, the setting included. Returns None when no `oidc`
+/// connector has that slug, otherwise Some n, n being the users lowered (0 when
+/// nothing was).
+let saveOidc
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (slug: string)
+    (displayName: string)
+    (clientId: string)
+    (isShared: bool)
+    (allowedDomains: string list option)
+    (newSecretRef: (string * string) option)
+    (trust: bool)
+    : Task<int option> =
+    task {
+        use! connection = Database.openConnection config
+        // Disposed uncommitted (a failure anywhere below), the transaction rolls
+        // back: the setting and every flag stay as they were.
+        use transaction = connection.BeginTransaction()
+        let! stored = readOidcTrust connection transaction slug
+
+        match stored with
+        | None ->
+            transaction.Rollback()
+            return None
+        | Some(storedTrust, issuer) ->
+            use command = connection.CreateCommand()
+            command.Transaction <- transaction
+
+            command.CommandText <-
+                "UPDATE connectors SET
+                     display_name       = @name,
+                     client_id          = @clientId,
+                     is_shared          = @shared,
+                     allowed_email_domains = coalesce(@domains, allowed_email_domains),
+                     client_secret_ref  = coalesce(@secretRef, client_secret_ref),
+                     client_secret_hint = coalesce(@secretHint, client_secret_hint),
+                     email_trust        = @trust,
+                     updated_utc        = @now
+                 WHERE slug = @slug AND kind = 'oidc'"
+
+            command.Parameters.AddWithValue("@slug", slug) |> ignore
+            command.Parameters.AddWithValue("@name", displayName) |> ignore
+            command.Parameters.AddWithValue("@clientId", clientId) |> ignore
+            command.Parameters.AddWithValue("@shared", (if isShared then 1 else 0)) |> ignore
+            command.Parameters.AddWithValue("@trust", (if trust then 1 else 0)) |> ignore
+
+            match allowedDomains with
+            | Some list -> command.Parameters.AddWithValue("@domains", EmailDomains.serialise list) |> ignore
+            | None -> command.Parameters.AddWithValue("@domains", DBNull.Value) |> ignore
+
+            match newSecretRef with
+            | Some(ref, hint) ->
+                command.Parameters.AddWithValue("@secretRef", ref) |> ignore
+                command.Parameters.AddWithValue("@secretHint", hint) |> ignore
+            | None ->
+                command.Parameters.AddWithValue("@secretRef", DBNull.Value) |> ignore
+                command.Parameters.AddWithValue("@secretHint", DBNull.Value) |> ignore
+
+            command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+
+            let! _ = command.ExecuteNonQueryAsync()
+
+            let! lowered =
+                if not trust && storedTrust <> Some 0 then
+                    lowerForIssuer connection transaction issuer
+                else
+                    Task.FromResult 0
+
+            transaction.Commit()
+            return Some lowered
+    }
+
+/// How many users `saveOidc` would lower if the operator turned the trust off
+/// now (specs/017): the same two statements, run in a transaction that is rolled
+/// back, so nothing changes. Counts the users even when the trust is already off
+/// (the pane asks only while it is on). None when no `oidc` connector has that
+/// slug.
+let previewTrustOff (config: Database.DbConfig) (slug: string) : Task<int option> =
+    task {
+        use! connection = Database.openConnection config
+        use transaction = connection.BeginTransaction()
+        let! stored = readOidcTrust connection transaction slug
+
+        match stored with
+        | None -> return None
+        | Some(_, issuer) ->
+            let! lowered = lowerForIssuer connection transaction issuer
+            transaction.Rollback()
+            return Some lowered
     }
 
 /// How `switchSecretRef` ended. A row that changed and a row that is gone are

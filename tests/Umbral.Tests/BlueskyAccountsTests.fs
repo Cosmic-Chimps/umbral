@@ -59,6 +59,7 @@ let private connector slug kind access : Connector =
       FediverseAccess = access
       AppleKey = None
       MicrosoftAudience = None
+      EmailTrust = None
       IsEnabled = true
       IsShared = true
       CreatedUtc = now

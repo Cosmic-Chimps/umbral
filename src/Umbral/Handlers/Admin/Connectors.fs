@@ -1593,6 +1593,7 @@ let saveFediverse: EndpointHandler =
                                   FediverseAccess = access
                                   AppleKey = None
                                   MicrosoftAudience = None
+                                  EmailTrust = None
                                   IsEnabled = true
                                   IsShared = shared
                                   CreatedUtc = now
@@ -1703,6 +1704,7 @@ let saveBluesky: EndpointHandler =
                                   FediverseAccess = access
                                   AppleKey = None
                                   MicrosoftAudience = None
+                                  EmailTrust = None
                                   IsEnabled = true
                                   IsShared = shared
                                   CreatedUtc = now
@@ -1962,6 +1964,8 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  // T003 reads the operator's choice
+                  EmailTrust = Some true
                   IsEnabled = enabled
                   IsShared = state.Shared
                   CreatedUtc = now
@@ -2093,6 +2097,7 @@ let create: EndpointHandler =
                       FediverseAccess = FediverseAccess.Any
                       AppleKey = None
                       MicrosoftAudience = None
+                      EmailTrust = None
                       // A connector arrives enabled, as the first of a kind does.
                       IsEnabled = true
                       IsShared = WebForms.checkbox form "shared"
@@ -2399,6 +2404,7 @@ let save (slug: string) : EndpointHandler =
                           FediverseAccess = FediverseAccess.Any
                           AppleKey = None
                           MicrosoftAudience = None
+                          EmailTrust = None
                           // A connector arrives enabled: the operator came here to
                           // turn it on, and a saved-but-off connector is a puzzle.
                           IsEnabled = true
@@ -2536,6 +2542,7 @@ let saveApple: EndpointHandler =
                           FediverseAccess = FediverseAccess.Any
                           AppleKey = Some parsed.Ids
                           MicrosoftAudience = None
+                          EmailTrust = None
                           IsEnabled = unreachable.IsNone
                           IsShared = parsed.Shared
                           CreatedUtc = now
@@ -2695,6 +2702,7 @@ let saveMicrosoft: EndpointHandler =
                           FediverseAccess = FediverseAccess.Any
                           AppleKey = None
                           MicrosoftAudience = Some parsed.Audience
+                          EmailTrust = None
                           IsEnabled = failed.IsNone
                           IsShared = parsed.Shared
                           CreatedUtc = now

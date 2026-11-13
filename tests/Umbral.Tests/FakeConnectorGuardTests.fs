@@ -27,6 +27,7 @@ let private seedFakeConnector (config: Database.DbConfig) (clock: TimeProvider) 
           FediverseAccess = FediverseAccess.Any
           AppleKey = None
           MicrosoftAudience = None
+          EmailTrust = None
           IsEnabled = true
           IsShared = true
           CreatedUtc = clock.GetUtcNow()

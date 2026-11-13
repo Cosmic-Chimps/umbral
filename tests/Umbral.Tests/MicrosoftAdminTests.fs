@@ -1142,6 +1142,7 @@ let ``a connector named microsoft of another kind is not edited by this form`` (
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = world.App.Clock.GetUtcNow()

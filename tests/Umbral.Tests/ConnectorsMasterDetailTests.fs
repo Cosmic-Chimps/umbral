@@ -444,6 +444,7 @@ let private seedLegacy (app: Fixtures.TestApp) (slug: string) =
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
+                  EmailTrust = None
                   IsEnabled = true
                   IsShared = true
                   CreatedUtc = app.Clock.GetUtcNow()

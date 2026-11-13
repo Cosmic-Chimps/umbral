@@ -21,6 +21,7 @@ let private connector (slug: string) (kind: ProviderKind) (issuer: string option
       FediverseAccess = FediverseAccess.Any
       AppleKey = None
       MicrosoftAudience = None
+      EmailTrust = (if kind = ProviderKind.Oidc then Some true else None)
       IsEnabled = true
       IsShared = true
       CreatedUtc = System.DateTimeOffset.UnixEpoch
@@ -331,4 +332,305 @@ let ``a connector of another kind reads no Apple key`` () =
         let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "google" Google None) secret
         let! stored = ConnectorStore.findBySlug app.DbConfig "google"
         Assert.Equal(None, stored.Value.AppleKey)
+    }
+
+// ---------------------------------------------------------------------------
+// Trust in the provider's verified emails (specs/017 T001).
+// ---------------------------------------------------------------------------
+
+let private issuerA = "https://auth.example.com/o"
+let private issuerB = "https://other.example.com/o"
+
+let private run (app: Fixtures.TestApp) (sql: string) =
+    task {
+        use! connection = Database.openConnection app.DbConfig
+        use command = connection.CreateCommand()
+        command.CommandText <- sql
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
+    }
+
+let private value (app: Fixtures.TestApp) (sql: string) =
+    task {
+        use! connection = Database.openConnection app.DbConfig
+        use command = connection.CreateCommand()
+        command.CommandText <- sql
+        let! result = command.ExecuteScalarAsync()
+        return string result
+    }
+
+let private oidcWithTrust (slug: string) (issuer: string) (trust: bool option) : Connector =
+    { connector slug Oidc (Some issuer) with EmailTrust = trust }
+
+let private createOidc (app: Fixtures.TestApp) (slug: string) (issuer: string) (trust: bool option) =
+    task {
+        let! created =
+            ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (oidcWithTrust slug issuer trust) secret
+
+        Assert.Equal(ConnectorStore.Created, created)
+    }
+
+let private saveOidc (app: Fixtures.TestApp) (slug: string) (name: string) (trust: bool) =
+    ConnectorStore.saveOidc app.DbConfig app.Clock slug name "client-id" true None None trust
+
+let private addUser (app: Fixtures.TestApp) (id: string) (email: string) (verified: bool) =
+    run
+        app
+        $"INSERT INTO users (id, display_name, email, email_verified, first_seen_utc, last_seen_utc)
+          VALUES ('{id}', '{id}', '{email}', {(if verified then 1 else 0)}, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+
+let private addLink (app: Fixtures.TestApp) (kind: string) (subject: string) (userId: string) (email: string) (verified: bool) =
+    run
+        app
+        $"INSERT INTO linked_accounts (provider_kind, provider_subject, user_id, asserted_email, asserted_email_verified, linked_utc, last_used_utc)
+          VALUES ('{kind}', '{subject}', '{userId}', '{email}', {(if verified then 1 else 0)}, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+
+/// Two OpenID Connect connectors, both trusting. On issuer A: `only` (verified
+/// through A's link alone), `shared` (A's link and a google link both verify the
+/// address) and `unverified` (never verified). On issuer B: `elsewhere`.
+let private seedPeople (app: Fixtures.TestApp) =
+    task {
+        do! createOidc app "home" issuerA (Some true)
+        do! createOidc app "work" issuerB (Some true)
+
+        do! addUser app "only" "only@example.com" true
+        do! addLink app "oidc" $"{issuerA}#1" "only" "only@example.com" true
+
+        do! addUser app "shared" "shared@example.com" true
+        do! addLink app "oidc" $"{issuerA}#2" "shared" "shared@example.com" true
+        do! addLink app "google" "g-2" "shared" "SHARED@example.com" true
+
+        do! addUser app "unverified" "u@example.com" false
+        do! addLink app "oidc" $"{issuerA}#3" "unverified" "u@example.com" false
+
+        do! addUser app "elsewhere" "else@example.com" true
+        do! addLink app "oidc" $"{issuerB}#9" "elsewhere" "else@example.com" true
+    }
+
+let private expectEq (expected: string) (actual: System.Threading.Tasks.Task<string>) =
+    task {
+        let! actualValue = actual
+        Assert.Equal(expected, actualValue)
+    }
+
+let private flag (app: Fixtures.TestApp) (userId: string) =
+    value app $"SELECT email_verified FROM users WHERE id = '{userId}'"
+
+let private linkFlag (app: Fixtures.TestApp) (subject: string) =
+    value app $"SELECT asserted_email_verified FROM linked_accounts WHERE provider_subject = '{subject}'"
+
+[<Fact>]
+let ``the email trust of an oidc connector is stored on and off and read back`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! createOidc app "on" "https://on.example.com" (Some true)
+        do! createOidc app "off" "https://off.example.com" (Some false)
+
+        let! on = ConnectorStore.findBySlug app.DbConfig "on"
+        Assert.Equal(Some true, on.Value.EmailTrust)
+        Assert.True(trustsProviderEmail on.Value)
+
+        let! off = ConnectorStore.findBySlug app.DbConfig "off"
+        Assert.Equal(Some false, off.Value.EmailTrust)
+        Assert.False(trustsProviderEmail off.Value)
+
+        let! raw = value app "SELECT group_concat(slug || '=' || email_trust, ',') FROM (SELECT * FROM connectors ORDER BY slug)"
+        Assert.Equal("off=0,on=1", raw)
+    }
+
+[<Fact>]
+let ``a null email trust on an oidc row reads as off`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! createOidc app "home" issuerA (Some true)
+        do! run app "UPDATE connectors SET email_trust = NULL WHERE slug = 'home'"
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.Equal(None, stored.Value.EmailTrust)
+        Assert.False(trustsProviderEmail stored.Value)
+    }
+
+[<Fact>]
+let ``a connector of another kind reads no email trust and trusts its provider's email`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "google" Google None) secret
+        // A stray value on a row that is not oidc is ignored.
+        do! run app "UPDATE connectors SET email_trust = 0 WHERE slug = 'google'"
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "google"
+        Assert.Equal(None, stored.Value.EmailTrust)
+        Assert.True(trustsProviderEmail stored.Value)
+
+        let! raw = value app "SELECT count(*) FROM connectors WHERE email_trust IS NULL"
+        Assert.Equal("0", raw)
+    }
+
+[<Fact>]
+let ``creating a connector of another kind stores a null email trust`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "google" Google None) secret
+        let! raw = value app "SELECT count(*) FROM connectors WHERE slug = 'google' AND email_trust IS NULL"
+        Assert.Equal("1", raw)
+    }
+
+[<Fact>]
+let ``saveOidc off lowers the user only this connector verified and keeps the rest`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! seedPeople app
+
+        let! result = saveOidc app "home" "Renamed" false
+        Assert.Equal(Some 1, result)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.Equal(Some false, stored.Value.EmailTrust)
+        Assert.Equal("Renamed", stored.Value.DisplayName)
+
+        // Verified through this connector alone: lowered, and so is its link.
+        do! expectEq "0" (flag app "only")
+        do! expectEq "0" (linkFlag app $"{issuerA}#1")
+
+        // Another link (google) still verifies the stored address, case-insensitively.
+        do! expectEq "1" (flag app "shared")
+        do! expectEq "0" (linkFlag app $"{issuerA}#2")
+        do! expectEq "1" (linkFlag app "g-2")
+
+        // Never verified: unchanged, and not counted.
+        do! expectEq "0" (flag app "unverified")
+
+        // Another connector's issuer: untouched.
+        do! expectEq "1" (flag app "elsewhere")
+        do! expectEq "1" (linkFlag app $"{issuerB}#9")
+        let! other = ConnectorStore.findBySlug app.DbConfig "work"
+        Assert.Equal(Some true, other.Value.EmailTrust)
+    }
+
+[<Fact>]
+let ``saveOidc off from a null stored value lowers as from on`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! seedPeople app
+        do! run app "UPDATE connectors SET email_trust = NULL WHERE slug = 'home'"
+
+        let! result = saveOidc app "home" "Home" false
+        Assert.Equal(Some 1, result)
+        do! expectEq "0" (flag app "only")
+    }
+
+[<Fact>]
+let ``saveOidc on to on and off to off lower nothing`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! seedPeople app
+
+        let! onToOn = saveOidc app "home" "Home" true
+        Assert.Equal(Some 0, onToOn)
+        do! expectEq "1" (flag app "only")
+        do! expectEq "1" (linkFlag app $"{issuerA}#1")
+
+        // Turn it off by hand, then raise the flag again: saving off when the
+        // stored value is already off must not touch it.
+        do! run app "UPDATE connectors SET email_trust = 0 WHERE slug = 'home'"
+
+        let! offToOff = saveOidc app "home" "Home" false
+        Assert.Equal(Some 0, offToOff)
+        do! expectEq "1" (flag app "only")
+        do! expectEq "1" (linkFlag app $"{issuerA}#1")
+
+        // And off to on changes the setting and nothing else.
+        let! offToOn = saveOidc app "home" "Home" true
+        Assert.Equal(Some 0, offToOn)
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+        do! expectEq "1" (flag app "only")
+    }
+
+[<Fact>]
+let ``saveOidc finds no connector of another kind or an unknown slug`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        let! _ = ConnectorStore.create app.DbConfig (app.Clock.GetUtcNow()) (connector "google" Google None) secret
+
+        let! google = saveOidc app "google" "Changed" false
+        Assert.Equal(None, google)
+        let! unknown = saveOidc app "nope" "Changed" false
+        Assert.Equal(None, unknown)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "google"
+        Assert.Equal("Home", stored.Value.DisplayName)
+    }
+
+[<Fact>]
+let ``saveOidc replaces a secret only when one is given and honours the domains option`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! createOidc app "home" issuerA (Some true)
+
+        let! kept = ConnectorStore.saveOidc app.DbConfig app.Clock "home" "Home" "client-id" true (Some [ "example.com" ]) None true
+        Assert.Equal(Some 0, kept)
+        let! first = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.Equal<string list>([ "example.com" ], first.Value.AllowedEmailDomains)
+        Assert.Equal("local:ciphertext", first.Value.ClientSecretRef)
+
+        let! replaced =
+            ConnectorStore.saveOidc app.DbConfig app.Clock "home" "Home" "client-id" false None (Some("local:new", "new")) true
+
+        Assert.Equal(Some 0, replaced)
+        let! second = ConnectorStore.findBySlug app.DbConfig "home"
+        // None leaves the stored domains; the new secret is written; the connector stays unshared.
+        Assert.Equal<string list>([ "example.com" ], second.Value.AllowedEmailDomains)
+        Assert.Equal("local:new", second.Value.ClientSecretRef)
+        Assert.False second.Value.IsShared
+    }
+
+[<Fact>]
+let ``a failure while lowering leaves the setting and every flag unchanged`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! seedPeople app
+
+        do!
+            run
+                app
+                "CREATE TRIGGER t BEFORE UPDATE OF email_verified ON users
+                 BEGIN SELECT RAISE(ABORT, 'boom'); END;"
+
+        let! thrown =
+            Assert.ThrowsAnyAsync<exn>(fun () -> saveOidc app "home" "Renamed" false :> System.Threading.Tasks.Task)
+
+        Assert.Contains("boom", thrown.Message)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+        Assert.Equal("Home", stored.Value.DisplayName)
+        do! expectEq "1" (flag app "only")
+        do! expectEq "1" (flag app "shared")
+        do! expectEq "1" (linkFlag app $"{issuerA}#1")
+        do! expectEq "1" (linkFlag app $"{issuerA}#2")
+    }
+
+[<Fact>]
+let ``previewTrustOff returns the count saveOidc would lower and changes nothing`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! seedPeople app
+
+        let! preview = ConnectorStore.previewTrustOff app.DbConfig "home"
+        Assert.Equal(Some 1, preview)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "home"
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+        do! expectEq "1" (flag app "only")
+        do! expectEq "1" (flag app "shared")
+        do! expectEq "1" (linkFlag app $"{issuerA}#1")
+        do! expectEq "1" (linkFlag app $"{issuerA}#2")
+
+        // The same number the save then lowers.
+        let! saved = saveOidc app "home" "Home" false
+        Assert.Equal(preview, saved)
+
+        let! unknown = ConnectorStore.previewTrustOff app.DbConfig "nope"
+        Assert.Equal(None, unknown)
     }
