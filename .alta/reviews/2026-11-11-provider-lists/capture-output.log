@@ -1,0 +1,5 @@
+lead: A self-hosted sign-in server. Your apps offer passwordless sign-in through one OpenID Connect issuer: a passkey, or an account people already have at Discord, GitHub, Google, Apple, Microsoft, any OpenID Connect provider, a Mastodon-compatible server or Bluesky.
+home-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+home-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+home-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+home-360-light: overflow=false (scrollWidth 360, innerWidth 360)

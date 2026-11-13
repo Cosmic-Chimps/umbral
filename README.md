@@ -3,8 +3,8 @@
 A self-hosted OpenID Connect provider whose only job is **signing people in
 without passwords**: with a social provider they already use, or with a
 passkey. Your apps talk to Umbral using any standard OIDC library. Umbral talks
-to Discord, GitHub, Google, Apple and Microsoft, to Mastodon and GoToSocial servers, to any
-OpenID Connect provider you already run, such as Authentik, Keycloak, Pocket ID
+to Discord, GitHub, Google, Apple and Microsoft, to Mastodon and GoToSocial servers, to Bluesky,
+to any OpenID Connect provider you already run, such as Authentik, Keycloak, Pocket ID
 or Authelia, and through that same connector to a forge, such as GitLab, Codeberg,
 Forgejo or Gitea. It can also sign people in with a passkey on its own. You wire each
 provider up once, in one place, instead of in every app.
