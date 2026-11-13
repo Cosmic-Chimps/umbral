@@ -2,13 +2,19 @@
 
 Lets people sign in to your apps through an identity provider **you already
 run**: Authentik, Keycloak, Pocket ID, Authelia, Zitadel, Kanidm, GitLab,
-Microsoft Entra (one tenant: see below), or anything else that speaks OpenID
-Connect. Instead of wiring
+Forgejo, Gitea, Microsoft Entra (one tenant: see below), or anything else that
+speaks OpenID Connect. Instead of wiring
 every app to that provider by hand, you wire it to Umbral once and your apps
 keep talking to Umbral.
 
 You do not need this if you only want Discord, GitHub or Google. Those have
 walkthroughs of their own, and no provider of your own to run.
+
+**A forge, public or your own.** "Sign in with GitLab", "Sign in with Codeberg"
+or a Forgejo or Gitea you run is this connector too: GitLab, Forgejo (what
+Codeberg runs) and Gitea are OpenID Connect providers. The steps below apply as
+written; what differs, and what their `email_verified` means, is in
+[A public forge: GitLab, Codeberg, or one you run](#a-public-forge-gitlab-codeberg-or-one-you-run).
 
 **Microsoft: which connector.** Use this one when the people who sign in belong
 to **one** organization's Microsoft Entra tenant: give it that tenant's issuer,
@@ -91,11 +97,16 @@ Where each product puts it:
 | **Keycloak** | `https://kc.example.com/realms/<realm>` | One issuer per realm. An older Keycloak, or one configured with `/auth` as its relative path, puts `/auth` first: `https://kc.example.com/auth/realms/<realm>`. **Realm settings → General → Endpoints → OpenID Endpoint Configuration** opens the discovery page. |
 | **Pocket ID** | `https://id.example.com` | The instance root: the address you open Pocket ID at, with no path. |
 | **Authelia** | `https://auth.example.com` | The instance root: the address of your Authelia portal, with no path. |
+| **GitLab** | `https://gitlab.com`, or `https://git.example.com` for your own | The instance root, with no path: the address people open GitLab at. Your own GitLab builds it from `external_url`. |
+| **Forgejo, Codeberg** | `https://codeberg.org`, or `https://git.example.com` for your own | The instance root, with no path. Your own Forgejo builds it from `ROOT_URL` (without the trailing slash). |
+| **Gitea** | `https://git.example.com` | The instance root, with no path: `ROOT_URL` without the trailing slash. |
 | **Another provider** | its discovery page without `/.well-known/openid-configuration` | Look for "Issuer", "Discovery URL" or "OpenID configuration" in its settings, or try the test above. |
 
-*Menu names and issuer shapes are as of writing and are unverified against the
-2026 versions of these products. The discovery test above settles it whatever
-the console says.*
+*Menu names and issuer shapes for Authentik, Keycloak, Pocket ID and Authelia
+are as of writing and are unverified against the 2026 versions of these
+products. The three forges were tried in November 2026 (GitLab 19.5, Forgejo
+14.0, Gitea 1.26, and the discovery pages of gitlab.com and codeberg.org). The
+discovery test above settles it whatever the console says.*
 
 ## 3. Create the client in your provider
 
@@ -245,6 +256,87 @@ Apps receive Umbral's tokens, not your provider's. The `idp` claim in them is
 you can delete a provider and add it back under another identifier, so that is
 not a value to hand an app. See
 [Integrate an app](../../README.md#integrate-an-app).
+
+## A public forge: GitLab, Codeberg, or one you run
+
+GitLab, Forgejo (the software Codeberg runs) and Gitea are OpenID Connect
+providers, so "Sign in with GitLab" or "Sign in with Codeberg" is this connector
+with the forge as the provider, and so is a GitLab, Forgejo or Gitea you run.
+Steps 1 to 4 apply as written. This is what differs. *Tried in November 2026
+with GitLab 19.5, Forgejo 14.0 and Gitea 1.26 run locally, and with the
+discovery pages of gitlab.com and codeberg.org; the menu names are theirs as of
+then. A sign-in on gitlab.com and codeberg.org themselves was not tried.*
+
+**Issuer.** The address of the forge, with no path: `https://gitlab.com`,
+`https://codeberg.org`, or `https://git.example.com` for one you run. All three
+publish their discovery page under that address and name it as their issuer,
+without a trailing slash. A forge of your own behind a reverse proxy builds the
+issuer from its own public address setting (`ROOT_URL` in Forgejo and Gitea,
+`external_url` in GitLab): if the discovery page names an internal address, fix
+that setting, as [the plain-http section](#a-provider-that-is-only-on-plain-http)
+says.
+
+**Where to register the client.** Any account can register an OAuth application
+in its own settings; the instance's admin can register one that belongs to the
+instance instead. Either works. On a forge you run, prefer the instance's, so the
+client does not disappear with one person's account.
+
+| Forge | In your own settings | As the instance's admin |
+| --- | --- | --- |
+| **GitLab** | **User settings → Applications → Add new application**. A group can own one too, under its **Settings → Applications**. | **Admin area → Applications → Add new application** |
+| **Forgejo, Codeberg** | **Settings → Applications → Manage OAuth2 applications** | **Site administration → Applications** |
+| **Gitea** | **Settings → Applications → Manage OAuth2 Applications** | **Site Administration → Applications** |
+
+**What to fill in.**
+
+- **GitLab:** a name, the callback URL as **Redirect URI**, **Confidential**
+  ticked (it is by default), **Device authorization grant** off, and under
+  **Scopes** tick `openid`, `profile` and `email` and nothing else: the API
+  scopes above them would give Umbral access it does not use. The admin's form
+  has a **Trusted** box, which skips the consent page; leave it off unless you
+  want that. GitLab shows the **Application ID** (the client ID) and the
+  **Secret**.
+- **Forgejo and Gitea:** a name, the callback URL under **Redirect URIs** (one
+  per line), and **Confidential client** ticked. There is no scope list to tick:
+  the application gets the scopes Umbral asks for. The **Client ID** and
+  **Client Secret** are shown once.
+
+**Signing, PKCE and the redirect URI** need nothing from you: all three sign
+with RS256 and publish their keys, accept PKCE alongside the client secret, and
+compare the redirect URI exactly.
+
+**What arrives.** All three put `email` and `email_verified` in the identity
+token as a real JSON `true`, so people are linked by email as
+[the rule](#what-umbral-takes-from-your-provider) says. The identity is the
+account's numeric id, so renaming the account changes nothing. The name is the
+full name, or on Forgejo and Gitea the username when there is none; the picture
+is the forge's avatar.
+
+**What `email_verified` means there.** Read this before adding a forge, because
+it decides whether people get linked to someone else's account:
+
+- **GitLab** marks an address verified when the account's primary address has
+  been confirmed, and refuses to authorize any application for an account whose
+  address is not confirmed ("Verify the email address in your account profile
+  before you sign in"), whatever the instance's **Email confirmation settings**
+  say. An address from GitLab, gitlab.com included, is one its holder proved
+  they can read.
+- **Forgejo and Gitea** send `email_verified: true` for **every active account**,
+  and say nothing about the address itself. On a forge where anyone can register
+  and addresses are not confirmed, which is their default when no mailer is
+  configured, a newcomer who types your address at sign-up gets it marked
+  verified, and Umbral would link them to you. Codeberg asks every new account to
+  confirm its address before it can be used, so it is in the safe group. Before
+  you add a Forgejo or Gitea of your own, make sure one of these holds: registration
+  is closed (`DISABLE_REGISTRATION = true` under `[service]`), or new accounts
+  must confirm their address (`REGISTER_EMAIL_CONFIRM = true`, which needs a
+  `[mailer]`), or everyone who can register there is someone you trust with any
+  address. The [email warning](#before-you-start) at the top of this page is
+  about exactly this. A deactivated account is refused by the forge before Umbral
+  hears of it.
+
+A [domain rule](#allowed-email-domains) on a Forgejo or Gitea connector is only
+as strong as that registration rule.
 
 ## A provider that is only on plain http
 

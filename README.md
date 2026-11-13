@@ -3,9 +3,10 @@
 A self-hosted OpenID Connect provider whose only job is **signing people in
 without passwords**: with a social provider they already use, or with a
 passkey. Your apps talk to Umbral using any standard OIDC library. Umbral talks
-to Discord, GitHub, Google, Apple and Microsoft, to Mastodon and GoToSocial servers, and to any
+to Discord, GitHub, Google, Apple and Microsoft, to Mastodon and GoToSocial servers, to any
 OpenID Connect provider you already run, such as Authentik, Keycloak, Pocket ID
-or Authelia, and it can sign people in with a passkey on its own. You wire each
+or Authelia, and through that same connector to a forge, such as GitLab, Codeberg,
+Forgejo or Gitea. It can also sign people in with a passkey on its own. You wire each
 provider up once, in one place, instead of in every app.
 
 It ships as **one container with an embedded SQLite database**: no Postgres, no
@@ -55,6 +56,7 @@ reads the same here on GitHub.
   [Apple](https://cosmic-chimps.github.io/umbral/connectors/apple/) ·
   [Microsoft](https://cosmic-chimps.github.io/umbral/connectors/microsoft/) ·
   [Your own OpenID Connect provider](https://cosmic-chimps.github.io/umbral/connectors/oidc/) ·
+  [GitLab, Codeberg, Forgejo and Gitea](https://cosmic-chimps.github.io/umbral/connectors/oidc/#a-public-forge-gitlab-codeberg-or-one-you-run) (through the OpenID Connect connector) ·
   [Passkeys](https://cosmic-chimps.github.io/umbral/connectors/passkey/) ·
   [Fediverse](https://cosmic-chimps.github.io/umbral/connectors/fediverse/) ·
   [Bluesky](https://cosmic-chimps.github.io/umbral/connectors/bluesky/)
