@@ -703,9 +703,12 @@ type private AddFormState =
       Shared: bool
       /// The list as typed, for the field and for the refusal of an entry.
       AllowedDomains: string
+      /// The trust choice as posted (specs/017): `on`, `off` or empty for none.
+      /// Drawn for every kind, required and stored only for `oidc`.
+      EmailTrust: string
       /// The field the refusal is about (`slug`, `displayName`, `issuer`,
-      /// `clientId`, `clientSecret`, `allowedDomains`) and what to tell the
-      /// operator.
+      /// `clientId`, `clientSecret`, `emailTrust`, `allowedDomains`) and what to
+      /// tell the operator.
       Problem: (string * string) option }
 
 let private emptyAddForm =
@@ -716,7 +719,52 @@ let private emptyAddForm =
       ClientId = ""
       Shared = true
       AllowedDomains = ""
+      EmailTrust = ""
       Problem = None }
+
+/// One trust card, drawn like the Bluesky and Microsoft panes' (`.um-choice`).
+/// When the group was refused every radio is marked invalid and points at the
+/// message.
+let private emailTrustCard (selected: string) (refused: bool) (value: string) (title: string) (description: string) =
+    label(class' = "um-choice") {
+        let radio = input(type' = "radio", name = "emailTrust", value = value, class' = "um-choice-radio")
+
+        if selected = value then
+            radio.attr("checked", "checked") |> ignore
+
+        if refused then
+            radio.attr("aria-invalid", "true").attr("aria-describedby", "email-trust-error") |> ignore
+
+        radio
+
+        span(class' = "um-choice-body") {
+            span(class' = "um-choice-title") { title }
+            span(class' = "um-choice-desc") { description }
+        }
+    }
+
+/// The trust setting of an OpenID Connect provider (specs/017): two cards side by
+/// side from `md`, neither checked until `selected` names one, and the refusal
+/// under the group when there is one.
+let private emailTrustGroup (t: Texts.Texts) (selected: string) (problem: string option) =
+    fieldset(class' = "um-choice-group").data("email-trust", "") {
+        legend(class' = "um-label") { t.ConnectorEmailTrustLegend }
+        p(class' = "um-hint") { t.ConnectorEmailTrustLead }
+
+        div(class' = "grid gap-3 md:grid-cols-2") {
+            emailTrustCard selected problem.IsSome "on" t.ConnectorEmailTrustOnTitle t.ConnectorEmailTrustOnBody
+            emailTrustCard selected problem.IsSome "off" t.ConnectorEmailTrustOffTitle t.ConnectorEmailTrustOffBody
+        }
+
+        match problem with
+        | Some message ->
+            (p(id = "email-trust-error", class' = "um-field-error").data("email-trust-error", "") {
+                Components.icon Theme.ErrorMark
+                span() { message }
+            })
+            :> HtmlElement
+        | None -> Fragment() :> HtmlElement
+    }
 
 
 /// The add form (FR-012): a connector of a kind with a slug the operator
@@ -818,16 +866,12 @@ let private addForm
 
                   sharedBox t state.Shared
 
+                  // FR-009, before the operator submits and not after: what they are
+                  // agreeing to by adding a provider (specs/017).
+                  emailTrustGroup t state.EmailTrust (problemAt "emailTrust")
+
                   connectorDomainsField t instance state.AllowedDomains (problemAt "allowedDomains")
                   limitOneAppNote t.ConnectorLimitOneAppNote
-
-                  // FR-009, before the operator submits and not after: what they are
-                  // agreeing to by adding a provider.
-                  (div(class' = "um-alert um-alert-warning").attr("role", "note").data("email-trust-warning", "") {
-                      Components.icon Theme.Warning
-                      span() { t.ConnectorEmailTrustWarning }
-                  })
-                  :> HtmlElement
 
                   button(type' = "submit", class' = Components.btn Components.Primary) {
                       Components.icon Theme.CheckCircle
@@ -1875,6 +1919,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
               ClientId = WebForms.value form "clientId"
               Shared = WebForms.checkbox form "shared"
               AllowedDomains = WebForms.value form "allowedDomains"
+              EmailTrust = WebForms.value form "emailTrust"
               Problem = None }
 
         let refuse (field: string) (message: string) =
@@ -1908,12 +1953,21 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
             return! refuse "clientId" t.ConnectorAddOidcClientIdRequired
         elif newSecret.IsNone then
             return! refuse "clientSecret" t.ConnectorAddOidcSecretRequired
+        elif state.EmailTrust <> "on" && state.EmailTrust <> "off" then
+            // Specs/017: no default. The group comes before the domains field, so
+            // its refusal comes before the list's.
+            return! refuse "emailTrust" t.ConnectorEmailTrustNoChoice
         else
 
         // Before the provider is asked anything: a refused list costs no call.
         match domainsParsed with
         | Error message -> return! refuse "allowedDomains" message
         | Ok domains ->
+
+        // Specs/017: an own list needs verified addresses, which trust off never has.
+        if state.EmailTrust = "off" && not domains.IsEmpty then
+            return! refuse "allowedDomains" t.ConnectorEmailTrustOwnList
+        else
 
         let! holder = ConnectorStore.findByIssuer config issuer
 
@@ -1964,8 +2018,7 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                   FediverseAccess = FediverseAccess.Any
                   AppleKey = None
                   MicrosoftAudience = None
-                  // T003 reads the operator's choice
-                  EmailTrust = Some true
+                  EmailTrust = Some(state.EmailTrust = "on")
                   IsEnabled = enabled
                   IsShared = state.Shared
                   CreatedUtc = now
@@ -1983,7 +2036,10 @@ let private createOidc (ctx: HttpContext) (form: Microsoft.AspNetCore.Http.IForm
                     ctx
                     SecurityEvents.ConnectorCreated
                     state.Slug
-                    (Some(SecurityEvents.savedDisabledDetail reference.Store None reasonShort))
+                    (Some(
+                        SecurityEvents.savedDisabledDetail reference.Store None reasonShort
+                        + $";email_trust={state.EmailTrust}"
+                    ))
 
             if not domains.IsEmpty then
                 do! recordDomainsChanged ctx (Some state.Slug) domains
@@ -2069,6 +2125,7 @@ let create: EndpointHandler =
                             ClientId = clientId
                             Shared = WebForms.checkbox form "shared"
                             AllowedDomains = typedDomains
+                            EmailTrust = WebForms.value form "emailTrust"
                             Problem = Some("allowedDomains", message) }
                         noDrafts
             | Ok domains ->

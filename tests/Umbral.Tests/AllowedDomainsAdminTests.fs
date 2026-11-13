@@ -394,6 +394,7 @@ let ``an OpenID Connect pane carries the one-connector-per-issuer note instead``
                   "slug", "home"
                   "displayName", "Home"
                   "issuer", issuer
+                  "emailTrust", "on"
                   "clientId", "umbral-client"
                   "clientSecret", "the-provider-client-secret"
                   "shared", "true"

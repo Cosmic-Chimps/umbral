@@ -84,6 +84,7 @@ let private oidcFields (slug: string) =
       "slug", slug
       "displayName", "Home"
       "issuer", issuer
+      "emailTrust", "on"
       "clientId", "umbral-client"
       "clientSecret", plaintext
       "shared", "true" ]

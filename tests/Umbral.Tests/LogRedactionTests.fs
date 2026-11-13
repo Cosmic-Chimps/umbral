@@ -382,6 +382,7 @@ let ``no connector secret reaches a log sink or the security log through an exte
               "slug", slug
               "displayName", "Home"
               "issuer", issuer
+              "emailTrust", "on"
               "clientId", "umbral-client"
               "clientSecret", secret
               "shared", "true" ]

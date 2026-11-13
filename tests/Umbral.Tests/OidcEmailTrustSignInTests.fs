@@ -53,6 +53,7 @@ let private withHome
                   "slug", "home"
                   "displayName", "Home"
                   "issuer", issuer
+                  "emailTrust", "on"
                   "clientId", "umbral-client"
                   "clientSecret", providerSecret
                   "shared", "true" ]

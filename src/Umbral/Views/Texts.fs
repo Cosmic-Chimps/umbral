@@ -347,14 +347,24 @@ type Texts =
       ConnectorAddSlugHint: string
       ConnectorAddButton: string
       // OpenID Connect providers (specs/002): the add form's kind and issuer, the
-      // email-trust warning (FR-009), the immutability sentence (FR-004) and every
+      // email-trust group (specs/017), the immutability sentence (FR-004) and every
       // way the form is refused, each naming what to do next (spec 001 SC-010).
       ConnectorAddOidcOption: string
       ConnectorIssuerLabel: string
       ConnectorIssuerHint: string
       ConnectorIssuerFixedNote: string
-      /// Extra scopes of an OpenID Connect provider (specs/002 T025).
-      ConnectorEmailTrustWarning: string
+      /// The trust setting of an OpenID Connect provider (specs/017
+      /// contracts/screens.md): the group's legend and lead, the two cards, the
+      /// refusal when neither is chosen, and the refusal of an own list of
+      /// allowed domains with trust off.
+      ConnectorEmailTrustLegend: string
+      ConnectorEmailTrustLead: string
+      ConnectorEmailTrustOnTitle: string
+      ConnectorEmailTrustOnBody: string
+      ConnectorEmailTrustOffTitle: string
+      ConnectorEmailTrustOffBody: string
+      ConnectorEmailTrustNoChoice: string
+      ConnectorEmailTrustOwnList: string
       ConnectorOidcClientIdHint: string
       ConnectorOidcSecretAgainHint: string
       /// What the operator calls the provider where a built-in kind's name would
@@ -1394,9 +1404,20 @@ let en: Texts =
       ConnectorIssuerFixedNote =
         "The identifier and the issuer can't be changed, because people's accounts are tied to the issuer and the callback URL is registered with the provider. "
         + "To change either, delete this provider and add it again: the same issuer brings everyone back to their account."
-      ConnectorEmailTrustWarning =
-        "Umbral trusts an email address that an OpenID Connect provider marks as verified, and uses it to recognise the same person across providers. "
-        + "Add only a provider you run or trust. One that lets people claim email addresses they don't control would let them sign in as someone else."
+      ConnectorEmailTrustLegend = "Verified email addresses from this provider"
+      ConnectorEmailTrustLead =
+        "Some providers mark an address as verified without checking it. Where anyone can sign up, a person could claim someone else's address."
+      ConnectorEmailTrustOnTitle = "Trusted"
+      ConnectorEmailTrustOnBody =
+        "An address this provider marks as verified counts as verified here. People with the same address at another provider are the same account, "
+        + "and allowed email domains apply. For a provider you run or trust."
+      ConnectorEmailTrustOffTitle = "Not trusted"
+      ConnectorEmailTrustOffBody =
+        "Every person from this provider is a separate account, whatever address it reports, and allowed email domains can't apply. "
+        + "For a provider where anyone can sign up, such as a public forge."
+      ConnectorEmailTrustNoChoice = "Choose whether to trust this provider's verified email addresses."
+      ConnectorEmailTrustOwnList =
+        "Allowed email domains need verified addresses, and this provider's are not trusted. Trust them, or clear this list."
       ConnectorOidcClientIdHint = "From the client you created for Umbral in your provider's admin area."
       ConnectorOidcSecretAgainHint = "Type the client secret again: Umbral never sends a secret back to your browser."
       ConnectorOidcProviderName = "your identity provider"

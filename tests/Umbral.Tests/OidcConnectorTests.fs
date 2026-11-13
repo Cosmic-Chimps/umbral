@@ -29,6 +29,7 @@ let private addFields (slug: string) (issuerUrl: string) =
       "slug", slug
       "displayName", "Home"
       "issuer", issuerUrl
+      "emailTrust", "on"
       "clientId", "umbral-client"
       "clientSecret", providerSecret
       "shared", "true" ]
@@ -152,7 +153,7 @@ let ``adding a provider saves it enabled and the screen shows its callback URL a
     }
 
 [<Fact>]
-let ``the add form offers OpenID Connect, with the issuer field and the email-trust warning`` () =
+let ``the add form offers OpenID Connect, with the issuer field and the email-trust group`` () =
     task {
         let! app, operator = start [ create issuer ] ignore []
         use _ = app
@@ -160,7 +161,9 @@ let ``the add form offers OpenID Connect, with the issuer field and the email-tr
         let! screen = operator.GetHtml "/admin/connectors/new"
         Assert.Contains("value=\"oidc\"", screen)
         Assert.Contains("name=\"issuer\"", screen)
-        Assert.Contains("data-email-trust-warning", screen)
+        Assert.Contains("data-email-trust", screen)
+        Assert.Contains("name=\"emailTrust\"", screen)
+        Assert.DoesNotContain("data-email-trust-warning", screen)
         // `oidc` has no empty pane or entry: it is only ever added by issuer.
         Assert.DoesNotContain("data-connector-kind=\"oidc\"", screen)
         Assert.DoesNotContain("data-connector=\"oidc\"", screen)
@@ -1265,12 +1268,15 @@ let ``an email the provider does not assert as verified creates a separate user`
     }
 
 [<Fact>]
-let ``the add form carries the email-trust warning in full`` () =
+let ``the add form carries the email-trust group's lead and both cards in full`` () =
     task {
         let! app, operator = start [ create issuer ] ignore []
         use _ = app
 
         let! screen = operator.GetHtml "/admin/connectors/new"
-        Assert.Contains("Umbral trusts an email address that an OpenID Connect provider marks as verified", screen)
-        Assert.Contains("Add only a provider you run or trust.", screen)
+        Assert.Contains("Verified email addresses from this provider", screen)
+        Assert.Contains("Some providers mark an address as verified without checking it.", screen)
+        Assert.Contains("Where anyone can sign up", screen)
+        Assert.Contains("For a provider you run or trust.", screen)
+        Assert.Contains("For a provider where anyone can sign up, such as a public forge.", screen)
     }
