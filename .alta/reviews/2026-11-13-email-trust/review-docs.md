@@ -76,3 +76,18 @@ B1 shows a gap the documentation can only describe. Umbral cannot remove a singl
 remedies for a wrong link are blunt (disable or delete the whole user). An "unlink this provider"
 action on the Users screen would let an operator clean up after a trusted provider turned out to be
 untrustworthy, without costing the real person their account.
+
+## Re-check at 02aabcc (2026-11-14)
+
+**Clear to merge.** B1 and both nits are fixed (`0a41312..02aabcc`).
+
+- **B1**: "Changing the email setting later" now says a wrong link made while **Trusted** stays,
+  that the person behind it goes on signing in as the other person, how to look for one on the
+  **Users** screen, and that Umbral cannot remove one link. The remedy corrects my draft, and the
+  correction is right. Disable is per user (`Callback.fs`, `user_disabled`), so it stops the real
+  person too. Delete removes every link with the user (`linked_accounts … ON DELETE CASCADE`), after
+  which the two sign in as separate accounts. The changelog's Security bullet points to the section.
+- **N1**: "signed in through this provider under an allowed email domains rule". Right.
+- **N2**: created events carry `email_trust=on|off`, and updates carry `email_trust=on` or
+  `email_trust=off;lowered=<n>`. Right.
+- `check-links.py`: 404 links resolve. `changelog.sh check`: in order.
