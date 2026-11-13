@@ -329,7 +329,7 @@ https://auth.example.com/.well-known/openid-configuration
 
 Working examples are in [`samples/`](samples/README.md): one small app per
 stack, each signing in with its stack's ordinary OpenID Connect library and
-showing the claims on a private page. Today there are seven:
+showing the claims on a private page. Today there are eight:
 [ASP.NET Core](samples/aspnetcore/README.md),
 [FastAPI](samples/fastapi/README.md) and
 [Next.js](samples/nextjs/README.md) (each a **Web application**), a
@@ -337,7 +337,9 @@ showing the claims on a private page. Today there are seven:
 [Android app](samples/android/README.md), an
 [iOS app](samples/ios/README.md) and a
 [.NET MAUI app](samples/maui/README.md) for both (each a **Single-page or
-native app**, with no secret). CI runs each web sample against a real Umbral before every release. For an iPhone, Android or
+native app**, with no secret), and an
+[Aspire AppHost](samples/aspire/README.md) that runs Umbral and the ASP.NET Core
+sample together. CI runs each web sample against a real Umbral before every release. For an iPhone, Android or
 desktop app, see [Native and mobile apps](docs/native-apps.md).
 
 And register one thing in Umbral: the app's **redirect URI**. Which one that is

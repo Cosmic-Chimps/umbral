@@ -1,0 +1,19 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The client ID and secret live in user secrets, never in the repository. -->
+    <UserSecretsId>umbral-sample-aspire</UserSecretsId>
+    <!-- ASPIRE010: the orchestrator (DCP) and the dashboard are restored from NuGet, so the
+         AppHost runs with any Aspire CLI, and with dotnet run; the CLI's bundle is not needed. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../aspnetcore/Umbral.Sample.AspNetCore.csproj" />
+  </ItemGroup>
+
+</Project>

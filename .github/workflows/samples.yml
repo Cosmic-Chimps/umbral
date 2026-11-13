@@ -10,7 +10,10 @@
 # The Android, iOS and .NET MAUI samples are apps, not web servers: they have
 # no line in samples.conf, and samples-android.yml, samples-ios.yml and
 # samples-maui.yml build them instead. A change under samples/android/,
-# samples/ios/ or samples/maui/ alone does not start this workflow.
+# samples/ios/ or samples/maui/ alone does not start this workflow. Likewise
+# samples/aspire/ is an AppHost that runs the ASP.NET Core sample next to Umbral:
+# samples-aspire.yml builds it, so a change under it alone does not start this
+# workflow either.
 #
 # The walk signs in with the fake connector, which exists only when Umbral runs
 # with ASPNETCORE_ENVIRONMENT=Development and UMBRAL__ALLOW_FAKE_CONNECTOR=true.
@@ -20,9 +23,9 @@ name: samples
 on:
   push:
     branches: [main]
-    paths: ['samples/**', '!samples/android/**', '!samples/ios/**', '!samples/maui/**', '.github/workflows/samples.yml']
+    paths: ['samples/**', '!samples/android/**', '!samples/ios/**', '!samples/maui/**', '!samples/aspire/**', '.github/workflows/samples.yml']
   pull_request:
-    paths: ['samples/**', '!samples/android/**', '!samples/ios/**', '!samples/maui/**', '.github/workflows/samples.yml']
+    paths: ['samples/**', '!samples/android/**', '!samples/ios/**', '!samples/maui/**', '!samples/aspire/**', '.github/workflows/samples.yml']
   workflow_dispatch:
   workflow_call:
 
