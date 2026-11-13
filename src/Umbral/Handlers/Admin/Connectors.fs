@@ -151,7 +151,13 @@ type private OidcDraft =
       Shared: bool
       Domains: string
       Trust: string
-      TrustProblem: string option }
+      TrustProblem: string option
+      /// A secret was typed in the refused post: it is not drawn again, and the
+      /// secret field says to type it again.
+      SecretTyped: bool
+      /// Turning trust off is waiting for the operator's confirmation: how many
+      /// stored addresses it would make unverified (specs/017).
+      ConfirmTrustOff: int option }
 
 /// What the screen knows about allowed email domains beyond the connectors
 /// themselves: the instance list, a refused entry at either level, and the
@@ -372,6 +378,8 @@ let private providerPane
         else
             None
 
+    let confirmTrustOff = oidcDraft |> Option.bind (fun d -> d.ConfirmTrustOff)
+
     let ruleMarker, ruleText =
         match EmailDomains.applying storedList domains.Instance, microsoftChoice with
         | EmailDomains.Rule _, _ when untrustedOidc -> "nobody", t.ConnectorRuleNobody
@@ -478,7 +486,7 @@ let private providerPane
               if isConfigured then
                   (p(class' = "um-hint um-mono mt-1") { slug }) :> HtmlElement
 
-              if notice.IsSome || offeredNowhere || trustBlocked || unreadableStore.IsSome then
+              if notice.IsSome || offeredNowhere || trustBlocked || confirmTrustOff.IsSome || unreadableStore.IsSome then
                   (div(class' = "mt-6 space-y-3") {
                       match notice with
                       | Some block -> block
@@ -490,6 +498,41 @@ let private providerPane
                               span() { t.ConnectorOfferedNowhere }
                           })
                           :> HtmlElement
+
+                      // Specs/017: the change is not applied yet. The form posts the typed
+                      // values (never a secret) to the pane's save with the confirmation
+                      // the save waits for; Cancel goes back to the pane as it is stored.
+                      match confirmTrustOff, oidcDraft with
+                      | Some n, Some draft ->
+                          (div(class' = "space-y-2")
+                              .data("email-trust-confirm", "")
+                              .data("email-trust-count", string n) {
+                              Components.alert
+                                  Components.Warning
+                                  (if n = 0 then t.ConnectorEmailTrustConfirmNone else t.ConnectorEmailTrustConfirm n)
+
+                              div(class' = "flex flex-wrap items-center gap-2") {
+                                  form(method = "post", action = detailPath slug + "?confirm=trust-off", class' = "inline") {
+                                      ctx.GetAntiforgeryInput()
+                                      input(type' = "hidden", name = "displayName", value = draft.DisplayName)
+                                      input(type' = "hidden", name = "clientId", value = draft.ClientId)
+
+                                      if draft.Shared then
+                                          input(type' = "hidden", name = "shared", value = "on")
+
+                                      input(type' = "hidden", name = "allowedDomains", value = draft.Domains)
+                                      input(type' = "hidden", name = "emailTrust", value = "off")
+
+                                      button(type' = "submit", class' = Components.btnSm Components.Danger) {
+                                          t.ConnectorEmailTrustConfirmButton
+                                      }
+                                  }
+
+                                  a(href = detailPath slug, class' = Components.btnSm Components.Ghost) { t.ConfirmCancel }
+                              }
+                          })
+                          :> HtmlElement
+                      | _ -> Fragment() :> HtmlElement
 
                       // Specs/017: the same kind of puzzle as `offeredNowhere`, from the
                       // instance list and the trust setting together.
@@ -631,7 +674,11 @@ let private providerPane
                           Components.passwordField
                               (if isConfigured then t.ReplaceSecretLabel else t.ClientSecretLabel)
                               "clientSecret"
-                              (Some(if isConfigured then t.ReplaceSecretHint else t.ClientSecretHint))
+                              (Some(
+                                  if oidcDraft |> Option.exists (fun d -> d.SecretTyped) then t.ConnectorOidcSecretAgainHint
+                                  elif isConfigured then t.ReplaceSecretHint
+                                  else t.ClientSecretHint
+                              ))
                               None
 
                       sharedBox
@@ -2566,7 +2613,9 @@ let save (slug: string) : EndpointHandler =
                             (if form.ContainsKey "allowedDomains" then typedDomains
                              else EmailDomains.display stored.AllowedEmailDomains)
                           Trust = (if form.ContainsKey "emailTrust" then typedTrust else (if trustsProviderEmail stored then "on" else "off"))
-                          TrustProblem = problem }
+                          TrustProblem = problem
+                          SecretTyped = newSecret.IsSome
+                          ConfirmTrustOff = None }
                 | _ -> None
 
             match trustPosted with
@@ -2620,6 +2669,31 @@ let save (slug: string) : EndpointHandler =
                                     { Typed = (if form.ContainsKey "allowedDomains" then typedDomains else EmailDomains.display ownListAfterSave)
                                       Problem = (Texts.current ()).ConnectorEmailTrustOwnList }
                                 ) }
+            else
+
+            // Specs/017: turning trust off from on (or from NULL, which reads as off
+            // but has never been confirmed) changes people's accounts, so nothing is
+            // saved until the operator has seen how many and confirmed. The confirming
+            // form posts to this same save with `confirm=trust-off`.
+            let needsConfirmation =
+                match existing with
+                | Some stored ->
+                    emailTrust = Some false
+                    && stored.EmailTrust <> Some false
+                    && ctx.TryGetQueryValue "confirm" <> Some "trust-off"
+                | None -> false
+
+            if needsConfirmation then
+                let! preview = ConnectorStore.previewTrustOff config slug
+
+                return!
+                    refuseDomains
+                        ctx
+                        (Item slug)
+                        { noDrafts with
+                            Oidc =
+                                oidcDraftOf None
+                                |> Option.map (fun draft -> { draft with ConfirmTrustOff = Some(defaultArg preview 0) }) }
             else
 
             match existing, newSecret with

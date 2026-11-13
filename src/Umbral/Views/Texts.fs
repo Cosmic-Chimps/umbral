@@ -372,6 +372,12 @@ type Texts =
       ConnectorEmailTrustBlocked: string
       ConnectorRuleNobody: string
       ConnectorRuleUntrusted: string
+      /// The confirmation before trust is turned off on the pane (specs/017
+      /// contracts/screens.md): the line, which takes the number of stored
+      /// addresses it would make unverified, its sentence for none, and the button.
+      ConnectorEmailTrustConfirm: int -> string
+      ConnectorEmailTrustConfirmNone: string
+      ConnectorEmailTrustConfirmButton: string
       ConnectorOidcClientIdHint: string
       ConnectorOidcSecretAgainHint: string
       /// What the operator calls the provider where a built-in kind's name would
@@ -1433,6 +1439,13 @@ let en: Texts =
         + "and this provider's are not trusted. Trust them, or clear that list."
       ConnectorRuleNobody =
         "Nobody can sign in through this provider: the email domains allowed for every connector need a verified address, and its addresses are not trusted."
+      ConnectorEmailTrustConfirm =
+        fun n ->
+            (if n = 1 then "Turning trust off makes 1 stored email address unverified: only this provider verified it. "
+             else $"Turning trust off makes {n} stored email addresses unverified: only this provider verified them. ")
+            + (if n = 1 then "Nobody is unlinked, and turning trust on again doesn't verify it again." else "Nobody is unlinked, and turning trust on again doesn't verify them again.")
+      ConnectorEmailTrustConfirmNone = "Turning trust off makes no stored email address unverified. Nobody is unlinked."
+      ConnectorEmailTrustConfirmButton = "Turn trust off"
       ConnectorRuleUntrusted =
         "Who can sign in: anyone with an account at this provider. Each is a separate account, because its addresses are not trusted."
       ConnectorOidcClientIdHint = "From the client you created for Umbral in your provider's admin area."

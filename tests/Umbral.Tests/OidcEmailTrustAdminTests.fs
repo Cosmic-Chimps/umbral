@@ -246,6 +246,10 @@ let private paneFields (trust: string option) (domains: string) =
 let private savePane (operator: Browser) (posted: (string * string) list) =
     operator.PostForm("/admin/connectors", pane, posted)
 
+/// The save the confirming form posts to.
+let private savePaneConfirmed (operator: Browser) (posted: (string * string) list) =
+    operator.PostForm("/admin/connectors", pane + "?confirm=trust-off", posted)
+
 let private updatedDetails (app: Fixtures.TestApp) =
     task {
         use! connection = Database.openConnection app.DbConfig
@@ -357,7 +361,7 @@ let ``saving off from on stores off, lowers who only this connector verified and
         use _ = app
         do! seedPeople app
 
-        let! response = savePane operator (paneFields (Some "off") "")
+        let! response = savePaneConfirmed operator (paneFields (Some "off") "")
         Assert.Contains("connector-saved", response.Headers.Location |> string)
 
         let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
@@ -574,4 +578,163 @@ let ``the unshare confirmation of an oidc connector still saves it unshared and 
         let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
         Assert.False stored.Value.IsShared
         Assert.Equal(Some false, stored.Value.EmailTrust)
+    }
+
+// ---------------------------------------------------------------------------
+// The confirmation before trust is turned off (T004b)
+// ---------------------------------------------------------------------------
+
+let private typedSecret = "a-new-secret-typed-on-the-pane-91"
+
+[<Fact>]
+let ``saving off from on asks first: the count, nothing saved, the typed values carried and no secret`` () =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+        do! seedPeople app
+
+        let renamed =
+            paneFields (Some "off") ""
+            |> List.map (fun (n, v) -> if n = "displayName" then n, "Renamed" else n, v)
+
+        let! response = savePane operator (renamed @ [ "clientSecret", typedSecret ])
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.Equal(enum<HttpStatusCode> 422, response.StatusCode)
+        Assert.Contains("data-email-trust-confirm", html)
+        Assert.Contains("data-email-trust-count=\"1\"", html)
+        Assert.Contains("Turning trust off makes 1 stored email address unverified: only this provider verified it.", html)
+        Assert.Contains("Nobody is unlinked, and turning trust on again", html)
+        Assert.Contains("Turn trust off", html)
+        Assert.Contains($"action=\"{pane}?confirm=trust-off\"", html)
+        Assert.Contains($"<a href=\"{pane}\"", html)
+
+        // The pane shows what was typed, the secret never, and says to type it again.
+        Assert.Contains("value=\"Renamed\"", html)
+        Assert.DoesNotContain(typedSecret, html)
+        Assert.Contains("Type the client secret again", html)
+        Assert.Equal<string list>([ "off" ], checkedChoices html)
+
+        // The confirming form carries the typed values and no secret.
+        let hidden = hiddenFieldsOf html (pane + "?confirm=trust-off")
+        Assert.Contains(("displayName", "Renamed"), hidden)
+        Assert.Contains(("clientId", "umbral-client"), hidden)
+        Assert.Contains(("shared", "on"), hidden)
+        Assert.Contains(("allowedDomains", ""), hidden)
+        Assert.Contains(("emailTrust", "off"), hidden)
+        Assert.DoesNotContain("clientSecret", hidden |> List.map fst)
+
+        // Nothing changed: not the setting, not the name, not a flag, not the log.
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+        Assert.Equal("Work SSO", stored.Value.DisplayName)
+        do! expectEq "1" (flagOf app "solo")
+        let! details = updatedDetails app
+        Assert.Empty details
+    }
+
+[<Fact>]
+let ``posting the confirming form saves off, lowers and logs how many`` () =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+        do! seedPeople app
+
+        let renamed =
+            paneFields (Some "off") ""
+            |> List.map (fun (n, v) -> if n = "displayName" then n, "Renamed" else n, v)
+
+        let! asked = savePane operator renamed
+        let! html = asked.Content.ReadAsStringAsync()
+        let action = pane + "?confirm=trust-off"
+        let hidden = hiddenFieldsOf html action
+
+        let! confirmed = operator.PostForm(pane, action, hidden)
+        Assert.Contains("connector-saved", confirmed.Headers.Location |> string)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal(Some false, stored.Value.EmailTrust)
+        Assert.Equal("Renamed", stored.Value.DisplayName)
+        do! expectEq "0" (flagOf app "solo")
+        do! expectEq "1" (flagOf app "both")
+
+        let! details = updatedDetails app
+        Assert.Equal("email_trust=off;lowered=1", Assert.Single details)
+    }
+
+[<Fact>]
+let ``the confirmation says so when nobody depends on the provider's addresses`` () =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+
+        let! response = savePane operator (paneFields (Some "off") "")
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.Equal(enum<HttpStatusCode> 422, response.StatusCode)
+        Assert.Contains("data-email-trust-count=\"0\"", html)
+        Assert.Contains("Turning trust off makes no stored email address unverified. Nobody is unlinked.", html)
+        Assert.DoesNotContain("stored email address unverified: only", html)
+    }
+
+[<Fact>]
+let ``saving off on a null row asks too, with the count`` () =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+        do! seedPeople app
+        do! sql app "UPDATE connectors SET email_trust = NULL WHERE slug = 'work-sso'"
+
+        let! response = savePane operator (paneFields (Some "off") "")
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.Equal(enum<HttpStatusCode> 422, response.StatusCode)
+        Assert.Contains("data-email-trust-count=\"1\"", html)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal(None, stored.Value.EmailTrust)
+        do! expectEq "1" (flagOf app "solo")
+    }
+
+[<Fact>]
+let ``saving off from an already off connector asks nothing, even with people seeded`` () =
+    task {
+        let! app, operator = startWith "off"
+        use _ = app
+        do! seedPeople app
+
+        let! response = savePane operator (paneFields (Some "off") "")
+        Assert.Contains("connector-saved", response.Headers.Location |> string)
+        // Their flags were never lowered by this save: the setting did not change.
+        do! expectEq "1" (flagOf app "solo")
+    }
+
+[<Fact>]
+let ``saving on never asks`` () =
+    task {
+        let! app, operator = startWith "off"
+        use _ = app
+        do! seedPeople app
+
+        let! response = savePane operator (paneFields (Some "on") "")
+        Assert.Contains("connector-saved", response.Headers.Location |> string)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+    }
+
+[<Fact>]
+let ``a crafted confirmation that says on just saves on`` () =
+    task {
+        let! app, operator = startWith "off"
+        use _ = app
+
+        let! response = savePaneConfirmed operator (paneFields (Some "on") "")
+        Assert.Contains("connector-saved", response.Headers.Location |> string)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+
+        let! details = updatedDetails app
+        Assert.Equal("email_trust=on", Assert.Single details)
     }

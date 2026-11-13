@@ -48,7 +48,8 @@ unshare confirmation (`strandWarning`):
 
 - a line: "Turning trust off makes {n} stored email addresses unverified: only
   this provider verified them. Nobody is unlinked, and turning trust on again
-  doesn't verify them again." For `n = 0`: "Turning trust off makes no stored
+  doesn't verify them again." For `n = 1`: "1 stored email address", "verified it",
+  "doesn't verify it again". For `n = 0`: "Turning trust off makes no stored
   email address unverified. Nobody is unlinked." (implementer's sentences; the
   design review rules);
 - a Danger button "Turn trust off", a form posting the typed values (no secret)

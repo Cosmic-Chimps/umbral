@@ -58,7 +58,7 @@ transaction:
 4. Commit. Any failure rolls back everything, the setting included.
 
 `n` is 0 when nothing was lowered. The handler logs the setting's part only when
-the stored value (as `trustsProviderEmail` reads it) differs from the saved one.
+the stored value (as `trustsProviderEmail` reads it) differs from the saved one, and the `lowered` part whenever users were lowered (a NULL row saved off).
 
 The h762 rule is one literal, `UnbackedEmailVerified` in `Database.fs`:
 `email_verified = 1 AND NOT EXISTS (SELECT 1 FROM linked_accounts la WHERE la.user_id = users.id AND la.asserted_email_verified = 1 AND la.asserted_email = users.email COLLATE NOCASE)`.
