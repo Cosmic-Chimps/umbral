@@ -98,7 +98,7 @@ jobs:
       # history, to push to main and to see every tag): if main moved meanwhile,
       # the atomic push below is refused and nothing is tagged. A tag push
       # works on its own tag.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.ref }}
           fetch-depth: 0
@@ -222,7 +222,7 @@ jobs:
     steps:
       # The tag, not the ref the run started from: the tagged commit is what
       # gets built (on a Run workflow it includes the changelog commit).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.changelog.outputs.tag }}
 
@@ -310,7 +310,7 @@ jobs:
       IMAGE: ${{ needs.image.outputs.image }}
       DIGEST: ${{ needs.image.outputs.digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.changelog.outputs.tag }}
 
@@ -413,7 +413,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.changelog.outputs.tag }}
       - name: Delete old image versions
@@ -437,7 +437,7 @@ jobs:
       TAG: ${{ needs.changelog.outputs.tag }}
       PRERELEASE: ${{ needs.changelog.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.changelog.outputs.tag }}
           fetch-depth: 0
