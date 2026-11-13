@@ -50,6 +50,15 @@ registration's Name, "App users can see this name". So: "Give the app
 registration a name that names this Umbral instance (for example "Umbral —
 home"): Microsoft shows it to people when they first sign in."
 
+**The Set-up rule line** (design review nit 2, 2026-11-13). On this pane, once
+a choice is saved, the line leads with it, then the email-domain rule:
+"Who can sign in: <choice>, with any email domain." with no domain rule;
+"Who can sign in: <choice>, with a verified email at <list> (this connector's
+list)" and "… (the instance list)" otherwise. <choice> is the card's title in
+lower case after its first word's capital: "personal Microsoft accounts", "work
+or school accounts from one organization", "any work or school account",
+"personal and any work or school account". Not set up: the other panes' line.
+
 **Pane, Settings form** (answer 3), in this order:
 
 | Field | Name | Notes |
@@ -105,9 +114,12 @@ tenant field when "one organization" is chosen) one of two messages:
 
 - Microsoft's answer was not usable (`Wrong`; a tenant ID that names no tenant is
   answered with HTTP 400 and `"error": "invalid_tenant"`, which discovery reads as
-  `Wrong` with the reason "No Microsoft tenant has this ID"): "Microsoft did not
-  confirm this choice: <reason>. Nothing was saved: check the tenant ID, then
-  save again."
+  `Wrong` with the reason "No Microsoft tenant has this ID"). Under the tenant
+  field: "Microsoft did not confirm this choice: <reason>. Nothing was saved:
+  check the tenant ID, then try again." Under the group (any other choice):
+  "Microsoft did not confirm this choice: <reason>. Nothing was saved: check that
+  the choice matches the app's registration, then try again." (design review
+  nit 1, 2026-11-13)
 - Microsoft did not answer (`Unreachable`: a timeout, a 5xx, a network error):
   "Microsoft did not answer (<reason>). Nothing was saved: try again in a moment."
 
