@@ -106,3 +106,26 @@ saved either; save it again."). Or leave it, and the known limit in `notes.md` s
 
 One re-check after the design blocking item, the docs B1 and whichever nits are taken. For the
 code, I will read only the diff since `c971183`.
+
+## Re-check at 02aabcc (2026-11-14)
+
+**Clear to merge from the code side.** I read only what changed since `e69a516`
+(`git diff e69a516..02aabcc -- src tests`).
+
+- **N1, taken.** `finishSignIn` reads the connector again by slug before the clamp. It trusts the
+  provider only when both reads say so. A connector that is gone at the second read keeps the
+  earlier value, which is safe because `recheckKind` refuses a deleted connector afterwards. No
+  network call is left between the re-read and the writes. The new test,
+  `trust turned off during the code exchange is honoured by that sign-in`, turns trust off from
+  the stub's token endpoint and asserts that the user and the link both end unverified. The
+  implementer showed that the test fails without the re-read.
+- **N2, taken.** When the refused post carried a new secret, the confirm alert ends with
+  `ConnectorEmailTrustConfirmSecret`. Tests check that the sentence appears with a typed secret
+  and is absent without one.
+- **N3, left** as the known limit in `notes.md`. Accepted.
+- Also in the commit, and outside the code: `ConnectorEmailTrustAddLead`, which is the add
+  form's lead only (the test asserts the pane keeps the plain lead), and the
+  `.um-choice-lead` spacing. Those are for the designer's and the docs session's re-checks.
+
+Run here at `02aabcc`: the spec 017 sign-in, admin and store tests, `DatabaseTests` and the
+email-domain tests, filtered: 220/220 passed. The implementer's full-suite count is still to come.
