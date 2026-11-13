@@ -17,7 +17,7 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/`, `site/` 
 ## Phase 3: Re-check and screens
 
 - [x] **T005** `MicrosoftAccounts.recheckTenant`, called in `Authorize.fs` and `Token.fs` beside the Bluesky re-check. Tests: narrowing "both" to "personal" refuses a work-account session at the next authorize and keeps a personal one; widening admits the same user again.
-- [ ] **T006** The pane: `Handlers/Admin/MicrosoftConnector.fs`, `Connectors.fs` (list entry after Apple, pane fields, save route, notices), `ConnectorToggle.fs` (Enable check), `Texts.fs`. Tests in `MicrosoftAdminTests.fs`: each refusal of the contract (422, values kept, secret not drawn back), save of each audience, the secret kept when blank, unreachable at Save → disabled with the notice, Enable check, list position, not in the add form.
+- [x] **T006** The pane: `Handlers/Admin/MicrosoftConnector.fs`, `Connectors.fs` (list entry after Apple, pane fields, save route, notices), `ConnectorToggle.fs` (Enable check), `Texts.fs`. Tests in `MicrosoftAdminTests.fs`: each refusal of the contract (422, values kept, secret not drawn back), save of each audience, the secret kept when blank, unreachable at Save → disabled with the notice, Enable check, list position, not in the add form.
 
 ## Phase 4: Docs, captures, reviews
 

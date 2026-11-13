@@ -242,10 +242,10 @@ let ``every pane carries the naming advice and the kind and shared markers`` () 
         let! html = operator.GetHtml "/admin/connectors"
 
         // Every stored connector (the fake one has an entry now) and an empty
-        // entry for each kind with none, the passkey, fediverse, Apple and Bluesky
-        // kinds' included (specs 008, 010, 013 and 015).
+        // entry for each kind with none, the passkey, fediverse, Apple, Bluesky and
+        // Microsoft kinds' included (specs 008, 010, 013, 015 and 016).
         let slugs = entriesOn html
-        Assert.Equal<string list>([ "apple"; "bluesky"; "discord"; "fake"; "fake-two"; "fediverse"; "github"; "google"; "passkey" ], slugs)
+        Assert.Equal<string list>([ "apple"; "bluesky"; "discord"; "fake"; "fake-two"; "fediverse"; "github"; "google"; "microsoft"; "passkey" ], slugs)
 
         for slug in slugs do
             let! pane = paneOf operator slug

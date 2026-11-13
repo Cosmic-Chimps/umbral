@@ -258,13 +258,13 @@ let ``the list holds the configured connectors, then the kinds not set up, then 
         let! html = operator.GetHtml "/admin/connectors?msg=connector-saved&slug=fake"
         let order = entryOrder html
 
-        Assert.Equal<string list>([ "fake"; "fake-two"; "discord"; "github"; "google"; "apple"; "fediverse"; "bluesky"; "passkey"; "domains" ], order)
+        Assert.Equal<string list>([ "fake"; "fake-two"; "discord"; "github"; "google"; "apple"; "microsoft"; "fediverse"; "bluesky"; "passkey"; "domains" ], order)
 
         // The configured ones are not muted; the kinds not set up are, and so is passkey.
         for slug in [ "fake"; "fake-two" ] do
             Assert.DoesNotContain("data-entry-muted", entryTag html slug)
 
-        for slug in [ "discord"; "github"; "google"; "apple"; "bluesky"; "passkey" ] do
+        for slug in [ "discord"; "github"; "google"; "apple"; "microsoft"; "bluesky"; "passkey" ] do
             Assert.Contains("data-entry-muted", entryTag html slug)
 
         // A hairline sits between the entries and the pinned one.
@@ -588,8 +588,8 @@ let ``entries, the pinned entry and the add button swap the frame with htmx, and
 
         let links = entryTags html @ [ addButton html ]
 
-        // Two entries, the four kinds not set up (Apple among them), fediverse, bluesky, passkey, the pinned entry, the add button.
-        Assert.Equal(11, links.Length)
+        // Two entries, the five kinds not set up (Apple and Microsoft among them), fediverse, bluesky, passkey, the pinned entry, the add button.
+        Assert.Equal(12, links.Length)
 
         for link in links do
             let href = Regex.Match(link, "\\shref=\"([^\"]*)\"").Groups[1].Value

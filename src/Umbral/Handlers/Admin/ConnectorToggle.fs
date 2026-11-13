@@ -140,6 +140,31 @@ let handler (slug: string) : EndpointHandler =
                     }
                 | _ -> System.Threading.Tasks.Task.FromResult None
 
+            // Microsoft is asked for the discovery document of the stored audience
+            // before it is switched on; a row with no readable audience cannot work.
+            // Switching off asks nothing.
+            let! microsoft =
+                match connector.Kind with
+                | Microsoft when not turningOff ->
+                    match connector.MicrosoftAudience with
+                    | None ->
+                        System.Threading.Tasks.Task.FromResult(
+                            Some(OidcDiscovery.Wrong "no account type is chosen for this connector")
+                        )
+                    | Some audience ->
+                        task {
+                            let! result =
+                                ctx
+                                    .GetService<OidcDiscovery.OidcDiscovery>()
+                                    .CheckAt(
+                                        Umbral.Domains.Microsoft.documentBase audience,
+                                        Umbral.Domains.Microsoft.discoveryIssuer audience
+                                    )
+
+                            return Some result
+                        }
+                | _ -> System.Threading.Tasks.Task.FromResult None
+
             let refuseApple (notice: string) (reason: string) =
                 WebForms.NoticeReason.redirect ctx (detailPath slug) notice "slug" slug (WebForms.truncate 300 reason)
 
@@ -163,6 +188,12 @@ let handler (slug: string) : EndpointHandler =
             | Some(AppleCannotBeReached reason) -> return! refuseApple "connector-enable-apple-unreachable" reason
             | Some(AppleStoreFailed reason) -> return! refuseApple "connector-enable-apple-store" reason
             | Some AppleUsable
+            | None ->
+
+            match microsoft with
+            | Some(OidcDiscovery.Unreachable reason) -> return! refuseApple "connector-enable-microsoft-unreachable" reason
+            | Some(OidcDiscovery.Wrong reason) -> return! refuseApple "connector-enable-microsoft-wrong" reason
+            | Some(OidcDiscovery.Discovered _)
             | None ->
 
             match discovery with

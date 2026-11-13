@@ -235,6 +235,7 @@ let private providerPane
     (view: Components.FrameView)
     (notice: HtmlElement option)
     (appleDraft: AppleConnector.Draft option)
+    (microsoftDraft: MicrosoftConnector.Draft option)
     (appleLogo: AppleLogo.AppleLogo option)
     (appleLogoProblem: string option)
     (row: Row)
@@ -287,12 +288,13 @@ let private providerPane
         | EmailDomains.NoRule -> "anyone", t.ConnectorRuleAnyone
 
     let typedDomains, domainsProblem =
-        match appleDraft, domains.CardDraft with
-        // The Apple form refused for any of its fields keeps every typed value,
-        // the domains among them.
-        | Some draft, _ -> draft.Domains, draft.Problems.TryFind AppleConnector.DomainsField
-        | None, Some(draftSlug, draft) when draftSlug = slug -> draft.Typed, Some draft.Problem
-        | None, _ -> EmailDomains.display storedList, None
+        match appleDraft, microsoftDraft, domains.CardDraft with
+        // The Apple and Microsoft forms refused for any of their fields keep every
+        // typed value, the domains among them.
+        | Some draft, _, _ -> draft.Domains, draft.Problems.TryFind AppleConnector.DomainsField
+        | None, Some draft, _ -> draft.Domains, draft.Problems.TryFind MicrosoftConnector.DomainsField
+        | None, None, Some(draftSlug, draft) when draftSlug = slug -> draft.Typed, Some draft.Problem
+        | None, None, _ -> EmailDomains.display storedList, None
 
     let unreadableStore =
         match secretStore with
@@ -412,6 +414,9 @@ let private providerPane
                           span() {
                               match row.Kind with
                               | Apple -> t.AppleNamingAdvice
+                              // Microsoft's own page says the registration's name is
+                              // shown to app users.
+                              | Microsoft -> t.MicrosoftNamingAdvice
                               | _ -> t.ConnectorNamingAdvice providerName
                           }
                       })
@@ -471,6 +476,9 @@ let private providerPane
                       // Apple's values are not a client ID and a client secret: a
                       // Services ID, a Team ID, a Key ID and a .p8 key.
                       | Apple -> AppleConnector.fields t row.Existing appleDraft
+                      // Microsoft's values are a client ID, a secret, who may sign in
+                      // and a tenant ID.
+                      | Microsoft -> MicrosoftConnector.fields t row.Existing microsoftDraft
                       | _ ->
                           Components.fieldWith
                               "text"
@@ -510,7 +518,12 @@ let private providerPane
                               (Some(if isConfigured then t.ReplaceSecretHint else t.ClientSecretHint))
                               None
 
-                      sharedBox t (match appleDraft with Some draft -> draft.Shared | None -> isShared)
+                      sharedBox
+                          t
+                          (match appleDraft, microsoftDraft with
+                           | Some draft, _ -> draft.Shared
+                           | None, Some draft -> draft.Shared
+                           | None, None -> isShared)
 
                       connectorDomainsField t domains.Instance typedDomains domainsProblem
 
@@ -617,6 +630,24 @@ let private strandWarning (ctx: HttpContext) (t: Texts.Texts) (warning: StrandWa
                     | None -> ()
 
                     input(type' = "hidden", name = AppleConnector.DomainsField, value = EmailDomains.display stored.AllowedEmailDomains)
+                | Microsoft ->
+                    // Microsoft's save needs the card and the list, and no secret: an
+                    // absent secret keeps the stored one. A row with no readable
+                    // audience posts none, and the save refuses it as it would any.
+                    match stored.MicrosoftAudience with
+                    | Some audience ->
+                        let card, tenant =
+                            match audience with
+                            | PersonalAccounts -> "consumers", ""
+                            | OneOrganization g -> "tenant", g.ToString "D"
+                            | AnyOrganization -> "organizations", ""
+                            | PersonalAndAnyOrganization -> "common", ""
+
+                        input(type' = "hidden", name = MicrosoftConnector.AudienceField, value = card)
+                        input(type' = "hidden", name = MicrosoftConnector.TenantIdField, value = tenant)
+                    | None -> ()
+
+                    input(type' = "hidden", name = MicrosoftConnector.DomainsField, value = EmailDomains.display stored.AllowedEmailDomains)
                 | _ -> ()
 
                 button(type' = "submit", class' = Components.btnSm Components.Danger) {
@@ -934,6 +965,7 @@ let private view
     (strand: StrandWarning option)
     (explained: string option)
     (appleDraft: AppleConnector.Draft option)
+    (microsoftDraft: MicrosoftConnector.Draft option)
     (appleLogo: AppleLogo.AppleLogo option)
     (appleLogoProblem: string option)
     (invitations: PasskeyInvitations.Invitation list)
@@ -1112,7 +1144,7 @@ let private view
 
                 BlueskyConnector.pane ctx t origin enabledCount chosenSlugs row.Existing draft frameView paneNotice blueskyAllowDev
             | _ ->
-                providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice appleDraft appleLogo appleLogoProblem row
+                providerPane ctx t origin enabledCount chosenSlugs domains frameView paneNotice appleDraft microsoftDraft appleLogo appleLogoProblem row
                 :> HtmlElement
         | _, None -> Fragment() :> HtmlElement
 
@@ -1169,11 +1201,15 @@ let private rowsFor (existing: Connector list) =
     // address, so a second, empty Apple entry would link to the wrong pane.
     let appleSlugHeld = existing |> List.exists (fun c -> c.Slug = Apple.Value)
 
+    // The same for Microsoft, which follows Apple.
+    let microsoftSlugHeld = existing |> List.exists (fun c -> c.Slug = Microsoft.Value)
+
     let empty =
-        allKinds @ [ Apple ]
+        allKinds @ [ Apple; Microsoft ]
         |> List.filter (fun kind ->
             not (existing |> List.exists (fun c -> c.Kind = kind))
-            && not (kind = Apple && appleSlugHeld))
+            && not (kind = Apple && appleSlugHeld)
+            && not (kind = Microsoft && microsoftSlugHeld))
         |> List.map (fun kind -> { Kind = kind; Existing = None })
 
     // The passkey row is never in the add form: it is the stored connector of
@@ -1198,6 +1234,8 @@ type private Drafts =
       Card: (string * DomainsDraft) option
       /// The Apple form, refused, with every typed value but the key.
       Apple: AppleConnector.Draft option
+      /// The Microsoft form, refused, with every typed value but the secret.
+      Microsoft: MicrosoftConnector.Draft option
       /// The refusal of a pasted logo, said under its field. The pasted text is not kept.
       AppleLogoProblem: string option }
 
@@ -1205,6 +1243,7 @@ let private noDrafts =
     { Instance = None
       Card = None
       Apple = None
+      Microsoft = None
       AppleLogoProblem = None }
 
 /// The screen, with the add form as given. The GET routes draw it empty; a refused
@@ -1344,6 +1383,20 @@ let private render
                             | _ -> t.AppleEnableStore reason)
 
                     Some(said |> Option.defaultValue (t.Notice code))
+                // Microsoft's: the reason is what Microsoft's address did, or why its
+                // answer could not be used; it comes from the same kind of cookie.
+                | Some("connector-saved-microsoft-unreachable" | "connector-enable-microsoft-unreachable" | "connector-saved-microsoft-wrong" | "connector-enable-microsoft-wrong" as code) ->
+                    let said =
+                        ctx.TryGetQueryValue "slug"
+                        |> Option.bind (fun slug -> WebForms.NoticeReason.consume ctx code "slug" slug)
+                        |> Option.map (fun reason ->
+                            match code with
+                            | "connector-saved-microsoft-unreachable" -> t.MicrosoftSavedUnreachable reason
+                            | "connector-enable-microsoft-unreachable" -> t.MicrosoftEnableUnreachable reason
+                            | "connector-saved-microsoft-wrong" -> t.MicrosoftSavedWrong reason
+                            | _ -> t.MicrosoftEnableWrong reason)
+
+                    Some(said |> Option.defaultValue (t.Notice code))
                 | Some("connector-secret-store-failed" | "connector-secret-left-behind" | "connector-secret-replaced-left-behind" as code) ->
                     let said =
                         ctx.TryGetQueryValue "slug"
@@ -1407,6 +1460,7 @@ let private render
                         strand
                         explained
                         drafts.Apple
+                        drafts.Microsoft
                         appleLogo
                         drafts.AppleLogoProblem
                         invitations
@@ -2038,6 +2092,13 @@ let create: EndpointHandler =
             return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-added"
         })
 
+/// What the Microsoft save hands to `applyChanges`: the audience to write with the
+/// row, and the notice (code and reason) of a failed Microsoft check, said after the
+/// save in place of the plain "saved" (the connector keeps its enabled state).
+type private MicrosoftSave =
+    { Audience: MicrosoftAudience
+      CheckNotice: (string * string) option }
+
 /// Write the changes of a saved connector: the card's values and, when a new
 /// secret came with them, the secret itself, in the active store, under the
 /// lease that keeps a move from interleaving. Shared by the generic card save
@@ -2055,6 +2116,7 @@ let private applyChanges
     (newSecret: string option)
     (hintOf: string -> string)
     (appleKey: AppleKeyIds option)
+    (microsoft: MicrosoftSave option)
     : System.Threading.Tasks.Task =
     task {
         let config = ctx.GetService<Database.DbConfig>()
@@ -2096,7 +2158,21 @@ let private applyChanges
                 | Ok written ->
 
                 let! updated =
-                    ConnectorStore.update config clock slug newName clientId newShared domains (written |> Option.map snd) appleKey
+                    match microsoft with
+                    // Microsoft's row also writes the audience and always the list.
+                    | Some { Audience = audience } ->
+                        ConnectorStore.saveMicrosoft
+                            config
+                            clock
+                            slug
+                            newName
+                            clientId
+                            newShared
+                            (defaultArg domains stored.AllowedEmailDomains)
+                            (written |> Option.map snd)
+                            audience
+                    | None ->
+                        ConnectorStore.update config clock slug newName clientId newShared domains (written |> Option.map snd) appleKey
 
                 match written with
                 | Some(reference, _) when not updated ->
@@ -2153,7 +2229,11 @@ let private applyChanges
                         | None, _ -> System.Threading.Tasks.Task.FromResult None
 
                     match leftBehind with
-                    | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-saved"
+                    | None ->
+                        match microsoft with
+                        | Some { CheckNotice = Some(code, reason) } ->
+                            return! WebForms.NoticeReason.redirect ctx (detailPath slug) code "slug" slug reason
+                        | _ -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-saved"
                     | Some(store, failure) ->
                         do!
                             SecurityEvents.recordStoreFailure
@@ -2333,7 +2413,7 @@ let save (slug: string) : EndpointHandler =
                         WebForms.NoticeReason.redirect ctx (detailPath slug) "connector-strands-apps" "slug" slug "unshare"
                 else
 
-                return! applyChanges ctx slug newName clientId newShared domains newSecret Secrets.hint None
+                return! applyChanges ctx slug newName clientId newShared domains newSecret Secrets.hint None None
         })
 
 /// A refused Apple form is drawn again on the connector's pane as an
@@ -2498,6 +2578,160 @@ let saveApple: EndpointHandler =
                         parsed.Key
                         (fun _ -> "")
                         (Some parsed.Ids)
+                        None
+        })
+
+/// A refused Microsoft form is drawn again on the connector's pane as an
+/// unprocessable form: every typed value but the secret, each message under its
+/// field.
+let private refuseMicrosoft (ctx: HttpContext) (draft: MicrosoftConnector.Draft) =
+    ctx.SetStatusCode 422
+    render ctx (Item "microsoft") emptyAddForm { noDrafts with Microsoft = Some draft }
+
+/// Create the Microsoft connector, or change it (specs/016 contract). Its values
+/// are a client ID, a secret, who may sign in and a tenant ID, so it has a route of
+/// its own ahead of the generic one; the pane is the generic pane with other fields.
+///
+/// Every refusal is collected before anything is written, and a refused form saves
+/// nothing. Then Microsoft is asked for the discovery document of the chosen
+/// audience (`CheckAt`). A new connector is saved enabled only when that worked;
+/// unreachable or not usable saves it disabled and says why. A saved connector
+/// keeps its enabled state whatever the check says, because a moment in which
+/// Microsoft cannot be reached must not switch off a connector that works; the
+/// notice is still shown.
+let saveMicrosoft: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        task {
+            let t = Texts.current ()
+            let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
+            let! form = WebForms.readValidated ctx
+            let slug = ProviderKind.Microsoft.Value
+            let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
+            let! existing = ConnectorStore.findBySlug config slug
+
+            match existing with
+            // The slug is another kind's: this form would edit it as the wrong one.
+            | Some stored when stored.Kind <> Microsoft -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
+            | _ ->
+
+            match MicrosoftConnector.parse t (parseDomains t) existing.IsSome form with
+            | Error draft -> return! refuseMicrosoft ctx draft
+            | Ok parsed ->
+
+            // Microsoft is asked first, before anything is written. What it said
+            // becomes a notice with its reason, or nothing when it answered well.
+            let! discovered =
+                ctx
+                    .GetService<OidcDiscovery.OidcDiscovery>()
+                    .CheckAt(
+                        Umbral.Domains.Microsoft.documentBase parsed.Audience,
+                        Umbral.Domains.Microsoft.discoveryIssuer parsed.Audience
+                    )
+
+            // The notice of a failed check: its code for a save, and the reason as
+            // the cookie carries it.
+            let failed =
+                match discovered with
+                | OidcDiscovery.Discovered _ -> None
+                | OidcDiscovery.Unreachable reason ->
+                    Some("connector-saved-microsoft-unreachable", WebForms.truncate 300 reason)
+                | OidcDiscovery.Wrong reason -> Some("connector-saved-microsoft-wrong", WebForms.truncate 300 reason)
+
+            match existing with
+            | None ->
+                // `now` is the `created_utc` of the row and the discriminator of the
+                // secret's name, so it is taken once.
+                let now = clock.GetUtcNow()
+
+                match! putNew ctx slug now (Option.get parsed.Secret) with
+                | Error failure -> return! refuseStoreFailed ctx (detailPath slug) slug failure
+                | Ok(reference, secret) ->
+
+                let! added =
+                    ConnectorStore.create
+                        config
+                        now
+                        { Slug = slug
+                          Kind = Microsoft
+                          DisplayName = parsed.DisplayName
+                          ClientId = parsed.ClientId
+                          ClientSecretRef = ""
+                          ClientSecretHint = ""
+                          IssuerUrl = None
+                          AllowedEmailDomains = parsed.Domains
+                          PasskeyEnrolment = InvitationsOnly
+                          FediverseAccess = FediverseAccess.Any
+                          AppleKey = None
+                          MicrosoftAudience = Some parsed.Audience
+                          IsEnabled = failed.IsNone
+                          IsShared = parsed.Shared
+                          CreatedUtc = now
+                          UpdatedUtc = now }
+                        secret
+
+                if added <> ConnectorStore.Created then
+                    do! discard ctx reference
+                    return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-slug-taken"
+                else
+
+                do!
+                    recordEventWith
+                        ctx
+                        SecurityEvents.ConnectorCreated
+                        slug
+                        (Some(
+                            match failed with
+                            | Some(_, reason) -> $"store={reference.Store};saved_disabled: {reason}"
+                            | None -> $"store={reference.Store}"
+                        ))
+
+                if not parsed.Domains.IsEmpty then
+                    do! recordDomainsChanged ctx (Some slug) parsed.Domains
+
+                match failed with
+                | None -> return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-saved"
+                | Some(code, reason) -> return! WebForms.NoticeReason.redirect ctx (detailPath slug) code "slug" slug reason
+
+            | Some stored ->
+                // Turning sharing off can leave an all-shared app with nothing to
+                // offer. Nothing changes until the operator confirms.
+                let! stranded =
+                    task {
+                        if stored.IsShared && not parsed.Shared && not confirmed then
+                            let! connectors = ConnectorStore.listAll config
+                            let! apps = AppConnectors.appsWithChoices config (ctx.GetService<IOpenIddictApplicationManager>())
+
+                            let after =
+                                connectors
+                                |> List.map (fun c -> if c.Slug = slug then { c with IsShared = false } else c)
+
+                            return AppConnectors.strandedByChange apps connectors after
+                        else
+                            return []
+                    }
+
+                if not stranded.IsEmpty then
+                    return!
+                        WebForms.NoticeReason.redirect ctx (detailPath slug) "connector-strands-apps" "slug" slug "unshare"
+                else
+
+                // A new secret goes through the path of a replaced client secret (the
+                // lease, the write, the removal of the old copy).
+                return!
+                    applyChanges
+                        ctx
+                        slug
+                        parsed.DisplayName
+                        parsed.ClientId
+                        parsed.Shared
+                        (Some parsed.Domains)
+                        parsed.Secret
+                        Secrets.hint
+                        None
+                        (Some
+                            { Audience = parsed.Audience
+                              CheckNotice = failed })
         })
 
 /// Save the instance list (FR-016, FR-019). Emptying a list that is not empty
@@ -2624,4 +2858,5 @@ let endpoint =
       POST [ route "/admin/connectors/apple/logo" saveAppleLogo ]
       POST [ route "/admin/connectors/apple/logo/remove" removeAppleLogo ]
       POST [ route "/admin/connectors/apple" saveApple ]
+      POST [ route "/admin/connectors/microsoft" saveMicrosoft ]
       POST [ routef "/admin/connectors/{%s}" (slugOfSegment >> save) ] ]

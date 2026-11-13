@@ -688,7 +688,42 @@ type Texts =
       /// The SVG has more in it than the logo's outline.
       AppleLogoMoreThanShapes: string
       AppleLogoTooLarge: string
-      AppleLogoNone: string }
+      AppleLogoNone: string
+      // Microsoft connector (specs/016-microsoft-connector, contracts/routes-and-screens.md)
+      /// The Set-up note of the Microsoft pane, in place of `ConnectorNamingAdvice`.
+      MicrosoftNamingAdvice: string
+      MicrosoftDisplayNameLabel: string
+      MicrosoftDisplayNameHint: string
+      MicrosoftClientIdLabel: string
+      MicrosoftClientIdHint: string
+      MicrosoftClientIdInvalid: string
+      MicrosoftClientSecretHint: string
+      MicrosoftReplaceSecretLabel: string
+      MicrosoftReplaceSecretHint: string
+      MicrosoftSecretMissing: string
+      MicrosoftAudienceLabel: string
+      MicrosoftAudienceMissing: string
+      MicrosoftConsumersTitle: string
+      MicrosoftConsumersDesc: string
+      MicrosoftTenantTitle: string
+      MicrosoftTenantDesc: string
+      MicrosoftOrganizationsTitle: string
+      MicrosoftOrganizationsDesc: string
+      MicrosoftCommonTitle: string
+      MicrosoftCommonDesc: string
+      MicrosoftTenantIdLabel: string
+      MicrosoftTenantIdHint: string
+      MicrosoftTenantIdMissing: string
+      MicrosoftTenantIdInvalid: string
+      MicrosoftTenantIdPersonal: string
+      /// The reason Microsoft could not be reached, said after the connector was saved disabled.
+      MicrosoftSavedUnreachable: string -> string
+      /// The reason Microsoft could not be reached, said when enabling.
+      MicrosoftEnableUnreachable: string -> string
+      /// The reason Microsoft's answer was not usable, said after the connector was saved disabled.
+      MicrosoftSavedWrong: string -> string
+      /// The reason Microsoft's answer was not usable, said when enabling.
+      MicrosoftEnableWrong: string -> string }
 
 /// The display name of a store, by the id a `SecretRef` carries.
 let private secretStoreNameEn (storeId: string) : string =
@@ -984,6 +1019,16 @@ let private noticeEn (code: string) : string option =
         Some "Not enabled: the stored key cannot sign. Paste the .p8 key again under Replace the private key."
     | "connector-enable-apple-store" ->
         Some "Not enabled: Umbral could not read the key from the secret store. Check the store, then press Enable again."
+    // The Microsoft connector (spec 016); the same as Apple's: the fixed text is
+    // what a notice says without its reason.
+    | "connector-saved-microsoft-unreachable" ->
+        Some "Saved, but not enabled: Umbral could not reach Microsoft. Press Enable to try again."
+    | "connector-enable-microsoft-unreachable" ->
+        Some "Not enabled: Umbral could not reach Microsoft. Try again in a moment."
+    | "connector-saved-microsoft-wrong" ->
+        Some "Saved, but not enabled: Microsoft's answer was not usable. Check the tenant ID, then press Enable."
+    | "connector-enable-microsoft-wrong" ->
+        Some "Not enabled: Microsoft's answer was not usable. Check the tenant ID, then press Enable again."
     // The Apple button's logo (spec 014).
     | "apple-logo-saved" -> Some "Logo saved."
     | "apple-logo-removed" -> Some "Logo removed. The button shows its title alone."
@@ -1638,7 +1683,56 @@ let en: Texts =
       AppleLogoMoreThanShapes =
         "That SVG has more than a shape in it. Umbral accepts only the logo's outline. Paste the file as Apple provides it."
       AppleLogoTooLarge = "That file is too large to be a logo."
-      AppleLogoNone = "No logo yet. The button shows \"Sign in with Apple\" alone." }
+      AppleLogoNone = "No logo yet. The button shows \"Sign in with Apple\" alone."
+      // Microsoft connector (specs/016-microsoft-connector). Wording from the
+      // contract, settled with the designer; the registration labels are Microsoft's.
+      MicrosoftNamingAdvice =
+        "Give the app registration a name that names this Umbral instance (for example \"Umbral — home\"): Microsoft shows it to people when they first sign in."
+      MicrosoftDisplayNameLabel = "Display name"
+      MicrosoftDisplayNameHint = "Shown on the sign-in button as \"Sign in with …\" and on the admin screens."
+      MicrosoftClientIdLabel = "Application (client) ID"
+      MicrosoftClientIdHint = "On the app's Overview page in the Microsoft Entra admin center."
+      MicrosoftClientIdInvalid =
+        "Enter the Application (client) ID, a GUID like 00000000-0000-0000-0000-000000000000."
+      MicrosoftClientSecretHint = "The secret's Value, not its Secret ID."
+      MicrosoftReplaceSecretLabel = "Replace the client secret"
+      MicrosoftReplaceSecretHint =
+        "Leave blank to keep the saved secret. A new one is the secret's Value, not its Secret ID."
+      MicrosoftSecretMissing = "Enter the client secret's Value."
+      MicrosoftAudienceLabel = "Who may sign in"
+      MicrosoftAudienceMissing =
+        "Choose who may sign in. It must match the account types chosen when the app was registered."
+      MicrosoftConsumersTitle = "Personal Microsoft accounts"
+      MicrosoftConsumersDesc =
+        "Outlook.com, Hotmail, Xbox and Skype accounts. In the registration: Personal accounts only."
+      MicrosoftTenantTitle = "Work or school accounts from one organization"
+      MicrosoftTenantDesc =
+        "The people of one Microsoft Entra tenant, given by its tenant ID below. In the registration: Single tenant only."
+      MicrosoftOrganizationsTitle = "Any work or school account"
+      MicrosoftOrganizationsDesc =
+        "People from any organization that uses Microsoft Entra. In the registration: Multiple Entra ID tenants."
+      MicrosoftCommonTitle = "Personal and any work or school account"
+      MicrosoftCommonDesc =
+        "Both of the above. In the registration: Any Entra ID Tenant + Personal Microsoft accounts."
+      MicrosoftTenantIdLabel = "Directory (tenant) ID"
+      MicrosoftTenantIdHint =
+        "The organization's tenant ID, a GUID. Used only with \"Work or school accounts from one organization\"."
+      MicrosoftTenantIdMissing = "Enter the Directory (tenant) ID of the organization."
+      MicrosoftTenantIdInvalid =
+        "That is not a tenant ID. It is a GUID like 00000000-0000-0000-0000-000000000000."
+      MicrosoftTenantIdPersonal =
+        "That is the tenant of personal Microsoft accounts: choose Personal Microsoft accounts instead."
+      MicrosoftSavedUnreachable =
+        fun reason ->
+            $"Saved, but not enabled: Umbral could not reach Microsoft ({reason}). Press Enable to try again."
+      MicrosoftEnableUnreachable =
+        fun reason -> $"Not enabled: Umbral could not reach Microsoft ({reason}). Try again in a moment."
+      MicrosoftSavedWrong =
+        fun reason ->
+            $"Saved, but not enabled: Microsoft's answer was not usable ({reason}). Check the tenant ID, then press Enable."
+      MicrosoftEnableWrong =
+        fun reason ->
+            $"Not enabled: Microsoft's answer was not usable ({reason}). Check the tenant ID, then press Enable again." }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.
