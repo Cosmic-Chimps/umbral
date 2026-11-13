@@ -130,9 +130,17 @@ working. Widening it again lets the same work account back in as the same user.
   Refusals as the contract's table, 422, values kept but the secret.
 - **FR-003** Save and Enable fetch the discovery document at
   `https://login.microsoftonline.com/<segment>/v2.0` and require its `issuer` to
-  equal exactly the issuer research R3 gives for the choice. An unreachable or
-  wrong answer saves the connector disabled with the contract's notice; Enable
-  then stays off with its notice.
+  equal exactly the issuer research R3 gives for the choice. When the check fails
+  (unreachable, or wrong; a tenant ID that names no tenant is answered with HTTP
+  400 `invalid_tenant`, which reads as wrong, "No Microsoft tenant has this ID"):
+  - a **new** connector is saved disabled, with the contract's notice;
+  - an **existing** connector whose choice of who may sign in **changed** is not
+    saved at all: the form is redrawn (422) with the reason under the choice, so a
+    mistyped tenant ID never reaches a connector that people use (documentation
+    review B1, 2026-11-13);
+  - an **existing** connector whose choice did **not** change saves the other
+    changes and keeps its enabled state, with a notice that says so;
+  - Enable stays off with its notice.
 - **FR-004** The authorize URL is the discovery document's
   `authorization_endpoint`, with `openid email profile`, PKCE S256, `nonce`,
   `state`.

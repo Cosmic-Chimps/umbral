@@ -6,7 +6,7 @@ or both. You choose who may sign in, and Umbral refuses everyone else.
 
 Back to the [README](../../README.md). Other providers:
 [Discord](discord.md) · [GitHub](github.md) · [Google](google.md) · [Apple](apple.md) ·
-[Microsoft](microsoft.md) · [OpenID Connect](oidc.md) · [Passkeys](passkey.md) ·
+[OpenID Connect](oidc.md) · [Passkeys](passkey.md) ·
 [Fediverse](fediverse.md) · [Bluesky](bluesky.md).
 
 ## Before you start
@@ -135,15 +135,26 @@ In **Connectors → Microsoft**, fill in the form:
 | **Application (client) ID** | From the registration's **Overview** page, a GUID. |
 | **Client secret** | The secret's **Value** from step 2c, not its Secret ID. |
 | **Who may sign in** | One of the four cards, matching the account types you chose in step 2a. None is chosen for you: Umbral asks you to choose. |
-| **Directory (tenant) ID** | Only for **Work or school accounts from one organization**: the organization's tenant ID from the registration's **Overview** page, a GUID. Not a domain name such as `contoso.onmicrosoft.com`. Umbral keeps what you typed if you choose another card, and ignores it. |
+| **Directory (tenant) ID** | Only for **Work or school accounts from one organization**: the organization's tenant ID from the registration's **Overview** page, a GUID. Not a domain name such as `contoso.onmicrosoft.com`. With another card the field is ignored. A refused form keeps what you typed, but a saved one does not: choosing **one organization** again means entering the tenant ID again. |
 
 Then click **Save connector**. Umbral reads Microsoft's discovery document for
 the choice you made. If that works, the connector is saved and enabled, and
 people see **Sign in with Microsoft** on Umbral's sign-in page from the next page
 load. If Microsoft cannot be reached, or its answer is not usable (a tenant ID
-that names no tenant is such an answer), the connector is saved but **not**
-enabled, the pane says why, and **Enable** tries again. **Enable** makes the same
-check every time.
+that names no tenant is such an answer, and reads as "could not reach"), what
+happens depends on the connector:
+
+- A **new** connector is saved but **not** enabled, the pane says why, and
+  **Enable** tries again. **Enable** makes the same check every time, and stays
+  off with a notice when it fails.
+- An **existing** connector whose choice of who may sign in **changed** is **not
+  saved**. The form comes back with the reason under the choice (under the tenant
+  ID with "one organization"), so a mistyped tenant ID never reaches a connector
+  people use. Check the tenant ID and save again.
+- An **existing** connector whose choice did **not** change saves your other
+  changes and keeps its state. If it is enabled, it stays enabled and the pane
+  says that Umbral could not check it. If it is disabled, it is saved but not
+  enabled, as for a new connector.
 
 The client secret is stored encrypted, in the secret store you configured (see
 [Secret stores](../run/secret-stores.md)). It is never shown again, only
@@ -167,13 +178,17 @@ typed, except the secret, which is never drawn back.
 | "Enter the Directory (tenant) ID of the organization." | **Work or school accounts from one organization** is chosen and the field is empty. |
 | "That is not a tenant ID. It is a GUID like 00000000-0000-0000-0000-000000000000." | Use the GUID from the **Overview** page, not a domain name. |
 | "That is the tenant of personal Microsoft accounts: choose Personal Microsoft accounts instead." | `9188040d-6c67-4c5b-b112-36a304b66dad` is the tenant every personal account belongs to, not an organization. Choose the first card. |
-| "Saved, but not enabled: Umbral could not reach Microsoft (&lt;reason&gt;). Press Enable to try again." | The connector is saved. Check that the machine can reach `login.microsoftonline.com`, then press **Enable**. |
+| "Enter the label for the sign-in button, then save again." | The display name is empty. |
+| "Saved, but not enabled: Umbral could not reach Microsoft (&lt;reason&gt;). Press Enable to try again." | A new connector, or one that was disabled, is saved but not enabled. Check that the machine can reach `login.microsoftonline.com`, then press **Enable**. |
 | "Not enabled: Umbral could not reach Microsoft (&lt;reason&gt;). Try again in a moment." | Same, when you pressed **Enable**. |
-| "Saved, but not enabled: Microsoft's answer was not usable (&lt;reason&gt;). Check the tenant ID, then press Enable." | Usually a tenant ID that names no tenant. Correct it and press **Enable**. |
+| "Saved, but not enabled: Microsoft's answer was not usable (&lt;reason&gt;). Check the tenant ID, then press Enable." | A new connector, or one that was disabled. Usually a tenant ID that names no tenant. Correct it and press **Enable**. |
 | "Not enabled: Microsoft's answer was not usable (&lt;reason&gt;). Check the tenant ID, then press Enable again." | Same, when you pressed **Enable**. |
+| "Saved. Umbral could not check the connector with Microsoft (&lt;reason&gt;), so it stays enabled as it was." | An enabled connector whose choice did not change. Your other changes are saved and sign-in goes on as before. Check that the machine can reach `login.microsoftonline.com`, and save again later if you want the check. |
+| "Microsoft did not confirm this choice (&lt;reason&gt;). Nothing was saved: check the tenant ID, then save again." | An existing connector whose choice of who may sign in changed. Nothing was saved, so the connector still works as before. Correct the tenant ID, or try again in a moment if Microsoft could not be reached. |
 
-The four notices about Microsoft appear at the top of the pane. Several fields
-can be refused at once.
+The notices about Microsoft appear at the top of the pane, except the last one,
+which is under the choice (or under the tenant ID). Several fields can be refused
+at once.
 
 ### Renewing the secret
 
@@ -195,12 +210,14 @@ Umbral's "Sign-in didn't complete", and the security log shows
 
 ### Changing who may sign in
 
-You can change the card, or the tenant ID, at any time. It keeps every person:
-who someone is does not depend on the choice (see
+You can change the card, or the tenant ID, at any time. A changed choice is
+checked with Microsoft before it is saved: if the check fails, nothing is saved
+(see [What the form says](#what-the-form-says)). It keeps every person: who
+someone is does not depend on the choice (see
 [Who the person is](#who-the-person-is)). **Narrowing** it reaches people who are
 already signed in. Someone whose tenant is no longer admitted is refused the next
-time an app authorizes them with their existing session, or the next time an app
-refreshes their token, and their session ends. The security log records it as
+time an app authorizes them with their existing session, which ends that session,
+or the next time an app refreshes their token. The security log records it as
 `microsoft:tenant_not_allowed;tenant=<tid>`. Widening it admits the same people
 again. Remember to change the registration's **Supported account types** to
 match.
@@ -320,6 +337,6 @@ about a person who clicks a provider and sees *Sign-in didn't complete*.
 | Back in Umbral, "Sign-in didn't complete", and the log shows `rejected: invalid_client`. | The client secret is wrong, was deleted, or has **expired**. Add a new secret and replace it (see [Renewing the secret](#renewing-the-secret)). |
 | Back in Umbral, "This account can't be used to sign in here", and the log shows `refused: tenant_not_allowed;tenant=…`. | The person's tenant is not admitted by **Who may sign in**. Check the card and the registration's account types. If you narrowed the choice, the same line `microsoft:tenant_not_allowed` appears when a signed-in person is turned away. |
 | The log shows `no_correlation_cookie`. | Umbral was opened at an address that is not the public origin, so the browser did not keep or send the sign-in cookie. Open Umbral at `UMBRAL__PUBLIC_ORIGIN`. |
-| The log shows `id_token_invalid: tenant`, `issuer`, `key_issuer` or `subject`. | Umbral refused the token's tenant, issuer, signing-key issuer or account identifier. Something between Umbral and Microsoft changes the answer, or the token is not from Microsoft's public cloud. |
+| The log shows `id_token_invalid: tenant`, `issuer`, `key_issuer`, `subject` or `malformed`, or `id_token_missing`. | Umbral refused the token's tenant, issuer, signing-key issuer or account identifier, or the token does not parse, or Microsoft's answer carried no identity token. Something between Umbral and Microsoft changes the answer, or the token is not from Microsoft's public cloud. |
 | The log shows `id_token_invalid: signature`, `audience`, `expired` or `nonce`. | The same as for the [OpenID Connect connector](oidc.md#troubleshooting): the clock of the machine is wrong, the client ID is not the registration's, or something sits between Umbral and Microsoft. |
 | People can sign in, but Umbral never joins them to an existing user by email, and an allowed email domain rule admits nobody. | The optional claim `xms_edov` is missing from the registration. See [step 2d](#d-add-the-optional-claim-xms_edov). |

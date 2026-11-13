@@ -96,6 +96,23 @@ Notices at the top of the pane, as Apple's, each ending in the next action:
 | `connector-enable-microsoft-unreachable` | "Not enabled: Umbral could not reach Microsoft (<reason>). Try again in a moment." |
 | `connector-saved-microsoft-wrong` | "Saved, but not enabled: Microsoft's answer was not usable (<reason>). Check the tenant ID, then press Enable." |
 | `connector-enable-microsoft-wrong` | "Not enabled: Microsoft's answer was not usable (<reason>). Check the tenant ID, then press Enable again." |
+| `connector-saved-microsoft-unchecked` | "Saved. Umbral could not check the connector with Microsoft (<reason>), so it stays enabled as it was." Only for an enabled connector whose choice did not change; a disabled one gets `connector-saved-microsoft-unreachable` or `-wrong`, which are then true. |
+
+An existing connector whose **choice changed** and whose check fails is not
+saved (spec FR-003, documentation review B1): 422, the form redrawn with every
+typed value but the secret, and under the "Who may sign in" group (or under the
+tenant field when "one organization" is chosen) one of two messages:
+
+- Microsoft's answer was not usable (`Wrong`; a tenant ID that names no tenant is
+  answered with HTTP 400 and `"error": "invalid_tenant"`, which discovery reads as
+  `Wrong` with the reason "No Microsoft tenant has this ID"): "Microsoft did not
+  confirm this choice: <reason>. Nothing was saved: check the tenant ID, then
+  save again."
+- Microsoft did not answer (`Unreachable`: a timeout, a 5xx, a network error):
+  "Microsoft did not answer (<reason>). Nothing was saved: try again in a moment."
+
+Microsoft's `error_description` is never shown: it carries trace IDs (code
+review, 2026-11-13). Nothing is logged for a change that was not saved.
 
 (A tenant ID that names no tenant makes Microsoft's discovery answer an error:
 that is the "wrong" case.)

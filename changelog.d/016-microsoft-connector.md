@@ -7,8 +7,8 @@
   checks the identity token's issuer against exactly the tenant it names. People are identified by
   their tenant and account together, so replacing the app registration keeps everyone. An email
   address counts as verified only when Microsoft's optional claim `xms_edov` says so, which you
-  add in the registration; without it no address is verified. Narrowing the choice ends, at their
-  next sign-in, the sessions of people no longer admitted. Microsoft client secrets expire (180
+  add in the registration; without it no address is verified. Narrowing the choice turns away people no
+  longer admitted the next time an app authorizes them or refreshes their token. Microsoft client secrets expire (180
   days is the recommended lifetime, 2 years the longest): the walkthrough says how to renew one.
   There is one Microsoft connector per instance, no avatar, and the button carries no Microsoft
   logo yet. The one-tenant case can stay on the OpenID Connect connector. The walkthrough is
