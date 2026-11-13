@@ -97,40 +97,39 @@ was tried and no more. The Forgejo/Codeberg and Gitea rows point at the new head
 (`#what-email_verified-means-on-a-forge`), and the intro does too. `check-links.py`: 393 links
 resolve. `changelog.sh check`: in order.
 
-### B3 (new). The branch publishes how to reproduce an apparently unreported Forgejo security bug
+### B3 (new). Hold back how to reproduce a Forgejo finding until the maintainer decides on a report
 
-The B1 walk found that Forgejo 14.0.5 lets an active account make an address it never confirmed its
-primary one, which then reaches every OpenID Connect client as `email_verified: true`. Codeberg
-runs Forgejo. A search on 2026-11-13 found a related Forgejo fix (primary-email validation bypass,
-v11.0.4 and v12.0.2: <https://codeberg.org/forgejo/security-announcements/issues/39>) but nothing
-for this case. As far as can be seen, it has not been reported.
-
-On this branch, three places spell it out: the exact request in `notes.md`, the script
-`force.mjs`, and the oidc.md sentences contrasting Gitea's refusal with Forgejo's acceptance of
-"a request … sent outside the page". This repository is public. Merging it publishes a working
-recipe for taking over accounts at any service that trusts a Forgejo's `email_verified`, before
-Forgejo can fix it.
-
-Before this merges:
-
-1. **The maintainer decides on a private report** to Forgejo's security contact (their security
-   policy names it), with the reproduction. This review does not make that report: it is the
-   maintainer's to make.
-2. **Take the method out of the branch until Forgejo has a fix out:** `force.mjs`, and step 3 of
-   the notes' re-check subsection (keep both outside the repository, for the report). Keep the
-   result in general terms: "Forgejo 14.0.5 did not show that an active account's primary address
-   was confirmed; reported to Forgejo on <date>".
-3. **In oidc.md, keep the conclusion and drop the mechanism.** For the Forgejo bullet, for example:
-
-   > **Forgejo**, tried in November 2026 (14.0.5), could not be shown to confirm an existing
-   > account's primary address. Until that changes, add a Forgejo, Codeberg included, only if you
-   > trust everyone who has an account there with any address.
-
-   Keep the Gitea result as written, minus "also refuses a request to make it primary sent outside
-   the page". In the Forgejo/Codeberg row, "as of writing anyone with an account there can claim any
-   address" becomes "as of Forgejo 14.0, an account there may claim an address it never confirmed".
-   Codeberg itself was not tried, and may run another version.
-
-Once Forgejo has published a fix, the details can come back with the fixed version named.
+The B1 walk found that Forgejo 14.0.5 could not be shown to keep an existing account's primary
+address confirmed, and that this reached Umbral as `email_verified: true`. It looks unreported. A
+related, already-fixed issue is public:
+<https://codeberg.org/forgejo/security-announcements/issues/39>. This repository is public, so how
+to reproduce the finding stays out of it until the maintainer has decided on a private report to
+Forgejo. The report is the maintainer's to make, not this review's. The page keeps the conclusion
+and the advice: add a Forgejo, Codeberg included, only if you trust everyone with an account there.
+Once a Forgejo release names it fixed, the details can come back, with that version named.
 
 One re-check after this.
+
+## Re-check at 7cfc8e1 (2026-11-13)
+
+**The content is clear. The merge has two conditions, both outside the documentation.**
+
+- B3 is fixed in the tracked files at the tip. oidc.md gives the conclusion and the advice ("could
+  not be shown to … until a Forgejo release names this fixed"), and no mechanism. The
+  Forgejo/Codeberg row says "as of Forgejo 14.0" instead of claiming it for Codeberg. The reproduction
+  script is gone from the tip, the other walk script is trimmed, and notes.md step 3 gives the result
+  only. This review file was trimmed in the same way in this commit.
+- `check-links.py`: 393 links resolve. `changelog.sh check`: in order.
+
+Conditions for the merge:
+
+1. **History.** Removing a file in a later commit leaves it in the earlier ones. Commit 24d362b still
+   carries the reproduction script, the full notes step and the mechanism in oidc.md. Commit e61d939
+   (this review's earlier text) names them. None of those commits may reach the public repository.
+   Merge this branch only as one squashed commit of its final tree, or rewrite the branch before it
+   is ever pushed. Do not push the branch as it is.
+2. **The report decision** stays with the maintainer, as said in B3. Merging the conclusion is fine
+   once the maintainer has decided, because it gives no method.
+
+A note for whoever makes the report: the held-back copies are under `/tmp/f0rg/`, which does not
+survive a reboot. Move them somewhere private and durable, outside the repository, first.
