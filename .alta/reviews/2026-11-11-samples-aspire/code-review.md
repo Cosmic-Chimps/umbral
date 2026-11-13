@@ -36,3 +36,7 @@ Branch `alta/friendly-jaguar-xpjv`, `0bc654d..cb86f70` (the sample is `7af4a1d`)
 ## Nit
 
 - **N1. The `docker exec` in the steps can match several containers.** `docker ps -q -f name=umbral` matches every running container whose name contains "umbral". With the samples harness or another Umbral running, it expands to several IDs and `docker exec` fails with an unhelpful error. Anchor it to Aspire's container (`-f name=^umbral-`, if that is how Aspire names it; check), or tell the reader to copy the container name from the dashboard's `umbral` resource. The setup page with the token from the logs is the main path, so this is the fallback only.
+
+## Re-check at `b6f9a07` (2026-11-13)
+
+**Clear to merge.** N1 is taken, and better than I asked. The fallback selects the container with `docker ps -q -f volume=umbral-aspire-data` (`{VolumeName}` in the code), the volume only this AppHost's Umbral mounts. Neither the harness's container nor the quick start's matches it, and it doesn't depend on how Aspire names containers. The line also says what the command does: it claims Umbral and prints a password to sign in with. That password goes to the reader's own terminal, not to any log Aspire keeps. The README carries the same command. `dotnet build -c Release -warnaserror` from `git archive b6f9a07` succeeded.
