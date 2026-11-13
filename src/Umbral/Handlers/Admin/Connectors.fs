@@ -91,9 +91,67 @@ let private sharedBox (t: Texts.Texts) (isShared: bool) =
         p(class' = "um-hint") { t.ConnectorSharedHint }
     }
 
+/// One trust card, drawn like the Bluesky and Microsoft panes' (`.um-choice`).
+/// When the group was refused every radio is marked invalid and points at the
+/// message.
+let private emailTrustCard (selected: string) (refused: bool) (value: string) (title: string) (description: string) =
+    label(class' = "um-choice") {
+        let radio = input(type' = "radio", name = "emailTrust", value = value, class' = "um-choice-radio")
+
+        if selected = value then
+            radio.attr("checked", "checked") |> ignore
+
+        if refused then
+            radio.attr("aria-invalid", "true").attr("aria-describedby", "email-trust-error") |> ignore
+
+        radio
+
+        span(class' = "um-choice-body") {
+            span(class' = "um-choice-title") { title }
+            span(class' = "um-choice-desc") { description }
+        }
+    }
+
+/// The trust setting of an OpenID Connect provider (specs/017): two cards side by
+/// side from `md`, neither checked until `selected` names one, and the refusal
+/// under the group when there is one.
+let private emailTrustGroup (t: Texts.Texts) (selected: string) (problem: string option) =
+    fieldset(class' = "um-choice-group").data("email-trust", "") {
+        legend(class' = "um-label") { t.ConnectorEmailTrustLegend }
+        p(class' = "um-hint") { t.ConnectorEmailTrustLead }
+
+        div(class' = "grid gap-3 md:grid-cols-2") {
+            emailTrustCard selected problem.IsSome "on" t.ConnectorEmailTrustOnTitle t.ConnectorEmailTrustOnBody
+            emailTrustCard selected problem.IsSome "off" t.ConnectorEmailTrustOffTitle t.ConnectorEmailTrustOffBody
+        }
+
+        match problem with
+        | Some message ->
+            (p(id = "email-trust-error", class' = "um-field-error").data("email-trust-error", "") {
+                Components.icon Theme.ErrorMark
+                span() { message }
+            })
+            :> HtmlElement
+        | None -> Fragment() :> HtmlElement
+    }
+
+
 /// A list the operator typed that was refused, and what to tell them. The pane
 /// it belongs to is drawn with the text as typed and the reason under the field.
 type private DomainsDraft = { Typed: string; Problem: string }
+
+/// A refused save of an OpenID Connect connector's pane (specs/017): every typed
+/// value but the secret, the trust choice as posted (`on`, `off`, or anything
+/// else the form carried) and the refusal about it, when that is what was
+/// refused. A refused list is a `DomainsDraft` beside it.
+type private OidcDraft =
+    { Slug: string
+      DisplayName: string
+      ClientId: string
+      Shared: bool
+      Domains: string
+      Trust: string
+      TrustProblem: string option }
 
 /// What the screen knows about allowed email domains beyond the connectors
 /// themselves: the instance list, a refused entry at either level, and the
@@ -102,6 +160,8 @@ type private Domains =
     { Instance: string list
       InstanceDraft: DomainsDraft option
       CardDraft: (string * DomainsDraft) option
+      /// The refused OpenID Connect pane, if that is what is drawn again.
+      OidcDraft: OidcDraft option
       Removal: (string * string) list option }
 
 /// The two refusals of a list typed by hand, in the operator's words, naming the
@@ -298,8 +358,24 @@ let private providerPane
             Some(if title = "" then title else string (System.Char.ToLowerInvariant title[0]) + title.Substring 1)
         | _ -> None
 
+    // Specs/017: an OpenID Connect connector that does not trust its provider's
+    // emails (a NULL row too). The stored value decides, not what a refused save typed.
+    let untrustedOidc =
+        row.Kind = Oidc && row.Existing |> Option.exists (fun c -> not (trustsProviderEmail c))
+
+    // Off, no list of its own and the instance list set: nobody can sign in.
+    let trustBlocked = untrustedOidc && storedList.IsEmpty && not domains.Instance.IsEmpty
+
+    let oidcDraft =
+        if row.Kind = Oidc then
+            domains.OidcDraft |> Option.filter (fun d -> d.Slug = slug)
+        else
+            None
+
     let ruleMarker, ruleText =
         match EmailDomains.applying storedList domains.Instance, microsoftChoice with
+        | EmailDomains.Rule _, _ when untrustedOidc -> "nobody", t.ConnectorRuleNobody
+        | EmailDomains.NoRule, _ when untrustedOidc -> "anyone-untrusted", t.ConnectorRuleUntrusted
         | EmailDomains.Rule(EmailDomains.Level.Connector, list), Some choice ->
             "connector", t.MicrosoftRuleConnector choice (EmailDomains.display list)
         | EmailDomains.Rule(EmailDomains.Level.Instance, list), Some choice ->
@@ -318,7 +394,10 @@ let private providerPane
         | Some draft, _, _ -> draft.Domains, draft.Problems.TryFind AppleConnector.DomainsField
         | None, Some draft, _ -> draft.Domains, draft.Problems.TryFind MicrosoftConnector.DomainsField
         | None, None, Some(draftSlug, draft) when draftSlug = slug -> draft.Typed, Some draft.Problem
-        | None, None, _ -> EmailDomains.display storedList, None
+        | None, None, _ ->
+            match oidcDraft with
+            | Some draft -> draft.Domains, None
+            | None -> EmailDomains.display storedList, None
 
     let unreadableStore =
         match secretStore with
@@ -399,7 +478,7 @@ let private providerPane
               if isConfigured then
                   (p(class' = "um-hint um-mono mt-1") { slug }) :> HtmlElement
 
-              if notice.IsSome || offeredNowhere || unreadableStore.IsSome then
+              if notice.IsSome || offeredNowhere || trustBlocked || unreadableStore.IsSome then
                   (div(class' = "mt-6 space-y-3") {
                       match notice with
                       | Some block -> block
@@ -409,6 +488,15 @@ let private providerPane
                           (div(class' = "um-alert um-alert-warning").attr("role", "note") {
                               Components.icon Theme.Warning
                               span() { t.ConnectorOfferedNowhere }
+                          })
+                          :> HtmlElement
+
+                      // Specs/017: the same kind of puzzle as `offeredNowhere`, from the
+                      // instance list and the trust setting together.
+                      if trustBlocked then
+                          (div(class' = "um-alert um-alert-warning").attr("role", "note").data("email-trust-blocked", slug) {
+                              Components.icon Theme.Warning
+                              span() { t.ConnectorEmailTrustBlocked }
                           })
                           :> HtmlElement
 
@@ -510,14 +598,18 @@ let private providerPane
                               (fun i -> i.attr("required", "required") |> ignore)
                               t.ConnectorDisplayNameLabel
                               "displayName"
-                              (row.Existing |> Option.map (fun c -> c.DisplayName) |> Option.defaultValue row.Kind.DisplayName)
+                              (match oidcDraft with
+                               | Some draft -> draft.DisplayName
+                               | None -> row.Existing |> Option.map (fun c -> c.DisplayName) |> Option.defaultValue row.Kind.DisplayName)
                               (Some t.ConnectorDisplayNameHint)
                               None
 
                           Components.field
                               t.ClientIdLabel
                               "clientId"
-                              (row.Existing |> Option.map (fun c -> c.ClientId) |> Option.defaultValue "")
+                              (match oidcDraft with
+                               | Some draft -> draft.ClientId
+                               | None -> row.Existing |> Option.map (fun c -> c.ClientId) |> Option.defaultValue "")
                               (Some(
                                   match row.Kind with
                                   | Oidc -> t.ConnectorOidcClientIdHint
@@ -544,10 +636,28 @@ let private providerPane
 
                       sharedBox
                           t
-                          (match appleDraft, microsoftDraft with
-                           | Some draft, _ -> draft.Shared
-                           | None, Some draft -> draft.Shared
-                           | None, None -> isShared)
+                          (match appleDraft, microsoftDraft, oidcDraft with
+                           | Some draft, _, _ -> draft.Shared
+                           | None, Some draft, _ -> draft.Shared
+                           | None, None, Some draft -> draft.Shared
+                           | None, None, None -> isShared)
+
+                      // Specs/017: the trust setting, before the domains field it
+                      // decides the use of. The stored value is checked; a refused
+                      // save shows what was typed.
+                      match row.Kind, row.Existing with
+                      | Oidc, Some existing ->
+                          let selected =
+                              match oidcDraft with
+                              | Some draft -> draft.Trust
+                              | None -> if trustsProviderEmail existing then "on" else "off"
+
+                          emailTrustGroup t selected (oidcDraft |> Option.bind (fun d -> d.TrustProblem))
+                          :> HtmlElement
+
+                          (p(class' = "um-hint").data("email-trust-hint", "") { t.ConnectorEmailTrustPaneHint })
+                          :> HtmlElement
+                      | _ -> Fragment() :> HtmlElement
 
                       connectorDomainsField t domains.Instance typedDomains domainsProblem
 
@@ -721,51 +831,6 @@ let private emptyAddForm =
       AllowedDomains = ""
       EmailTrust = ""
       Problem = None }
-
-/// One trust card, drawn like the Bluesky and Microsoft panes' (`.um-choice`).
-/// When the group was refused every radio is marked invalid and points at the
-/// message.
-let private emailTrustCard (selected: string) (refused: bool) (value: string) (title: string) (description: string) =
-    label(class' = "um-choice") {
-        let radio = input(type' = "radio", name = "emailTrust", value = value, class' = "um-choice-radio")
-
-        if selected = value then
-            radio.attr("checked", "checked") |> ignore
-
-        if refused then
-            radio.attr("aria-invalid", "true").attr("aria-describedby", "email-trust-error") |> ignore
-
-        radio
-
-        span(class' = "um-choice-body") {
-            span(class' = "um-choice-title") { title }
-            span(class' = "um-choice-desc") { description }
-        }
-    }
-
-/// The trust setting of an OpenID Connect provider (specs/017): two cards side by
-/// side from `md`, neither checked until `selected` names one, and the refusal
-/// under the group when there is one.
-let private emailTrustGroup (t: Texts.Texts) (selected: string) (problem: string option) =
-    fieldset(class' = "um-choice-group").data("email-trust", "") {
-        legend(class' = "um-label") { t.ConnectorEmailTrustLegend }
-        p(class' = "um-hint") { t.ConnectorEmailTrustLead }
-
-        div(class' = "grid gap-3 md:grid-cols-2") {
-            emailTrustCard selected problem.IsSome "on" t.ConnectorEmailTrustOnTitle t.ConnectorEmailTrustOnBody
-            emailTrustCard selected problem.IsSome "off" t.ConnectorEmailTrustOffTitle t.ConnectorEmailTrustOffBody
-        }
-
-        match problem with
-        | Some message ->
-            (p(id = "email-trust-error", class' = "um-field-error").data("email-trust-error", "") {
-                Components.icon Theme.ErrorMark
-                span() { message }
-            })
-            :> HtmlElement
-        | None -> Fragment() :> HtmlElement
-    }
-
 
 /// The add form (FR-012): a connector of a kind with a slug the operator
 /// chooses. Ticked as shared by default, like the first connector of a kind
@@ -1122,7 +1187,15 @@ let private view
                         | Error _ -> true
                         | Ok _ -> false)
 
-                offeredNowhere || unreadable || blueskyBlocked)
+                // Specs/017: an OpenID Connect connector with trust off, no list of
+                // its own and the instance list set: nobody can sign in through it.
+                let trustBlocked =
+                    row.Kind = Oidc
+                    && row.Existing
+                       |> Option.exists (fun c ->
+                           not (trustsProviderEmail c) && c.AllowedEmailDomains.IsEmpty && not domains.Instance.IsEmpty)
+
+                offeredNowhere || unreadable || blueskyBlocked || trustBlocked)
 
         let marker =
             match row.Existing with
@@ -1300,6 +1373,9 @@ let private rowsFor (existing: Connector list) =
 type private Drafts =
     { Instance: DomainsDraft option
       Card: (string * DomainsDraft) option
+      /// The OpenID Connect pane, refused (the trust choice or an own list with
+      /// trust off), with every typed value but the secret.
+      Oidc: OidcDraft option
       /// The Apple form, refused, with every typed value but the key.
       Apple: AppleConnector.Draft option
       /// The Microsoft form, refused, with every typed value but the secret.
@@ -1310,6 +1386,7 @@ type private Drafts =
 let private noDrafts =
     { Instance = None
       Card = None
+      Oidc = None
       Apple = None
       Microsoft = None
       AppleLogoProblem = None }
@@ -1367,6 +1444,7 @@ let private render
                 { Instance = instanceList
                   InstanceDraft = drafts.Instance
                   CardDraft = drafts.Card
+                  OidcDraft = drafts.Oidc
                   Removal = removal }
 
             // The strand warnings carry the slug they are about. The apps are
@@ -2189,6 +2267,10 @@ type private MicrosoftSave =
 /// client secret does. `hintOf` says what the row keeps of the new secret (the
 /// last four characters for a client secret, nothing for a private key);
 /// `appleKey` is the Team ID and Key ID to store, None for every other kind.
+/// `emailTrust` is the OpenID Connect pane's trust setting (specs/017): Some saves
+/// it with the card through `ConnectorStore.saveOidc`, lowering what trust off
+/// makes unbacked in the same transaction; None (every other kind, and a post that
+/// did not carry the field) leaves the stored value as it is.
 let private applyChanges
     (ctx: HttpContext)
     (slug: string)
@@ -2200,6 +2282,7 @@ let private applyChanges
     (hintOf: string -> string)
     (appleKey: AppleKeyIds option)
     (microsoft: MicrosoftSave option)
+    (emailTrust: bool option)
     : System.Threading.Tasks.Task =
     task {
         let config = ctx.GetService<Database.DbConfig>()
@@ -2240,22 +2323,60 @@ let private applyChanges
                 | Error failure -> return! refuseStoreFailed ctx (detailPath slug) slug failure
                 | Ok written ->
 
-                let! updated =
-                    match microsoft with
+                // `lowered` is the number of users trust off made unverified.
+                let! updated, lowered =
+                    match microsoft, emailTrust with
                     // Microsoft's row also writes the audience and always the list.
-                    | Some { Audience = audience } ->
-                        ConnectorStore.saveMicrosoft
-                            config
-                            clock
-                            slug
-                            newName
-                            clientId
-                            newShared
-                            (defaultArg domains stored.AllowedEmailDomains)
-                            (written |> Option.map snd)
-                            audience
-                    | None ->
-                        ConnectorStore.update config clock slug newName clientId newShared domains (written |> Option.map snd) appleKey
+                    | Some { Audience = audience }, _ ->
+                        task {
+                            let! saved =
+                                ConnectorStore.saveMicrosoft
+                                    config
+                                    clock
+                                    slug
+                                    newName
+                                    clientId
+                                    newShared
+                                    (defaultArg domains stored.AllowedEmailDomains)
+                                    (written |> Option.map snd)
+                                    audience
+
+                            return saved, 0
+                        }
+                    // An OpenID Connect row also writes the trust setting, in one
+                    // transaction with what that lowers.
+                    | None, Some trust ->
+                        task {
+                            let! saved =
+                                ConnectorStore.saveOidc
+                                    config
+                                    clock
+                                    slug
+                                    newName
+                                    clientId
+                                    newShared
+                                    domains
+                                    (written |> Option.map snd)
+                                    trust
+
+                            return saved.IsSome, defaultArg saved 0
+                        }
+                    | None, None ->
+                        task {
+                            let! saved =
+                                ConnectorStore.update
+                                    config
+                                    clock
+                                    slug
+                                    newName
+                                    clientId
+                                    newShared
+                                    domains
+                                    (written |> Option.map snd)
+                                    appleKey
+
+                            return saved, 0
+                        }
 
                 match written with
                 | Some(reference, _) when not updated ->
@@ -2277,6 +2398,14 @@ let private applyChanges
                           match microsoft with
                           | Some { Audience = audience } when stored.MicrosoftAudience <> Some audience ->
                               $"audience={Umbral.Domains.Microsoft.stored audience}"
+                          | _ -> ()
+                          // The setting's part only when it changed, as the stored value
+                          // reads (a NULL row is off); users lowered are named whenever
+                          // there were any, so a lowering never goes unlogged.
+                          match emailTrust with
+                          | Some true when not (trustsProviderEmail stored) -> "email_trust=on"
+                          | Some false when trustsProviderEmail stored || lowered > 0 ->
+                              $"email_trust=off;lowered={lowered}"
                           | _ -> () ]
 
                     do!
@@ -2409,6 +2538,42 @@ let save (slug: string) : EndpointHandler =
                 else
                     Ok None
 
+            // Specs/017: the trust setting of a saved OpenID Connect connector. A
+            // post without the field (an older client, the unshare confirmation)
+            // leaves it as it is; `on` and `off` set it; any other value is a
+            // refusal, as no choice is on the add form.
+            let isOidc = existing |> Option.exists (fun c -> c.Kind = Oidc)
+            let typedTrust = WebForms.value form "emailTrust"
+
+            let trustPosted =
+                if not isOidc || not (form.ContainsKey "emailTrust") then Ok None
+                else
+                    match typedTrust with
+                    | "on" -> Ok(Some true)
+                    | "off" -> Ok(Some false)
+                    | _ -> Error (Texts.current ()).ConnectorEmailTrustNoChoice
+
+            // The pane as typed, to be drawn again by a refusal.
+            let oidcDraftOf (problem: string option) =
+                match existing with
+                | Some stored when isOidc ->
+                    Some
+                        { Slug = slug
+                          DisplayName = (if fullForm then displayName else stored.DisplayName)
+                          ClientId = clientId
+                          Shared = (if fullForm then isShared else stored.IsShared)
+                          Domains =
+                            (if form.ContainsKey "allowedDomains" then typedDomains
+                             else EmailDomains.display stored.AllowedEmailDomains)
+                          Trust = (if form.ContainsKey "emailTrust" then typedTrust else (if trustsProviderEmail stored then "on" else "off"))
+                          TrustProblem = problem }
+                | _ -> None
+
+            match trustPosted with
+            | Error message ->
+                return! refuseDomains ctx (Item slug) { noDrafts with Oidc = oidcDraftOf (Some message) }
+            | Ok emailTrust ->
+
             match parsedDomains with
             | Error message ->
                 // A refused list is drawn again on the connector's pane. A slug
@@ -2425,6 +2590,7 @@ let save (slug: string) : EndpointHandler =
                         ctx
                         (Item slug)
                         { noDrafts with
+                            Oidc = oidcDraftOf None
                             Card =
                                 Some(
                                     slug,
@@ -2432,6 +2598,29 @@ let save (slug: string) : EndpointHandler =
                                       Problem = message }
                                 ) }
             | Ok domains ->
+
+            // Specs/017: an own list needs verified addresses, which trust off never
+            // has. The list that would be stored: the typed one, else the stored one.
+            let ownListAfterSave =
+                match domains, existing with
+                | Some list, _ -> list
+                | None, Some stored -> stored.AllowedEmailDomains
+                | None, None -> []
+
+            if emailTrust = Some false && not ownListAfterSave.IsEmpty then
+                return!
+                    refuseDomains
+                        ctx
+                        (Item slug)
+                        { noDrafts with
+                            Oidc = oidcDraftOf None
+                            Card =
+                                Some(
+                                    slug,
+                                    { Typed = (if form.ContainsKey "allowedDomains" then typedDomains else EmailDomains.display ownListAfterSave)
+                                      Problem = (Texts.current ()).ConnectorEmailTrustOwnList }
+                                ) }
+            else
 
             match existing, newSecret with
             // A new connector needs a secret; an existing one does not, because
@@ -2508,7 +2697,7 @@ let save (slug: string) : EndpointHandler =
                         WebForms.NoticeReason.redirect ctx (detailPath slug) "connector-strands-apps" "slug" slug "unshare"
                 else
 
-                return! applyChanges ctx slug newName clientId newShared domains newSecret Secrets.hint None None
+                return! applyChanges ctx slug newName clientId newShared domains newSecret Secrets.hint None None emailTrust
         })
 
 /// A refused Apple form is drawn again on the connector's pane as an
@@ -2670,6 +2859,7 @@ let saveApple: EndpointHandler =
                         parsed.Key
                         (fun _ -> "")
                         (Some parsed.Ids)
+                        None
                         None
         })
 
@@ -2860,6 +3050,7 @@ let saveMicrosoft: EndpointHandler =
                         (Some
                             { Audience = parsed.Audience
                               CheckNotice = notice })
+                        None
         })
 
 /// Save the instance list (FR-016, FR-019). Emptying a list that is not empty

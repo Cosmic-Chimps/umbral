@@ -365,6 +365,13 @@ type Texts =
       ConnectorEmailTrustOffBody: string
       ConnectorEmailTrustNoChoice: string
       ConnectorEmailTrustOwnList: string
+      /// The pane only: the hint under the group, the alert when the instance
+      /// list leaves nobody able to sign in, and the two Set-up rule lines of a
+      /// provider that is not trusted (specs/017 contracts/screens.md).
+      ConnectorEmailTrustPaneHint: string
+      ConnectorEmailTrustBlocked: string
+      ConnectorRuleNobody: string
+      ConnectorRuleUntrusted: string
       ConnectorOidcClientIdHint: string
       ConnectorOidcSecretAgainHint: string
       /// What the operator calls the provider where a built-in kind's name would
@@ -1418,6 +1425,16 @@ let en: Texts =
       ConnectorEmailTrustNoChoice = "Choose whether to trust this provider's verified email addresses."
       ConnectorEmailTrustOwnList =
         "Allowed email domains need verified addresses, and this provider's are not trusted. Trust them, or clear this list."
+      ConnectorEmailTrustPaneHint =
+        "A change applies from the next sign-in. Turning trust off unlinks nobody who is already linked. "
+        + "Addresses that only this provider verified become unverified."
+      ConnectorEmailTrustBlocked =
+        "Nobody can sign in through this provider. The email domains allowed for every connector need a verified address, "
+        + "and this provider's are not trusted. Trust them, or clear that list."
+      ConnectorRuleNobody =
+        "Nobody can sign in through this provider: the email domains allowed for every connector need a verified address, and its addresses are not trusted."
+      ConnectorRuleUntrusted =
+        "Who can sign in: anyone with an account at this provider. Each is a separate account, because its addresses are not trusted."
       ConnectorOidcClientIdHint = "From the client you created for Umbral in your provider's admin area."
       ConnectorOidcSecretAgainHint = "Type the client secret again: Umbral never sends a secret back to your browser."
       ConnectorOidcProviderName = "your identity provider"

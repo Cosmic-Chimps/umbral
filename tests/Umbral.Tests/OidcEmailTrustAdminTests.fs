@@ -220,3 +220,358 @@ let ``a connector of another kind is added without the group's value and stores 
 
         Assert.DoesNotContain("email_trust", detail)
     }
+
+// ---------------------------------------------------------------------------
+// The pane (T004a)
+// ---------------------------------------------------------------------------
+
+let private pane = "/admin/connectors/work-sso"
+
+/// An app with `work-sso` added through the form with the given choice.
+let private startWith (trust: string) =
+    task {
+        let! app, operator = start ()
+        let! response = operator.PostForm("/admin/connectors/new", "/admin/connectors", fields (Some trust) "")
+        Assert.Contains("connector-added-oidc", response.Headers.Location |> string)
+        return app, operator
+    }
+
+/// What the pane posts: every field, the secret empty (kept).
+let private paneFields (trust: string option) (domains: string) =
+    [ "displayName", "Work SSO"; "clientId", "umbral-client"; "shared", "true"; "allowedDomains", domains ]
+    @ (match trust with
+       | Some value -> [ "emailTrust", value ]
+       | None -> [])
+
+let private savePane (operator: Browser) (posted: (string * string) list) =
+    operator.PostForm("/admin/connectors", pane, posted)
+
+let private updatedDetails (app: Fixtures.TestApp) =
+    task {
+        use! connection = Database.openConnection app.DbConfig
+        use command = connection.CreateCommand()
+
+        command.CommandText <-
+            "SELECT ifnull(detail, '') FROM security_events WHERE event_type = 'connector_updated' AND connector_slug = 'work-sso' ORDER BY id"
+
+        use! reader = command.ExecuteReaderAsync()
+        let rows = ResizeArray()
+
+        while reader.Read() do
+            rows.Add(reader.GetString 0)
+
+        return List.ofSeq rows
+    }
+
+let private sql (app: Fixtures.TestApp) (statement: string) =
+    task {
+        let! _ = Flows.scalar app statement []
+        return ()
+    }
+
+/// Two people with a verified address through this connector's issuer: `solo`
+/// by it alone, `both` also by a Google link. Trust off lowers `solo` only.
+let private seedPeople (app: Fixtures.TestApp) =
+    task {
+        for id, email in [ "solo", "solo@example.com"; "both", "both@example.com" ] do
+            do!
+                sql
+                    app
+                    $"INSERT INTO users (id, display_name, email, email_verified, first_seen_utc, last_seen_utc)
+                      VALUES ('{id}', '{id}', '{email}', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+
+            do!
+                sql
+                    app
+                    $"INSERT INTO linked_accounts (provider_kind, provider_subject, user_id, asserted_email, asserted_email_verified, linked_utc, last_used_utc)
+                      VALUES ('oidc', '{issuer}#{id}', '{id}', '{email}', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+
+        do!
+            sql
+                app
+                "INSERT INTO linked_accounts (provider_kind, provider_subject, user_id, asserted_email, asserted_email_verified, linked_utc, last_used_utc)
+                 VALUES ('google', 'g-both', 'both', 'both@example.com', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+    }
+
+let private flagOf (app: Fixtures.TestApp) (id: string) =
+    Flows.scalar app $"SELECT email_verified FROM users WHERE id = '{id}'" []
+
+let private expectEq (expected: string) (actual: Task<string>) =
+    task {
+        let! value = actual
+        Assert.Equal(expected, value)
+    }
+
+let private entryTag (html: string) =
+    Regex.Match(html, "<a\\b[^>]*data-connector-entry=\"work-sso\"[^>]*>").Value
+
+[<Fact>]
+let ``the pane checks on for a trusted connector, shows the hint, and the group is not on another kind's pane`` () =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+
+        let! html = operator.GetHtml pane
+        Assert.Contains("data-email-trust", html)
+        Assert.Equal<string list>([ "on" ], checkedChoices html)
+        Assert.Contains("data-email-trust-hint", html)
+        Assert.Contains("Turning trust off unlinks nobody who is already linked.", html)
+
+        // Before the allowed domains field.
+        Assert.True(html.IndexOf "data-email-trust" < html.IndexOf "name=\"allowedDomains\"")
+
+        let! _ =
+            operator.PostForm(
+                "/admin/connectors/new",
+                "/admin/connectors",
+                [ "kind", "discord"; "slug", "discord"; "displayName", "Discord"; "clientId", "d-id"; "clientSecret", "d-secret" ]
+            )
+
+        let! discord = operator.GetHtml "/admin/connectors/discord"
+        Assert.DoesNotContain("data-email-trust", discord)
+        Assert.Equal(0, radioCount discord)
+    }
+
+[<Fact>]
+let ``the pane checks off for an untrusted connector and for a null row`` () =
+    task {
+        let! app, operator = startWith "off"
+        use _ = app
+
+        let! off = operator.GetHtml pane
+        Assert.Equal<string list>([ "off" ], checkedChoices off)
+
+        do! sql app "UPDATE connectors SET email_trust = 1 WHERE slug = 'work-sso'"
+        let! on = operator.GetHtml pane
+        Assert.Equal<string list>([ "on" ], checkedChoices on)
+
+        do! sql app "UPDATE connectors SET email_trust = NULL WHERE slug = 'work-sso'"
+        let! unset = operator.GetHtml pane
+        Assert.Equal<string list>([ "off" ], checkedChoices unset)
+    }
+
+[<Fact>]
+let ``saving off from on stores off, lowers who only this connector verified and logs how many`` () =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+        do! seedPeople app
+
+        let! response = savePane operator (paneFields (Some "off") "")
+        Assert.Contains("connector-saved", response.Headers.Location |> string)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal(Some false, stored.Value.EmailTrust)
+
+        do! expectEq "0" (flagOf app "solo")
+        do! expectEq "1" (flagOf app "both")
+
+        let! details = updatedDetails app
+        Assert.Equal("email_trust=off;lowered=1", Assert.Single details)
+    }
+
+[<Fact>]
+let ``saving on from off stores on and logs it`` () =
+    task {
+        let! app, operator = startWith "off"
+        use _ = app
+
+        let! response = savePane operator (paneFields (Some "on") "")
+        Assert.Contains("connector-saved", response.Headers.Location |> string)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+
+        let! details = updatedDetails app
+        Assert.Equal("email_trust=on", Assert.Single details)
+    }
+
+[<Theory>]
+[<InlineData("on")>]
+[<InlineData("off")>]
+let ``saving the same value logs no trust part`` (value: string) =
+    task {
+        let! app, operator = startWith value
+        use _ = app
+
+        let renamed = paneFields (Some value) "" |> List.map (fun (n, v) -> if n = "displayName" then n, "Renamed" else n, v)
+        let! response = savePane operator renamed
+        Assert.Contains("connector-saved", response.Headers.Location |> string)
+
+        let! details = updatedDetails app
+        let detail = Assert.Single details
+        Assert.DoesNotContain("email_trust", detail)
+    }
+
+[<Fact>]
+let ``a post without the field leaves the setting as it is`` () =
+    task {
+        let! app, operator = startWith "off"
+        use _ = app
+        do! sql app "UPDATE connectors SET email_trust = NULL WHERE slug = 'work-sso'"
+
+        let renamed = paneFields None "" |> List.map (fun (n, v) -> if n = "displayName" then n, "Renamed" else n, v)
+        let! response = savePane operator renamed
+        Assert.Contains("connector-saved", response.Headers.Location |> string)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal("Renamed", stored.Value.DisplayName)
+        // A NULL row stays NULL: nothing was posted, nothing was lowered.
+        Assert.Equal(None, stored.Value.EmailTrust)
+    }
+
+[<Theory>]
+[<InlineData("maybe")>]
+[<InlineData("")>]
+let ``an invalid value is refused under the group and nothing is saved`` (value: string) =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+
+        let renamed = paneFields (Some value) "acme.com" |> List.map (fun (n, v) -> if n = "displayName" then n, "Renamed" else n, v)
+        let! response = savePane operator renamed
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.Equal(enum<HttpStatusCode> 422, response.StatusCode)
+        Assert.Contains("data-email-trust-error", html)
+        Assert.Contains("Choose whether to trust this provider", html)
+        // What was typed comes back; neither card is checked.
+        Assert.Contains("value=\"Renamed\"", html)
+        Assert.Contains("value=\"acme.com\"", html)
+        Assert.Empty(checkedChoices html)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal("Work SSO", stored.Value.DisplayName)
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+        Assert.Empty stored.Value.AllowedEmailDomains
+        let! details = updatedDetails app
+        Assert.Empty details
+    }
+
+[<Fact>]
+let ``off with an own list is refused under the domains field, the choice kept, nothing saved`` () =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+        do! seedPeople app
+
+        let! response = savePane operator (paneFields (Some "off") "acme.com")
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.Equal(enum<HttpStatusCode> 422, response.StatusCode)
+        Assert.Contains("Allowed email domains need verified addresses", html)
+        Assert.DoesNotContain("data-email-trust-error", html)
+        Assert.Contains("value=\"acme.com\"", html)
+        Assert.Equal<string list>([ "off" ], checkedChoices html)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+        Assert.Empty stored.Value.AllowedEmailDomains
+        do! expectEq "1" (flagOf app "solo")
+    }
+
+[<Fact>]
+let ``off with a stored own list and no list in the post is refused too`` () =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+        do! sql app "UPDATE connectors SET allowed_email_domains = 'acme.com' WHERE slug = 'work-sso'"
+
+        // A post without the list field leaves the stored list, which trust off cannot keep.
+        let posted = paneFields (Some "off") "" |> List.filter (fun (n, _) -> n <> "allowedDomains")
+        let! response = savePane operator posted
+        let! html = response.Content.ReadAsStringAsync()
+
+        Assert.Equal(enum<HttpStatusCode> 422, response.StatusCode)
+        Assert.Contains("Allowed email domains need verified addresses", html)
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.Equal(Some true, stored.Value.EmailTrust)
+    }
+
+[<Fact>]
+let ``off with the instance list set shows the alert, the nobody rule line and the attention marker`` () =
+    task {
+        let! app, operator = startWith "off"
+        use _ = app
+        do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "acme.com" ]
+
+        let! html = operator.GetHtml pane
+        Assert.Contains("data-email-trust-blocked=\"work-sso\"", html)
+        Assert.Contains("Nobody can sign in through this provider. The email domains allowed for every connector", html)
+        Assert.Contains("data-rule=\"nobody\"", html)
+        Assert.Contains("Nobody can sign in through this provider: the email domains allowed for every connector", html)
+        Assert.Contains("data-attention", entryTag html)
+    }
+
+[<Fact>]
+let ``off with no list anywhere shows the untrusted rule line and no alert`` () =
+    task {
+        let! app, operator = startWith "off"
+        use _ = app
+
+        let! html = operator.GetHtml pane
+        Assert.Contains("data-rule=\"anyone-untrusted\"", html)
+        Assert.Contains("Each is a separate account, because its addresses are not trusted.", html)
+        Assert.DoesNotContain("data-email-trust-blocked", html)
+        Assert.DoesNotContain("data-attention", entryTag html)
+    }
+
+[<Fact>]
+let ``a trusted connector with the instance list set has no alert and the usual rule line`` () =
+    task {
+        let! app, operator = startWith "on"
+        use _ = app
+        do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "acme.com" ]
+
+        let! html = operator.GetHtml pane
+        Assert.DoesNotContain("data-email-trust-blocked", html)
+        Assert.Contains("data-rule=\"instance\"", html)
+        Assert.DoesNotContain("data-attention", entryTag html)
+    }
+
+/// The hidden inputs of the form with this action, but for the antiforgery token.
+let private hiddenFieldsOf (html: string) (action: string) =
+    let m =
+        Regex.Match(
+            html,
+            "<form\\b[^>]*\\baction=\"" + Regex.Escape action + "\"[^>]*>(.*?)</form>",
+            RegexOptions.Singleline
+        )
+
+    Assert.True(m.Success, $"no form with action {action}")
+
+    [ for i in Regex.Matches(m.Groups[1].Value, "<input\\b[^>]*type=\"hidden\"[^>]*>") do
+          let name = Regex.Match(i.Value, "name=\"([^\"]*)\"").Groups[1].Value
+          let value = Regex.Match(i.Value, "value=\"([^\"]*)\"").Groups[1].Value
+
+          if name <> "__RequestVerificationToken" then
+              name, string (WebUtility.HtmlDecode value) ]
+
+[<Fact>]
+let ``the unshare confirmation of an oidc connector still saves it unshared and leaves the trust as it was`` () =
+    task {
+        let! app, operator = startWith "off"
+        use _ = app
+        let! _ = createClientApp operator
+
+        let unshared = paneFields (Some "off") "" |> List.filter (fun (n, _) -> n <> "shared")
+        let! warned = savePane operator unshared
+        let back = warned.Headers.Location |> string
+        Assert.Contains("connector-strands-apps", back)
+
+        let! stillShared = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.True stillShared.Value.IsShared
+
+        let! screen = operator.GetHtml back
+        let action = pane + "?confirm=yes"
+        Assert.Contains($"action=\"{action}\"", screen)
+        let hidden = hiddenFieldsOf screen action
+        Assert.DoesNotContain("emailTrust", hidden |> List.map fst)
+
+        let! confirmed = operator.PostForm(pane, action, hidden)
+        Assert.Contains("connector-saved", confirmed.Headers.Location |> string)
+
+        let! stored = ConnectorStore.findBySlug app.DbConfig "work-sso"
+        Assert.False stored.Value.IsShared
+        Assert.Equal(Some false, stored.Value.EmailTrust)
+    }
