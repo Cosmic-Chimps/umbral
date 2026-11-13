@@ -16,7 +16,8 @@ or a Forgejo or Gitea you run is this connector too: GitLab, Forgejo (what
 Codeberg runs) and Gitea are OpenID Connect providers. The steps below apply as
 written, with one thing to read before you add a Forgejo or Gitea:
 [what its `email_verified` means](#what-email_verified-means-on-a-forge), because
-an account there can claim an address it never confirmed. The rest of what
+an account there can claim an address it never confirmed, and the setting
+that makes such a forge safe to add, [**Not trusted**](#before-you-start). The rest of what
 differs is in
 [A public forge: GitLab, Codeberg, or one you run](#a-public-forge-gitlab-codeberg-or-one-you-run).
 
@@ -46,17 +47,30 @@ Back to the [README](../../README.md). Other providers:
   yours is only reachable over plain `http://`, read
   [A provider that is only on plain http](#a-provider-that-is-only-on-plain-http)
   first.
-- **Read the email warning below.** Adding a provider means trusting it.
+- **Read the email setting below.** You choose it when you add the provider.
 
-> **Umbral trusts the emails your provider calls verified.** When someone signs
-> in through it and it says their email address is verified, Umbral treats that
-> person as the owner of that address and links them to anyone who already signed
-> in with the same verified address through another provider (see
-> [How people are identified](../integrate.md#how-people-are-identified)). Add
-> only a provider you run or trust. One that lets people claim an address they do
-> not control would let them sign in as someone else. Umbral cannot detect that:
-> there is no per-provider switch, so the decision is yours when you add it.
-> An address the provider does not mark verified is never used to link anyone.
+> **Choose whether Umbral trusts the emails your provider calls verified.** The
+> setting is **Verified email addresses from this provider**, and it has no
+> default: you pick **Trusted** or **Not trusted** when you add the provider.
+>
+> - **Trusted.** When someone signs in through the provider and it says their
+>   email address is verified, Umbral treats that person as the owner of that
+>   address and links them to anyone who already signed in with the same
+>   verified address through another provider (see
+>   [How people are identified](../integrate.md#how-people-are-identified)).
+>   Allowed email domains apply too. Choose it for a provider you run or trust.
+>   One that lets people claim an address they do not control would let them sign
+>   in as someone else, and Umbral cannot detect that.
+> - **Not trusted.** Umbral still stores the address and gives it to your apps,
+>   but always as unverified (`email_verified` is `false`), whatever the provider
+>   says. So it never links a person to an existing user with the same address,
+>   and it never meets an allowed email domains rule. Every person from this
+>   provider is a separate account. Choose it for a provider where anyone can
+>   sign up, such as a public forge, or one whose registration you do not
+>   control.
+>
+> An address the provider does not mark verified is never used to link anyone,
+> whichever you choose.
 
 ## 1. Choose the identifier, and so the callback URL
 
@@ -102,8 +116,8 @@ Where each product puts it:
 | **Pocket ID** | `https://id.example.com` | The instance root: the address you open Pocket ID at, with no path. |
 | **Authelia** | `https://auth.example.com` | The instance root: the address of your Authelia portal, with no path. |
 | **GitLab** | `https://gitlab.com`, or `https://git.example.com` for your own | The instance root, with no path: the address people open GitLab at. Your own GitLab builds it from `external_url`. |
-| **Forgejo, Codeberg** | `https://codeberg.org`, or `https://git.example.com` for your own | The instance root, with no path. Your own Forgejo builds it from `ROOT_URL` (without the trailing slash). **Before adding one, Codeberg included, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): as of Forgejo 14.0, an account there may claim an address it never confirmed.** |
-| **Gitea** | `https://git.example.com` | The instance root, with no path: `ROOT_URL` without the trailing slash. **Before adding one, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): open registration without email confirmation lets people claim any address.** |
+| **Forgejo, Codeberg** | `https://codeberg.org`, or `https://git.example.com` for your own | The instance root, with no path. Your own Forgejo builds it from `ROOT_URL` (without the trailing slash). **Before adding one, Codeberg included, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): as of Forgejo 14.0, an account there may claim an address it never confirmed.** Set it to **Not trusted** unless you control who has an account. |
+| **Gitea** | `https://git.example.com` | The instance root, with no path: `ROOT_URL` without the trailing slash. **Before adding one, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): open registration without email confirmation lets people claim any address.** Set it to **Not trusted** unless its registration is closed or needs confirmation. |
 | **Another provider** | its discovery page without `/.well-known/openid-configuration` | Look for "Issuer", "Discovery URL" or "OpenID configuration" in its settings, or try the test above. |
 
 *Menu names and issuer shapes for Authentik, Keycloak, Pocket ID and Authelia
@@ -173,10 +187,10 @@ in the form:
 | **Client ID** | From your provider. |
 | **Client secret** | From your provider. Required. |
 | **Shared with every app** | Ticked by default: every app set to "all shared connectors" offers it. Untick it to offer this provider only to the apps that choose it (**Apps → Sign-in methods**). |
-| **Allowed email domains** | Optional. Domains separated by commas, like `acme.com, example.org`: only people whose verified email is at one of them can sign in through this provider. Leave it empty to use the instance list. See [Allowed email domains](#allowed-email-domains). |
+| **Verified email addresses from this provider** | **Required, with no default:** choose **Trusted** or **Not trusted** (see the box under [Before you start](#before-you-start)). **Trusted** counts an address the provider marks verified as verified here. **Not trusted** makes every person from this provider a separate account and keeps allowed email domains from applying. Without a choice the form is refused: "Choose whether to trust this provider's verified email addresses." |
+| **Allowed email domains** | Optional. Domains separated by commas, like `acme.com, example.org`: only people whose verified email is at one of them can sign in through this provider. Leave it empty to use the instance list. Needs **Trusted**: with **Not trusted** and a list of its own, the form is refused. See [Allowed email domains](#allowed-email-domains). |
 
-The form carries the email warning from the top of this page. Click **Add
-connector**.
+The setting above is the one to read before you click **Add connector**.
 
 Umbral then asks your provider about itself (that is the check of the issuer)
 before it saves anything, so the click can take a few seconds. When the provider
@@ -245,13 +259,15 @@ Two connectors cannot share one issuer.
   if the answer is about a different person.
 - **Email** is the `email` claim. The first time someone signs in through your
   provider, it links them to an existing Umbral user only when
-  **`email_verified` is the JSON value `true`** and exactly one user already has
-  that address, also verified; otherwise they become a new user. It is the same
-  rule as for every other connector
+  **`email_verified` is the JSON value `true`**, the provider is **Trusted**,
+  and exactly one user already has that address, also verified; otherwise they
+  become a new user. It is the same rule as for every other connector
   ([How people are identified](../integrate.md#how-people-are-identified)).
   A string `"true"`, a `1`, a missing flag and `false` all count as unverified.
   Some providers send the string form; for those, the account is created but
-  never linked by email.
+  never linked by email. With **Not trusted**, every address counts as
+  unverified, so nobody is ever linked by email: the address is stored and your
+  apps receive it, with `email_verified` `false`.
 
 ### What your apps see
 
@@ -343,15 +359,22 @@ someone else's account:
     address it never confirmed, which then reached Umbral as verified. Codeberg
     runs Forgejo, and was not tried (it may run another version).
 
-  So: add a **Gitea** when its registration is closed (`DISABLE_REGISTRATION =
-  true`) or requires confirmation. Add a **Forgejo, Codeberg included**, only if
-  you trust everyone who has an account there with any address, until a Forgejo
-  release names this fixed. The [email warning](#before-you-start) at the top of
-  this page is about exactly this. A deactivated account is refused by the forge
-  before Umbral hears of it.
+  So, before you add a Forgejo or Gitea of your own, you can:
+  - add a **Gitea** when its registration is closed (`DISABLE_REGISTRATION =
+    true`) or requires confirmation;
+  - add a **Forgejo, Codeberg included**, only if you trust everyone who has an
+    account there with any address, until a Forgejo release names this fixed;
+  - set the provider to **Not trusted**. That is safe whoever has an account
+    there, because no address it sends is used to link anyone or to admit
+    anyone. It is the choice for a forge whose registration you do not control.
+
+  The [email setting](#before-you-start) at the top of this page is about exactly
+  this. The first two assume **Trusted**. A deactivated account is refused by the
+  forge before Umbral hears of it.
 
 A [domain rule](#allowed-email-domains) on a Forgejo or Gitea connector is only
-as strong as that.
+as strong as that, and it needs **Trusted**: a provider that is **Not trusted**
+never meets one.
 
 ## A provider that is only on plain http
 
@@ -468,9 +491,36 @@ Also check `UMBRAL__PUBLIC_ORIGIN`. See
 
 **Signing in works, but people are not linked to their other accounts**
 Linking needs an email your provider marks `email_verified: true`, as a real
-JSON `true`. Check what your provider sends: with `curl` on its userinfo
+JSON `true`, and a provider set to **Trusted**. With **Not trusted**, nobody is
+linked by email, on purpose: change the setting on the connector's page if that
+is not what you want. Check what your provider sends: with `curl` on its userinfo
 endpoint, or by decoding an identity token. Some providers
 only mark an address verified once the person or an admin has confirmed it.
+
+## Changing the email setting later
+
+The connector's page shows **Verified email addresses from this provider** with
+its current value, and saves it with the other settings. A change applies from
+the next sign-in. Turning trust off unlinks nobody who is already linked.
+
+Turning it **off** does one more thing, and asks first. Every stored address that
+only this provider verified becomes unverified, so that it can no longer join
+someone into an account, and the page says how many: "Turning trust off makes
+*n* stored email addresses unverified: only this provider verified them. Nobody
+is unlinked, and turning trust on again doesn't verify them again." Press **Turn
+trust off** to go on. An address that another provider also verified stays
+verified. Turning trust **on** raises nothing: an address is verified again the
+next time its owner signs in through a provider that is Trusted.
+
+People who were admitted through an [allowed email domains](#allowed-email-domains)
+rule are refused at their next authorization or token refresh, because their
+address is no longer verified. Their user stays on the **Users** screen.
+
+The security log records it: `connector_created` and `connector_updated` carry
+`email_trust=on`, or `email_trust=off;lowered=<n>` with the number of users whose
+address became unverified. Nothing is logged for a save that did not change it.
+Providers you added before this setting existed were set to **Trusted** when you
+upgraded, so nobody's sign-in changed: look at the setting on each one.
 
 ## Allowed email domains
 
@@ -478,6 +528,17 @@ On the Connectors screen you can limit who can sign in by email domain, for the
 whole instance or for one connector (see
 [Who can sign in](../who-can-sign-in.md)). While a rule applies, only
 an email your provider marks `email_verified: true` counts, and the domain must match exactly.
+
+**A rule needs a provider that is Trusted.** With **Not trusted**, every address
+from the provider counts as unverified, so a rule can never admit anyone:
+
+- A list of this connector's own with **Not trusted** is refused when you save:
+  "Allowed email domains need verified addresses, and this provider's are not
+  trusted. Trust them, or clear this list."
+- With the instance list set and no list of its own, nobody can sign in through
+  this connector. Its page warns you: "Nobody can sign in through this provider.
+  The email domains allowed for every connector need a verified address, and this
+  provider's are not trusted. Trust them, or clear that list."
 
 - A provider that does not send `email_verified` as the JSON value `true`
   refuses everyone while a rule applies. Check what yours sends (see

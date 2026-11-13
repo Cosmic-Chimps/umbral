@@ -24,6 +24,9 @@ which rule applies to it.
 
 - Only an email the provider has **verified** counts. An unverified email, or
   no email at all, is refused while a rule applies.
+  An OpenID Connect provider you set to **Not trusted** never has a verified
+  email, so a rule can't admit anyone through it: see
+  [Allowed email domains](connectors/oidc.md#allowed-email-domains).
 - The domain must match **exactly**, ignoring capital letters. `eu.acme.com` is
   not `acme.com`: if you want both, list both.
 - The email checked is the one the provider gives for that sign-in, through
