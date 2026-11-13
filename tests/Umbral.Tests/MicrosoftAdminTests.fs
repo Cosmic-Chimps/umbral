@@ -768,7 +768,7 @@ let ``a changed choice that Microsoft says names no tenant is refused with the w
         do!
             assertChoiceRefused world posted "tenantId" (fun message ->
                 Assert.Equal(
-                    "Microsoft did not confirm this choice: No Microsoft tenant has this ID. Nothing was saved: check the tenant ID, then save again.",
+                    "Microsoft did not confirm this choice: No Microsoft tenant has this ID. Nothing was saved: check the tenant ID, then try again.",
                     message
                 )
                 Assert.DoesNotContain("AADSTS", message))
@@ -822,7 +822,7 @@ let ``a changed choice whose document names another issuer is refused with the w
         do!
             assertChoiceRefused world posted "audience" (fun message ->
                 Assert.StartsWith("Microsoft did not confirm this choice: ", message)
-                Assert.EndsWith(". Nothing was saved: check the tenant ID, then save again.", message))
+                Assert.EndsWith(". Nothing was saved: check that the choice matches the app's registration, then try again.", message))
     }
 
 [<Fact>]
@@ -950,6 +950,93 @@ let ``a refused change of audience logs nothing`` () =
         Assert.Equal(0, updated)
         let! created = events world "connector_created"
         Assert.Equal(0, created)
+    }
+
+// ---------------------------------------------------------------------------
+// The Set-up rule line leads with the choice (contract, design review nit 2)
+// ---------------------------------------------------------------------------
+
+/// The marker and the text of the pane's Set-up rule line.
+let private ruleLine (html: string) =
+    let m = Regex.Match(html, "<p[^>]*data-rule=\"([^\"]*)\"[^>]*>(.*?)</p>", RegexOptions.Singleline)
+    Assert.True(m.Success, "no rule line")
+    m.Groups[1].Value, (decode (Regex.Replace(m.Groups[2].Value, "<[^>]+>", ""))).Trim()
+
+[<Theory>]
+[<InlineData("consumers", "personal Microsoft accounts")>]
+[<InlineData("tenant", "work or school accounts from one organization")>]
+[<InlineData("organizations", "any work or school account")>]
+[<InlineData("common", "personal and any work or school account")>]
+let ``a saved pane with no domain rule says who can sign in by choice, with any email domain`` (card: string, phrase: string) =
+    task {
+        let audience = audiences |> List.find (fun (c, _, _) -> c = card) |> fun (_, a, _) -> a
+        let! world = startFor audience
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App audience
+
+        let! html = world.Operator.GetHtml path
+        let marker, text = ruleLine html
+        Assert.Equal("anyone", marker)
+        Assert.Equal($"Who can sign in: {phrase}, with any email domain.", text)
+    }
+
+[<Fact>]
+let ``a saved pane with a connector list says the choice and the list, as this connector's`` () =
+    task {
+        let! world = startFor PersonalAndAnyOrganization
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App PersonalAndAnyOrganization
+        let! saved = save world (fields |> with' [ "clientSecret", ""; "allowedDomains", "contoso.com" ])
+        Assert.Contains("msg=connector-saved", location saved)
+
+        let! html = world.Operator.GetHtml path
+        let marker, text = ruleLine html
+        Assert.Equal("connector", marker)
+        Assert.Equal(
+            "Who can sign in: personal and any work or school account, with a verified email at contoso.com (this connector's list)",
+            text
+        )
+    }
+
+[<Fact>]
+let ``a saved pane with only an instance list says the choice and the list, as the instance's`` () =
+    task {
+        let! world = startFor (OneOrganization tenantA)
+        use _ = world.App
+        do! FakeMicrosoft.seedConnector world.App (OneOrganization tenantA)
+        do! EmailDomainRules.setInstanceList world.App.DbConfig world.App.Clock [ "example.org" ]
+
+        let! html = world.Operator.GetHtml path
+        let marker, text = ruleLine html
+        Assert.Equal("instance", marker)
+        Assert.Equal(
+            "Who can sign in: work or school accounts from one organization, with a verified email at example.org (the instance list)",
+            text
+        )
+    }
+
+[<Fact>]
+let ``a Microsoft pane not set up keeps the existing line, and another kind's pane is unchanged`` () =
+    task {
+        let! world = start ()
+        use _ = world.App
+
+        let! html = world.Operator.GetHtml path
+        let marker, text = ruleLine html
+        Assert.Equal("anyone", marker)
+        Assert.Equal("Who can sign in: anyone with an account", text)
+
+        // Another kind, set up or not, never takes the choice into its line.
+        let! github = world.Operator.GetHtml "/admin/connectors/github"
+        let marker, text = ruleLine github
+        Assert.Equal("anyone", marker)
+        Assert.Equal("Who can sign in: anyone with an account", text)
+
+        do! EmailDomainRules.setInstanceList world.App.DbConfig world.App.Clock [ "example.org" ]
+        let! github = world.Operator.GetHtml "/admin/connectors/github"
+        let marker, text = ruleLine github
+        Assert.Equal("instance", marker)
+        Assert.Equal("Who can sign in: example.org (the instance list)", text)
     }
 
 // ---------------------------------------------------------------------------

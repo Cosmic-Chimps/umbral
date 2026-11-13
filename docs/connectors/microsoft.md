@@ -141,8 +141,8 @@ Then click **Save connector**. Umbral reads Microsoft's discovery document for
 the choice you made. If that works, the connector is saved and enabled, and
 people see **Sign in with Microsoft** on Umbral's sign-in page from the next page
 load. If Microsoft cannot be reached, or its answer is not usable (a tenant ID
-that names no tenant is such an answer, and reads as "could not reach"), what
-happens depends on the connector:
+that names no tenant is such an answer: Umbral says "No Microsoft tenant has
+this ID"), what happens depends on the connector:
 
 - A **new** connector is saved but **not** enabled, the pane says why, and
   **Enable** tries again. **Enable** makes the same check every time, and stays
@@ -150,7 +150,8 @@ happens depends on the connector:
 - An **existing** connector whose choice of who may sign in **changed** is **not
   saved**. The form comes back with the reason under the choice (under the tenant
   ID with "one organization"), so a mistyped tenant ID never reaches a connector
-  people use. Check the tenant ID and save again.
+  people use. Check the tenant ID, or wait if Microsoft did not answer, and try
+  again.
 - An **existing** connector whose choice did **not** change saves your other
   changes and keeps its state. If it is enabled, it stays enabled and the pane
   says that Umbral could not check it. If it is disabled, it is saved but not
@@ -181,10 +182,12 @@ typed, except the secret, which is never drawn back.
 | "Enter the label for the sign-in button, then save again." | The display name is empty. |
 | "Saved, but not enabled: Umbral could not reach Microsoft (&lt;reason&gt;). Press Enable to try again." | A new connector, or one that was disabled, is saved but not enabled. Check that the machine can reach `login.microsoftonline.com`, then press **Enable**. |
 | "Not enabled: Umbral could not reach Microsoft (&lt;reason&gt;). Try again in a moment." | Same, when you pressed **Enable**. |
-| "Saved, but not enabled: Microsoft's answer was not usable (&lt;reason&gt;). Check the tenant ID, then press Enable." | A new connector, or one that was disabled. Usually a tenant ID that names no tenant. Correct it and press **Enable**. |
+| "Saved, but not enabled: Microsoft's answer was not usable (&lt;reason&gt;). Check the tenant ID, then press Enable." | A new connector, or one that was disabled. The usual reason is "No Microsoft tenant has this ID": the tenant ID names no tenant. Correct it and press **Enable**. |
 | "Not enabled: Microsoft's answer was not usable (&lt;reason&gt;). Check the tenant ID, then press Enable again." | Same, when you pressed **Enable**. |
 | "Saved. Umbral could not check the connector with Microsoft (&lt;reason&gt;), so it stays enabled as it was." | An enabled connector whose choice did not change. Your other changes are saved and sign-in goes on as before. Check that the machine can reach `login.microsoftonline.com`, and save again later if you want the check. |
-| "Microsoft did not confirm this choice (&lt;reason&gt;). Nothing was saved: check the tenant ID, then save again." | An existing connector whose choice of who may sign in changed. Nothing was saved, so the connector still works as before. Correct the tenant ID, or try again in a moment if Microsoft could not be reached. |
+| "Microsoft did not confirm this choice: &lt;reason&gt;. Nothing was saved: check the tenant ID, then try again." | Under the tenant ID, for an existing connector changed to **one organization**. Nothing was saved, so the connector still works as before. The usual reason is "No Microsoft tenant has this ID". Correct the tenant ID. |
+| "Microsoft did not confirm this choice: &lt;reason&gt;. Nothing was saved: check that the choice matches the app's registration, then try again." | Under **Who may sign in**, for an existing connector changed to another card. Nothing was saved. Compare the card with the registration's **Supported account types**. |
+| "Microsoft did not answer (&lt;reason&gt;). Nothing was saved: try again in a moment." | An existing connector whose choice changed, while Microsoft could not be reached. Nothing was saved. Try again later. |
 
 The notices about Microsoft appear at the top of the pane, except the last one,
 which is under the choice (or under the tenant ID). Several fields can be refused

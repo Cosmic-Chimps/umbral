@@ -726,10 +726,16 @@ type Texts =
       MicrosoftEnableWrong: string -> string
       /// The reason Microsoft could not be asked, said after an enabled connector was saved with its choice unchanged.
       MicrosoftSavedUnchecked: string -> string
-      /// Under the choice, when Microsoft's answer was not usable for a changed choice: nothing was saved.
-      MicrosoftNotConfirmed: string -> string
+      /// Under the tenant ID, when Microsoft's answer was not usable for a changed choice: nothing was saved.
+      MicrosoftNotConfirmedTenant: string -> string
+      /// Under the "Who may sign in" group (any other choice), when Microsoft's answer was not usable: nothing was saved.
+      MicrosoftNotConfirmedChoice: string -> string
       /// Under the choice, when Microsoft did not answer for a changed choice: nothing was saved.
-      MicrosoftNotAnswered: string -> string }
+      MicrosoftNotAnswered: string -> string
+      /// The Set-up rule line of a saved Microsoft connector, led by the choice (its card title in lower case after the first word).
+      MicrosoftRuleAnyone: string -> string
+      MicrosoftRuleConnector: string -> string -> string
+      MicrosoftRuleInstance: string -> string -> string }
 
 /// The display name of a store, by the id a `SecretRef` carries.
 let private secretStoreNameEn (storeId: string) : string =
@@ -1744,11 +1750,19 @@ let en: Texts =
       MicrosoftSavedUnchecked =
         fun reason ->
             $"Saved. Umbral could not check the connector with Microsoft ({reason}), so it stays enabled as it was."
-      MicrosoftNotConfirmed =
+      MicrosoftNotConfirmedTenant =
         fun reason ->
-            $"Microsoft did not confirm this choice: {reason}. Nothing was saved: check the tenant ID, then save again."
+            $"Microsoft did not confirm this choice: {reason}. Nothing was saved: check the tenant ID, then try again."
+      MicrosoftNotConfirmedChoice =
+        fun reason ->
+            $"Microsoft did not confirm this choice: {reason}. Nothing was saved: check that the choice matches the app's registration, then try again."
       MicrosoftNotAnswered =
-        fun reason -> $"Microsoft did not answer ({reason}). Nothing was saved: try again in a moment." }
+        fun reason -> $"Microsoft did not answer ({reason}). Nothing was saved: try again in a moment."
+      MicrosoftRuleAnyone = fun choice -> $"Who can sign in: {choice}, with any email domain."
+      MicrosoftRuleConnector =
+        fun choice list -> $"Who can sign in: {choice}, with a verified email at {list} (this connector's list)"
+      MicrosoftRuleInstance =
+        fun choice list -> $"Who can sign in: {choice}, with a verified email at {list} (the instance list)" }
 
 /// The code itself when it is one a screen has a message for, so that a screen
 /// reading `?msg=` draws nothing, not even `data-notice`, for any other text.

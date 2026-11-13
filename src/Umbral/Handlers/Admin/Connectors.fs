@@ -281,11 +281,35 @@ let private providerPane
     // stored list decides, not what a refused save typed.
     let storedList = row.Existing |> Option.map (fun c -> c.AllowedEmailDomains) |> Option.defaultValue []
 
+    // A saved Microsoft connector leads the line with its choice (contract, "The
+    // Set-up rule line"); every other pane, and a Microsoft one not set up, keeps the
+    // plain line.
+    let microsoftChoice =
+        match row.Kind, row.Existing |> Option.bind (fun c -> c.MicrosoftAudience) with
+        | Microsoft, Some audience ->
+            let title =
+                match audience with
+                | PersonalAccounts -> t.MicrosoftConsumersTitle
+                | OneOrganization _ -> t.MicrosoftTenantTitle
+                | AnyOrganization -> t.MicrosoftOrganizationsTitle
+                | PersonalAndAnyOrganization -> t.MicrosoftCommonTitle
+
+            // The card's title in lower case after its first word's capital.
+            Some(if title = "" then title else string (System.Char.ToLowerInvariant title[0]) + title.Substring 1)
+        | _ -> None
+
     let ruleMarker, ruleText =
-        match EmailDomains.applying storedList domains.Instance with
-        | EmailDomains.Rule(EmailDomains.Level.Connector, list) -> "connector", t.ConnectorRuleConnector(EmailDomains.display list)
-        | EmailDomains.Rule(EmailDomains.Level.Instance, list) -> "instance", t.ConnectorRuleInstance(EmailDomains.display list)
-        | EmailDomains.NoRule -> "anyone", t.ConnectorRuleAnyone
+        match EmailDomains.applying storedList domains.Instance, microsoftChoice with
+        | EmailDomains.Rule(EmailDomains.Level.Connector, list), Some choice ->
+            "connector", t.MicrosoftRuleConnector choice (EmailDomains.display list)
+        | EmailDomains.Rule(EmailDomains.Level.Instance, list), Some choice ->
+            "instance", t.MicrosoftRuleInstance choice (EmailDomains.display list)
+        | EmailDomains.NoRule, Some choice -> "anyone", t.MicrosoftRuleAnyone choice
+        | EmailDomains.Rule(EmailDomains.Level.Connector, list), None ->
+            "connector", t.ConnectorRuleConnector(EmailDomains.display list)
+        | EmailDomains.Rule(EmailDomains.Level.Instance, list), None ->
+            "instance", t.ConnectorRuleInstance(EmailDomains.display list)
+        | EmailDomains.NoRule, None -> "anyone", t.ConnectorRuleAnyone
 
     let typedDomains, domainsProblem =
         match appleDraft, microsoftDraft, domains.CardDraft with
@@ -2717,7 +2741,10 @@ let saveMicrosoft: EndpointHandler =
             | Some stored when failed.IsSome && stored.MicrosoftAudience <> Some parsed.Audience ->
                 let message =
                     match discovered with
-                    | OidcDiscovery.Wrong reason -> t.MicrosoftNotConfirmed(WebForms.truncate 300 reason)
+                    | OidcDiscovery.Wrong reason ->
+                        match parsed.Audience with
+                        | OneOrganization _ -> t.MicrosoftNotConfirmedTenant(WebForms.truncate 300 reason)
+                        | _ -> t.MicrosoftNotConfirmedChoice(WebForms.truncate 300 reason)
                     | OidcDiscovery.Unreachable reason -> t.MicrosoftNotAnswered(WebForms.truncate 300 reason)
                     | OidcDiscovery.Discovered _ -> ""
 
