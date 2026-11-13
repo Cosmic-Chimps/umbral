@@ -109,9 +109,15 @@ let anyListSet (config: Database.DbConfig) : Task<bool> =
 /// here, so none of them can read the rule differently.
 ///
 /// - a connector that exists: its rule (its own list, else the instance's);
-/// - a connector that has since been deleted: the instance list alone;
+/// - a connector that has since been deleted: the instance list alone. The
+///   authorize and token endpoints refuse a deleted connector before they get
+///   here (`ConnectorStore.recheckKind`, task s1ug), so this branch is the
+///   judge's own default for a caller that does not;
 /// - no connector at all (issued before this feature): refused exactly while
-///   some list is set, since nothing says which one would have applied.
+///   some list is set, since nothing says which one would have applied. The
+///   token endpoint refuses such a token before it gets here
+///   (`ConnectorChange.Unrecorded`, task s1ug), so this too is the judge's own
+///   default.
 let recheck (config: Database.DbConfig) (connectorSlug: string option) (emailDomain: string option) : Task<Decision> =
     task {
         match connectorSlug with

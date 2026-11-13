@@ -7,7 +7,11 @@
 /// was. Add a Discord connector again and the same people sign in to the same
 /// `sub`, which is what keeps the apps that already know them working. Nothing
 /// is revoked either: their sessions and tokens belong to the user, not to the
-/// connector, so only NEW sign-ins through it stop.
+/// connector. But a remembered sign-in is honoured only while its slug names a
+/// connector of the kind it was made with (task s1ug): a refresh through the
+/// deleted connector answers `invalid_grant`, since no rule is left to judge it
+/// by, and a session no longer counts at authorize, since the connector is not
+/// offered. Adding it back under the same slug and kind admits them again.
 ///
 /// What it does do to apps: the connector leaves every app's chosen set (the
 /// `app_connectors` rows cascade), and an app limited to a chosen set stays

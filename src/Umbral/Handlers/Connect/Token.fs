@@ -86,22 +86,47 @@ let handler: EndpointHandler =
             let connectorSlug = Option.ofObj (principal.GetClaim OpenIddictSetup.ConnectorClaim)
             let emailDomain = Option.ofObj (principal.GetClaim OpenIddictSetup.EmailDomainClaim)
 
+            // A refusal of an issuance: record the event with its whole detail,
+            // answer invalid_grant.
+            let refuse (detail: string) =
+                task {
+                    do!
+                        SecurityEvents.record
+                            config
+                            (ctx.GetService<TimeProvider>())
+                            { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
+                                UserId = Some u.Id
+                                ClientId = Option.ofObj request.ClientId
+                                ConnectorSlug = connectorSlug
+                                RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+                                Detail = Some detail }
+
+                    return! Authorize.forbid ctx Errors.InvalidGrant "This account can no longer be used to sign in."
+                }
+
+            // The connector the token was issued through must still exist and be of
+            // the kind it was issued with (task s1ug): a refresh is judged by the
+            // connector's own rules, and a deleted or replaced one has none of the
+            // original's. A token with no connector claim (a refresh chain begun
+            // before specs/006) is refused too: nothing says which connector's
+            // rules would apply, so such a chain ends once and the person signs
+            // in again.
+            let! changed =
+                match connectorSlug with
+                | Some slug ->
+                    ConnectorStore.recheckKind config slug (Option.ofObj (principal.GetClaim OpenIddictSetup.IdpClaim))
+                | None -> System.Threading.Tasks.Task.FromResult(Some Connectors.Unrecorded)
+
+            match changed with
+            | Some change -> return! refuse (SecurityEvents.connectorChangedDetail change SecurityEvents.Token)
+
+            | None ->
+
             let! decision = EmailDomainRules.recheck config connectorSlug emailDomain
 
             match decision with
             | EmailDomains.Refused(level, reason) ->
-                do!
-                    SecurityEvents.record
-                        config
-                        (ctx.GetService<TimeProvider>())
-                        { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
-                            UserId = Some u.Id
-                            ClientId = Option.ofObj request.ClientId
-                            ConnectorSlug = connectorSlug
-                            RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
-                            Detail = Some(SecurityEvents.refusalDetail reason level SecurityEvents.Token emailDomain) }
-
-                return! Authorize.forbid ctx Errors.InvalidGrant "This account can no longer be used to sign in."
+                return! refuse (SecurityEvents.refusalDetail reason level SecurityEvents.Token emailDomain)
 
             | EmailDomains.Admitted ->
 
@@ -126,19 +151,7 @@ let handler: EndpointHandler =
                     }
 
             match refusedServer with
-            | Some detail ->
-                do!
-                    SecurityEvents.record
-                        config
-                        (ctx.GetService<TimeProvider>())
-                        { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
-                            UserId = Some u.Id
-                            ClientId = Option.ofObj request.ClientId
-                            ConnectorSlug = connectorSlug
-                            RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
-                            Detail = Some detail }
-
-                return! Authorize.forbid ctx Errors.InvalidGrant "This account can no longer be used to sign in."
+            | Some detail -> return! refuse detail
 
             | None ->
 

@@ -91,7 +91,7 @@ you know what each one does.
 | `/.well-known/openid-configuration` | The discovery document. |
 | `/.well-known/jwks` | The public keys that sign the `id_token`. |
 | `/connect/authorize` | Starts a sign-in (GET or POST). Umbral shows its sign-in page, or, when the person already has an Umbral session through a connector the app offers, sends the code straight back. |
-| `/connect/token` | Exchanges a code for tokens, or a refresh token for new ones. A refresh reads the person again: a changed name or avatar shows in the new `id_token`, and a disabled or deleted person gets `invalid_grant`. |
+| `/connect/token` | Exchanges a code for tokens, or a refresh token for new ones. A refresh reads the person again: a changed name or avatar shows in the new `id_token`, and a disabled or deleted person gets `invalid_grant`, as does a refresh through a connector that has been deleted since, or whose name now belongs to a connector of another provider. |
 | `/connect/userinfo` | GET or POST, with the access token as a Bearer token. Reads the person from Umbral at every call. |
 | `/connect/revoke` | Revokes an access token or a refresh token. |
 | `/connect/logout` | Ends the person's Umbral session; see [Signing out](#signing-out). |

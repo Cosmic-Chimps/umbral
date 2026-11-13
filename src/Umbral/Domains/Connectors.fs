@@ -77,6 +77,16 @@ type ProviderKind =
         | Bluesky -> "Bluesky"
         | Passkey -> "Passkey"
 
+/// What became of the connector a remembered sign-in went through (task s1ug).
+type ConnectorChange =
+    /// No connector has the slug any more.
+    | Deleted
+    /// The slug now names a connector of another kind.
+    | OtherKind of now: ProviderKind
+    /// The sign-in names no connector at all (a refresh chain begun before
+    /// specs/006): it cannot be shown to match, so it is refused like the others.
+    | Unrecorded
+
 /// The three providers with a card of their own. Deliberately not `Oidc`: an
 /// OpenID Connect provider has no "first connector" to configure in place, it
 /// is always added by issuer. Also not `Apple`: it has four values to fill in

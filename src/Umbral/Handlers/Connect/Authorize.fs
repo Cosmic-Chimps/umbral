@@ -232,9 +232,45 @@ let handler: EndpointHandler =
                             Sessions.currentConnector principal
                             |> Option.exists (fun slug -> offered |> List.exists (fun c -> c.Slug = slug))
 
+                        // A refusal of a remembered session: sign out, record
+                        // the event with its whole detail, and let the request
+                        // fall to the same branch as "no session".
+                        let refuse (detail: string) =
+                            task {
+                                do! Sessions.signOut ctx
+
+                                do!
+                                    SecurityEvents.record
+                                        config
+                                        (ctx.GetService<TimeProvider>())
+                                        { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
+                                            UserId = Sessions.currentSubject principal
+                                            ClientId = Option.ofObj request.ClientId
+                                            ConnectorSlug = Sessions.currentConnector principal
+                                            RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
+                                            Detail = Some detail }
+
+                                return false
+                            }
+
                         if not isOffered then
                             return false
                         else
+                            // The connector this session went through must still
+                            // exist and be of the kind the session was made with:
+                            // a slug is only a name, and the checks below judge
+                            // by whatever connector the name holds now (task s1ug).
+                            let! changed =
+                                ConnectorStore.recheckKind
+                                    config
+                                    (Sessions.currentConnector principal |> Option.defaultValue "")
+                                    (Sessions.currentIdp principal)
+
+                            match changed with
+                            | Some change ->
+                                return! refuse (SecurityEvents.connectorChangedDetail change SecurityEvents.Authorize)
+                            | None ->
+
                             // The allowed email domains (specs/006), judged again
                             // on every reuse of a session: tightening a rule
                             // reaches the people already signed in at their next
@@ -284,45 +320,16 @@ let handler: EndpointHandler =
 
                                 match refusedServer with
                                 | None -> return true
-                                | Some detail ->
-                                    do! Sessions.signOut ctx
-
-                                    do!
-                                        SecurityEvents.record
-                                            config
-                                            (ctx.GetService<TimeProvider>())
-                                            { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
-                                                UserId = Sessions.currentSubject principal
-                                                ClientId = Option.ofObj request.ClientId
-                                                ConnectorSlug = Sessions.currentConnector principal
-                                                RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
-                                                Detail = Some detail }
-
-                                    return false
+                                | Some detail -> return! refuse detail
                             | EmailDomains.Refused(level, reason) ->
-                                do! Sessions.signOut ctx
-
-                                do!
-                                    SecurityEvents.record
-                                        config
-                                        (ctx.GetService<TimeProvider>())
-                                        { SecurityEvents.event SecurityEvents.SignInFailed SecurityEvents.Failure SecurityEvents.Actor.User with
-                                            UserId = Sessions.currentSubject principal
-                                            ClientId = Option.ofObj request.ClientId
-                                            ConnectorSlug = Sessions.currentConnector principal
-                                            RemoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
-                                            Detail =
-                                                Some(
-                                                    SecurityEvents.refusalDetail
-                                                        reason
-                                                        level
-                                                        SecurityEvents.Authorize
-                                                        (Sessions.currentEmailDomain principal)
-                                                ) }
-
-                                // Not honoured: the request falls to the same
-                                // branch as "no session".
-                                return false
+                                return!
+                                    refuse (
+                                        SecurityEvents.refusalDetail
+                                            reason
+                                            level
+                                            SecurityEvents.Authorize
+                                            (Sessions.currentEmailDomain principal)
+                                    )
                     }
                 | _ -> Task.FromResult false
 

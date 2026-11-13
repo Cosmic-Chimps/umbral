@@ -677,31 +677,50 @@ let ``a refresh still admitted by the tightened rule works`` () =
         })
 
 [<Fact>]
-let ``a refresh whose connector was deleted is judged by the instance list alone`` () =
+let ``a refresh whose connector was deleted is invalid_grant`` () =
     withApp [] [] (fun app browser prepared ->
         task {
             let! tokens = tokensFor app browser prepared "ann@acme.com"
             let! _ = ConnectorStore.delete app.DbConfig "fake"
 
-            // No list anywhere: honoured, as before this feature.
-            let! open' = refreshWith app prepared (Journeys.strOf tokens "refresh_token")
-            Assert.Equal(HttpStatusCode.OK, open'.StatusCode)
-            let! openBody = Journeys.json open'
+            // No rule is left to judge the refresh by (task s1ug), so even with
+            // no list anywhere it is refused, and the event says why.
+            let! refused = refreshWith app prepared (Journeys.strOf tokens "refresh_token")
+            do! expectInvalidGrant refused
 
-            // The instance list admits the domain: still honoured.
-            do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "acme.com" ]
-            let! admitted = refreshWith app prepared (Journeys.strOf openBody "refresh_token")
-            Assert.Equal(HttpStatusCode.OK, admitted.StatusCode)
-            let! admittedBody = Journeys.json admitted
+            let! events = failures app
+            let detail, _, slug, _ = Assert.Single events
+            Assert.Equal("connector_changed;reason=deleted;stage=token", detail)
+            Assert.Equal("fake", slug)
+        })
 
-            // The instance list does not: refused, and the event says instance.
-            do! EmailDomainRules.setInstanceList app.DbConfig app.Clock [ "example.org" ]
-            let! refused = refreshWith app prepared (Journeys.strOf admittedBody "refresh_token")
+[<Fact>]
+let ``a refresh is honoured when its connector was deleted and added back under the same slug and kind`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            let! tokens = tokensFor app browser prepared "ann@acme.com"
+            let! _ = ConnectorStore.delete app.DbConfig "fake"
+            do! Journeys.addFakeConnector app "fake-connector-secret-value"
+
+            let! response = refreshWith app prepared (Journeys.strOf tokens "refresh_token")
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+            let! events = failures app
+            Assert.Empty events
+        })
+
+[<Fact>]
+let ``a refresh is invalid_grant when an oidc connector took the slug of the deleted fake connector`` () =
+    withApp [] [] (fun app browser prepared ->
+        task {
+            let! tokens = tokensFor app browser prepared "ann@acme.com"
+            do! Journeys.replaceWithOidc app "fake"
+
+            let! refused = refreshWith app prepared (Journeys.strOf tokens "refresh_token")
             do! expectInvalidGrant refused
 
             let! events = failures app
             let detail, _, _, _ = Assert.Single events
-            Assert.Equal("email_domain_refused;reason=domain_not_allowed;rule=instance;stage=token;domain=acme.com", detail)
+            Assert.Equal("connector_changed;reason=other_kind;stage=token;kind=oidc", detail)
         })
 
 [<Fact>]

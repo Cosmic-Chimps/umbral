@@ -139,3 +139,35 @@ let ``while the server is still listed, the session and the refresh are honoured
         let! refreshed = Journeys.refresh app.Client prepared.ClientId prepared.ClientSecret refreshToken
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode)
     }
+
+[<Fact>]
+let ``once an oidc connector takes the slug fediverse, the session is signed out at authorize`` () =
+    task {
+        let! app, prepared, browser, _ = signIn ()
+        do! replaceWithOidc app "fediverse"
+
+        let! response = browser.Get(authorizeUrl prepared.ClientId "openid")
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.StartsWith("/signin?returnUrl=", response.Headers.Location |> string)
+
+        let! again = browser.Get(authorizeUrl prepared.ClientId "openid")
+        Assert.StartsWith("/signin?returnUrl=", again.Headers.Location |> string)
+
+        let! details = failureDetails app
+        Assert.Equal("connector_changed;reason=other_kind;stage=authorize;kind=oidc", Assert.Single details)
+    }
+
+[<Fact>]
+let ``once an oidc connector takes the slug fediverse, a refresh is invalid_grant`` () =
+    task {
+        let! app, prepared, _, refreshToken = signIn ()
+        do! replaceWithOidc app "fediverse"
+
+        let! response = Journeys.refresh app.Client prepared.ClientId prepared.ClientSecret refreshToken
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        let! body = json response
+        Assert.Equal("invalid_grant", strOf body "error")
+
+        let! details = failureDetails app
+        Assert.Equal("connector_changed;reason=other_kind;stage=token;kind=oidc", Assert.Single details)
+    }

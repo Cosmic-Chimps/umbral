@@ -125,3 +125,35 @@ let ``the correlation cookie is encrypted: no key, no DID, no handle in the clea
             Assert.DoesNotContain(clear, value)
             Assert.DoesNotContain(clear, decoded)
     }
+
+[<Fact>]
+let ``once an oidc connector takes the slug bluesky, a remembered sign-in is refused at authorize`` () =
+    task {
+        let! _, app, prepared, completed, _ = signedIn ()
+        do! replaceWithOidc app "bluesky"
+
+        let! response = completed.Browser.Get(authorizeUrl prepared.ClientId "openid")
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode)
+        Assert.StartsWith("/signin?returnUrl=", response.Headers.Location |> string)
+
+        let! again = completed.Browser.Get(authorizeUrl prepared.ClientId "openid")
+        Assert.StartsWith("/signin?returnUrl=", again.Headers.Location |> string)
+
+        let! details = failures app
+        Assert.Equal("connector_changed;reason=other_kind;stage=authorize;kind=oidc", Assert.Single details)
+    }
+
+[<Fact>]
+let ``once an oidc connector takes the slug bluesky, a refresh token grant is invalid_grant`` () =
+    task {
+        let! _, app, prepared, _, refreshToken = signedIn ()
+        do! replaceWithOidc app "bluesky"
+
+        let! response = Journeys.refresh app.Client prepared.ClientId prepared.ClientSecret refreshToken
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode)
+        let! body = json response
+        Assert.Equal("invalid_grant", strOf body "error")
+
+        let! details = failures app
+        Assert.Equal("connector_changed;reason=other_kind;stage=token;kind=oidc", Assert.Single details)
+    }
