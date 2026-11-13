@@ -38,6 +38,16 @@ A session counts for an app only if it came through a connector that app offers.
 They signed in to Umbral through a connector this app does not offer, so they
 must pick one it does. They are still signed in to Umbral for other apps.
 
+**After I deleted a connector, apps get `invalid_grant` when they refresh.**
+A refresh is judged by the rules of the connector the person signed in through,
+and a deleted connector has none left, so its refresh tokens stop working. The
+app sends the person to sign in again, through a connector it offers; their
+account is kept, so they come back as the same user. Adding the connector back
+under the same name and provider before they refresh lets those tokens work
+again. If you give the name to a connector of another provider, sessions and
+tokens from the old one are refused too. The security log says
+`connector_changed;reason=deleted` or `reason=other_kind`.
+
 **I cannot find the setup token, or it is rejected.**
 `docker logs umbral 2>&1 | grep -A6 "not configured yet"` and take the *latest*
 `Token` line (the `=====` box near the end of the log). The token is regenerated
