@@ -43,6 +43,17 @@ let finishSignIn
     (applyEmailRule: bool)
     : Task<unit> =
     task {
+        // Specs/017. A connector that does not trust its provider's emails
+        // reads every address as unverified. Everything below (the domain
+        // rule, `UserStore.resolve`: linking, the users row and the link's
+        // asserted flag, and the session's admitted domain) sees this profile;
+        // the address itself is kept.
+        let profile =
+            if Connectors.trustsProviderEmail connector then
+                profile
+            else
+                { profile with EmailVerified = false }
+
         let config = ctx.GetService<Database.DbConfig>()
         let clock = ctx.GetService<TimeProvider>()
         let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string

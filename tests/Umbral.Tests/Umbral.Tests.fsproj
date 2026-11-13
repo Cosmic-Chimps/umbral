@@ -79,6 +79,7 @@
     <Compile Include="MetaTests.fs" />
     <Compile Include="LogRedactionTests.fs" />
     <Compile Include="OidcConnectorTests.fs" />
+    <Compile Include="OidcEmailTrustSignInTests.fs" />
     <Compile Include="CsrfTests.fs" />
     <Compile Include="RestartTests.fs" />
     <Compile Include="IdleMemoryTests.fs" />

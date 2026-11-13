@@ -109,6 +109,10 @@ let anyListSet (config: Database.DbConfig) : Task<bool> =
 /// here, so none of them can read the rule differently.
 ///
 /// - a connector that exists: its rule (its own list, else the instance's);
+/// - a connector that exists but does not trust its provider's emails
+///   (specs/017): the same rule, judged as if the session remembered no verified
+///   domain, so a person admitted while the trust was on is refused once it is
+///   turned off, wherever a rule applies, and goes on where none does;
 /// - a connector that has since been deleted: the instance list alone. The
 ///   authorize and token endpoints refuse a deleted connector before they get
 ///   here (`ConnectorStore.recheckKind`, task s1ug), so this branch is the
@@ -129,7 +133,20 @@ let recheck (config: Database.DbConfig) (connectorSlug: string option) (emailDom
                 | Some found -> ruleFor config found
                 | None -> instanceRule config
 
-            return checkDomain rule emailDomain
+            let trusted =
+                match connector with
+                | Some found -> Connectors.trustsProviderEmail found
+                | None -> true
+
+            if trusted then
+                return checkDomain rule emailDomain
+            else
+                // The session has an address; it is no longer verified. Said as
+                // such in the log, not as "no email".
+                return
+                    match checkDomain rule None with
+                    | Refused(level, _) -> Refused(level, EmailNotVerified)
+                    | decision -> decision
         | None ->
             let! any = anyListSet config
             return if any then Refused(Instance, NoEmail) else Admitted
