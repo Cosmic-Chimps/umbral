@@ -92,3 +92,30 @@ This is also the right home for the code review's N1. The troubleshooting entry 
 3. **The delete confirmation (optional).** It stays true. If you want it to warn about apps,
    append: "Apps signed in through it must sign people in again." It is the operator's last
    look before the act, but it is not required.
+
+## Re-check at 2bb9aec (2026-11-13)
+
+**Clear to merge.** B1–B3 and nits 1–2 are fixed as suggested (`a521d07..2bb9aec`: code
+ed4a6ea, docs 2bb9aec). Nit 3 was skipped, which is fine: it was optional and the confirmation
+stays true.
+
+- **B1**: troubleshooting says "same user" only through the same provider (for OIDC, the same
+  issuer), and links to "How people are identified". Right.
+- **B2**: the changelog names a deleted connector or one whose name now belongs to another
+  provider, and says re-creating under the same name and provider carries sign-ins over. Right.
+  `recheckKind`'s comment now says the same and points to oidc.md.
+- **B3**: oidc.md has the paragraph, and troubleshooting links to its section
+  (`#the-issuer-and-the-identifier-cannot-be-changed`, heading at line 193). Right.
+- **N1, N2**: disabling is covered, and the full log details are given. Right.
+- **`reason=unrecorded`** (from the code review's N2): the detail is
+  `connector_changed;reason=unrecorded;stage=…` (`SecurityEvents.connectorChangedDetail`).
+  "No released version issued one" is true: the `umbral_connector` and `umbral_email_domain`
+  claims came in 2278490, which is in v0.1.0. The troubleshooting entry need not mention a reason
+  no released version can produce.
+- `check-links.py`: 385 links, all resolve. `changelog.sh check`: in order.
+
+One optional point, not a condition and older than this branch: who-can-sign-in.md (lines 44-47)
+still says "Sessions and refresh tokens created before you updated Umbral to this version do not
+record what was checked, so while a rule applies to them they are not accepted". By the same
+finding no released version created such tokens, and since ed4a6ea they are refused whether a
+rule applies or not. The sentence can go.
