@@ -978,15 +978,15 @@ let private appPane
                 if row.Declared then
                     Components.declaredPill t.DeclaredBadge ]
 
-          // Under the heading, before any section and before a refusal's notice,
-          // so it is seen first (spec 019, contracts/screens.md).
+          // Under the heading, before any section (spec 019, contracts/screens.md).
+          // A notice comes first: it answers what the operator just did.
           if row.Declared then
               (div(class' = "mt-6 space-y-3") {
-                  Components.declaredNote t.DeclaredAppNoteLead t.DeclaredAppNoteTail t.DeclaredNoteLink
-
                   match notice with
                   | Some code -> itemNotice ctx t row code
                   | None -> Fragment() :> HtmlElement
+
+                  Components.declaredNote t.DeclaredAppNoteLead t.DeclaredAppNoteTail t.DeclaredNoteLink
               })
               :> HtmlElement
           else

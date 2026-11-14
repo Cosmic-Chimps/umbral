@@ -136,13 +136,14 @@ let pane
               // shown once, and why nobody is offered this connector.
               (if declared || notice.IsSome || revealedLink.IsSome || offeredNowhere then
                    (div(class' = "mt-6 space-y-3") {
-                       // Spec 019: first, so it is seen before any section.
-                       if declared then
-                           Components.declaredNote t.DeclaredPasskeyNoteLead t.DeclaredPasskeyNoteTail t.DeclaredNoteLink
-
+                       // A notice first: it answers what the operator just did.
                        match notice with
                        | Some block -> block
                        | None -> Fragment() :> HtmlElement
+
+                       // Spec 019: then the declared note, before any section.
+                       if declared then
+                           Components.declaredNote t.DeclaredPasskeyNoteLead t.DeclaredPasskeyNoteTail t.DeclaredNoteLink
 
                        match revealedLink with
                        | Some link ->

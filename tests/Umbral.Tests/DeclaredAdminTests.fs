@@ -298,6 +298,8 @@ let ``every route that would change a declared app is refused and changes nothin
                 Assert.Contains("data-notice=\"app-declared\"", html)
                 Assert.Contains("um-alert-warning", html)
                 Assert.Contains("data-declared-note", html)
+                // The refusal answers what the operator just did: above the standing note.
+                Assert.True(html.IndexOf("data-notice=\"app-declared\"") < html.IndexOf("data-declared-note"))
             }))
 
 [<Fact>]
@@ -330,6 +332,7 @@ let ``every route that would change the declared passkey connector is refused an
                 let! html = operator.GetHtml $"{page}?msg=connector-declared"
                 Assert.Contains("data-notice=\"connector-declared\"", html)
                 Assert.Contains("um-alert-warning", html)
+                Assert.True(html.IndexOf("data-notice=\"connector-declared\"") < html.IndexOf("data-declared-note"))
             }))
 
 [<Fact>]
