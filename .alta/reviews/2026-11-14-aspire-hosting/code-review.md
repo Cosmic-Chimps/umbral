@@ -82,3 +82,28 @@ and the only sign is a skipped job.
 ## Re-check
 
 One re-check after B1 (and whichever nits are taken). I'll read only the diff since `0d972e6`.
+
+## Re-check at e43d016 (2026-11-14)
+
+**Clear to merge from the code and security side.** I read the diff since `0d972e6` for the
+package source and `release.yml`.
+
+- **B1, taken.** `WithPublicOrigin(string)` stores `uri.GetLeftPart(UriPartial.Authority)`, the form
+  Umbral reports as `iss`. `WithPublicOrigin_stores_the_issuer_form_Umbral_reports` checks
+  `https://Auth.Example.com:443/` → `https://auth.example.com`, that `:8443` is kept, and that
+  `http://LOCALHOST:80` → `http://localhost`, in both `UMBRAL__PUBLIC_ORIGIN` and `UMBRAL_ISSUER`.
+- **N1, taken:** the parameter origin's form is in the doc comment, `docs/run/aspire.md` and the
+  readme.
+- **N2, taken:** in run mode, a plain-http loopback origin on a port other than the resource's is
+  refused. The message names `AddUmbral(..., port: N)`, and
+  `Run_mode_refuses_a_localhost_origin_on_another_port` pins it.
+- **N3, taken:** the job always runs on `Cosmic-Chimps/umbral` and fails first with a message
+  naming `NUGET_USER`; a fork skips it. The variable reaches the step through `env`, not
+  interpolated into the script.
+
+Run here at `e43d016`: 41/41 package tests passed.
+
+**Before the first release that carries this job,** the maintainer's steps in `notes.md` (the
+trusted-publishing policy, the `nuget` environment, `NUGET_USER`) must be done. Otherwise that
+release's `nuget` job fails by design. The image and the deploy are separate jobs and are
+unaffected.
