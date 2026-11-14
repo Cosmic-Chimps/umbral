@@ -43,6 +43,15 @@ let ConnectorClaim = "connector"
 [<Literal>]
 let EmailDomainClaim = "email_domain"
 
+/// The credential this session was established with, as a reference
+/// (`Linking.credentialValue`): `link:<fingerprint>` after a provider sign-in,
+/// `passkey:<passkey row id>` after a passkey sign-in, sign-up or invitation.
+/// Lets a later check find out whether the user still holds it (specs/018
+/// FR-007). Opaque, never passed on to apps, and absent on a session from before
+/// that feature.
+[<Literal>]
+let CredentialClaim = "credential"
+
 let configure (options: CookieAuthenticationOptions) =
     options.Cookie.Name <- CookieName
     options.Cookie.HttpOnly <- true
@@ -73,7 +82,8 @@ let configure (options: CookieAuthenticationOptions) =
 /// Establish a session for a user who has just come back from a provider,
 /// through the connector `slug` of the given `kind`. `emailDomain` is the domain
 /// of the verified email that was checked at this sign-in, if there was one.
-let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) (emailDomain: string option) : Task =
+/// `credential` is the reference of the link or the passkey that signed in.
+let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) (emailDomain: string option) (credential: string option) : Task =
     let identity = ClaimsIdentity(Scheme)
     identity.AddClaim(Claim(ClaimTypes.NameIdentifier, userId))
     identity.AddClaim(Claim(IdpClaim, kind))
@@ -81,6 +91,10 @@ let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) (em
 
     match emailDomain with
     | Some domain -> identity.AddClaim(Claim(EmailDomainClaim, domain))
+    | None -> ()
+
+    match credential with
+    | Some value -> identity.AddClaim(Claim(CredentialClaim, value))
     | None -> ()
 
     // Every end-user session starts here, and only after every check passed
@@ -126,5 +140,12 @@ let currentConnector (principal: ClaimsPrincipal) =
 /// either way a rule that applies cannot admit it (specs/006 research R6).
 let currentEmailDomain (principal: ClaimsPrincipal) =
     match principal.FindFirst EmailDomainClaim with
+    | null -> None
+    | claim -> Some claim.Value
+
+/// The credential reference the session was established with (`link:<fp>` or
+/// `passkey:<id>`), None on a session from before specs/018.
+let currentCredential (principal: ClaimsPrincipal) =
+    match principal.FindFirst CredentialClaim with
     | null -> None
     | claim -> Some claim.Value

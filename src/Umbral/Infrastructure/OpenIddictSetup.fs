@@ -64,6 +64,13 @@ let ConnectorClaim = "umbral_connector"
 [<Literal>]
 let EmailDomainClaim = "umbral_email_domain"
 
+/// The credential reference of the session an authorization was built from
+/// (`link:<fingerprint>` or `passkey:<id>`, specs/018 FR-007), so the token
+/// endpoint can ask again whether the user still holds it. Given NO destination,
+/// like the two above: only in the encrypted code and refresh token.
+[<Literal>]
+let CredentialClaim = "umbral_credential"
+
 // ---------------------------------------------------------------------------
 // T105 — refusing `plain` PKCE
 //

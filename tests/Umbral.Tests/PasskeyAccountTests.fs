@@ -43,7 +43,8 @@ let private passkeyFor (userId: string) (id: string) (credential: byte array) : 
       Transports = [ "internal"; "hybrid" ]
       BackupEligible = Some true
       CreatedUtc = DateTimeOffset.UnixEpoch
-      LastUsedUtc = None }
+      LastUsedUtc = None
+      AddedVia = None }
 
 let private insert (app: Fixtures.TestApp) (passkey: Passkeys.Passkey) =
     task {

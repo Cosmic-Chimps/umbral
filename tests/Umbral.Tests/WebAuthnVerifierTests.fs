@@ -55,7 +55,8 @@ let private stored (userId: string) (registered: Registered) (signCount: uint32)
       Transports = registered.Transports
       BackupEligible = Some registered.BackupEligible
       CreatedUtc = DateTimeOffset.UnixEpoch
-      LastUsedUtc = None }
+      LastUsedUtc = None
+      AddedVia = None }
 
 /// A user, a verifier and an authenticator, and a registration made with
 /// `overrides`.
@@ -196,7 +197,8 @@ let ``garbage is a malformed sign-in`` () =
               Transports = []
               BackupEligible = None
               CreatedUtc = DateTimeOffset.UnixEpoch
-              LastUsedUtc = None }
+              LastUsedUtc = None
+              AddedVia = None }
 
         let! result = verifier.VerifyAssertion(json, element "[1]", passkey.PublicKey, passkey.SignCount, passkey.UserId)
         Assert.Equal(Error MalformedResponse, result)

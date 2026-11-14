@@ -33,7 +33,12 @@ type Passkey =
       /// the report.
       BackupEligible: bool option
       CreatedUtc: DateTimeOffset
-      LastUsedUtc: DateTimeOffset option }
+      LastUsedUtc: DateTimeOffset option
+      /// Specs/018 FR-007. The credential reference (`link:<fingerprint>` or
+      /// `passkey:<id>`) of the session that added this passkey on
+      /// `/account/passkeys`; None for a sign-up, an invitation, and a row from
+      /// before that feature.
+      AddedVia: string option }
 
 /// A passkey's own random id: 128 bits, base64url.
 let newId () : string = Ids.randomToken 16
@@ -41,7 +46,7 @@ let newId () : string = Ids.randomToken 16
 [<Literal>]
 let private Columns =
     "SELECT id, user_id, credential_id, public_key, sign_count, nickname, aaguid, transports,
-            backup_eligible, created_utc, last_used_utc FROM passkeys"
+            backup_eligible, created_utc, last_used_utc, added_via FROM passkeys"
 
 let private parseTime (text: string) =
     DateTimeOffset.Parse(text, Globalization.CultureInfo.InvariantCulture)
@@ -66,7 +71,8 @@ let private read (reader: SqliteDataReader) : Passkey =
         |> List.ofArray
       BackupEligible = if reader.IsDBNull 8 then None else Some(reader.GetInt32 8 = 1)
       CreatedUtc = parseTime (reader.GetString 9)
-      LastUsedUtc = if reader.IsDBNull 10 then None else Some(parseTime (reader.GetString 10)) }
+      LastUsedUtc = if reader.IsDBNull 10 then None else Some(parseTime (reader.GetString 10))
+      AddedVia = if reader.IsDBNull 11 then None else Some(reader.GetString 11) }
 
 let private query (config: Database.DbConfig) (where: string) (parameters: (string * obj) list) =
     task {
@@ -157,9 +163,9 @@ let insertIn
         command.CommandText <-
             "INSERT INTO passkeys
                  (id, user_id, credential_id, public_key, sign_count, nickname, aaguid, transports,
-                  backup_eligible, created_utc, last_used_utc)
+                  backup_eligible, created_utc, last_used_utc, added_via)
              VALUES (@id, @userId, @credentialId, @publicKey, @signCount, @nickname, @aaguid, @transports,
-                     @backupEligible, @now, NULL)"
+                     @backupEligible, @now, NULL, @addedVia)"
 
         command.Parameters.AddWithValue("@id", passkey.Id) |> ignore
         command.Parameters.AddWithValue("@userId", passkey.UserId) |> ignore
@@ -182,6 +188,14 @@ let insertIn
             "@backupEligible",
             (match passkey.BackupEligible with
              | Some eligible -> box (if eligible then 1 else 0)
+             | None -> box DBNull.Value)
+        )
+        |> ignore
+
+        command.Parameters.AddWithValue(
+            "@addedVia",
+            (match passkey.AddedVia with
+             | Some via -> box via
              | None -> box DBNull.Value)
         )
         |> ignore

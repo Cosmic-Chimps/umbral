@@ -61,8 +61,16 @@ let finishSignIn
             Connectors.trustsProviderEmail connector
             && (current |> Option.forall Connectors.trustsProviderEmail)
 
+        // Specs/018 FR-006. A provider account the operator removed from a
+        // user reads as unverified too, whatever the connector's trust, for
+        // good: the operator judged that its claim to the address was wrong,
+        // and its return must never join a verified address again. The
+        // subject is the one `UserStore.resolve` keys links by
+        // (`profile.Subject` as is).
+        let! removed = UserStore.isRemoved config connector.Kind.Value profile.Subject
+
         let profile =
-            if trusted then
+            if trusted && not removed then
                 profile
             else
                 { profile with EmailVerified = false }
@@ -119,7 +127,13 @@ let finishSignIn
         // sign-in, recorded below once it has actually succeeded — never
         // here, where a disabled user would still be logged as a success.
         match resolution.Decision with
-        | Umbral.Domains.Linking.CreateNew -> do! recordFor userId Success UserCreated None
+        | Umbral.Domains.Linking.CreateNew ->
+            do!
+                recordFor
+                    userId
+                    Success
+                    UserCreated
+                    (if removed then Some "reason=link_removed" else None)
         | Umbral.Domains.Linking.LinkToExisting _ -> do! recordFor userId Success UserLinked None
         | Umbral.Domains.Linking.ExistingLink _ -> ()
 
@@ -136,7 +150,18 @@ let finishSignIn
         let admittedDomain =
             if profile.EmailVerified then EmailDomains.domainOf profile.Email else None
 
-        do! Sessions.signIn ctx resolution.User.Id connector.Kind.Value connector.Slug admittedDomain
+        let credential =
+            Linking.LinkCredential(Linking.fingerprint connector.Kind.Value profile.Subject)
+            |> Linking.credentialValue
+
+        do!
+            Sessions.signIn
+                ctx
+                resolution.User.Id
+                connector.Kind.Value
+                connector.Slug
+                admittedDomain
+                (Some credential)
         do! recordFor userId Success SignInSucceeded None
 
         // Back to the authorization request this all started for, replayed

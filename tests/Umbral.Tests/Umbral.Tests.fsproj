@@ -82,6 +82,7 @@
     <Compile Include="OidcConnectorTests.fs" />
     <Compile Include="OidcEmailTrustSignInTests.fs" />
     <Compile Include="OidcEmailTrustAdminTests.fs" />
+    <Compile Include="UserLinkSignInTests.fs" />
     <Compile Include="CsrfTests.fs" />
     <Compile Include="RestartTests.fs" />
     <Compile Include="IdleMemoryTests.fs" />

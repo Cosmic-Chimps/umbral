@@ -77,7 +77,11 @@ let destinationsFor (claim: Claim) : string seq =
     // before the default below, which would send an unknown claim to the access
     // token: they stay in the encrypted code and refresh token and nowhere an app
     // can read them (specs/006 R7).
-    | t when t = OpenIddictSetup.ConnectorClaim || t = OpenIddictSetup.EmailDomainClaim -> Seq.empty
+    | t when
+        t = OpenIddictSetup.ConnectorClaim
+        || t = OpenIddictSetup.EmailDomainClaim
+        || t = OpenIddictSetup.CredentialClaim
+        -> Seq.empty
 
     | _ -> Seq.singleton Destinations.AccessToken
 
@@ -126,7 +130,7 @@ let setProfileClaims (identity: ClaimsIdentity) (user: Users.User) (idp: string)
     | Some url -> identity.SetClaim(Claims.Profile, url) |> ignore
     | None -> ()
 
-let private buildIdentity (user: Users.User) (idp: string) (connector: string) (emailDomain: string option) (scopes: string seq) =
+let private buildIdentity (user: Users.User) (idp: string) (connector: string) (emailDomain: string option) (credential: string option) (scopes: string seq) =
     // A ClaimsIdentity with a null authentication type is NOT authenticated and
     // SignInAsync rejects it. This constant is the thing that makes it valid.
     let identity =
@@ -144,6 +148,10 @@ let private buildIdentity (user: Users.User) (idp: string) (connector: string) (
 
     match emailDomain with
     | Some domain -> identity.SetClaim(OpenIddictSetup.EmailDomainClaim, domain) |> ignore
+    | None -> ()
+
+    match credential with
+    | Some value -> identity.SetClaim(OpenIddictSetup.CredentialClaim, value) |> ignore
     | None -> ()
 
     identity.SetScopes scopes |> ignore
@@ -391,6 +399,7 @@ let handler: EndpointHandler =
                                 idp
                                 (Sessions.currentConnector principal |> Option.defaultValue idp)
                                 (Sessions.currentEmailDomain principal)
+                                (Sessions.currentCredential principal)
                                 (request.GetScopes())
                         let! rawApplicationId = applications.GetIdAsync application
 

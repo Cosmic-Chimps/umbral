@@ -265,7 +265,14 @@ let assertion: EndpointHandler =
                 else
 
                 do! Store.recordUse config clock stored.Id newCount
-                do! Sessions.signIn ctx user.Id Slug Slug None
+                do!
+                    Sessions.signIn
+                        ctx
+                        user.Id
+                        Slug
+                        Slug
+                        None
+                        (Some(Linking.credentialValue (Linking.PasskeyCredential stored.Id)))
 
                 do!
                     record
@@ -481,14 +488,17 @@ let registrationOptions: EndpointHandler =
 /// The one transaction of a registration: the user (for a new person), the
 /// passkey, the invitation spent, and the events. Nothing is kept unless all of
 /// it is. A credential id some other registration took first, or an invitation
-/// some other redemption spent first, rolls it all back.
+/// some other redemption spent first, rolls it all back. `addedVia` is the
+/// credential reference of the session that adds the passkey (specs/018
+/// FR-007), None for any purpose but `Add`. Returns the new passkey's id.
 let private saveRegistration
     (ctx: HttpContext)
     (ceremony: Store.Ceremony)
     (userId: string)
     (isNewUser: bool)
     (registered: WebAuthn.Registered)
-    : Task<Result<unit, Reason>> =
+    (addedVia: string option)
+    : Task<Result<string, Reason>> =
     task {
         let config = ctx.GetService<Database.DbConfig>()
         let clock = ctx.GetService<TimeProvider>()
@@ -509,7 +519,8 @@ let private saveRegistration
               Transports = registered.Transports
               BackupEligible = Some registered.BackupEligible
               CreatedUtc = clock.GetUtcNow()
-              LastUsedUtc = None }
+              LastUsedUtc = None
+              AddedVia = addedVia }
 
         use! connection = Database.openConnection config
         use transaction = connection.BeginTransaction()
@@ -547,7 +558,7 @@ let private saveRegistration
                         (evt PasskeyRegistered (Some $"via={ceremony.Purpose.Value}"))
 
                 do! transaction.CommitAsync()
-                return Ok()
+                return Ok passkey.Id
         with error when Store.isCredentialIdConflict error ->
             do! transaction.RollbackAsync()
             return Error CredentialNotUnique
@@ -604,17 +615,34 @@ let registration: EndpointHandler =
                 | _ when count >= Rules.MaxPerUser -> do! refuse (Some userId) PasskeyLimitReached NoticeRegistration
                 | _ ->
 
-                match! saveRegistration ctx ceremony userId existing.IsNone registered with
+                // Only a passkey added on /account/passkeys records how it got
+                // there: the reference of THIS request's session, the one that
+                // finishes the ceremony (the options request was answered by the
+                // same session, checked above).
+                let addedVia =
+                    if ceremony.Purpose = Store.Add && session.Succeeded then
+                        Option.ofObj session.Principal |> Option.bind Sessions.currentCredential
+                    else
+                        None
+
+                match! saveRegistration ctx ceremony userId existing.IsNone registered addedVia with
                 | Error reason ->
                     let notice =
                         if reason = InvitationUsed then NoticeInvitation else NoticeRegistration
 
                     do! refuse (Some userId) reason notice
-                | Ok() ->
+                | Ok passkeyId ->
                     // Adding to an account that is already signed in changes no
                     // session; the others start one through this connector.
                     if ceremony.Purpose <> Store.Add then
-                        do! Sessions.signIn ctx userId Slug Slug None
+                        do!
+                            Sessions.signIn
+                                ctx
+                                userId
+                                Slug
+                                Slug
+                                None
+                                (Some(Linking.credentialValue (Linking.PasskeyCredential passkeyId)))
 
                     let redirect =
                         match ceremony.Purpose, ceremony.ReturnUrl with
