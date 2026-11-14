@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-14
 
-**Status**: Security decisions cleared by the code reviewer with C1 and C2 (a962660); Declared marking answered by the designer; ready for the build
+**Status**: Implemented; code (a77e9a8), design (4048897) and documentation (b6cb3e9, re-check) reviews clear on 2026-11-14; full suite 3075 green at 1911d94; walk green on the :dev image; not merged
 
 **Input**: Task `2026-11-14-aspire-integration-declare-apps-from-the-apphost-a5ap` (Aspire integration, Tier 2).
 
@@ -275,6 +275,10 @@ change only when the compose file does.
   variable must be gone. From `spa` to `web`: the secret variable is required.
 - A declared app deleted outside Umbral's screens (for example a restored
   backup) is created again at the next start.
+- Two instances starting together on one data directory (against the
+  documented rule of one instance per directory) both plan before either
+  commits; the second's insert of an app fails on OpenIddict's unique client
+  ID and stops that start (C1), writing nothing.
 
 ## Requirements
 

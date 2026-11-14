@@ -27,4 +27,4 @@ D1 to D11 cleared by the code reviewer with C1 and C2 (a962660); `contracts/scre
 
 - [x] **T006** Constitution 3.2.0 (Principle V paragraph, sync report); docs (FR-013, including: secrets are plain environment variables; claim before you publish with open sign-up; PRODUCT.md's "one place" sentence); changelog fragment with the Upgrade note (schema 16; a declaration is off unless given).
 - [x] **T007** Captures of the Declared marking in `.alta/reviews/2026-11-14-declared-apps/` with `notes.md`.
-- [ ] **T008** Full suite green; code, design and documentation reviews; one re-check each.
+- [x] **T008** Full suite green; code, design and documentation reviews; one re-check each.
