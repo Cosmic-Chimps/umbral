@@ -249,7 +249,7 @@ If you declare apps, publishing needs explicit redirect URIs too: see
 [Redirect URIs](#redirect-uris). The declaration is plain JSON, so in a publish
 manifest its value starts with `{`, which a tool that reads `{…}` in manifest
 values as an Aspire expression may misread and fail the deploy. If yours does,
-write the environment by hand there, as in the [settings reference](settings.md).
+write the environment by hand there, as in [Declare apps without Aspire](settings.md#declare-apps-without-aspire).
 
 In publish mode the package never sets `ASPNETCORE_ENVIRONMENT=Development` or
 `UMBRAL__INSECURE_ALLOW_HTTP`. Publishing (`aspire publish` with a compute
