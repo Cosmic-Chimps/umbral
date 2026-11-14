@@ -33,15 +33,16 @@ stub providers. No new package (`System.Security.Cryptography.SHA256`).
 
 | File | Change |
 | --- | --- |
-| `Domains/Linking.fs` | `fingerprint` |
-| `Infrastructure/Database.fs` | `removed_links` in `schema`, step 15, `SchemaVersion = 15` |
-| `Infrastructure/UserStore.fs` | `LinkedAccount`, `linkedAccountDetails`, `RemoveLinkOutcome`, `removeLink`, `isRemoved`, `linkStillHeld` |
-| `Infrastructure/SecurityEvents.fs` | `UserUnlinked` / `user_unlinked` in the union, `Value` and `allEventTypes`; `linkRemovedDetail stage` |
-| `Infrastructure/Sessions.fs` | `LinkClaim`, `signIn` gains `link`, `currentLink` |
-| `Infrastructure/OpenIddictSetup.fs` | `LinkClaim = "umbral_link"` |
-| `Handlers/Connect/Callback.fs` | `finishSignIn`: the removed-account clamp, `user_created` detail, the session's link |
-| `Handlers/Passkeys/Ceremonies.fs` | `Sessions.signIn ... None` |
-| `Handlers/Connect/Authorize.fs` | `buildIdentity` copies the link; `destinationsFor`; the FR-009 re-check |
+| `Domains/Linking.fs` | `fingerprint`, `CredentialReference`, `credentialValue`, `parseCredential` |
+| `Infrastructure/Database.fs` | `removed_links` and `passkeys.added_via` in `schema`, step 15, `SchemaVersion = 15` |
+| `Infrastructure/UserStore.fs` | `LinkedAccount`, `linkedAccountDetails`, `RemoveLinkOutcome`, `removeLink` (with the transitive passkey removal), `isRemoved`, `credentialStillHeld` |
+| `Infrastructure/SecurityEvents.fs` | `UserUnlinked` / `user_unlinked` in the union, `Value` and `allEventTypes`; `credentialRemovedDetail stage` |
+| `Infrastructure/Sessions.fs` | `CredentialClaim`, `signIn` gains `credential`, `currentCredential` |
+| `Infrastructure/OpenIddictSetup.fs` | `CredentialClaim = "umbral_credential"` |
+| `Infrastructure/Passkeys.fs` | `Passkey.AddedVia`, read and written (`insertIn`) |
+| `Handlers/Connect/Callback.fs` | `finishSignIn`: the removed-account clamp, `user_created` detail, the session's credential |
+| `Handlers/Passkeys/Ceremonies.fs` | the passkey's reference in `Sessions.signIn`; `added_via` for purpose `Add` |
+| `Handlers/Connect/Authorize.fs` | `buildIdentity` copies the credential; `destinationsFor`; the FR-009 re-check |
 | `Handlers/Connect/Token.fs` | the FR-009 re-check |
 | `Handlers/Admin/Users.fs` | the list on the card; `Row.Links` |
 | `Handlers/Admin/UserLinks.fs` (new) | the POST handler; in the fsproj after `UserDelete.fs`, the endpoint in `Program.fs` |

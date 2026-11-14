@@ -63,22 +63,35 @@ the removal would not do what it says.
    that user, the stranger's own user would regain a verified copy of the real
    person's address, and the real person's next new provider would join the
    stranger.
-2. **Sessions and refresh tokens are judged by the link they were made
-   through.** A session cookie lasts 14 sliding days and a refresh token as long
-   as an app keeps using it, and neither names the provider account today: the
-   stranger would go on signing in as the user. The session gains a `link` claim
-   and the authorization (so every code and refresh token) a private
-   `umbral_link` claim: an opaque fingerprint of the provider account. The
-   authorize and token endpoints refuse a session or a token whose link is no
-   longer one of the user's, as they refuse one whose connector was deleted
-   (task s1ug). Sessions and tokens issued before this version carry no
-   fingerprint: they are judged by their connector instead (the user must still
-   hold a link of that connector's kind, and for OpenID Connect of its issuer).
-   The real person's own sessions and tokens are untouched.
-3. **"The last way in" counts passkeys.** A user with one linked provider
-   account and a passkey may lose the link; the passkey is still a way in. This
-   is the rule a person removing their own passkey already meets
-   (`Passkeys.removeOwnIfNotLast`), from the other side.
+2. **Sessions and refresh tokens are judged by the credential they were made
+   with** (a provider link or a passkey). A session cookie lasts 14 sliding
+   days and a refresh token as long as an app keeps using it, and neither names
+   the credential today: the stranger would go on signing in as the user. Every
+   end-user session gains a `credential` claim and the authorization (so every
+   code and refresh token) a private `umbral_credential` claim, holding a
+   credential reference: `link:<fingerprint of the provider account>` for a
+   provider sign-in, `passkey:<passkey row id>` for a passkey sign-in, sign-up
+   or invitation. The authorize and token endpoints refuse a session or a token
+   whose credential is no longer one of the user's, as they refuse one whose
+   connector was deleted (task s1ug). Sessions and tokens issued before this
+   version carry no reference: they are judged by their connector instead (the
+   user must still hold a link of that connector's kind, and for OpenID Connect
+   of its issuer; a passkey one is admitted). The real person's own sessions
+   and tokens are untouched. A side effect, wanted: removing a passkey (by the
+   operator or its owner) now also ends the sessions and refresh tokens made
+   with it, which spec 008 and 011 did not.
+3. **The stranger's passkeys go with the link** (code review before the build,
+   blocking). Signed in as the user, the stranger can add a passkey of their
+   own on `/account/passkeys`; removing only the link would leave them that way
+   in, and would even count it as the user's "other way in". So each passkey
+   records the credential reference of the session that added it
+   (`passkeys.added_via`; NULL for an invitation, a sign-up and every passkey
+   from before this version). The removal deletes, in the same transaction, the
+   passkeys added through the removed link and, transitively, those added
+   through them. **The last way in** is then counted on what remains: another
+   link or a remaining passkey. Passkeys with no recorded origin that were added
+   after the link was made are shown in the confirmation with their dates, so
+   the operator can judge them with the existing passkey removal.
 4. **It cannot be undone.** There is no screen to trust a removed account
    again. The confirmation says so.
 
@@ -91,8 +104,20 @@ the removal would not do what it says.
   ghost with a confirm, and a sentence added to DESIGN.md's One Red Fill rule
   for row actions that cannot be undone; the refusals in Warning alerts (and
   `user-not-found` with them). Words in `contracts/screens.md`.
-- **Security decisions 1 to 4**: sent to the code reviewer (`umbral`) before
-  the build; answer pending.
+- **Security decisions** (`umbral`, code reviewer, before the build): 1, 2
+  and 4 sound. Blocking on 3: the stranger can add a passkey of their own while
+  signed in as the user, and passkey sessions carried no credential claim.
+  Answered by decision 3 as now written (`added_via`, the transitive removal,
+  last way in counted on what remains) and by widening decision 2 to every
+  end-user session (`link:` or `passkey:` references). Taken from the same
+  review: name the refresh race and the access-token window as known limits;
+  the fingerprint is opaque, not secret; the docs say what a removal costs the
+  real owner if it was the wrong link, and to tell the app owners.
+- **UserInfo** (reviewer's suggestion, not taken): giving the credential claim
+  the access-token destination would let an app read it at
+  `/connect/introspect`, which returns an access token's claims to its
+  client. An access token already issued stays valid until it expires (one
+  hour): a known limit, as after **Disable** and in task s1ug.
 
 ## User Scenarios & Testing
 
@@ -109,16 +134,19 @@ forge, and removes the forge link.
 1. Alice's card lists the forge link with its linked date; pressing its remove
    button asks for confirmation; confirming removes it, and the card shows
    GitHub only, with the notice "Link removed."
-2. The stranger's next authorization with their existing Umbral session is
+2. The passkey the stranger added while signed in through the forge is removed
+   with the link, and so is any passkey added while signed in with that one.
+   Its sessions and refresh tokens are refused too.
+3. The stranger's next authorization with their existing Umbral session is
    refused and they are sent to the sign-in page; their app's refresh token is
    refused with `invalid_grant`.
-3. The stranger signs in through the forge again: a new user is created with
+4. The stranger signs in through the forge again: a new user is created with
    Alice's address stored unverified; Alice's user is unchanged; apps see a new
    `sub` for the stranger and the same one for Alice.
-4. Alice signs in with GitHub as before, with the same `sub`; her session from
+5. Alice signs in with GitHub as before, with the same `sub`; her session from
    before the removal still works.
-5. The security log has `user_unlinked` (operator, Alice's id, the forge's
-   slug, `kind=oidc`), then `sign_in_failed` with `link_removed;stage=authorize`
+6. The security log has `user_unlinked` (operator, Alice's id, the forge's
+   slug, `kind=oidc;passkeys=1`), then `sign_in_failed` with `credential_removed;stage=authorize`
    for the stranger's session, then `user_created` with `reason=link_removed`.
 
 ### User Story 2: The provider is still trusted (Priority: P1)
@@ -130,11 +158,13 @@ is verified.
 
 ### User Story 3: The last way in (Priority: P1)
 
-Bob has one linked provider account and no passkey. His card shows no remove
-button for it. A crafted POST is refused with the notice "That link is Bob's
-only way to sign in. Delete the user instead, or invite them to add a passkey
-first." (wording for the designer). Carol has one linked account and a
-passkey: her card shows the remove button.
+Bob has one linked provider account and no passkey. His card shows no list. A
+crafted POST is refused with the notice "That is Bob's only way to sign in, so
+it was not removed. Delete the user, or invite them to add a passkey first."
+Carol has one linked account and a passkey added through an invitation: her
+card shows the list, and the removal goes through. Erin has one linked account
+and a passkey added while signed in through it: the removal would take both, so
+it is refused as her last way in.
 
 ### User Story 4: The flag follows (Priority: P2)
 
@@ -148,22 +178,35 @@ anyone by email until a provider that verifies it signs him in. The event says
 - **Two accounts of one provider** linked to one user (two Microsoft tenants):
   each is its own row with its own remove button; the linked and last-used
   dates tell them apart. Sessions made through the other one are untouched
-  (decision 2's fingerprint). A session from before this version through that
+  (decision 2's reference). A session from before this version through that
   provider survives, because its connector still backs a link: a known limit.
+- **Passkeys from before this version** have no recorded origin, so they stay.
+  Those added after the link was made are named in the confirmation with their
+  dates; the operator removes them with the card's passkey Remove if they are
+  not the real person's. A claimless passkey session from before this version
+  is admitted: a known limit.
+- **A refresh already past the check** when the removal commits gets one more
+  token, refused at its next use: a known limit.
+- **Removing a passkey** (operator or owner) now ends the sessions and refresh
+  tokens made with it, the owner's current one included if it is that passkey.
+  It does not remove the passkeys added through it (only a link removal is
+  transitive).
 - **A removal while the stranger is mid-sign-in**: if their callback resolves
   after the removal, the record already applies (story 1.3); if before, the
   session it makes carries the removed link and the authorize it redirects to
   refuses it.
-- **The link was already removed** (two tabs): "That link was already removed.
-  Reload the page to see the user's current links."
+- **The link was already removed** (two tabs): "That link was already removed."
 - **The user was deleted meanwhile**: the existing `user-not-found` notice.
 - **A disabled user**: links can be removed; nothing else changes.
 - **The user's display name and picture** are whatever the last sign-in
   brought, possibly the stranger's; the real person's next sign-in refreshes
   them. Not changed by the removal.
 - **An access token already issued** to the stranger lasts until it expires,
-  as after **Disable** (OpenIddict's default, one hour). The app's next refresh
-  is refused.
+  as after **Disable** (OpenIddict's default, one hour); userinfo serves it
+  until then. The app's next refresh is refused.
+- **The wrong link removed** (the real person's): there is no way back. Their
+  next sign-in through that account makes a new user with the address
+  unverified, and apps see a new `sub`. The confirmation and the docs say so.
 - **A link of a connector that was deleted**: still listed (labelled by the
   issuer's host for OpenID Connect, as today) and removable.
 - **The provider account signs in again after its new user is deleted**: it
@@ -173,20 +216,25 @@ anyone by email until a provider that verifies it signs him in. The event says
 
 ### Functional Requirements
 
-- **FR-001**: Each linked provider account on a user's card is listed with its
-  label (as today's pill), its linked date and its last-used date, and a remove
-  button, unless it is the user's last way in (one link and no passkey). The
-  layout and words are the designer's (`contracts/screens.md`).
+- **FR-001**: When a user has two or more ways in (links plus passkeys), the
+  card lists each linked provider account with its label (as today's pill), its
+  linked date and its last-used date, and a remove button. The layout and words
+  are the designer's (`contracts/screens.md`).
 - **FR-002**: The button posts to `/admin/users/{userId}/links/{fingerprint}/remove`
   with the antiforgery token, behind a confirmation naming the provider and the
-  user and saying it cannot be undone. The fingerprint is the opaque value of
-  FR-008; the page never carries a provider's subject.
-- **FR-003**: The removal is one transaction: delete the link only if the user
-  keeps a way in (another link or a passkey), in the DELETE's own condition so
-  two removals cannot both succeed; record the provider account in
+  user and saying it cannot be undone. The confirmation also says how many
+  passkeys go with the link (decision 3), and names, with their added dates,
+  the user's passkeys with no recorded origin added after the link was made.
+  The fingerprint is the opaque value of FR-008; the page never carries a
+  provider's subject.
+- **FR-003**: The removal is one transaction: delete the passkeys added through
+  the link, transitively (a recursive query on `added_via`); delete the link
+  only if the user keeps a way in (another link or a remaining passkey), in the
+  DELETE's own condition so two removals cannot both succeed, and roll
+  everything back when it does not; record the provider account in
   `removed_links`; set `email_verified = 0` on the user where
   `Database.UnbackedEmailVerified` holds. Outcomes: removed (with whether the
-  flag fell), last way in, not found.
+  flag fell and how many passkeys went), last way in, not found.
 - **FR-004**: The handler requires the operator session (`AdminAuth.requireOperator`)
   and validates the antiforgery token before reading the form. It redirects to
   `/admin/users` with a notice: `user-link-removed`, `user-link-last`,
@@ -195,36 +243,44 @@ anyone by email until a provider that verifies it signs him in. The event says
   success, the user's id, the connector slug (the connector the screen labels
   the link with: for OpenID Connect the one holding its issuer, for another
   kind the only connector of that kind; none when there is none or more than
-  one), detail `kind=<kind>`, with `;lowered=1` when the flag fell. Never the
+  one), detail `kind=<kind>;passkeys=<n>`, with `;lowered=1` when the flag fell. Never the
   subject, the address or a display name. Refusals record nothing (they change
   nothing, like the passkey removal's).
 - **FR-006**: `Callback.finishSignIn` treats a provider account recorded in
   `removed_links` as unverified, at the same place as spec 017's trust clamp
   and before everything that reads the profile. A user created by such a
   sign-in is recorded as `user_created` with detail `reason=link_removed`.
-- **FR-007**: The end-user session made by a provider sign-in carries a `link`
-  claim, and the authorization built from it a private `umbral_link` claim with
-  no destination (never in an access token, id token or userinfo). Passkey
-  sessions carry none.
+- **FR-007**: Every end-user session carries a `credential` claim with a
+  credential reference: `link:<fingerprint>` after a provider sign-in,
+  `passkey:<passkey row id>` after a passkey sign-in, sign-up or invitation.
+  The authorization built from it carries a private `umbral_credential` claim
+  with the same value and no destination (never in an access token, id token,
+  userinfo or introspection response). A passkey added on `/account/passkeys`
+  stores the reference of the session that added it in `passkeys.added_via`.
 - **FR-008**: The fingerprint is the unpadded base64url SHA-256 of the
   provider kind, a line feed and the provider subject. Pure, in `Domains`.
+  It is opaque, not secret: the subject is often public.
 - **FR-009**: The authorize endpoint (on a remembered session) and the token
   endpoint (on a code or refresh token) refuse, after the connector-kind
-  re-check and before the email domain rules: with a fingerprint, when the
-  user holds no link with it; without one, when the connector is not the
-  passkey connector and the user holds no link of its kind (for `oidc`, whose
-  subject starts with the connector's issuer and `#`). The refusal is the
-  existing one of each endpoint (session signed out and the request treated as
-  signed out; `invalid_grant`), recorded as `sign_in_failed` with detail
-  `link_removed;stage=authorize|token`.
+  re-check and before the email domain rules: with a reference, when the user
+  holds no link with that fingerprint or no passkey with that id; without one,
+  when the connector is not the passkey connector and the user holds no link
+  of its kind (for `oidc`, whose subject starts with the connector's issuer
+  and `#`). The refusal is the existing one of each endpoint (session signed
+  out and the request treated as signed out; `invalid_grant`), recorded as
+  `sign_in_failed` with detail `credential_removed;stage=authorize|token`.
 - **FR-010**: Schema version 15 adds `removed_links (provider_kind,
   provider_subject, removed_utc)`, primary key `(provider_kind,
-  provider_subject)`, no foreign key. Nothing is rewritten.
+  provider_subject)`, no foreign key, and `passkeys.added_via TEXT NULL`.
+  Nothing is rewritten.
 - **FR-011**: Documentation: `docs/connectors/oidc.md` "Changing the email
   setting later" points to the removal as the remedy and keeps Disable and
   Delete as the blunt ones; `docs/integrate.md` where it lists what the Users
   screen does; `docs/run/backup.md` schema 15; a changelog fragment (Added,
-  Security, Upgrade).
+  Security, Upgrade). The docs say what a wrong removal costs the real owner,
+  that removing a passkey now ends its sessions, and that the stranger may
+  already have data at apps under the user's `sub`, which only the app owners
+  can deal with.
 
 ### Key Entities
 
@@ -236,8 +292,9 @@ anyone by email until a provider that verifies it signs him in. The event says
 - **SC-001**: After a removal, the removed provider account's next sign-in
   creates a new user and never joins the user it was removed from, whether or
   not its provider still says the address is verified.
-- **SC-002**: The removed account's existing session and refresh tokens are
-  refused at their next use; the remaining links' sessions and tokens are not.
+- **SC-002**: The removed account's existing session and refresh tokens, and
+  those of the passkeys added through it, are refused at their next use; the
+  remaining credentials' sessions and tokens are not.
 - **SC-003**: No request removes a user's last way in.
 - **SC-004**: The security log shows who removed what kind of link from whom,
   with no subject or address.
@@ -248,4 +305,5 @@ anyone by email until a provider that verifies it signs him in. The event says
 - Moving a link to another user, or joining two users.
 - An end user removing their own links.
 - Changing the user's stored address, name or picture.
-- Removing passkeys (the card already does).
+- Removing passkeys on their own (the card already does), or making that
+  removal transitive.
