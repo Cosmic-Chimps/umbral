@@ -84,8 +84,15 @@ the removal would not do what it says.
 
 ## Clarifications
 
-Open; to be answered by the designer (screen) and the code reviewer (decisions
-above) before the build. See `contracts/screens.md` for the questions.
+### Session 2026-11-14
+
+- **Screen** (`umbral-designer`): a "Linked accounts" list above the passkeys,
+  drawn only when a link can be removed, with the dates; "Remove link" as a red
+  ghost with a confirm, and a sentence added to DESIGN.md's One Red Fill rule
+  for row actions that cannot be undone; the refusals in Warning alerts (and
+  `user-not-found` with them). Words in `contracts/screens.md`.
+- **Security decisions 1 to 4**: sent to the code reviewer (`umbral`) before
+  the build; answer pending.
 
 ## User Scenarios & Testing
 

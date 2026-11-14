@@ -243,7 +243,9 @@ outside this rule is the Apple connector's (see Buttons).
 **The One Red Fill Rule.** On any card, at most one button has the red `danger`
 fill, and it is the action that cannot be undone (Delete app, Delete connector).
 A destructive action that can be undone, such as removing a logo that can be
-uploaded again, is a ghost button in the error colour.
+uploaded again, is a ghost button in the error colour. A destructive action on
+one row of a list is a ghost in the error colour with a confirm, whether or not
+it can be undone; the red fill is the card's own deletion.
 
 **The Contrast Floor.** Spec 007 FR-007: every text at 4.5:1 or better against
 what it sits on, every input border and focus indicator at 3:1 or better, in
