@@ -51,7 +51,9 @@ let codeChallengeS256 (verifier: string) =
     |> SHA256.HashData
     |> toBase64Url
 
-let private slugPattern = Regex(@"^[a-z0-9-]{1,32}$", RegexOptions.Compiled)
+// `\z`, not `$`: in .NET `$` also matches before a final newline, so "web\n"
+// would pass.
+let private slugPattern = Regex(@"^[a-z0-9-]{1,32}\z", RegexOptions.Compiled)
 
 /// A connector slug. It appears in `/connect/{slug}/callback`, which the
 /// operator has registered in the provider's console, so it is immutable in

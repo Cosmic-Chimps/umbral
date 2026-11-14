@@ -56,6 +56,7 @@
     <Compile Include="Domains/Fediverse.fs" />
     <Compile Include="Domains/Bluesky.fs" />
     <Compile Include="Domains/RedirectUris.fs" />
+    <Compile Include="Domains/Declaration.fs" />
     <Compile Include="Domains/Branding.fs" />
     <Compile Include="Domains/PngLogo.fs" />
     <Compile Include="Domains/AppleLogo.fs" />

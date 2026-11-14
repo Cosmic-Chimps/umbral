@@ -57,6 +57,7 @@ let ``the code challenge matches the RFC 7636 appendix B vector`` () =
 [<InlineData("dis_cord", false)>]
 [<InlineData("dis/cord", false)>]
 [<InlineData("../etc/passwd", false)>]
+[<InlineData("discord\n", false)>]
 let ``slug validation`` (candidate: string) (expected: bool) =
     // A slug lands in a URL path, so path traversal and spaces must not pass.
     Assert.Equal(expected, isValidSlug candidate)
