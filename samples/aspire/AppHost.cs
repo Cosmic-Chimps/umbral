@@ -1,4 +1,5 @@
-// The Aspire sample: Umbral from its published image, next to the ASP.NET Core sample
+// The Aspire sample: Umbral, through the hosting package CosmicChimps.Aspire.Hosting.Umbral
+// (../../src/CosmicChimps.Aspire.Hosting.Umbral), next to the ASP.NET Core sample
 // (../aspnetcore), started together with `aspire run`. For a laptop. The ports are fixed
 // on purpose: Umbral's public origin is the issuer in every token and the sample's redirect
 // URI is registered against it, and both are exact addresses that Aspire's random ports
@@ -7,9 +8,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-const string UmbralImage = "ghcr.io/cosmic-chimps/umbral";
-// A pinned release, never "latest": the sample must not change under whoever runs it.
-const string UmbralTag = "0.11.0";
 const string VolumeName = "umbral-aspire-data";
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -21,21 +19,15 @@ var builder = DistributedApplication.CreateBuilder(args);
 var umbralPort = builder.Configuration.GetValue<int>("Umbral:Port", 8080);
 var samplePort = builder.Configuration.GetValue<int>("Sample:Port", 5000);
 
-// A plain string: an interpolated string handed to WithEnvironment becomes an Aspire reference expression.
+// Umbral's public origin in run mode with none given, as AddUmbral sets it; the steps below name it.
 var umbralOrigin = $"http://localhost:{umbralPort}";
 
-var umbral = builder.AddContainer("umbral", UmbralImage, UmbralTag)
-    // The host port is pinned and the origin is localhost: it is the issuer in every token,
-    // and the sample's redirect URI is registered against it once.
-    .WithHttpEndpoint(port: umbralPort, targetPort: 8080, name: "http")
-    .WithEnvironment("UMBRAL__PUBLIC_ORIGIN", umbralOrigin)
-    // The quick start's "plain http on localhost" pair. For a laptop only: never on a server.
-    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-    .WithEnvironment("UMBRAL__INSECURE_ALLOW_HTTP", "true")
+// The image is the package's version (the last release here), on the fixed port, with the
+// quick start's "plain http on localhost" pair, which run mode sets for a localhost origin.
+var umbral = builder.AddUmbral("umbral", port: umbralPort)
     // The operator credential, connectors, apps and signing keys. Wiping the volume means
     // claiming and registering again.
-    .WithVolume(VolumeName, "/data")
-    .WithHttpHealthCheck("/healthz");
+    .WithDataVolume(VolumeName);
 
 // The parameters are declared only once they are set, because an unset parameter would make
 // Aspire prompt for it. The sample is added only then too, because it refuses to start
@@ -52,7 +44,8 @@ if (!string.IsNullOrWhiteSpace(clientIdValue) && !string.IsNullOrWhiteSpace(clie
         // The sample reads PORT and listens there; the port is pinned because the redirect URI
         // registered in Umbral names it.
         .WithHttpEndpoint(port: samplePort, env: "PORT")
-        .WithEnvironment("UMBRAL_ISSUER", umbral.GetEndpoint("http"))
+        // UMBRAL_ISSUER: Umbral's public origin, the issuer in its tokens.
+        .WithReference(umbral)
         .WithEnvironment("UMBRAL_CLIENT_ID", clientId)
         .WithEnvironment("UMBRAL_CLIENT_SECRET", clientSecret)
         .WaitFor(umbral);

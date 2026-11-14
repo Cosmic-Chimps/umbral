@@ -142,7 +142,8 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: |
           echo "### Idle resident set (SC-007)" >> "$GITHUB_STEP_SUMMARY"
-          if ! dotnet test -c Release --no-build --filter-class "Umbral.Tests.IdleMemoryTests"; then
+          # Only this project: the other test projects have no such class, and a run that matches no test exits 8.
+          if ! dotnet test -c Release --no-build --project tests/Umbral.Tests/Umbral.Tests.fsproj --filter-class "Umbral.Tests.IdleMemoryTests"; then
             echo "::warning title=Idle memory over a ceiling ($ARCH)::See the memory ($ARCH) job's summary for the figures. A gate on pull requests; a report on a push and in a release."
             exit 1
           fi
@@ -161,4 +162,4 @@ jobs:
           DOTNET_TieredCompilation: "1"
         run: |
           echo "#### With DOTNET_TieredCompilation=1 (the old default)" >> "$GITHUB_STEP_SUMMARY"
-          dotnet test -c Release --no-build --filter-class "Umbral.Tests.IdleMemoryTests"
+          dotnet test -c Release --no-build --project tests/Umbral.Tests/Umbral.Tests.fsproj --filter-class "Umbral.Tests.IdleMemoryTests"

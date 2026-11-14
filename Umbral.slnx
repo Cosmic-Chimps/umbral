@@ -1,7 +1,9 @@
 <Solution>
   <Project Path="src/Umbral/Umbral.fsproj" />
   <Project Path="src/Umbral.Migrations/Umbral.Migrations.csproj" />
+  <Project Path="src/CosmicChimps.Aspire.Hosting.Umbral/CosmicChimps.Aspire.Hosting.Umbral.csproj" />
   <Folder Name="/tests/">
     <Project Path="tests/Umbral.Tests/Umbral.Tests.fsproj" />
+    <Project Path="tests/CosmicChimps.Aspire.Hosting.Umbral.Tests/CosmicChimps.Aspire.Hosting.Umbral.Tests.csproj" />
   </Folder>
 </Solution>

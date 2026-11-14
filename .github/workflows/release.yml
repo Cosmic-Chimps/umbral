@@ -22,16 +22,22 @@
 #      and leaves CHANGELOG.md and changelog.d/ alone,
 #   3. builds linux/amd64 and linux/arm64 and pushes ghcr.io/<owner>/umbral:1.2.3
 #      (and :latest, unless it is a prerelease),
-#   4. deploys that exact image digest on the Caravana host with the action
+#   4. once that image exists, packs the Aspire hosting package
+#      CosmicChimps.Aspire.Hosting.Umbral at the same version (its default
+#      image tag is that version) and pushes it to nuget.org with NuGet trusted
+#      publishing: the job's GitHub OIDC token is exchanged for a short-lived
+#      key, so no NuGet key is stored in GitHub (skipped when the variable
+#      NUGET_USER is not set),
+#   5. deploys that exact image digest on the Caravana host with the action
 #      Cosmic-Chimps/caravana-action, which waits for the rollout to be healthy;
 #      the first time, it defines the app from deploy/caravana-app.json
 #      (skipped for prereleases, and when the variable BELLA_BAXTER_PROJECT is
 #      not set). The Caravana settings and token are read from Bella Baxter
 #      with the job's GitHub OIDC token: no secret is stored in GitHub,
-#   5. publishes the GitHub release with the changelog section as its notes
+#   6. publishes the GitHub release with the changelog section as its notes
 #      (it does not wait for the rollout: a failed rollout still has a
 #      published image),
-#   6. keeps the last 10 image versions and deletes older ones.
+#   7. keeps the last 10 image versions and deletes older ones.
 #
 # Every job after `changelog` takes the version and the tag from that job's
 # outputs, never from GITHUB_REF_NAME (which is "main" on a Run workflow), and
@@ -286,6 +292,64 @@ jobs:
             echo
             while read -r tag; do echo "- \`$tag\`"; done <<< "$TAGS"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # The Aspire hosting package, CosmicChimps.Aspire.Hosting.Umbral, at the
+  # image's version: package X.Y.Z runs ghcr.io/cosmic-chimps/umbral:X.Y.Z by
+  # default, so it is pushed only after the image job, and never points at a
+  # tag that does not exist. A prerelease version gives a prerelease package.
+  # NuGet trusted publishing: NuGet/login exchanges the job's GitHub OIDC token
+  # for an API key that expires within the hour, so no NuGet key is stored in
+  # GitHub. The policy on nuget.org names this repository, release.yml and the
+  # environment `nuget`; NUGET_USER is the nuget.org account that owns it (a
+  # name, not a secret). Without that variable (a fork, say) the job is skipped.
+  nuget:
+    needs: [image, changelog]
+    if: ${{ vars.NUGET_USER != '' }}
+    runs-on: ubuntu-latest
+    environment: nuget
+    permissions:
+      contents: read
+      id-token: write # the job's OIDC token, which nuget.org exchanges for a key
+    env:
+      VERSION: ${{ needs.changelog.outputs.version }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.changelog.outputs.tag }}
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+
+      # -p:Version is both the package version and the default image tag
+      # (src/CosmicChimps.Aspire.Hosting.Umbral's csproj says how).
+      - name: Pack
+        run: dotnet pack src/CosmicChimps.Aspire.Hosting.Umbral -c Release -p:Version="$VERSION" -o out
+
+      - name: The package has the release's version
+        run: |
+          expected="out/CosmicChimps.Aspire.Hosting.Umbral.$VERSION.nupkg"
+          if [ ! -f "$expected" ]; then
+            echo "::error::Expected $expected, found: $(ls out)"
+            exit 1
+          fi
+
+      # Pinned to the commit of the v1.2.0 tag.
+      - uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        id: login
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      # --skip-duplicate: a re-run after a later job failed finds the package
+      # there and goes on.
+      - name: Push to nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "out/CosmicChimps.Aspire.Hosting.Umbral.$VERSION.nupkg" \
+            --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          echo "### NuGet package pushed: CosmicChimps.Aspire.Hosting.Umbral $VERSION" >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     needs: [image, changelog]

@@ -3,16 +3,17 @@
 # samples/aspire/ is an AppHost, not a web server, so the harness of samples.yml
 # (which runs the web samples from their Dockerfiles) cannot walk it. This job
 # only builds the AppHost, with warnings as errors, so a change that breaks it,
-# or the ASP.NET Core sample it references, is caught. The sign-in is walked by
+# or what it references (the ASP.NET Core sample and the hosting package
+# CosmicChimps.Aspire.Hosting.Umbral), is caught. The sign-in is walked by
 # hand: samples/aspire/README.md says how, and the task's review notes record it.
 name: samples-aspire
 
 on:
   push:
     branches: [main]
-    paths: ['samples/aspire/**', 'samples/aspnetcore/**', '.github/workflows/samples-aspire.yml']
+    paths: ['samples/aspire/**', 'samples/aspnetcore/**', 'src/CosmicChimps.Aspire.Hosting.Umbral/**', '.github/workflows/samples-aspire.yml']
   pull_request:
-    paths: ['samples/aspire/**', 'samples/aspnetcore/**', '.github/workflows/samples-aspire.yml']
+    paths: ['samples/aspire/**', 'samples/aspnetcore/**', 'src/CosmicChimps.Aspire.Hosting.Umbral/**', '.github/workflows/samples-aspire.yml']
   workflow_dispatch:
 
 permissions:

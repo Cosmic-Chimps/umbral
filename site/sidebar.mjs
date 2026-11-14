@@ -58,6 +58,7 @@ export const sidebar = [
         ],
       },
       { label: 'Deploying on Caravana', slug: 'run/caravana' },
+      { label: 'Run from an Aspire AppHost', slug: 'run/aspire' },
       { label: 'Settings reference', slug: 'run/settings' },
       { label: 'Troubleshooting', slug: 'run/troubleshooting' },
     ],

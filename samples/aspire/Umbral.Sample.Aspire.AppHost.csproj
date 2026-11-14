@@ -14,6 +14,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../aspnetcore/Umbral.Sample.AspNetCore.csproj" />
+    <!-- The hosting package (AddUmbral), from source: a library, not a resource to run. -->
+    <ProjectReference Include="../../src/CosmicChimps.Aspire.Hosting.Umbral/CosmicChimps.Aspire.Hosting.Umbral.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
 
 </Project>

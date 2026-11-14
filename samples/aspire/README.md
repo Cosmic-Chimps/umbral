@@ -3,10 +3,13 @@
 A [.NET Aspire](https://aspire.dev) AppHost (C#, .NET 10, Aspire 13.6.5) that
 starts Umbral and the [ASP.NET Core sample](../aspnetcore/README.md) together
 with one command, `aspire run`. It runs another sample; it is not a new stack.
-Umbral comes from its published image, `ghcr.io/cosmic-chimps/umbral`, at a
-pinned release (`0.11.0`), with its data in a Docker volume named
-`umbral-aspire-data`, so the claim, the connector and the app survive a restart.
-This is the base of a demo on a laptop.
+Umbral is added with `AddUmbral`, from the hosting package
+`CosmicChimps.Aspire.Hosting.Umbral` (see
+[Run Umbral from an Aspire AppHost](../../docs/run/aspire.md)), referenced here
+from its source. It runs the published image, `ghcr.io/cosmic-chimps/umbral`, at
+the last release, with its data in a Docker volume named `umbral-aspire-data`,
+so the claim, the connector and the app survive a restart. This is the base of a
+demo on a laptop.
 
 ## Before you start
 
@@ -96,15 +99,17 @@ to user secrets only, never to a file in the repository.
 
 All of it is in [`AppHost.cs`](AppHost.cs).
 
-- **The container.** Umbral runs from `ghcr.io/cosmic-chimps/umbral:0.11.0` on
-  the fixed port 8080, with `UMBRAL__PUBLIC_ORIGIN` set to
-  `http://localhost:8080`, the laptop pair named above, and the volume
-  `umbral-aspire-data` at `/data`. Aspire waits for its `/healthz`.
+- **Umbral.** `AddUmbral("umbral", port: ...)` runs
+  `ghcr.io/cosmic-chimps/umbral` at the package's version, which from source is
+  the last release in [`CHANGELOG.md`](../../CHANGELOG.md), on the fixed port 8080,
+  with `UMBRAL__PUBLIC_ORIGIN` set to `http://localhost:8080` and the laptop pair
+  named above. `WithDataVolume("umbral-aspire-data")` keeps `/data`. Aspire waits
+  for its `/healthz`.
 - **The project reference.** The sample is `../aspnetcore`, run as it is. It
   reads `PORT` and listens there, so the AppHost pins it to 5000, the port its
   redirect URI names.
-- **The issuer.** `UMBRAL_ISSUER` comes from Umbral's endpoint, so the sample
-  and the container cannot disagree.
+- **The issuer.** `WithReference(umbral)` gives the sample `UMBRAL_ISSUER`,
+  Umbral's public origin, so the sample and the container cannot disagree.
 - **The parameters.** `umbral-client-id` and `umbral-client-secret` (the second
   marked secret) are read from user secrets and passed as `UMBRAL_CLIENT_ID` and
   `UMBRAL_CLIENT_SECRET`.
@@ -113,5 +118,7 @@ All of it is in [`AppHost.cs`](AppHost.cs).
   for it. Otherwise the AppHost shows the steps in the dashboard, as a
   notification through Aspire's interaction service, and writes them to its
   console (`aspire run` keeps that in its log file).
-- **Nothing is deployed.** There is no publish mode here: the AppHost is for
-  `aspire run` on your machine.
+- **Nothing is deployed.** The AppHost is for `aspire run` on your machine. It
+  sets no public origin, so publishing it is refused: a deployment needs
+  `WithPublicOrigin` with an https address (see
+  [Run Umbral from an Aspire AppHost](../../docs/run/aspire.md#deploy-it)).

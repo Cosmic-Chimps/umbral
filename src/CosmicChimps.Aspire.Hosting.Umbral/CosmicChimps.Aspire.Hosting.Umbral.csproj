@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The image tag this package starts by default is baked into the assembly, and the package
+    version is the same string: 0.12.0 of the package runs ghcr.io/cosmic-chimps/umbral:0.12.0.
+
+    Both are set here, before anything else, because a property set in a project body sees
+    only the global properties (-p:Version=...) and not a Version this file sets later.
+      - `dotnet pack -p:Version=1.2.3` (the release job does this): the tag is 1.2.3.
+      - no Version given (a local build or pack): the tag, and the Version, are the last
+        released version, the first "## X.Y.Z" heading of CHANGELOG.md, which holds released
+        sections only. It is never "latest".
+  -->
+  <PropertyGroup>
+    <ChangelogPath>$(MSBuildThisFileDirectory)../../CHANGELOG.md</ChangelogPath>
+    <UmbralImageTag Condition="'$(Version)' != ''">$(Version)</UmbralImageTag>
+    <UmbralImageTagSource Condition="'$(Version)' != ''">Version</UmbralImageTagSource>
+    <UmbralImageTag Condition="'$(UmbralImageTag)' == '' and Exists('$(ChangelogPath)')">$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(ChangelogPath)')), '(?m)^## (\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?)').Groups[1].Value)</UmbralImageTag>
+    <UmbralImageTagSource Condition="'$(UmbralImageTagSource)' == ''">CHANGELOG.md</UmbralImageTagSource>
+    <Version Condition="'$(Version)' == ''">$(UmbralImageTag)</Version>
+  </PropertyGroup>
+
+  <Target Name="RequireUmbralImageTag" BeforeTargets="BeforeBuild;GenerateAssemblyInfo" Condition="'$(UmbralImageTag)' == ''">
+    <Error Text="No image tag for Umbral: pass -p:Version=X.Y.Z, or keep a released '## X.Y.Z' section at the top of $(ChangelogPath)." />
+  </Target>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Aspire.Hosting</RootNamespace>
+    <AssemblyName>CosmicChimps.Aspire.Hosting.Umbral</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <PackageId>CosmicChimps.Aspire.Hosting.Umbral</PackageId>
+    <Description>Aspire hosting integration for Umbral, a small OIDC server. Adds Umbral to an AppHost from its published container image; the package version is the image tag.</Description>
+    <Authors>Cosmic Chimps</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/Cosmic-Chimps/umbral</RepositoryUrl>
+    <PackageProjectUrl>https://cosmic-chimps.github.io/umbral/</PackageProjectUrl>
+    <PackageTags>aspire integration hosting umbral oidc</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="icon.png" Pack="true" PackagePath="/" />
+    <!-- Read at runtime by AddUmbral. -->
+    <AssemblyMetadata Include="UmbralImageTag" Value="$(UmbralImageTag)" />
+    <!-- Where the tag came from, "Version" or "CHANGELOG.md": a test reads it. -->
+    <AssemblyMetadata Include="UmbralImageTagSource" Value="$(UmbralImageTagSource)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" Version="13.6.5" />
+  </ItemGroup>
+
+</Project>
