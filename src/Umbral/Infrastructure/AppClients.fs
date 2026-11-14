@@ -15,6 +15,10 @@ open type OpenIddict.Abstractions.OpenIddictConstants
 /// identically whether the client is confidential or public; the only things
 /// that vary by type are ClientType, ApplicationType and whether a secret is
 /// issued at all.
+///
+/// Never the introspection endpoint: access tokens carry the private
+/// `umbral_credential` and `umbral_connector` claims so userinfo can judge them
+/// (specs/018 FR-014), and introspection would hand them to the app.
 let permissions =
     [ Permissions.Endpoints.Authorization
       Permissions.Endpoints.Token

@@ -306,3 +306,11 @@ let ``no token response, id token or userinfo response carries the credential or
         let! info2Body = info2.Content.ReadAsStringAsync()
         Assert.False(mentionsCredential info2Body, "the userinfo response after a refresh")
     }
+
+/// The access token carries umbral_credential and umbral_connector so userinfo can
+/// judge it again (specs/018 FR-014). That is safe only because access tokens are
+/// reference tokens and no app may call introspection, which would hand an app
+/// the claims: the permission set must never grant it (docs re-check, 1f0a81a).
+[<Fact>]
+let ``no app is granted the introspection endpoint`` () =
+    Assert.DoesNotContain(OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Introspection, AppClients.permissions)
