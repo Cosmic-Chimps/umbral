@@ -40,8 +40,18 @@ tasks: `specs/018-remove-a-link/`.
 - A refused Add start writes two `sign_in_failed` events (the session check's and the ceremony's).
 - The toggle's htmx fragment redraws a card without the search term, so Cancel on a block opened after a toggle
   loses the search.
-- The confirm block has a red border (`border border-error rounded-md`): the implementer's choice, not in the contract.
-  With the block open, the card has two red fills (the block's Remove link and Delete), as the contract asks.
+- With the block open, the card has two red fills (the block's Remove link and Delete), as the contract asks
+  (the designer accepted it, review.md).
+
+## After the reviews
+
+| Item | What was done |
+| --- | --- |
+| Design nit 1 | The confirm block drops the red border: `rounded-md bg-surface-container p-4`, the focus ring stays. CSS rebuilt, `build-css.sh --check` clean. |
+| Design nit 2 | The passkey rows on the card read "Added yyyy-mm-dd · Last used yyyy-mm-dd" or "· Never used", with the Credential screen's words (`OperatorPasskeyAddedOn`, `OperatorPasskeyLastUsedOn`, `OperatorPasskeyNeverUsed`). `/account/passkeys` is unchanged. |
+| Docs tidy-up | Final newlines restored on the four doc files and the five spec files. |
+
+All 41 captures retaken after the nits (none overflows).
 
 ## Tests
 

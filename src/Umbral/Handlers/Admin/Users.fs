@@ -245,7 +245,7 @@ let private linkConfirm (ctx: HttpContext) (t: Texts.Texts) (data: Row) (link: L
             }
         }
 
-    div(class' = "w-full basis-full space-y-3 rounded-md border border-error py-3 px-3")
+    div(class' = "w-full basis-full space-y-3 rounded-md bg-surface-container p-4")
         .attr("role", "group")
         .attr("aria-labelledby", questionId)
         .attr("tabindex", "-1")
@@ -335,12 +335,17 @@ let private passkeysList (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlE
                     li(class' = "flex flex-wrap items-center gap-2").data ("passkey", pk.Id) {
                         span(class' = "text-on-surface") { pk.Nickname }
 
-                        span() { $"{t.PasskeyAddedLabel}: {day pk.CreatedUtc}" }
-
+                        // Written like the link rows and the Credential screen's
+                        // rows: "Added <date> · Last used <date>" or "· Never used"
+                        // (design review, nit 2). The words are the Credential
+                        // screen's own.
                         span() {
-                            match pk.LastUsedUtc with
-                            | Some d -> $"{t.PasskeyLastUsedLabel}: {day d}"
-                            | None -> $"{t.PasskeyLastUsedLabel}: {t.PasskeyNeverUsed}"
+                            let used =
+                                match pk.LastUsedUtc with
+                                | Some d -> t.OperatorPasskeyLastUsedOn(day d)
+                                | None -> t.OperatorPasskeyNeverUsed
+
+                            $"{t.OperatorPasskeyAddedOn(day pk.CreatedUtc)} · {used}"
                         }
 
                         (form(
