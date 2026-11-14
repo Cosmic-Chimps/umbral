@@ -108,3 +108,32 @@ did. Not required.
 ## Re-check
 
 One re-check after B1. For the code, I'll read only the diff since `dfba0fd`.
+
+## Re-check at 69bd10a (2026-11-14)
+
+**Clear to merge from the code side.** I read the code diff since `9bbbffc`.
+
+- **B1, taken.**
+  - `destinationsFor` sends `umbral_credential` and `umbral_connector` to the access token only,
+    never the id token. `umbral_email_domain` still goes nowhere. `idp` already went to the
+    access token, so `recheckKind` has everything it needs at userinfo. The comment says the
+    introspection permission must stay off.
+  - `UserInfo`, after the enabled check, runs `EndUserSession.recheck` (stage `userinfo`), returns
+    401 `invalid_token` on a refusal, and records `sign_in_failed`.
+  - Deviation, accepted: a token with no connector claim (issued before the upgrade) is refused
+    only for a user in `legacy_sessions_ended`. A full re-check would refuse every live token at
+    the upgrade, and such tokens expire within an hour of it anyway.
+- **Tests:**
+  - After a link removal, after a passkey removal and after a refresh, the stranger's token gets
+    401 and the remaining credential's token 200.
+  - A claimless token gets 200 before the user is recorded and 401 after.
+  - The no-leak test covers `umbral_connector` across the token response, id_token, userinfo and
+    refresh.
+  - The two changed tests are right. `AllowedDomainsSignInTests` now pins the server-side view:
+    the connector claim is in the access token, the email domain is not, and nothing reaches the
+    id_token or userinfo. `ConnectorDeleteTests`: a deleted connector's access token gets 401 at
+    userinfo, which closes s1ug's window too.
+- **N1, taken** in the spec's edge cases. **N2, left** as documented, which I accept.
+
+Run here at `69bd10a`: UserLink*, AllowedDomainsSignIn, ConnectorDelete and UserInfo, filtered:
+123/123 passed. The implementer's full-suite count is still to come.
