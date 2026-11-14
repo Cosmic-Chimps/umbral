@@ -7,9 +7,14 @@ Umbral is added with `AddUmbral`, from the hosting package
 `CosmicChimps.Aspire.Hosting.Umbral` (see
 [Run Umbral from an Aspire AppHost](../../docs/run/aspire.md)), referenced here
 from its source. It runs the published image, `ghcr.io/cosmic-chimps/umbral`, at
-the last release, with its data in a Docker volume named `umbral-aspire-data`,
-so the claim, the connector and the app survive a restart. This is the base of a
-demo on a laptop.
+the last release, with its data in a Docker volume named `umbral-aspire-data`.
+The AppHost declares the sample's app and the passkey connector, so Umbral
+creates them when it starts: you sign in to the sample with a passkey without
+opening Umbral's admin area. This is the base of a demo on a laptop.
+
+The declaration needs Umbral 0.12.0 or later. Until that release is published,
+build the image from this repository and run that tag (see "Another image"
+below).
 
 ## Before you start
 
@@ -33,59 +38,56 @@ aspire run
 ```
 
 The console prints the address of the Aspire dashboard, with its login token:
-open it. The first run starts Umbral only, because the sample's client ID and
-secret are not set yet, and the dashboard shows the steps below at the top, as
-a notification (they are also in the AppHost's log).
+open it. Umbral starts first; the sample starts once Umbral is healthy. Open the
+sample at `http://localhost:5000` and sign in: on Umbral's sign-in page choose
+**Passkey**, create your account with a passkey, and you are back in the sample,
+signed in. A second `aspire run` changes nothing in Umbral: the app and the
+connector are already as declared.
 
 **If a port is taken.** The ports stay fixed, only the default changes. Set
-`Umbral:Port` (default 8080) or `Sample:Port` (default 5000) in the same user
-secrets, for example `dotnet user-secrets set Sample:Port 5001`, and register the
-redirect URIs below with that port instead; with `Umbral:Port`, open Umbral at
-that port instead of 8080 everywhere below (the setup page and the issuer move
-with it). The steps in the dashboard already use the real values. On macOS, AirPlay Receiver listens on
-5000: turn it off in System Settings, or use another port for the sample.
+`Umbral:Port` (default 8080) or `Sample:Port` (default 5000) in the AppHost's
+user secrets, for example `dotnet user-secrets set Sample:Port 5001`. The
+declared redirect URIs follow the sample's port, and the next start applies
+them. On macOS, AirPlay Receiver listens on 5000: turn it off in System
+Settings, or use another port for the sample.
 
-## What to create in Umbral
+**Another image.** `Umbral:ImageTag` runs another tag of
+`ghcr.io/cosmic-chimps/umbral`. To run this repository's code, from the
+repository's root:
 
-Once per `umbral-aspire-data` volume:
+```sh
+docker build -t ghcr.io/cosmic-chimps/umbral:dev .
+cd samples/aspire && dotnet user-secrets set Umbral:ImageTag dev
+```
 
-1. **Claim Umbral.** Open `http://localhost:8080/admin/setup` and paste the
-   **Setup token** from Umbral's console logs (the `umbral` resource in the
-   dashboard), then choose an **Operator credential**. Or, from a shell:
-   `docker exec $(docker ps -q -f volume=umbral-aspire-data) /app/Umbral reset-credential`.
-   It claims Umbral and prints a password to sign in with. The filter is this
-   sample's volume, which only its container mounts, so it never reaches another
-   Umbral on the machine, such as the quick start's.
-2. On **Connectors**, choose **Passkey**, pick **Anyone can sign up** so that
-   you can create your own account from the sign-in page, and press
-   **Enable passkeys**. A passkey needs no account at any provider (see
-   [Passkeys](../../docs/connectors/passkey.md)); any other connector works too,
-   once it is registered with its provider.
-3. On **Apps**, press **Create app** with:
-   - **Name**: anything.
-   - **App type**: **Web application**
-   - **Redirect URI**: `http://localhost:5000/signin-oidc`
-   - **Post-logout redirect URI (optional)**: `http://localhost:5000/signout-callback-oidc`
+## Umbral's admin area
 
-   Then copy the **Client ID** and the **Client secret**. The secret is shown
-   once.
-4. Give them to the AppHost, from this folder:
+Signing in to the sample needs no claim. To open Umbral's admin area, claim it
+once per `umbral-aspire-data` volume: open `http://localhost:8080/admin/setup`
+(the **Claim (first run)** link of the `umbral` resource in the dashboard) and
+paste the **Setup token** from Umbral's console logs, then choose an
+**Operator credential**. Or, from a shell:
+`docker exec $(docker ps -q -f volume=umbral-aspire-data) /app/Umbral reset-credential`.
+It claims Umbral and prints a password to sign in with. The filter is this
+sample's volume, which only its container mounts, so it never reaches another
+Umbral on the machine, such as the quick start's.
 
-   ```sh
-   dotnet user-secrets set Parameters:umbral-client-id <client id>
-   dotnet user-secrets set Parameters:umbral-client-secret <client secret>
-   ```
+On **Apps**, the sample's app is marked **Declared**: its addresses and sign-in
+methods come from `AppHost.cs` and change there. Its branding is changed in the
+admin area.
 
-5. Stop `aspire run` and start it again.
-
-The ports are fixed because Umbral's public origin and the sample's redirect URI
-are exact addresses, and Aspire's random ports would break both. The secret goes
-to user secrets only, never to a file in the repository.
+**From an earlier version of this sample.** A volume set up with the old steps
+already has the passkey connector with **Anyone can sign up**: Umbral takes it
+over as declared. The app you created by hand is left as it is, with its own
+client ID; you can delete it on **Apps**, and remove the
+`Parameters:umbral-client-id` and `Parameters:umbral-client-secret` user
+secrets, which nothing reads any more.
 
 ## What you should see
 
-- The Aspire dashboard lists two resources, both **Running**: `umbral` at
-  `http://localhost:8080` and `sample` at `http://localhost:5000`.
+- The Aspire dashboard lists `umbral` at `http://localhost:8080` and `sample`
+  at `http://localhost:5000`, both **Running**, with the declared app
+  `umbral-sample` under `umbral`.
 - On the sample, `/` shows a heading, the links **Public** and **Private**, and
   **Sign in**.
 - `/public` opens for anyone.
@@ -107,17 +109,19 @@ All of it is in [`AppHost.cs`](AppHost.cs).
   for its `/healthz`.
 - **The project reference.** The sample is `../aspnetcore`, run as it is. It
   reads `PORT` and listens there, so the AppHost pins it to 5000, the port its
-  redirect URI names.
-- **The issuer.** `WithReference(umbral)` gives the sample `UMBRAL_ISSUER`,
-  Umbral's public origin, so the sample and the container cannot disagree.
-- **The parameters.** `umbral-client-id` and `umbral-client-secret` (the second
-  marked secret) are read from user secrets and passed as `UMBRAL_CLIENT_ID` and
-  `UMBRAL_CLIENT_SECRET`.
-- **Added once set.** The sample is added only when both are set, because it
-  refuses to start without them and an unset parameter would make Aspire prompt
-  for it. Otherwise the AppHost shows the steps in the dashboard, as a
-  notification through Aspire's interaction service, and writes them to its
-  console (`aspire run` keeps that in its log file).
+  declared redirect URIs are taken from.
+- **The declaration.** `WithPasskeys(PasskeySignUp.Open)` declares the passkey
+  connector, and `AddApp("sample")` the sample's app, with client ID `sample`.
+  Umbral receives them as `UMBRAL__DECLARATION` and applies them at every start
+  (see [Declared apps](../../docs/run/aspire.md#declared-apps)).
+- **The credentials.** `WithReference(sampleApp)` gives the sample
+  `UMBRAL_ISSUER` (Umbral's public origin, so the sample and the container
+  cannot disagree), `UMBRAL_CLIENT_ID` and `UMBRAL_CLIENT_SECRET`. The secret is
+  an Aspire secret parameter, `umbral-sample-client-secret`, generated on the
+  first run and kept in the AppHost's user secrets, never in a file of the
+  repository.
+- **The redirect URIs** are the sample's address with `/signin-oidc` and
+  `/signout-callback-oidc`, the paths the sample uses.
 - **Nothing is deployed.** The AppHost is for `aspire run` on your machine. It
   sets no public origin, so publishing it is refused: a deployment needs
   `WithPublicOrigin` with an https address (see
