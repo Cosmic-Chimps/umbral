@@ -95,3 +95,6 @@ shot (fixed dates); every screen state goes through the browser forms. 41 shots,
 | N2 (optional) | Left as documented: a refused Add start writes two `sign_in_failed` events. |
 
 The pre-upgrade access token is tested with an OpenIddict sign-in handler that strips the two claims from the access token only (no endpoint can mint one now).
+- Code re-check clear at 69bd10a (d3e664d); docs addendum clear (1f0a81a). The introspection guard (docs re-check note)
+  is a test, 8b6c57c.
+- Full suite at 8b6c57c: **2896 of 2896** passed, 0 skipped (Debug, 22 min 55 s).

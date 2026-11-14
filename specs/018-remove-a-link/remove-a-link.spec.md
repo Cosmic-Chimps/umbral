@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-14
 
-**Status**: Clarified (design and code reviewers, 2026-11-14 at 0057780); in build
+**Status**: Implemented; design, documentation and code reviews and re-checks clear on 2026-11-14 (code d3e664d); full suite 2896 green at 8b6c57c; not merged
 
 **Input**: Task `2026-11-14-users-screen-remove-one-wrong-linked-provider-account-withou-7t7k`.
 
