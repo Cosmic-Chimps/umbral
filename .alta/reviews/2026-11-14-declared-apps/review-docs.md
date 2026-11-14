@@ -77,3 +77,20 @@ Say it in both places:
    document the other rules are judged by, say exactly that: "The declaration itself never holds a
    secret: a declared web app's secret comes from its own variable, and Umbral stores only its hash.
    It never declares a secret-bearing connector, a user or the operator credential."
+
+## Re-check at 9da0772 (2026-11-14)
+
+**Clear to merge.** B1 and the four nits are fixed (`c5db73f..9da0772`: 008a9c6, plus 9da0772, a
+changelog reflow).
+
+- **B1**: aspire.md says to remove the app's `UMBRAL__APP_SECRETS__<key>` with it, that a leftover
+  stops the start, and that the package does this for you. The settings.md row says a variable for a
+  key the declaration does not name stops the start, and to remove it with the app. Right.
+- **N1**: the compose example runs `ghcr.io/cosmic-chimps/umbral:0.12.0`, with "The declaration needs
+  Umbral 0.12.0 or later." Right.
+- **N2**: the changelog sentence is scoped to `WithPasskeys(PasskeySignUp.Open)`. Right.
+- **N3**: "Claim before you publish" adds the `InvitationsOnly`-first route for targets where starting
+  makes the instance reachable. Right.
+- **N4**: the constitution says the declaration itself holds no secret, that a web app's secret comes
+  from its own variable, and that only its hash is stored. Right.
+- `check-links.py`: 432 links in 40 files, all resolve. `changelog.sh check`: in order.
