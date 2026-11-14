@@ -120,7 +120,8 @@ passkey of their own.
 
 Either way, whatever was signed in with that passkey is signed out: the Umbral
 session made with it, and the refresh tokens issued through that session, are
-refused at their next use. Removing a provider account from a user on **Users**
+refused at their next use, and so are the person's sessions from before this
+version of Umbral, which don't record how they were made. Removing a provider account from a user on **Users**
 also removes the passkeys added while signed in through that account (see
 [When a link is removed](../integrate.md#when-a-link-is-removed)).
 

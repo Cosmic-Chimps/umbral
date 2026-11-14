@@ -517,7 +517,8 @@ Remove that one link with **Remove link** on its row (see
 person keeps their account and their `sub`, and their sessions go on. The other
 person is signed out of Umbral and of every app at the next request or token
 refresh, loses any passkey they added while signed in that way, and becomes a
-separate user the next time they sign in. Umbral never trusts that provider
+separate user the next time they sign in. Sessions from before this version of
+Umbral end too, whoever holds them: the real person signs in again once. Umbral never trusts that provider
 account's addresses again, whatever this setting says. Turn trust off first all
 the same, so nobody else is joined the same way.
 

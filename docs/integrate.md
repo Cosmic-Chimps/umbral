@@ -157,13 +157,19 @@ the link.
 Removing a link:
 
 - **keeps the user**. The person who stays keeps their `sub`, their other
-  providers and passkeys, and their sessions. Your app sees no change for them.
+  providers and passkeys, and the sessions made through those. Their name and
+  picture stay whatever the last sign-in brought, possibly the removed
+  person's, until they sign in again.
 - **ends everything the removed account signed in to**. The Umbral session made
   through it, and every refresh token issued through it, are refused at their
-  next use: an authorization request comes back with `error=login_required` (or
-  goes to the sign-in page), and a refresh gets `invalid_grant`. An access token
-  already issued keeps working until it expires, within the hour, as after
-  disabling someone.
+  next use: an authorization request goes to the sign-in page, or, with
+  `prompt=none`, comes back with `error=login_required`, and a refresh gets
+  `invalid_grant`. An access token already issued keeps working until it
+  expires, within the hour, as after disabling someone.
+- **ends the user's sessions from before this version of Umbral**. Those don't
+  record which provider account or passkey made them, so after any removal
+  Umbral refuses them all, for both people. The person who stays signs in again
+  once; removing a passkey does the same.
 - **removes the passkeys added while signed in through that account**, and any
   passkey added while signed in with those. Passkeys added before this version
   of Umbral have no recorded origin and stay; the confirmation lists those added
@@ -177,7 +183,9 @@ Removing a link:
 
 It cannot be undone. If you remove the real person's own link by mistake, their
 next sign-in through that account makes a new user with an unverified address,
-and your apps see a new person. Umbral has no way to join the two again.
+and your apps see a new person. Umbral has no way to join the two again: tell
+the owners of each app the old and the new `sub`, so an app that can move a
+person's data does it.
 
 The removed person may already have done things in your app under the user's
 `sub`. Umbral cannot see or undo that: tell whoever runs each app.

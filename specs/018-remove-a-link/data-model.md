@@ -28,6 +28,11 @@ and SQLite has no `ADD COLUMN IF NOT EXISTS`.
 the same value `linked_accounts.provider_subject` held (for `oidc`,
 `issuer#sub`).
 
+`legacy_sessions_ended (user_id TEXT PRIMARY KEY REFERENCES users (id) ON
+DELETE CASCADE, ended_utc TEXT NOT NULL)`: the users who had a sign-in method
+removed (FR-013). In `schema` and in step 15's literal (`CREATE TABLE IF NOT
+EXISTS`, so a pre-8 database, which skips the literal, gets it from `schema`).
+
 `passkeys.added_via` is the credential reference (below) of the session that
 added the passkey on `/account/passkeys` (purpose `Add`). NULL for an
 invitation, a sign-up, and every row from before this version.
@@ -116,6 +121,7 @@ let credentialStillHeld
 | `link:<fp>` | true when one of the user's links has that fingerprint |
 | `passkey:<id>` | true when a passkey with that row id belongs to that user (`id = @id AND user_id = @userId`, never the id alone) |
 | A value that does not parse | false (fails closed) |
+| No reference, the user is in `legacy_sessions_ended` | false (FR-013), checked first |
 | No reference, connector is the passkey kind (or not found) | true (the kind re-check refuses a missing connector first) |
 | No reference, `oidc` connector | true when the user has an `oidc` link whose subject starts with the connector's issuer + `#` (false with no issuer) |
 | No reference, other kind | true when the user has a link of the connector's kind |

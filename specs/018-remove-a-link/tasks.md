@@ -19,5 +19,6 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/` or `chang
 ## Phase 4: Docs, captures, reviews
 
 - [x] **T004** Docs (FR-011).
+- [ ] **T003b** FR-013 (docs review B1): `legacy_sessions_ended` in `schema` and step 15; recorded by `removeLink`, `Passkeys.remove` and `Passkeys.removeOwnIfNotLast` in their transactions; `credentialStillHeld` refuses a claimless session of a recorded user. Tests: each removal records the user; a claimless provider session through a connector the user still holds is refused after a removal; a claimless passkey session is refused after a passkey removal; sessions with a reference are unaffected; deleting the user deletes the row.
 - [ ] **T005** Captures in `.alta/reviews/2026-11-14-remove-a-link/` and `notes.md`.
 - [ ] **T006** Full suite green; design, documentation and code reviews; one re-check each.

@@ -94,6 +94,17 @@ the removal would not do what it says.
    the operator can judge them with the existing passkey removal.
 4. **It cannot be undone.** There is no screen to trust a removed account
    again. The confirmation says so.
+5. **A removal ends the user's sessions from before this version** (docs
+   review, B1). Sessions and refresh tokens issued before schema 15 carry no
+   credential reference, and the fallback by connector admits them while the
+   user holds another link through that provider, and always through the
+   passkey connector. The takeover this feature answers happened, by
+   definition, before this version, so that fallback would leave the main case
+   open. So every removal of a sign-in method (a link here; a passkey by the
+   operator or its owner) records the user in `legacy_sessions_ended`, and
+   from then on a session or token of that user with no credential reference is
+   refused. The person who stays signs in once more; sessions made after the
+   upgrade are judged by their own reference, as before.
 
 ## Clarifications
 
@@ -194,13 +205,13 @@ anyone by email until a provider that verifies it signs him in. The event says
 - **Two accounts of one provider** linked to one user (two Microsoft tenants):
   each is its own row with its own remove button; the linked and last-used
   dates tell them apart. Sessions made through the other one are untouched
-  (decision 2's reference). A session from before this version through that
-  provider survives, because its connector still backs a link: a known limit.
+  (decision 2's reference). Sessions from before this version end with any
+  removal (decision 5).
 - **Passkeys from before this version** have no recorded origin, so they stay.
   Those added after the link was made are named in the confirmation with their
   dates; the operator removes them with the card's passkey Remove if they are
-  not the real person's. A claimless passkey session from before this version
-  is admitted: a known limit.
+  not the real person's. Their sessions from before this version end with the
+  removal anyway (decision 5).
 - **A refresh already past the check** when the removal commits gets one more
   token, refused at its next use: a known limit.
 - **Removing a passkey** (operator or owner) now ends the sessions and refresh
@@ -306,8 +317,14 @@ anyone by email until a provider that verifies it signs him in. The event says
   who may sign in to an app, not who may manage their own passkeys.
 - **FR-010**: Schema version 15 adds `removed_links (provider_kind,
   provider_subject, removed_utc)`, primary key `(provider_kind,
-  provider_subject)`, no foreign key, and `passkeys.added_via TEXT NULL`.
-  Nothing is rewritten.
+  provider_subject)`, no foreign key; `passkeys.added_via TEXT NULL`; and
+  `legacy_sessions_ended (user_id, ended_utc)`, primary key `user_id`,
+  foreign key to `users` with `ON DELETE CASCADE`. Nothing is rewritten.
+- **FR-013**: `removeLink`, `Passkeys.remove` (the operator's) and
+  `Passkeys.removeOwnIfNotLast` (the owner's) record the user in
+  `legacy_sessions_ended` in the same transaction as the removal (insert or
+  ignore). `credentialStillHeld` with no reference refuses a user recorded
+  there, before the connector fallback and for the passkey connector too.
 - **FR-011**: Documentation: `docs/connectors/oidc.md` "Changing the email
   setting later" points to the removal as the remedy and keeps Disable and
   Delete as the blunt ones; `docs/integrate.md` where it lists what the Users

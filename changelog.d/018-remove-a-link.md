@@ -27,6 +27,5 @@
 - The database moves to schema version 15. An older image refuses it, so take the backup first,
   as usual.
 - Sessions and refresh tokens from before the upgrade don't record which provider account or
-  passkey they were made with. Removing a link ends them only when the user has no other link
-  through the same provider, and removing a passkey doesn't end them. They wear off as people
-  sign in again.
+  passkey they were made with. The first time you remove a link or a passkey from someone, all of
+  that person's sessions from before the upgrade end, and they sign in again once.
