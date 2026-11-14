@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-14
 
-**Status**: Draft, for the design and code reviewers' answers before the build
+**Status**: Clarified (design and code reviewers, 2026-11-14 at 0057780); in build
 
 **Input**: Task `2026-11-14-users-screen-remove-one-wrong-linked-provider-account-withou-7t7k`.
 
@@ -120,6 +120,10 @@ the removal would not do what it says.
   stranger's old cookie could add a fresh passkey there after the removal, and
   remove the owner's. Answered by FR-012: one end-user session check, used by
   all four places. `passkey:<id>` matches on the id **and** the user.
+  Re-read at 0057780: clear from the code reviewer's side. The email domain and
+  server rules stay at authorize and token only (managing one's own passkeys
+  is not signing in to an app; a passkey added by someone a rule refuses is
+  still judged by that rule at authorize).
 - **The confirmation** (`umbral-designer`, second answer): the server's
   confirm block, not a browser dialog. One dialog cannot carry the passkey
   lists readably, and a `data-confirm` asks nothing without JavaScript, which
