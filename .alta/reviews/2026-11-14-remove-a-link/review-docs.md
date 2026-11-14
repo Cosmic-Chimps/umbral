@@ -91,3 +91,29 @@ edit, would be the one instruction an operator could follow to undo the protecti
 stranger's account rather than the owner's. The docs should keep saying it cannot be undone, say what
 it costs the owner (as they do), and add N3. If a way back is ever wanted, it belongs in the product,
 behind its own confirmation, not in a how-to.
+
+## Re-check at dfba0fd (2026-11-14)
+
+**Clear to merge.** B1 and the three nits are fixed (`cf35984..dfba0fd`: docs and spec 628bcb5,
+b7fb2d4; code 9472ef8; screen 0786250).
+
+- **B1**, now in code as I suggested: every removal of a sign-in method (a link, or a passkey by the
+  operator or its owner) records the user in `legacy_sessions_ended` (`UserStore.fs:349`,
+  `Passkeys.fs:258`). `credentialStillHeld` refuses a recorded user's claimless sessions and tokens
+  first, for every connector kind, the passkey one included (lines 517-525). oidc.md, integrate.md (its
+  own bullet), passkey.md and the changelog's Upgrade bullet each say it in one sentence, including
+  that the person who stays signs in again once. Right. The `None, None` branch (no reference and no
+  connector) still admits, but authorize and token refuse such a session earlier as `Unrecorded`
+  (task s1ug), so it is not reachable from them.
+- **N1**: the sign-in page, or `error=login_required` with `prompt=none`. Right.
+- **N2**: "keeps their `sub`", and the name and picture clause. Right.
+- **N3**: tell the app owners the old and the new `sub`. Right.
+- **Screen words** against `Texts.fs`: **Linked accounts** (`UserLinksLabel`) and **Remove link**
+  (`UserLinkRemoveButton`) are verbatim. The confirm block says it cannot be undone
+  (`UserLinkCannotUndo`), and the last-way-in refusal offers "Delete the user, or invite them to add
+  a passkey first", as integrate.md does. Right.
+- `check-links.py`: 408 links resolve. `changelog.sh check`: in order.
+
+One tidy-up, not a condition: 628bcb5 left `docs/connectors/oidc.md`, `docs/connectors/passkey.md`,
+`docs/integrate.md` and `changelog.d/018-remove-a-link.md` without a final newline (the diff shows
+"No newline at end of file"). Add it back so the next edit's diff stays clean.
