@@ -65,6 +65,7 @@ let endpoints: Endpoint list =
       Umbral.Handlers.Admin.Users.endpoint
       Umbral.Handlers.Admin.UserToggle.endpoint
       Umbral.Handlers.Admin.UserDelete.endpoint
+      Umbral.Handlers.Admin.UserLinks.endpoint
       yield! Umbral.Handlers.Admin.UserPasskeys.endpoint
       Umbral.Handlers.Connect.Picker.endpoint
       Umbral.Handlers.Connect.Start.endpoint

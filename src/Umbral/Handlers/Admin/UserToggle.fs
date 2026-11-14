@@ -77,20 +77,9 @@ let handler (id: string) : EndpointHandler =
                 match refreshed with
                 | None -> return! WebForms.redirectWithNotice ctx "/admin/users" "user-not-found"
                 | Some refreshedUser ->
-                    let! linked = linkedProviders config id
-
-                    let! passkeys = Passkeys.listForUser config id
                     let! passkeyConnector = ConnectorStore.findBySlug config "passkey"
-
-                    let fragment =
-                        row
-                            ctx
-                            t
-                            { User = refreshedUser
-                              LinkedProviders = linked
-                              Passkeys = passkeys
-                              CanInvite = passkeyConnector.IsSome
-                              RevealedLink = None }
+                    let! data = loadRow config refreshedUser passkeyConnector.IsSome None None ""
+                    let fragment = row ctx t data
 
                     return! ctx.WriteHtmlView fragment
             else

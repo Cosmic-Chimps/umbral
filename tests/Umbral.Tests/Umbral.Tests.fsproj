@@ -140,6 +140,7 @@
     <Compile Include="LastUsedConnectorTests.fs" />
     <Compile Include="SessionCookieTests.fs" />
     <Compile Include="PasskeyAdminTests.fs" />
+    <Compile Include="UserLinkAdminTests.fs" />
     <Compile Include="OperatorPasskeyTests.fs" />
     <Compile Include="OperatorPasswordSwitchTests.fs" />
     <Compile Include="OperatorPasskeyRemoveTests.fs" />

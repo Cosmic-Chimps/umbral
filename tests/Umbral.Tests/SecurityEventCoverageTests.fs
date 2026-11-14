@@ -368,6 +368,23 @@ let ``every event type in the data model is emitted by the real product`` () =
         let! refused = signInViaFake (Browser(app.Client)) clientId "openid" "fake-user-1" "sam@example.com"
         Assert.True(Result.isError refused)
         let! _ = operator.PostForm("/admin/users", $"/admin/users/{samId}/toggle", [])
+
+        // -- A link removed (specs/018): Sam has two provider accounts, the second
+        //    linked by the same-email sign-in above
+        let! samLinks = UserStore.linkedAccountDetails app.DbConfig samId
+        let second = samLinks |> List.last
+
+        let secondFingerprint = Umbral.Domains.Linking.fingerprint second.Kind second.Subject
+
+        let! removedLink =
+            operator.PostForm(
+                "/admin/users",
+                $"/admin/users/{samId}/links/{secondFingerprint}/remove",
+                [ "confirm", "remove" ]
+            )
+
+        Assert.Contains("user-link-removed", location removedLink)
+
         let! _ = operator.PostForm("/admin/users", $"/admin/users/{otherId}/delete", [])
 
         // -- Connectors: the screen creates discord, updates it, turns it off and

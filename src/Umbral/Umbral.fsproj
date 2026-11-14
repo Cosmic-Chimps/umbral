@@ -141,6 +141,7 @@
     <Compile Include="Handlers/Admin/Users.fs" />
     <Compile Include="Handlers/Admin/UserToggle.fs" />
     <Compile Include="Handlers/Admin/UserDelete.fs" />
+    <Compile Include="Handlers/Admin/UserLinks.fs" />
     <Compile Include="Handlers/Admin/UserPasskeys.fs" />
     <Compile Include="Handlers/Connect/Picker.fs" />
     <Compile Include="Handlers/Passkeys/Ceremonies.fs" />

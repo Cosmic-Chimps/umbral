@@ -78,14 +78,29 @@ let private search
 // is one of the three in-place interactions).
 // ---------------------------------------------------------------------------
 
+/// One linked provider account on the card (specs/018): its label, the opaque
+/// fingerprint that names it in a form (never the subject), and its dates.
+type LinkRow =
+    { Kind: string
+      Fingerprint: string
+      Label: string
+      LinkedUtc: DateTimeOffset
+      LastUsedUtc: DateTimeOffset }
+
 /// `LinkedProviders` is each linked account's kind, for the `data-linked-provider`
-/// hook, and the label the screen shows for it (`linkedProviders`).
+/// hook, and the label the screen shows for it (`linkedProviders`). `Links` is
+/// the same accounts with their dates, for the list that removes one;
+/// `ConfirmLink` is the fingerprint of the link whose confirm block is open, and
+/// `Search` the term the page was drawn for, which the forms and Cancel keep.
 type Row =
     { User: Umbral.Infrastructure.Users.User
       LinkedProviders: (string * string) list
+      Links: LinkRow list
       Passkeys: Umbral.Infrastructure.Passkeys.Passkey list
       CanInvite: bool
-      RevealedLink: string option }
+      RevealedLink: string option
+      ConfirmLink: string option
+      Search: string }
 
 let private providerLabel (kind: string) =
     Umbral.Domains.Connectors.parseKind kind
@@ -122,6 +137,48 @@ let linkedProviders (config: Database.DbConfig) (userId: string) : Task<(string 
         return accounts |> List.map (fun (kind, subject) -> kind, linkedLabel connectors kind subject)
     }
 
+/// A user's linked accounts with their dates and fingerprints (specs/018).
+let private linkRows (config: Database.DbConfig) (userId: string) : Task<LinkRow list> =
+    task {
+        let! accounts = UserStore.linkedAccountDetails config userId
+        let! connectors = ConnectorStore.listAll config
+
+        return
+            accounts
+            |> List.map (fun a ->
+                { Kind = a.Kind
+                  Fingerprint = Umbral.Domains.Linking.fingerprint a.Kind a.Subject
+                  Label = linkedLabel connectors a.Kind a.Subject
+                  LinkedUtc = a.LinkedUtc
+                  LastUsedUtc = a.LastUsedUtc })
+    }
+
+/// One user's row as the screen draws it. The user toggle's fragment and the
+/// page both come through here, so they cannot disagree.
+let loadRow
+    (config: Database.DbConfig)
+    (user: Umbral.Infrastructure.Users.User)
+    (canInvite: bool)
+    (revealed: string option)
+    (confirmLink: string option)
+    (term: string)
+    : Task<Row> =
+    task {
+        let! linked = linkedProviders config user.Id
+        let! links = linkRows config user.Id
+        let! passkeys = Passkeys.listForUser config user.Id
+
+        return
+            { User = user
+              LinkedProviders = linked
+              Links = links
+              Passkeys = passkeys
+              CanInvite = canInvite
+              RevealedLink = revealed
+              ConfirmLink = confirmLink
+              Search = term }
+    }
+
 /// Both timestamps are always populated — a row only exists because someone
 /// signed in — so there is no "never" case to render here, unlike the
 /// optional hint in Texts.UserNeverSignedIn.
@@ -130,6 +187,180 @@ let private formatSignIn (value: DateTimeOffset) =
 
 let private day (value: DateTimeOffset) =
     value.ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+
+/// The passkeys that go with a link (specs/018 FR-003, data-model "For the
+/// confirmation"): those added while signed in with it, then, transitively,
+/// those added while signed in with one of those. The same rule the removal's
+/// recursive delete applies, computed from the user's own passkeys.
+let private goneWith
+    (fingerprint: string)
+    (passkeys: Umbral.Infrastructure.Passkeys.Passkey list)
+    : Umbral.Infrastructure.Passkeys.Passkey list =
+    let viaLink = Umbral.Domains.Linking.credentialValue (Umbral.Domains.Linking.LinkCredential fingerprint)
+
+    let rec grow (gone: Set<string>) =
+        let next =
+            passkeys
+            |> List.filter (fun pk ->
+                not (gone.Contains pk.Id)
+                && (match pk.AddedVia with
+                    | Some via when via = viaLink -> true
+                    | Some via ->
+                        match Umbral.Domains.Linking.parseCredential via with
+                        | Some(Umbral.Domains.Linking.PasskeyCredential id) -> gone.Contains id
+                        | _ -> false
+                    | None -> false))
+
+        if next.IsEmpty then gone else grow (Set.union gone (next |> List.map (fun pk -> pk.Id) |> Set.ofList))
+
+    let ids = grow Set.empty
+    passkeys |> List.filter (fun pk -> ids.Contains pk.Id)
+
+let private usersPath (term: string) =
+    if term = "" then "/admin/users" else $"/admin/users?search={Uri.EscapeDataString term}"
+
+/// The confirm block that takes the place of a row's button (specs/018 FR-002).
+/// It is a group the browser focuses on load (`tabindex="-1"` makes the div
+/// focusable, `autofocus` takes the focus, with and without script) and it is
+/// named by its question.
+let private linkConfirm (ctx: HttpContext) (t: Texts.Texts) (data: Row) (link: LinkRow) : HtmlElement =
+    let user = data.User
+    let gone = goneWith link.Fingerprint data.Passkeys
+    let goneIds = gone |> List.map (fun pk -> pk.Id) |> Set.ofList
+
+    let check =
+        data.Passkeys
+        |> List.filter (fun pk -> pk.AddedVia.IsNone && pk.CreatedUtc > link.LinkedUtc && not (goneIds.Contains pk.Id))
+
+    let action = $"/admin/users/{user.Id}/links/{link.Fingerprint}/remove"
+    let questionId = $"link-confirm-{link.Fingerprint}"
+
+    let passkeyList (hook: string) (intro: string) (items: Umbral.Infrastructure.Passkeys.Passkey list) =
+        div(class' = "space-y-1") {
+            p(class' = "text-body-md text-on-surface-variant") { intro }
+
+            ul(class' = "list-disc space-y-0.5 pl-5 text-body-md text-on-surface").data (hook, "") {
+                for pk in items do
+                    li().data ("passkey", pk.Id) { t.UserLinkPasskeyLine pk.Nickname (day pk.CreatedUtc) }
+            }
+        }
+
+    div(class' = "w-full basis-full space-y-3 rounded-md border border-error py-3 px-3")
+        .attr("role", "group")
+        .attr("aria-labelledby", questionId)
+        .attr("tabindex", "-1")
+        .attr("autofocus", "")
+        .data ("user-link-confirm", "") {
+        p(id = questionId, class' = "text-body-md text-on-surface") { t.UserLinkRemoveQuestion link.Label user.DisplayName }
+
+        if not gone.IsEmpty then
+            passkeyList "user-link-gone-passkeys" t.UserLinkGoneIntro gone
+        else
+            Fragment() :> HtmlElement
+
+        if not check.IsEmpty then
+            passkeyList "user-link-check-passkeys" (t.UserLinkCheckIntro(day link.LinkedUtc)) check
+        else
+            Fragment() :> HtmlElement
+
+        p(class' = "text-body-md text-on-surface") { t.UserLinkCannotUndo }
+
+        div(class' = "flex flex-wrap items-center gap-2") {
+            form(method = "post", action = action, class' = "inline") {
+                ctx.GetAntiforgeryInput()
+                input(type' = "hidden", name = "confirm", value = "remove")
+                input(type' = "hidden", name = "search", value = data.Search)
+
+                button(type' = "submit", class' = Components.btnSm Components.Danger) { t.UserLinkRemoveButton }
+            }
+
+            a(href = usersPath data.Search, class' = Components.btnSm Components.Ghost) { t.ConfirmCancel }
+        }
+    }
+
+/// The list of linked accounts, one row each (specs/018 FR-001). Drawn only
+/// when the user has two or more ways in, so a link can be removed.
+let private linksList (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
+    if data.Links.IsEmpty || data.Links.Length + data.Passkeys.Length < 2 then
+        Fragment() :> HtmlElement
+    else
+        let user = data.User
+
+        div(class' = "space-y-1") {
+            p(class' = "um-label").data ("list-label", "links") { t.UserLinksLabel }
+
+            ul(class' = "space-y-2 text-body-md text-on-surface-variant").data ("user-links", "") {
+                for link in data.Links do
+                    li(class' = "flex flex-wrap items-center gap-x-3 gap-y-2")
+                        .data ("user-link", link.Fingerprint) {
+                        span(class' = "text-on-surface") { link.Label }
+
+                        span() { t.UserLinkDates (day link.LinkedUtc) (day link.LastUsedUtc) }
+
+                        if data.ConfirmLink = Some link.Fingerprint then
+                            linkConfirm ctx t data link
+                        else
+                            form(
+                                method = "post",
+                                action = $"/admin/users/{user.Id}/links/{link.Fingerprint}/remove",
+                                class' = "inline"
+                            ) {
+                                ctx.GetAntiforgeryInput()
+                                input(type' = "hidden", name = "search", value = data.Search)
+
+                                button(
+                                    type' = "submit",
+                                    class' = Components.btnSm Components.Ghost + " text-error hover:text-error"
+                                )
+                                    .data ("user-link-remove", "") {
+                                    t.UserLinkRemoveButton
+                                }
+                            }
+                    }
+            }
+        }
+
+/// The user's passkeys, one row each, under their label (specs/018 FR-001).
+let private passkeysList (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
+    let user = data.User
+
+    if data.Passkeys.IsEmpty then
+        Fragment() :> HtmlElement
+    else
+        div(class' = "space-y-1") {
+            p(class' = "um-label").data ("list-label", "passkeys") { t.UserPasskeysLabel }
+
+            ul(class' = "space-y-1 text-body-md text-on-surface-variant").data ("user-passkeys", "") {
+                for pk in data.Passkeys do
+                    li(class' = "flex flex-wrap items-center gap-2").data ("passkey", pk.Id) {
+                        span(class' = "text-on-surface") { pk.Nickname }
+
+                        span() { $"{t.PasskeyAddedLabel}: {day pk.CreatedUtc}" }
+
+                        span() {
+                            match pk.LastUsedUtc with
+                            | Some d -> $"{t.PasskeyLastUsedLabel}: {day d}"
+                            | None -> $"{t.PasskeyLastUsedLabel}: {t.PasskeyNeverUsed}"
+                        }
+
+                        (form(
+                            method = "post",
+                            action = $"/admin/users/{user.Id}/passkeys/{pk.Id}/remove",
+                            class' = "inline"
+                        ) {
+                            ctx.GetAntiforgeryInput()
+
+                            button(
+                                type' = "submit",
+                                class' = Components.btnSm Components.Ghost + " text-error hover:text-error"
+                            ) {
+                                t.PasskeyRemoveButton
+                            }
+                        })
+                        |> Components.confirmSubmit (t.UserPasskeyRemoveConfirm user.DisplayName)
+                    }
+            }
+        }
 
 let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
     let user = data.User
@@ -157,43 +388,9 @@ let row (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElement =
                 (Components.pill Components.PrimaryTone "Passkey").data ("linked-provider", "passkey")
         }
 
-        if not data.Passkeys.IsEmpty then
-            (ul(class' = "space-y-1 text-body-md text-on-surface-variant").data ("user-passkeys", "") {
-                for pk in data.Passkeys do
-                    li(class' = "flex flex-wrap items-center gap-2").data ("passkey", pk.Id) {
-                        span(class' = "text-on-surface") { pk.Nickname }
+        linksList ctx t data
 
-                        span() {
-                            $"{t.PasskeyAddedLabel}: {day pk.CreatedUtc}"
-                        }
-
-                        span() {
-                            match pk.LastUsedUtc with
-                            | Some d ->
-                                $"{t.PasskeyLastUsedLabel}: {day d}"
-                            | None -> $"{t.PasskeyLastUsedLabel}: {t.PasskeyNeverUsed}"
-                        }
-
-                        (form(
-                            method = "post",
-                            action = $"/admin/users/{user.Id}/passkeys/{pk.Id}/remove",
-                            class' = "inline"
-                        ) {
-                            ctx.GetAntiforgeryInput()
-
-                            button(
-                                type' = "submit",
-                                class' = Components.btnSm Components.Ghost + " text-error hover:text-error"
-                            ) {
-                                t.PasskeyRemoveButton
-                            }
-                        })
-                        |> Components.confirmSubmit (t.UserPasskeyRemoveConfirm user.DisplayName)
-                    }
-            })
-            :> HtmlElement
-        else
-            Fragment() :> HtmlElement
+        passkeysList ctx t data
 
         // Someone who still has a device adds passkeys on /account/passkeys, so
         // on a row that lists one, the operator's invitation is for recovery.
@@ -298,18 +495,37 @@ let private searchForm (t: Texts.Texts) (term: string) =
         }
     }
 
-let private view (ctx: HttpContext) (t: Texts.Texts) (rows: Row list) (term: string) (notice: string option) (invitedName: string option) =
+/// A refusal is a warning, so it does not read as good news above the cards;
+/// the rest went through.
+let private noticeKind (code: string) =
+    match code with
+    | "user-link-last"
+    | "user-link-not-found"
+    | "user-not-found" -> Components.Warning
+    | _ -> Components.Success
+
+/// `aboutName` is the name of the user the notice is about (`user=<id>`), when
+/// they are among the rows.
+let private view
+    (ctx: HttpContext)
+    (t: Texts.Texts)
+    (rows: Row list)
+    (term: string)
+    (notice: string option)
+    (aboutName: string option)
+    =
     div(class' = "space-y-6").data("screen", "users") {
         Components.pageHeading t.UsersTitle (Some t.UsersLead)
 
         match notice with
         | Some code ->
             let text =
-                match code, invitedName with
+                match code, aboutName with
                 | "passkey-user-invited", Some name -> t.UserPasskeyInvited name
+                | "user-link-last", name -> t.UserLinkLast(name |> Option.defaultValue t.UserLinkLastTheUser)
                 | _ -> t.Notice code
 
-            (div().data("notice", code) { Components.alert Components.Success text }) :> HtmlElement
+            (div().data("notice", code) { Components.alert (noticeKind code) text }) :> HtmlElement
         | None -> Fragment() :> HtmlElement
 
         searchForm t term
@@ -322,44 +538,75 @@ let private view (ctx: HttpContext) (t: Texts.Texts) (rows: Row list) (term: str
     }
     |> Layout.operatorPage ctx t t.UsersTitle []
 
-let page: EndpointHandler =
-    AdminAuth.requireOperator (fun ctx ->
-        task {
-            let t = Texts.current ()
-            let config = ctx.GetService<Database.DbConfig>()
-            let term = ctx.TryGetQueryValue "search" |> Option.defaultValue ""
-            let! users = search config term
+/// Draws the Users page: `term` the search, `notice` a code to show, `about`
+/// the user a notice is about, `confirm` the user and link fingerprint whose
+/// confirm block is open, and the status the page answers with (the removal's
+/// first post redraws it at 422). The page and that post share it.
+let render
+    (ctx: HttpContext)
+    (term: string)
+    (notice: string option)
+    (about: string option)
+    (confirm: (string * string) option)
+    (status: int)
+    : Task =
+    task {
+        let t = Texts.current ()
+        let config = ctx.GetService<Database.DbConfig>()
+        let! found = search config term
 
-            let! passkeyConnector = ConnectorStore.findBySlug config "passkey"
-            let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
+        // The user whose block is open is always on the page, whatever the term.
+        let! users =
+            task {
+                match confirm with
+                | Some(userId, _) when not (found |> List.exists (fun u -> u.Id = userId)) ->
+                    match! Umbral.Infrastructure.Users.findById config userId with
+                    | Some user -> return user :: found
+                    | None -> return found
+                | _ -> return found
+            }
 
-            let invitedId =
-                match notice with
-                | Some "passkey-user-invited" -> ctx.TryGetQueryValue "user"
+        let! passkeyConnector = ConnectorStore.findBySlug config "passkey"
+
+        let invitedId =
+            match notice with
+            | Some "passkey-user-invited" -> about
+            | _ -> None
+
+        let rows = ResizeArray()
+        let mutable aboutName = None
+
+        for user in users do
+            if about = Some user.Id then
+                aboutName <- Some user.DisplayName
+
+            let revealed =
+                if invitedId = Some user.Id then
+                    Umbral.Handlers.Admin.PasskeyConnector.InviteReveal.consume ctx $"user:{user.Id}"
+                else
+                    None
+
+            let open' =
+                match confirm with
+                | Some(userId, fingerprint) when userId = user.Id -> Some fingerprint
                 | _ -> None
 
-            let rows = ResizeArray()
-            let mutable invitedName = None
+            let! data = loadRow config user passkeyConnector.IsSome revealed open' term
+            rows.Add data
 
-            for user in users do
-                let! linked = linkedProviders config user.Id
-                let! passkeys = Passkeys.listForUser config user.Id
+        if status <> 200 then
+            ctx.SetStatusCode status
 
-                let revealed =
-                    if invitedId = Some user.Id then
-                        invitedName <- Some user.DisplayName
-                        Umbral.Handlers.Admin.PasskeyConnector.InviteReveal.consume ctx $"user:{user.Id}"
-                    else
-                        None
+        return! ctx.WriteHtmlView(view ctx t (List.ofSeq rows) term notice aboutName)
+    }
+    :> Task
 
-                rows.Add
-                    { User = user
-                      LinkedProviders = linked
-                      Passkeys = passkeys
-                      CanInvite = passkeyConnector.IsSome
-                      RevealedLink = revealed }
+let page: EndpointHandler =
+    AdminAuth.requireOperator (fun ctx ->
+        let term = ctx.TryGetQueryValue "search" |> Option.defaultValue ""
+        let notice = ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
+        let about = ctx.TryGetQueryValue "user"
 
-            return! ctx.WriteHtmlView(view ctx t (List.ofSeq rows) term notice invitedName)
-        })
+        render ctx term notice about None 200)
 
 let endpoint = GET [ route "/admin/users" page ]

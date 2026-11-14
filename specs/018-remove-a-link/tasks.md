@@ -14,7 +14,7 @@ Paths are under `src/Umbral/` unless they start with `tests/`, `docs/` or `chang
 
 ## Phase 3: Screen
 
-- [ ] **T003** The list on the card, the confirm block (a post without `confirm` redraws at 422 with the block, focus on it; `confirm=remove` removes), `UserLinks` handler, route, Texts, notices and their tones, the passkey Remove confirm text, event. Tests: the first post removes nothing and draws the block with both passkey lists when they apply; list drawn only with two ways in, with dates; no list for one link and no passkey; POST removes, records `user_unlinked` with slug and `kind=`, no subject; last-way-in POST refused with the notice and nothing changed; not found; unknown user; antiforgery refused; operator session required.
+- [x] **T003** The list on the card, the confirm block (a post without `confirm` redraws at 422 with the block, focus on it; `confirm=remove` removes), `UserLinks` handler, route, Texts, notices and their tones, the passkey Remove confirm text, event. Tests: the first post removes nothing and draws the block with both passkey lists when they apply; list drawn only with two ways in, with dates; no list for one link and no passkey; POST removes, records `user_unlinked` with slug and `kind=`, no subject; last-way-in POST refused with the notice and nothing changed; not found; unknown user; antiforgery refused; operator session required.
 
 ## Phase 4: Docs, captures, reviews
 

@@ -31,6 +31,8 @@ type EventType =
     | UserEnabled
     | UserDisabled
     | UserDeleted
+    /// Specs/018: the operator removed one linked provider account from a user.
+    | UserUnlinked
     // Operator
     | OperatorSignedIn
     | OperatorSignInFailed
@@ -78,6 +80,7 @@ type EventType =
         | UserEnabled -> "user_enabled"
         | UserDisabled -> "user_disabled"
         | UserDeleted -> "user_deleted"
+        | UserUnlinked -> "user_unlinked"
         | OperatorSignedIn -> "operator_signed_in"
         | OperatorSignInFailed -> "operator_sign_in_failed"
         | OperatorCredentialChanged -> "operator_credential_changed"
@@ -114,6 +117,7 @@ let allEventTypes =
       UserEnabled
       UserDisabled
       UserDeleted
+      UserUnlinked
       OperatorSignedIn
       OperatorSignInFailed
       OperatorCredentialChanged

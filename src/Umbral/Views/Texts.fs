@@ -425,6 +425,23 @@ type Texts =
       UserDisableConfirm: string -> string
       UserDeleteButton: string
       UserDeleteConfirm: string -> string
+      // Removing one linked provider account (specs/018-remove-a-link)
+      UserLinksLabel: string
+      UserPasskeysLabel: string
+      /// `Linked {date} · Last used {date}`.
+      UserLinkDates: string -> string -> string
+      UserLinkRemoveButton: string
+      /// The question, from the account's label and the user's name.
+      UserLinkRemoveQuestion: string -> string -> string
+      UserLinkGoneIntro: string
+      /// From the link's date.
+      UserLinkCheckIntro: string -> string
+      /// One line of either list, from the passkey's nickname and date.
+      UserLinkPasskeyLine: string -> string -> string
+      UserLinkCannotUndo: string
+      /// The refusal that names the user.
+      UserLinkLast: string -> string
+      UserLinkLastTheUser: string
 
       // Home page (GET /): static, the same for everyone, nothing about this instance
       HomeTitle: string
@@ -1020,6 +1037,10 @@ let private noticeEn (code: string) : string option =
     | "user-enabled" -> Some "User enabled."
     | "user-disabled" -> Some "User disabled."
     | "user-deleted" -> Some "User deleted."
+    | "user-link-removed" -> Some "Link removed."
+    | "user-link-last" ->
+        Some "That is the user's only way to sign in, so it was not removed. Delete the user, or invite them to add a passkey first."
+    | "user-link-not-found" -> Some "That link was already removed."
     | "credential-replaced" -> Some "Password replaced. Use it next time you sign in."
     | "credential-current-incorrect" -> Some "That's not the current password. Check it and try again."
     // Operator passkeys (spec 011).
@@ -1497,6 +1518,23 @@ let en: Texts =
       UserDisableConfirm = fun name -> $"Disable {name}? They won't be able to sign in again, and their existing sessions and tokens stop working immediately."
       UserDeleteButton = "Delete"
       UserDeleteConfirm = fun name -> $"Delete {name}? This removes their account and every linked provider account permanently, and can't be undone."
+      UserLinksLabel = "Linked accounts"
+      UserPasskeysLabel = "Passkeys"
+      UserLinkDates = fun linked used -> $"Linked {linked} · Last used {used}"
+      UserLinkRemoveButton = "Remove link"
+      UserLinkRemoveQuestion =
+        fun label name ->
+            $"Remove the {label} link from {name}? The person who signs in with that {label} account becomes a new user, and the email addresses it verified are no longer trusted here."
+      UserLinkGoneIntro = "These passkeys were added while signed in with it, and are removed too:"
+      UserLinkCheckIntro =
+        fun date ->
+            $"These passkeys were added since {date} and may be that person's. They stay. Remove any you do not recognise:"
+      UserLinkPasskeyLine = fun nickname date -> $"{nickname}, added {date}"
+      UserLinkCannotUndo = "This cannot be undone."
+      UserLinkLast =
+        fun name ->
+            $"That is {name}'s only way to sign in, so it was not removed. Delete the user, or invite them to add a passkey first."
+      UserLinkLastTheUser = "the user"
 
       HomeTitle = "Welcome"
       HomeHeadline = "Umbral"
@@ -1635,7 +1673,8 @@ let en: Texts =
       UserRecoveryLinkLabel = "Recovery link"
       UserInvitationLinkLabel = "Invitation link"
       UserPasskeyRemoveConfirm =
-        fun name -> $"Remove this passkey from {name}'s account? They will not be able to sign in with it."
+        fun name ->
+            $"Remove this passkey from {name}'s account? They will not be able to sign in with it, and anything signed in with it is signed out."
       UserPasskeyInvited =
         fun name ->
             $"Send this link to {name} over a channel you trust. It adds a passkey to their account, works once and for 7 days, and is not shown again."
