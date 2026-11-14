@@ -105,6 +105,7 @@
     <Compile Include="Infrastructure/RateLimits.fs" />
     <Compile Include="Infrastructure/BrowserCookies.fs" />
     <Compile Include="Infrastructure/Sessions.fs" />
+    <Compile Include="Infrastructure/EndUserSession.fs" />
     <Compile Include="Infrastructure/OpenIddictSetup.fs" />
     <Compile Include="Views/Texts.fs" />
     <Compile Include="Infrastructure/SecretMove.fs" />

@@ -402,17 +402,17 @@ let private addOptions (ctx: HttpContext) (body: JsonElement) : Task =
     task {
         let config = ctx.GetService<Database.DbConfig>()
         let refuse = refuse ctx Registration
-        let! session = ctx.AuthenticateAsync Sessions.Scheme
 
-        match (if session.Succeeded then Option.ofObj session.Principal else None)
-              |> Option.bind Sessions.currentSubject with
-        | None -> do! refuse None UserNotFound NoticeRegistration
-        | Some userId ->
+        // The end-user session check (specs/018 FR-012): a session whose
+        // connector or credential was removed adds nothing.
+        match! EndUserSession.current ctx with
+        | EndUserSession.NoSession -> do! refuse None UserNotFound NoticeRegistration
+        | EndUserSession.UserGone userId
+        | EndUserSession.Refused userId -> do! refuse (Some userId) UserNotFound NoticeRegistration
+        | EndUserSession.Disabled userId -> do! refuse (Some userId) Reason.UserDisabled NoticeRegistration
+        | EndUserSession.Admitted user ->
 
-        match! Users.findById config userId with
-        | None -> do! refuse (Some userId) UserNotFound NoticeRegistration
-        | Some user when not user.IsEnabled -> do! refuse (Some userId) Reason.UserDisabled NoticeRegistration
-        | Some user ->
+        let userId = user.Id
 
         match Rules.validateNickname (tryString body "nickname" |> Option.toObj) with
         | Error _ -> do! refuse (Some userId) NicknameInvalid NoticeRegistration
@@ -577,18 +577,28 @@ let registration: EndpointHandler =
 
                 let userId = ceremony.UserId
 
-                // An `add` ceremony belongs to the session that started it.
                 let! session = ctx.AuthenticateAsync Sessions.Scheme
 
-                let sessionSubject =
-                    (if session.Succeeded then Option.ofObj session.Principal else None)
-                    |> Option.bind Sessions.currentSubject
+                // An `add` ceremony belongs to the session that started it, and
+                // that session is judged again now: the ceremony lasts minutes
+                // and can straddle the removal of the link the session came
+                // through (the end-user session check, specs/018 FR-012; the
+                // start's verdict is never trusted).
+                let! addSessionHolds =
+                    if ceremony.Purpose = Store.Add then
+                        task {
+                            match! EndUserSession.current ctx with
+                            | EndUserSession.Admitted user -> return userId = Some user.Id
+                            | _ -> return false
+                        }
+                    else
+                        Task.FromResult true
 
                 match! enabledConnector config with
                 | None -> do! refuse userId Reason.ConnectorDisabled NoticeRegistration
                 | Some connector when ceremony.Purpose = Store.Signup && connector.PasskeyEnrolment <> OpenSignUp ->
                     do! refuse userId EnrolmentClosed NoticeRegistration
-                | Some _ when ceremony.Purpose = Store.Add && (sessionSubject.IsNone || sessionSubject <> userId) ->
+                | Some _ when not addSessionHolds ->
                     do! refuse userId UserNotFound NoticeRegistration
                 | Some _ ->
 

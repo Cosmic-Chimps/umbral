@@ -132,14 +132,23 @@ Compiled after `UserStore.fs`, `ConnectorStore.fs` and `SecurityEvents.fs`.
 
 ```fsharp
 /// The connector-kind re-check (s1ug), then credentialStillHeld. None admits;
-/// Some detail is the sign_in_failed detail of the refusal.
-let recheck (config) (principal: ClaimsPrincipal) (stage: SecurityEvents.RefusalStage) : Task<string option>
+/// Some detail is the sign_in_failed detail of the refusal. Plain values, so
+/// authorize (session claims) and token (token claims) share it; a missing
+/// slug refuses as connector_changed;reason=unrecorded.
+let recheck (config) (userId) (connectorSlug: string option) (idp: string option)
+            (credential: string option) (stage: SecurityEvents.RefusalStage) : Task<string option>
 
-/// For the account pages and the Add ceremony: the session's enabled user, or
-/// None. A missing session is None with nothing done; a user gone or disabled,
-/// or a refusal by `recheck`, signs the session out (the refusal also records
-/// sign_in_failed) and is None.
-let current (ctx: HttpContext) : Task<Users.User option>
+type Verdict =
+    | NoSession                    // nothing done
+    | UserGone of userId: string   // signed out
+    | Disabled of userId: string   // signed out
+    | Refused of userId: string    // signed out, sign_in_failed recorded
+    | Admitted of Users.User
+
+/// For the account pages and the Add ceremony. The ids let a caller keep its
+/// own refusal reasons and events (the Add start records its own
+/// sign_in_failed after a Refused, so that request writes two events).
+let current (ctx: HttpContext) : Task<Verdict>
 ```
 
 `RefusalStage` gains `Account` (`stage=account`) for the passkey pages.

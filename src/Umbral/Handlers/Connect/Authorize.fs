@@ -268,15 +268,19 @@ let handler: EndpointHandler =
                             // exist and be of the kind the session was made with:
                             // a slug is only a name, and the checks below judge
                             // by whatever connector the name holds now (task s1ug).
+                            // A session always has a subject; with none, no user holds
+                            // its credential and the check refuses it.
                             let! changed =
-                                ConnectorStore.recheckKind
+                                EndUserSession.recheck
                                     config
-                                    (Sessions.currentConnector principal |> Option.defaultValue "")
+                                    (Sessions.currentSubject principal |> Option.defaultValue "")
+                                    (Sessions.currentConnector principal)
                                     (Sessions.currentIdp principal)
+                                    (Sessions.currentCredential principal)
+                                    SecurityEvents.Authorize
 
                             match changed with
-                            | Some change ->
-                                return! refuse (SecurityEvents.connectorChangedDetail change SecurityEvents.Authorize)
+                            | Some detail -> return! refuse detail
                             | None ->
 
                             // The allowed email domains (specs/006), judged again

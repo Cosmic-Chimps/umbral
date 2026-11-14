@@ -20,28 +20,17 @@ let private signInRedirect (ctx: HttpContext) : Task =
     ctx.Response.Redirect "/signin?returnUrl=%2Faccount%2Fpasskeys"
     Task.CompletedTask
 
-/// The signed-in, enabled user, or None after sending the person to sign in.
-/// A session whose user is gone or disabled is ended.
+/// The signed-in, enabled user whose session still stands (the end-user session
+/// check, specs/018 FR-012), or None after sending the person to sign in.
+/// A session whose user is gone or disabled, or whose connector or credential
+/// was removed, is ended by the check.
 let private currentUser (ctx: HttpContext) : Task<Users.User option> =
     task {
-        let config = ctx.GetService<Database.DbConfig>()
-        let! session = ctx.AuthenticateAsync Sessions.Scheme
-
-        let subject =
-            (if session.Succeeded then Option.ofObj session.Principal else None)
-            |> Option.bind Sessions.currentSubject
-
-        match subject with
-        | None ->
+        match! EndUserSession.current ctx with
+        | EndUserSession.Admitted user -> return Some user
+        | _ ->
             do! signInRedirect ctx
             return None
-        | Some id ->
-            match! Users.findById config id with
-            | Some user when user.IsEnabled -> return Some user
-            | _ ->
-                do! Sessions.signOut ctx
-                do! signInRedirect ctx
-                return None
     }
 
 let private date (value: DateTimeOffset) =

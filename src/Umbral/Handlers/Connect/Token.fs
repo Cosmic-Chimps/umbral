@@ -110,15 +110,19 @@ let handler: EndpointHandler =
             // original's. A token with no connector claim (a refresh chain begun
             // before specs/006) is refused too: nothing says which connector's
             // rules would apply, so such a chain ends once and the person signs
-            // in again.
+            // in again. The credential the token came from must still be held too
+            // (specs/018 FR-009).
             let! changed =
-                match connectorSlug with
-                | Some slug ->
-                    ConnectorStore.recheckKind config slug (Option.ofObj (principal.GetClaim OpenIddictSetup.IdpClaim))
-                | None -> System.Threading.Tasks.Task.FromResult(Some Connectors.Unrecorded)
+                EndUserSession.recheck
+                    config
+                    u.Id
+                    connectorSlug
+                    (Option.ofObj (principal.GetClaim OpenIddictSetup.IdpClaim))
+                    (Option.ofObj (principal.GetClaim OpenIddictSetup.CredentialClaim))
+                    SecurityEvents.Token
 
             match changed with
-            | Some change -> return! refuse (SecurityEvents.connectorChangedDetail change SecurityEvents.Token)
+            | Some detail -> return! refuse detail
 
             | None ->
 
