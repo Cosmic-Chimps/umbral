@@ -290,8 +290,10 @@ moves or rebuilds an instance, secrets included.
 
 One exception since 3.2.0 (spec 019): whoever starts Umbral may declare apps
 and the passkey connector in its environment (`UMBRAL__DECLARATION`), and
-Umbral applies the declaration at every start. It never holds a secret, a
-secret-bearing connector, a user or the operator credential. What it declares
+Umbral applies the declaration at every start. The declaration itself never
+holds a secret: a declared web app's secret comes from its own variable, and
+Umbral stores only its hash. It never declares a secret-bearing connector, a
+user or the operator credential. What it declares
 is read-only in the admin UI while declared, so a start never undoes an admin
 change, and there is no export. Everything else changes only in the admin UI.
 

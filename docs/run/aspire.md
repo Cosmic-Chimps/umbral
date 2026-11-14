@@ -158,7 +158,9 @@ so it was not changed. Change it there, then start Umbral again."
 
 **When an app leaves the declaration.** An app you stop declaring is handed back,
 never deleted, disabled or changed: it keeps working, loses the mark, and from the
-next start the admin area owns it like any app you made there. Dropping
+next start the admin area owns it like any app you made there. Remove its
+`UMBRAL__APP_SECRETS__<key>` variable with it: a secret variable for a key that is
+no longer declared stops the start. The Aspire package does this for you. Dropping
 `WithPasskeys` hands the passkey connector back the same way. When Umbral starts
 with no declaration at all (the variable unset), everything still marked declared is
 handed back, so turning the feature off never leaves an app locked. You can declare
@@ -219,7 +221,10 @@ publish it. Two things change:
 - **Claim before you publish with open sign-up.** Umbral applies the declaration
   before anyone has claimed it. With `PasskeySignUp.Open`, anyone who reaches an
   unclaimed instance can sign up to the declared apps. Start it, claim it at
-  `/admin/setup` with the setup token, and only then make it reachable.
+  `/admin/setup` with the setup token, and only then make it reachable. Where
+  starting is what makes it reachable, publish it with
+  `PasskeySignUp.InvitationsOnly` first, claim it, then change to `Open` and
+  deploy again.
 
 Publishing also needs explicit redirect URIs, as above.
 

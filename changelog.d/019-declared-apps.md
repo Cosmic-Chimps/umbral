@@ -9,7 +9,8 @@
   "Declared apps" in the Aspire guide and the settings reference.
 - The Aspire package declares for you: `WithPasskeys` declares the passkey connector, `AddApp`
   declares an app with a generated secret, and `WithReference(app)` gives a project its issuer,
-  client ID and secret. `aspire run` then signs in with a new passkey with no admin step; claim
+  client ID and secret. With `WithPasskeys(PasskeySignUp.Open)`, `aspire run` then signs in with
+  a new passkey with no admin step; claim
   Umbral only to open the admin area.
 
 ### Security
