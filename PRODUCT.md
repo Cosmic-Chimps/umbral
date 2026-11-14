@@ -58,7 +58,9 @@ product that offers those cannot truthfully claim this simplicity.
 
 - Runs as a Docker container on `linux/amd64` or `linux/arm64`, designed to
   idle under 150 MB (160 MB with an external secret store). Tagged releases
-  are published to GHCR; the README also covers deploying on Caravana.
+  are published to GHCR; the README also covers deploying on Caravana, and the
+  `CosmicChimps.Aspire.Hosting.Umbral` package runs that image from a .NET Aspire
+  AppHost.
 - A real deployment needs a domain and HTTPS; `http://` is refused for
   anything but `localhost`, which is for trying it on a laptop only.
 - The data directory (`/data`, holding `umbral.db`) is the whole state.

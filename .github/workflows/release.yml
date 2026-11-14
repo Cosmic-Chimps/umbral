@@ -26,8 +26,8 @@
 #      CosmicChimps.Aspire.Hosting.Umbral at the same version (its default
 #      image tag is that version) and pushes it to nuget.org with NuGet trusted
 #      publishing: the job's GitHub OIDC token is exchanged for a short-lived
-#      key, so no NuGet key is stored in GitHub (skipped when the variable
-#      NUGET_USER is not set),
+#      key, so no NuGet key is stored in GitHub (a fork without the variable
+#      NUGET_USER skips it; this repository fails without it),
 #   5. deploys that exact image digest on the Caravana host with the action
 #      Cosmic-Chimps/caravana-action, which waits for the rollout to be healthy;
 #      the first time, it defines the app from deploy/caravana-app.json
@@ -301,10 +301,12 @@ jobs:
   # for an API key that expires within the hour, so no NuGet key is stored in
   # GitHub. The policy on nuget.org names this repository, release.yml and the
   # environment `nuget`; NUGET_USER is the nuget.org account that owns it (a
-  # name, not a secret). Without that variable (a fork, say) the job is skipped.
+  # name, not a secret). A fork without that variable skips the job; on
+  # Cosmic-Chimps/umbral it always runs, and fails when the variable is missing,
+  # so a release never ships its image without its package in silence.
   nuget:
     needs: [image, changelog]
-    if: ${{ vars.NUGET_USER != '' }}
+    if: ${{ vars.NUGET_USER != '' || github.repository == 'Cosmic-Chimps/umbral' }}
     runs-on: ubuntu-latest
     environment: nuget
     permissions:
@@ -312,7 +314,15 @@ jobs:
       id-token: write # the job's OIDC token, which nuget.org exchanges for a key
     env:
       VERSION: ${{ needs.changelog.outputs.version }}
+      NUGET_USER: ${{ vars.NUGET_USER }}
     steps:
+      - name: NUGET_USER is set
+        run: |
+          if [ -z "$NUGET_USER" ]; then
+            echo "::error::The repository variable NUGET_USER (the nuget.org account that owns the trusted-publishing policy) is not set, so CosmicChimps.Aspire.Hosting.Umbral $VERSION was not published. Set it and re-run this job."
+            exit 1
+          fi
+
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.changelog.outputs.tag }}

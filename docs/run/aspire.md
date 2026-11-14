@@ -8,6 +8,8 @@ If you build with [.NET Aspire](https://aspire.dev), the NuGet package
 dotnet add package CosmicChimps.Aspire.Hosting.Umbral
 ```
 
+The package is published with each Umbral release from 0.12.0 on.
+
 It starts the published image, `ghcr.io/cosmic-chimps/umbral`, and gives your apps
 the issuer address. It does not claim Umbral or register your apps: you do that in
 the admin area, once.
@@ -39,8 +41,9 @@ In run mode, with no public origin given, the package sets:
 The last two are the laptop pair from the
 [settings reference](settings.md): they let Umbral accept plain `http://`. They are
 set only while the public origin is plain http on a loopback address (`localhost`,
-`127.0.0.1` or `[::1]`). Any other origin given with `WithPublicOrigin` turns
-them off.
+`127.0.0.1` or `[::1]`), and such an origin must use the resource's port. An
+origin given with `WithPublicOrigin` is used in run mode too, and any other
+origin turns the pair off: for `aspire run` on a laptop, leave it out.
 
 Aspire waits for `/healthz` before it starts what you marked `WaitFor`, and the
 dashboard links the resource to `/admin`.
@@ -49,6 +52,12 @@ dashboard links the resource to `/admin`.
 origin and never to its internal address (`http://umbral:8080`): an app checks the
 issuer against exactly what Umbral writes in tokens. `UMBRAL_ISSUER` is the
 variable every [sample](../../samples/README.md) reads.
+
+In run mode the issuer is `http://localhost:<port>`, which an app running on your
+machine (an `AddProject` resource) reaches. An app in a container (`AddContainer`,
+`AddDockerfile`) cannot: `localhost` there is the container itself, so it can't
+load the discovery document. Run that app as a project while you develop, or
+deploy both and use the public origin.
 
 ## Claim Umbral and register your app
 
@@ -85,11 +94,16 @@ builder.AddUmbral("umbral")
 ```
 
 `WithPublicOrigin` also takes an Aspire parameter, for an address you choose at
-deploy time: `WithPublicOrigin(builder.AddParameter("umbral-origin"))`.
+deploy time: `WithPublicOrigin(builder.AddParameter("umbral-origin"))`. Apps get
+its value as it is, so give it exactly as Umbral will report its issuer: lowercase,
+no default port, no trailing slash, for example `https://auth.example.com`.
 
 In publish mode the package never sets `ASPNETCORE_ENVIRONMENT=Development` or
-`UMBRAL__INSECURE_ALLOW_HTTP`. Publishing without `WithPublicOrigin`, or with an
-`http://` origin, fails with a message that names `WithPublicOrigin`.
+`UMBRAL__INSECURE_ALLOW_HTTP`. Publishing (`aspire publish` with a compute
+environment, or `aspire deploy`) without `WithPublicOrigin`, or with an `http://`
+origin, fails with a message that names `WithPublicOrigin`. A string origin is
+stored the way Umbral reports its issuer: scheme and host in lowercase, no default
+port, no trailing slash.
 
 Aspire does not put a reverse proxy in front of Umbral. Terminating TLS is yours,
 as in [Run it for real, behind HTTPS](https.md); that page's

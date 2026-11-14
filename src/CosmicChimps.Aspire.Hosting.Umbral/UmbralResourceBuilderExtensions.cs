@@ -69,7 +69,8 @@ public static class UmbralResourceBuilderExtensions
     /// issuer in every token. Required before publishing.
     /// </summary>
     /// <param name="builder">The resource builder.</param>
-    /// <param name="origin">Scheme, host and optional port, with no path. A trailing slash is removed.</param>
+    /// <param name="origin">Scheme, host and optional port, with no path. It is stored in the form Umbral
+    /// reports as its issuer: scheme and host in lowercase, no default port, no trailing slash.</param>
     /// <returns>The resource builder.</returns>
     /// <exception cref="ArgumentException">The value is not an absolute http or https address, or has a path or query.</exception>
     public static IResourceBuilder<UmbralResource> WithPublicOrigin(this IResourceBuilder<UmbralResource> builder, string origin)
@@ -91,7 +92,10 @@ public static class UmbralResourceBuilderExtensions
                 nameof(origin));
         }
 
-        builder.Resource.PublicOrigin = trimmed;
+        // Umbral normalises its origin (PublicOrigin.fs: lowercase scheme and host, no default port)
+        // and puts that in every token's iss. Apps get UMBRAL_ISSUER from this same value, so it is
+        // stored in that form: "https://Auth.Example.com:443" would otherwise fail issuer validation.
+        builder.Resource.PublicOrigin = uri.GetLeftPart(UriPartial.Authority);
         builder.Resource.PublicOriginParameter = null;
         return builder;
     }
@@ -100,6 +104,10 @@ public static class UmbralResourceBuilderExtensions
     /// Sets the address people reach Umbral at from a parameter, for a deployment that learns it late.
     /// The value is not checked when publishing: Umbral refuses a bad one when it starts.
     /// </summary>
+    /// <remarks>
+    /// Apps receive the value as it is, as <c>UMBRAL_ISSUER</c>, so give it in the form Umbral reports as
+    /// its issuer: lowercase, no default port, no trailing slash, for example <c>https://auth.example.com</c>.
+    /// </remarks>
     /// <param name="builder">The resource builder.</param>
     /// <param name="origin">A parameter holding the origin, for example <c>https://auth.example.com</c>.</param>
     /// <returns>The resource builder.</returns>

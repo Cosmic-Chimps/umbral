@@ -31,7 +31,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <PackageId>CosmicChimps.Aspire.Hosting.Umbral</PackageId>
-    <Description>Aspire hosting integration for Umbral, a small OIDC server. Adds Umbral to an AppHost from its published container image; the package version is the image tag.</Description>
+    <Description>Aspire hosting integration for Umbral, a self-hosted OpenID Connect provider. Adds Umbral to an AppHost from its published container image; the package version is the image tag.</Description>
     <Authors>Cosmic Chimps</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/Cosmic-Chimps/umbral</RepositoryUrl>

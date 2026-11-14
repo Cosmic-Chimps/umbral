@@ -95,7 +95,7 @@ public sealed partial class UmbralHostingTests
     [InlineData("http://192.168.1.5:8080", false)]
     public async Task Run_mode_sets_the_pair_only_for_a_loopback_http_origin(string origin, bool pair)
     {
-        var umbral = NewBuilder().AddUmbral("umbral").WithPublicOrigin(origin).Resource;
+        var umbral = NewBuilder().AddUmbral("umbral", port: 9000).WithPublicOrigin(origin).Resource;
 
         var env = await EnvAsync(umbral, DistributedApplicationOperation.Run);
 
@@ -111,7 +111,7 @@ public sealed partial class UmbralHostingTests
     {
         var builder = NewBuilder();
         var origin = builder.AddParameter("origin", value);
-        var umbral = builder.AddUmbral("umbral").WithPublicOrigin(origin).Resource;
+        var umbral = builder.AddUmbral("umbral", port: 9000).WithPublicOrigin(origin).Resource;
 
         var env = await EnvAsync(umbral, DistributedApplicationOperation.Run);
 
@@ -166,6 +166,44 @@ public sealed partial class UmbralHostingTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => PublishEnvAsync(umbral));
 
         Assert.Contains("https", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("https://Auth.Example.com:443/", "https://auth.example.com")]
+    [InlineData("HTTPS://auth.example.com", "https://auth.example.com")]
+    [InlineData("https://auth.example.com:8443", "https://auth.example.com:8443")]
+    [InlineData("http://LOCALHOST:80", "http://localhost")]
+    public async Task WithPublicOrigin_stores_the_issuer_form_Umbral_reports(string given, string expected)
+    {
+        var builder = NewBuilder();
+        var umbral = builder.AddUmbral("umbral", port: 80).WithPublicOrigin(given);
+        var app = builder.AddContainer("app", "img").WithReference(umbral);
+
+        foreach (var operation in new[] { DistributedApplicationOperation.Run, DistributedApplicationOperation.Publish })
+        {
+            if (operation == DistributedApplicationOperation.Publish && expected.StartsWith("http:", StringComparison.Ordinal))
+            {
+                continue; // publish refuses http
+            }
+
+            var umbralEnv = await EnvAsync(umbral.Resource, operation);
+            var appEnv = await EnvAsync(app.Resource, operation);
+
+            Assert.Equal(expected, umbralEnv["UMBRAL__PUBLIC_ORIGIN"]);
+            Assert.Equal(expected, appEnv["UMBRAL_ISSUER"]);
+        }
+    }
+
+    [Theory]
+    [InlineData("http://localhost:9000")]
+    [InlineData("http://127.0.0.1:8081")]
+    public async Task Run_mode_refuses_a_localhost_origin_on_another_port(string origin)
+    {
+        var umbral = NewBuilder().AddUmbral("umbral").WithPublicOrigin(origin).Resource;
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => EnvAsync(umbral, DistributedApplicationOperation.Run));
+
+        Assert.Contains("port: ", ex.Message);
     }
 
     [Theory]

@@ -43,8 +43,8 @@ Changed:
 3. **`UmbralResource` is not `IResourceWithServiceDiscovery`.** Aspire's service-discovery
    `WithReference` cannot apply to it; the tests pin that no `services__` variable appears.
 4. **`NUGET_USER`.** `NuGet/login` needs the nuget.org account that owns the trusted-publishing
-   policy. It is the repository variable `NUGET_USER` (a name, not a secret); without it the job is
-   skipped, so a fork's release does not fail.
+   policy. It is the repository variable `NUGET_USER` (a name, not a secret). A fork without it skips
+   the job; on `Cosmic-Chimps/umbral` the job always runs and fails when it is missing (code review N3).
 5. **A parameter origin in publish mode** is passed through unchecked (its value is not known at
    publish). Umbral refuses plain http on a non-loopback host when it starts, and without the pair
    it refuses http entirely.
@@ -78,9 +78,35 @@ Changed:
   `samples-aspire.yml`. The job itself runs only in a real release.
 - `check-links.py`, the site's `npm run collect`, `changelog.sh check`: pass.
 
+## Review fixes (after 0d972e6)
+
+Code review (`code-review.md`):
+- B1: `WithPublicOrigin(string)` stores `uri.GetLeftPart(UriPartial.Authority)` (lowercase scheme and
+  host, no default port), so `UMBRAL_ISSUER` equals the `iss` Umbral writes. Test
+  `WithPublicOrigin_stores_the_issuer_form_Umbral_reports` (`https://Auth.Example.com:443/`,
+  `:8443` kept, `http://LOCALHOST:80`) in both variables and both modes.
+- N1: the parameter origin's form in its doc comment, the page and the readme.
+- N2: run mode refuses a plain-http loopback origin on another port than the resource's, naming
+  `AddUmbral(..., port: N)`. Test `Run_mode_refuses_a_localhost_origin_on_another_port`.
+- N3: the `nuget` job runs on `Cosmic-Chimps/umbral` even without `NUGET_USER` and fails with an
+  error naming it; forks still skip.
+- 41 tests pass; actionlint clean.
+
+Docs review (`review.md`):
+- B1: run-mode issuer `http://localhost:<port>` is not reachable from a container app: one paragraph on
+  the page ("Run it on your machine") and in the readme's `WithReference` section.
+- B2: "published with each Umbral release from 0.12.0 on" after the install line; the maintainer
+  confirms the number (above).
+- Nits: `WithPublicOrigin` applies in run mode too; "publishing (`aspire publish` with a compute
+  environment, or `aspire deploy`)"; "self-hosted OpenID Connect provider" in the readme and the
+  `Description`; PRODUCT.md's Operating Context names the package.
+
 ## The maintainer's one-time steps (not done by the implementer)
 
-Before the first release that carries the `nuget` job:
+Before the first release that carries the `nuget` job. **Merge order (docs review B2):** the docs
+site deploys on every push to main, and `docs/run/aspire.md` says "published with each Umbral release
+from 0.12.0 on". Confirm 0.12.0 is the first release with the job (change the page if not), or merge
+right before that release.
 
 1. **nuget.org trusted publishing policy**: on nuget.org, signed in as the account that will own the
    package, *Trusted Publishing* > add a policy for GitHub Actions: owner `Cosmic-Chimps`, repository
@@ -89,6 +115,7 @@ Before the first release that carries the `nuget` job:
    environment* `nuget`). Like `production`, its deployment rule must allow the tag pattern `v*` and
    the branch `main` (a Run workflow's ref is `refs/heads/main`). Required reviewers are optional.
 3. **The repository variable `NUGET_USER`**: the nuget.org account name of step 1 (*Settings* >
-   *Secrets and variables* > *Actions* > *Variables*). Without it the job is skipped.
+   *Secrets and variables* > *Actions* > *Variables*). Without it the `nuget` job fails on this
+   repository; set it and re-run the job.
 4. Optionally, **reserve the `CosmicChimps.` prefix** on nuget.org (a request to the NuGet team), so
    the packages show as verified.

@@ -25,7 +25,18 @@ internal static class UmbralOrigin
                 ? await parameter.GetValueAsync(cancellationToken).ConfigureAwait(false)
                 : umbral.PublicOrigin ?? $"http://localhost:{umbral.Port}";
 
-            return new Resolved(origin!, IsLoopbackHttp(origin!));
+            var laptop = IsLoopbackHttp(origin!);
+
+            // A plain-http localhost origin is the endpoint itself: on another port, the issuer
+            // would name an address nothing listens on.
+            if (laptop && new Uri(origin!).Port != umbral.Port)
+            {
+                throw new InvalidOperationException(
+                    $"Umbral resource '{umbral.Name}' listens on port {umbral.Port}, but its public origin '{origin}' names another port. "
+                    + $"Give AddUmbral(\"{umbral.Name}\", port: {new Uri(origin!).Port}), or leave WithPublicOrigin out to use http://localhost:{umbral.Port}.");
+            }
+
+            return new Resolved(origin!, laptop);
         }
 
         // Publish mode never sets the laptop pair and never guesses an origin.
