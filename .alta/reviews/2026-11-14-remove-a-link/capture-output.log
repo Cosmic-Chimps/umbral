@@ -1,0 +1,83 @@
+forge added: http://127.0.0.1:18080/admin/connectors/forge?msg=connector-added-oidc-unreachable&slug=forge
+card-two-links-passkey 1280 dark [[object Object]]: Alice Moreau alice@example.org Enabled GitHub Open forge Passkey LINKED ACCOUNTS GitHub Linked 2026-06-02 · Last used 2026-11-13 Remove link Open forge Linked 2026-11-02 · Last used 2026-11-12 Remove link PASSKEYS Alice's MacBook Added: 2026-07-15 Last used: Never Remove Pixel 9 Added: 2026-11-03 Last used: Never Remove YubiKey Added: 2026-11-04 Last used: Never Remove iPad Added: 2026-11-05 Last used: Never Remove First sign-in: 2026-06-02 10:00 UTC Last sign-in: 2026-11-13 09:00 UTC Disable Delete
+card-two-links-passkey 360 dark [[object Object]]: Alice Moreau alice@example.org Enabled GitHub Open forge Passkey LINKED ACCOUNTS GitHub Linked 2026-06-02 · Last used 2026-11-13 Remove link Open forge Linked 2026-11-02 · Last used 2026-11-12 Remove link PASSKEYS Alice's MacBook Added: 2026-07-15 Last used: Never Remove Pixel 9 Added: 2026-11-03 Last used: Never Remove YubiKey Added: 2026-11-04 Last used: Never Remove iPad Added: 2026-11-05 Last used: Never Remove First sign-in: 2026-06-02 10:00 UTC Last sign-in: 2026-11-13 09:00 UTC Disable Delete
+card-two-links-passkey 1280 light [[object Object]]: Alice Moreau alice@example.org Enabled GitHub Open forge Passkey LINKED ACCOUNTS GitHub Linked 2026-06-02 · Last used 2026-11-13 Remove link Open forge Linked 2026-11-02 · Last used 2026-11-12 Remove link PASSKEYS Alice's MacBook Added: 2026-07-15 Last used: Never Remove Pixel 9 Added: 2026-11-03 Last used: Never Remove YubiKey Added: 2026-11-04 Last used: Never Remove iPad Added: 2026-11-05 Last used: Never Remove First sign-in: 2026-06-02 10:00 UTC Last sign-in: 2026-11-13 09:00 UTC Disable Delete
+card-two-links-passkey 360 light [[object Object]]: Alice Moreau alice@example.org Enabled GitHub Open forge Passkey LINKED ACCOUNTS GitHub Linked 2026-06-02 · Last used 2026-11-13 Remove link Open forge Linked 2026-11-02 · Last used 2026-11-12 Remove link PASSKEYS Alice's MacBook Added: 2026-07-15 Last used: Never Remove Pixel 9 Added: 2026-11-03 Last used: Never Remove YubiKey Added: 2026-11-04 Last used: Never Remove iPad Added: 2026-11-05 Last used: Never Remove First sign-in: 2026-06-02 10:00 UTC Last sign-in: 2026-11-13 09:00 UTC Disable Delete
+card-one-link 1280 dark [[object Object]]: list drawn = 0
+card-one-link 360 dark [[object Object]]: list drawn = 0
+card-one-link 1280 light [[object Object]]: list drawn = 0
+card-one-link 360 light [[object Object]]: list drawn = 0
+card-same-provider 1280 dark [[object Object]]: GitHub Linked 2026-05-10 · Last used 2026-11-11 Remove link GitHub Linked 2026-10-28 · Last used 2026-11-01 Remove link
+card-same-provider 360 dark [[object Object]]: GitHub Linked 2026-05-10 · Last used 2026-11-11 Remove link GitHub Linked 2026-10-28 · Last used 2026-11-01 Remove link
+card-same-provider 1280 light [[object Object]]: GitHub Linked 2026-05-10 · Last used 2026-11-11 Remove link GitHub Linked 2026-10-28 · Last used 2026-11-01 Remove link
+card-same-provider 360 light [[object Object]]: GitHub Linked 2026-05-10 · Last used 2026-11-11 Remove link GitHub Linked 2026-10-28 · Last used 2026-11-01 Remove link
+block-plain 1280 dark [POST 422]: Remove the Discord link from Dave Okafor? The person who signs in with that Discord account becomes a new user, and the email addresses it verified are no longer trusted here. This cannot be undone. Remove link Cancel
+block-plain 360 dark [POST 422]: Remove the Discord link from Dave Okafor? The person who signs in with that Discord account becomes a new user, and the email addresses it verified are no longer trusted here. This cannot be undone. Remove link Cancel
+block-plain 1280 light [POST 422]: Remove the Discord link from Dave Okafor? The person who signs in with that Discord account becomes a new user, and the email addresses it verified are no longer trusted here. This cannot be undone. Remove link Cancel
+block-plain 360 light [POST 422]: Remove the Discord link from Dave Okafor? The person who signs in with that Discord account becomes a new user, and the email addresses it verified are no longer trusted here. This cannot be undone. Remove link Cancel
+block-gone 1280 dark [POST 422]: Remove the Open forge link from Grace Ibsen? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added while signed in with it, and are removed too: Galaxy S25, added 2026-11-02 This cannot be undone. Remove link Cancel
+block-gone 360 dark [POST 422]: Remove the Open forge link from Grace Ibsen? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added while signed in with it, and are removed too: Galaxy S25, added 2026-11-02 This cannot be undone. Remove link Cancel
+block-gone 1280 light [POST 422]: Remove the Open forge link from Grace Ibsen? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added while signed in with it, and are removed too: Galaxy S25, added 2026-11-02 This cannot be undone. Remove link Cancel
+block-gone 360 light [POST 422]: Remove the Open forge link from Grace Ibsen? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added while signed in with it, and are removed too: Galaxy S25, added 2026-11-02 This cannot be undone. Remove link Cancel
+block-check 1280 dark [POST 422]: Remove the Open forge link from Henry Achebe? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added since 2026-10-20 and may be that person's. They stay. Remove any you do not recognise: Unknown phone, added 2026-10-22 This cannot be undone. Remove link Cancel
+block-check 360 dark [POST 422]: Remove the Open forge link from Henry Achebe? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added since 2026-10-20 and may be that person's. They stay. Remove any you do not recognise: Unknown phone, added 2026-10-22 This cannot be undone. Remove link Cancel
+block-check 1280 light [POST 422]: Remove the Open forge link from Henry Achebe? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added since 2026-10-20 and may be that person's. They stay. Remove any you do not recognise: Unknown phone, added 2026-10-22 This cannot be undone. Remove link Cancel
+block-check 360 light [POST 422]: Remove the Open forge link from Henry Achebe? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added since 2026-10-20 and may be that person's. They stay. Remove any you do not recognise: Unknown phone, added 2026-10-22 This cannot be undone. Remove link Cancel
+block-both 1280 dark [POST 422]: Remove the Open forge link from Alice Moreau? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added while signed in with it, and are removed too: Pixel 9, added 2026-11-03 YubiKey, added 2026-11-04 These passkeys were added since 2026-11-02 and may be that person's. They stay. Remove any you do not recognise: iPad, added 2026-11-05 This cannot be undone. Remove link Cancel
+block-both 360 dark [POST 422]: Remove the Open forge link from Alice Moreau? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added while signed in with it, and are removed too: Pixel 9, added 2026-11-03 YubiKey, added 2026-11-04 These passkeys were added since 2026-11-02 and may be that person's. They stay. Remove any you do not recognise: iPad, added 2026-11-05 This cannot be undone. Remove link Cancel
+block-both 1280 light [POST 422]: Remove the Open forge link from Alice Moreau? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added while signed in with it, and are removed too: Pixel 9, added 2026-11-03 YubiKey, added 2026-11-04 These passkeys were added since 2026-11-02 and may be that person's. They stay. Remove any you do not recognise: iPad, added 2026-11-05 This cannot be undone. Remove link Cancel
+block-both 360 light [POST 422]: Remove the Open forge link from Alice Moreau? The person who signs in with that Open forge account becomes a new user, and the email addresses it verified are no longer trusted here. These passkeys were added while signed in with it, and are removed too: Pixel 9, added 2026-11-03 YubiKey, added 2026-11-04 These passkeys were added since 2026-11-02 and may be that person's. They stay. Remove any you do not recognise: iPad, added 2026-11-05 This cannot be undone. Remove link Cancel
+block-focus 1280 dark [POST 422]: activeElement: DIV data-user-link-confirm
+notice-removed 1280 dark [POST 302 -> /admin/users?msg=user-link-removed]: Link removed.
+notice-removed 360 dark [POST 302 -> /admin/users?msg=user-link-removed]: Link removed.
+notice-removed 1280 light [POST 302 -> /admin/users?msg=user-link-removed]: Link removed.
+notice-removed 360 light [POST 302 -> /admin/users?msg=user-link-removed]: Link removed.
+notice-last 1280 dark [POST 302 -> /admin/users?msg=user-link-last&user=u-erin]: That is Erin Castillo's only way to sign in, so it was not removed. Delete the user, or invite them to add a passkey first.
+notice-last 360 dark [POST 302 -> /admin/users?msg=user-link-last&user=u-erin]: That is Erin Castillo's only way to sign in, so it was not removed. Delete the user, or invite them to add a passkey first.
+notice-last 1280 light [POST 302 -> /admin/users?msg=user-link-last&user=u-erin]: That is Erin Castillo's only way to sign in, so it was not removed. Delete the user, or invite them to add a passkey first.
+notice-last 360 light [POST 302 -> /admin/users?msg=user-link-last&user=u-erin]: That is Erin Castillo's only way to sign in, so it was not removed. Delete the user, or invite them to add a passkey first.
+notice-not-found 1280 dark [POST 302 -> /admin/users?msg=user-link-not-found]: That link was already removed.
+notice-not-found 360 dark [POST 302 -> /admin/users?msg=user-link-not-found]: That link was already removed.
+notice-not-found 1280 light [POST 302 -> /admin/users?msg=user-link-not-found]: That link was already removed.
+notice-not-found 360 light [POST 302 -> /admin/users?msg=user-link-not-found]: That link was already removed.
+card-two-links-passkey-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-two-links-passkey-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+card-two-links-passkey-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-two-links-passkey-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+card-one-link-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-one-link-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+card-one-link-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-one-link-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+card-same-provider-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-same-provider-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+card-same-provider-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+card-same-provider-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+block-plain-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+block-plain-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+block-plain-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+block-plain-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+block-gone-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+block-gone-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+block-gone-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+block-gone-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+block-check-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+block-check-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+block-check-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+block-check-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+block-both-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+block-both-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+block-both-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+block-both-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+block-focus-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+notice-removed-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+notice-removed-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+notice-removed-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+notice-removed-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+notice-last-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+notice-last-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+notice-last-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+notice-last-360-light: overflow=false (scrollWidth 360, innerWidth 360)
+notice-not-found-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+notice-not-found-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
+notice-not-found-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
+notice-not-found-360-light: overflow=false (scrollWidth 360, innerWidth 360)
