@@ -95,3 +95,47 @@ let ``an empty email string is not treated as an address`` () =
     // users who also have "".
     let outcome = decide None (incoming (Some "") true) [ verified "u1" ]
     Assert.Equal(CreateNew, outcome.Decision)
+
+// ---------------------------------------------------------------------------
+// The fingerprint of a provider account (specs/018, FR-008)
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``a fingerprint is stable, 43 characters of unpadded base64url`` () =
+    let one = fingerprint "github" "12345"
+
+    Assert.Equal(one, fingerprint "github" "12345")
+    Assert.Equal(43, one.Length)
+    Assert.Matches("^[A-Za-z0-9_-]{43}$", one)
+
+    // SHA-256 of "github\n12345", computed once and pinned: a change here would
+    // orphan every session and token that carries a fingerprint.
+    let expected =
+        System.Convert
+            .ToBase64String(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes "github\n12345"))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_')
+
+    Assert.Equal(expected, one)
+
+[<Fact>]
+let ``a fingerprint differs by kind and by subject`` () =
+    Assert.NotEqual<string>(fingerprint "github" "1", fingerprint "google" "1")
+    Assert.NotEqual<string>(fingerprint "github" "1", fingerprint "github" "2")
+    // The separator keeps the two parts apart: moving a character from the
+    // subject to the kind is another account.
+    Assert.NotEqual<string>(fingerprint "ab" "c", fingerprint "a" "bc")
+
+[<Fact>]
+let ``a credential reference round trips through its value`` () =
+    for c in [ LinkCredential "abc-_"; PasskeyCredential "p1" ] do
+        Assert.Equal(Some c, parseCredential (credentialValue c))
+
+    Assert.Equal("link:abc", credentialValue (LinkCredential "abc"))
+    Assert.Equal("passkey:p1", credentialValue (PasskeyCredential "p1"))
+
+[<Fact>]
+let ``parseCredential rejects anything else`` () =
+    for bad in [ ""; "link:"; "passkey:"; "garbage"; "LINK:x"; "link"; " link:x" ] do
+        Assert.Equal(None, parseCredential bad)

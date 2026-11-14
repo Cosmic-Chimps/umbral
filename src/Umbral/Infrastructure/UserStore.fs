@@ -262,3 +262,254 @@ let linkedKinds (config: Database.DbConfig) (userId: string) : Task<string list>
         let! accounts = linkedAccounts config userId
         return accounts |> List.map fst
     }
+
+// ---------------------------------------------------------------------------
+// Removing one linked provider account (specs/018-remove-a-link)
+// ---------------------------------------------------------------------------
+
+/// One of a user's linked provider accounts with its dates, for the Users
+/// screen. The subject is the stored one (for `oidc`, `issuer#sub`); the screen
+/// never prints it and names the account by `Linking.fingerprint`.
+type LinkedAccount =
+    { Kind: string
+      Subject: string
+      LinkedUtc: DateTimeOffset
+      LastUsedUtc: DateTimeOffset }
+
+/// The user's links with their dates, oldest first (the screen's list).
+let linkedAccountDetails (config: Database.DbConfig) (userId: string) : Task<LinkedAccount list> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+
+        command.CommandText <-
+            "SELECT provider_kind, provider_subject, linked_utc, last_used_utc
+             FROM linked_accounts WHERE user_id = @id ORDER BY linked_utc, provider_kind, provider_subject"
+
+        command.Parameters.AddWithValue("@id", userId) |> ignore
+
+        use! reader = command.ExecuteReaderAsync()
+        let results = ResizeArray()
+        let mutable go = true
+
+        while go do
+            let! hasRow = reader.ReadAsync()
+
+            if hasRow then
+                results.Add
+                    { Kind = reader.GetString 0
+                      Subject = reader.GetString 1
+                      LinkedUtc = DateTimeOffset.Parse(reader.GetString 2, Globalization.CultureInfo.InvariantCulture)
+                      LastUsedUtc = DateTimeOffset.Parse(reader.GetString 3, Globalization.CultureInfo.InvariantCulture) }
+            else
+                go <- false
+
+        return List.ofSeq results
+    }
+
+type RemoveLinkOutcome =
+    /// The link is gone and recorded in `removed_links`, with the passkeys added
+    /// through it (`passkeys`, transitively). `lowered` is whether the user's
+    /// `email_verified` fell because only this link backed it.
+    | LinkRemoved of kind: string * subject: string * lowered: bool * passkeys: int
+    /// It would leave no way in (no other link, no passkey): nothing changed.
+    | LinkLastWayIn
+    /// The user has no link with that fingerprint: nothing changed.
+    | LinkNotFound
+
+[<Literal>]
+let private DeletePasskeysAddedViaLink =
+    "WITH RECURSIVE gone(id) AS (
+         SELECT id FROM passkeys WHERE user_id = @userId AND added_via = @linkRef
+         UNION
+         SELECT p.id FROM passkeys p JOIN gone g ON p.added_via = 'passkey:' || g.id
+          WHERE p.user_id = @userId)
+     DELETE FROM passkeys WHERE id IN (SELECT id FROM gone)"
+
+[<Literal>]
+let private DeleteLinkUnlessLast =
+    "DELETE FROM linked_accounts
+     WHERE provider_kind = @kind AND provider_subject = @subject AND user_id = @userId
+       AND ((SELECT count(*) FROM linked_accounts WHERE user_id = @userId) > 1
+            OR EXISTS (SELECT 1 FROM passkeys WHERE user_id = @userId))"
+
+[<Literal>]
+let private ReadUserLinks =
+    "SELECT provider_kind, provider_subject FROM linked_accounts WHERE user_id = @userId"
+
+[<Literal>]
+let private RecordRemovedLink =
+    "INSERT INTO removed_links (provider_kind, provider_subject, removed_utc)
+     VALUES (@kind, @subject, @now) ON CONFLICT DO NOTHING"
+
+/// `Database.UnbackedEmailVerified` under a local name, so the SQL below is built
+/// from a constant of this file (the shape MetaTests accepts).
+[<Literal>]
+let private UnbackedEmailVerified = Database.UnbackedEmailVerified
+
+[<Literal>]
+let private LowerUnbackedFlag =
+    "UPDATE users SET email_verified = 0 WHERE id = @userId AND " + UnbackedEmailVerified
+
+/// FR-003. Removes one linked provider account from a user, in one transaction:
+/// the passkeys added through it go first (transitively), then the link goes only
+/// if the user keeps a way in among what remains (another link or a passkey),
+/// with the rule in the DELETE's own condition (as `Passkeys.removeOwnIfNotLast`)
+/// so two removals cannot both succeed; a refusal rolls back the passkeys too.
+/// The provider account is recorded in `removed_links`, and `email_verified`
+/// falls where no remaining link backs it.
+let removeLink
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (userId: string)
+    (fingerprint: string)
+    : Task<RemoveLinkOutcome>
+    =
+    task {
+        use! connection = Database.openConnection config
+        use transaction = connection.BeginTransaction()
+
+        use read = connection.CreateCommand()
+        read.Transaction <- transaction
+        read.CommandText <- ReadUserLinks
+        read.Parameters.AddWithValue("@userId", userId) |> ignore
+
+        let held = ResizeArray<string * string>()
+        let! reader = read.ExecuteReaderAsync()
+        let mutable go = true
+
+        while go do
+            let! hasRow = reader.ReadAsync()
+
+            if hasRow then
+                held.Add((reader.GetString 0, reader.GetString 1))
+            else
+                go <- false
+
+        do! reader.DisposeAsync()
+
+        match held |> Seq.tryFind (fun (kind, subject) -> Linking.fingerprint kind subject = fingerprint) with
+        | None ->
+            do! transaction.RollbackAsync()
+            return LinkNotFound
+        | Some(kind, subject) ->
+            use passkeys = connection.CreateCommand()
+            passkeys.Transaction <- transaction
+            passkeys.CommandText <- DeletePasskeysAddedViaLink
+            passkeys.Parameters.AddWithValue("@userId", userId) |> ignore
+
+            passkeys.Parameters.AddWithValue("@linkRef", Linking.credentialValue (Linking.LinkCredential fingerprint))
+            |> ignore
+
+            let! passkeysGone = passkeys.ExecuteNonQueryAsync()
+
+            use delete = connection.CreateCommand()
+            delete.Transaction <- transaction
+            delete.CommandText <- DeleteLinkUnlessLast
+            delete.Parameters.AddWithValue("@kind", kind) |> ignore
+            delete.Parameters.AddWithValue("@subject", subject) |> ignore
+            delete.Parameters.AddWithValue("@userId", userId) |> ignore
+            let! deleted = delete.ExecuteNonQueryAsync()
+
+            if deleted = 0 then
+                do! transaction.RollbackAsync()
+                return LinkLastWayIn
+            else
+                use record = connection.CreateCommand()
+                record.Transaction <- transaction
+                record.CommandText <- RecordRemovedLink
+                record.Parameters.AddWithValue("@kind", kind) |> ignore
+                record.Parameters.AddWithValue("@subject", subject) |> ignore
+                record.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+                let! _ = record.ExecuteNonQueryAsync()
+
+                use lower = connection.CreateCommand()
+                lower.Transaction <- transaction
+                lower.CommandText <- LowerUnbackedFlag
+                lower.Parameters.AddWithValue("@userId", userId) |> ignore
+                let! lowered = lower.ExecuteNonQueryAsync()
+
+                do! transaction.CommitAsync()
+                return LinkRemoved(kind, subject, lowered > 0, passkeysGone)
+    }
+
+/// FR-006. Whether this provider account was removed from a user before: such a
+/// sign-in is treated as unverified.
+let isRemoved (config: Database.DbConfig) (kind: string) (subject: string) : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+
+        command.CommandText <-
+            "SELECT EXISTS (SELECT 1 FROM removed_links WHERE provider_kind = @kind AND provider_subject = @subject)"
+
+        command.Parameters.AddWithValue("@kind", kind) |> ignore
+        command.Parameters.AddWithValue("@subject", subject) |> ignore
+        let! value = command.ExecuteScalarAsync()
+        return Convert.ToInt32 value = 1
+    }
+
+[<Literal>]
+let private PasskeyHeld =
+    "SELECT EXISTS (SELECT 1 FROM passkeys WHERE user_id = @userId AND id = @id)"
+
+/// FR-009. Whether a remembered sign-in (a session, a code or a refresh token)
+/// made through `connectorSlug` and, when it has one, the credential reference
+/// (`link:<fp>` or `passkey:<id>`), may go on: true admits, false refuses.
+///
+/// - `link:<fp>`: true when one of the user's links has that fingerprint.
+/// - `passkey:<id>`: true when the user has a passkey with that row id.
+/// - A value that does not parse: false (fails closed).
+/// - No reference and no connector slug: true (the connector re-checks own it).
+/// - No reference (made before this version): judged by the connector. The
+///   passkey kind, or a connector that no longer exists, is true. For `oidc`,
+///   true when the user has an `oidc` link whose subject starts with the
+///   connector's issuer and `#` (false with no issuer). Another kind: true when
+///   the user has a link of that kind.
+let credentialStillHeld
+    (config: Database.DbConfig)
+    (userId: string)
+    (connectorSlug: string option)
+    (credential: string option)
+    : Task<bool>
+    =
+    task {
+        // A reference is judged whenever there is one, with or without a slug:
+        // the slug only matters to the fallback for sessions made before it.
+        match credential |> Option.map Linking.parseCredential, connectorSlug with
+            | Some None, _ -> return false
+            | Some(Some(Linking.LinkCredential fingerprint)), _ ->
+                let! links = linkedAccountDetails config userId
+
+                return
+                    links
+                    |> List.exists (fun l -> Linking.fingerprint l.Kind l.Subject = fingerprint)
+            | Some(Some(Linking.PasskeyCredential id)), _ ->
+                use! connection = Database.openConnection config
+                use command = connection.CreateCommand()
+                command.CommandText <- PasskeyHeld
+                command.Parameters.AddWithValue("@userId", userId) |> ignore
+                command.Parameters.AddWithValue("@id", id) |> ignore
+                let! value = command.ExecuteScalarAsync()
+                return Convert.ToInt32 value = 1
+            | None, None -> return true
+            | None, Some slug ->
+                let! connector = ConnectorStore.findBySlug config slug
+
+                match connector with
+                | None -> return true
+                | Some c when c.Kind = ProviderKind.Passkey -> return true
+                | Some c ->
+                    let! links = linkedAccountDetails config userId
+
+                    if c.Kind = ProviderKind.Oidc then
+                        return
+                            match c.IssuerUrl with
+                            | Some issuer ->
+                                links
+                                |> List.exists (fun l ->
+                                    l.Kind = ProviderKind.Oidc.Value && l.Subject.StartsWith(issuer + "#", StringComparison.Ordinal))
+                            | None -> false
+                    else
+                        return links |> List.exists (fun l -> l.Kind = c.Kind.Value)
+    }

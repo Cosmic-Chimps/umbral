@@ -236,7 +236,7 @@ let ``a version 1 database comes up as the current version with every connector 
             // 3 -> 4 (app_branding), 4 -> 5 (allowed_email_domains).
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
             Assert.Equal(string SchemaVersion, version)
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! issuers = scalar config "SELECT count(*) FROM connectors WHERE issuer_url IS NULL"
             Assert.Equal("2", issuers)
@@ -267,7 +267,7 @@ let ``a fresh database is stamped with the current version and has every column 
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('connectors')"
             Assert.Contains("is_shared", columns)
@@ -426,7 +426,7 @@ let ``a version 2 database upgrades in place with its rows intact and accepts an
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             // Nothing that was there changed.
             let! connector = scalar config "SELECT client_id || '|' || is_shared || '|' || ifnull(issuer_url, 'none') FROM connectors WHERE slug = 'discord'"
@@ -470,20 +470,20 @@ let ``a database written by a newer build refuses to start, naming both versions
     withDb (fun config ->
         task {
             do! initializeSchema config
-            do! exec config "UPDATE settings SET value = '15' WHERE key = 'schema_version'"
+            do! exec config "UPDATE settings SET value = '16' WHERE key = 'schema_version'"
 
             let! error = Record.ExceptionAsync(fun () -> initializeSchema config :> Task)
 
             // Both versions, and what to do about it.
             let message = messageOf error
-            Assert.Contains("version 15", message)
+            Assert.Contains("version 16", message)
             Assert.Contains($"version {SchemaVersion}", message)
             Assert.Contains("newer image", message)
             Assert.Contains("backup", message)
 
             // Refusing is not partly starting: the stamp is still the newer one.
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("15", version)
+            Assert.Equal("16", version)
         })
 
 [<Fact>]
@@ -509,8 +509,8 @@ let ``a fresh database is at the current version and has the app_branding table`
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
-            Assert.Equal(14, SchemaVersion)
+            Assert.Equal("15", version)
+            Assert.Equal(15, SchemaVersion)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('app_branding')"
 
@@ -563,7 +563,7 @@ let ``a version 3 database upgrades with an empty app_branding table and its row
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! rows = scalar config "SELECT count(*) FROM app_branding"
             Assert.Equal("0", rows)
@@ -577,7 +577,7 @@ let ``a version 3 database upgrades with an empty app_branding table and its row
             // Running it again changes nothing: the step is idempotent as well as versioned.
             do! initializeSchema config
             let! again = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", again)
+            Assert.Equal("15", again)
         })
 
 /// Each statement is one row that breaks one CHECK of `app_branding`. Both
@@ -699,7 +699,7 @@ let ``a version 3 database upgrades in place with every allowed domains list emp
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             // Step 4 ran on the way: the branding table is there and empty.
             let! branding = scalar config "SELECT count(*) FROM app_branding"
@@ -819,7 +819,7 @@ let ``a version 5 database with connector rows upgrades to 6 with every enrolmen
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             // The column default gives every row that existed the safe mode.
             let! total = scalar config "SELECT count(*) FROM connectors"
@@ -872,7 +872,7 @@ let ``a fresh database is stamped 6 and has the passkey column and tables`` () =
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('connectors')"
             Assert.Contains("passkey_enrolment", columns)
@@ -1019,7 +1019,7 @@ let ``a version 6 database upgrades to 7 with every connector on any server and 
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             // Every connector that existed takes the column defaults.
             let! total = scalar config "SELECT count(*) FROM connectors"
@@ -1072,7 +1072,7 @@ let ``a version 7 database upgrades to 8 and gains the empty operator_passkeys t
             do! initializeSchema config
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('operator_passkeys')"
 
@@ -1145,11 +1145,11 @@ let ``a version 8 database upgrades to 9 and only the unproved email flags fall`
             let! upgrade = upgradeSchema config
 
             Assert.Equal(8, upgrade.FromVersion)
-            Assert.Equal(14, upgrade.ToVersion)
+            Assert.Equal(15, upgrade.ToVersion)
             Assert.Equal(Some 4, upgrade.EmailVerifiedLowered)
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             // Verified by a link that asserts the stored address, in any case.
             let! a = flagOf config "u-a"
@@ -1185,8 +1185,8 @@ let ``the version 9 step runs once and does not lower a flag set later`` () =
 
             let! again = upgradeSchema config
 
-            Assert.Equal(14, again.FromVersion)
-            Assert.Equal(14, again.ToVersion)
+            Assert.Equal(15, again.FromVersion)
+            Assert.Equal(15, again.ToVersion)
             Assert.Equal(None, again.EmailVerifiedLowered)
 
             let! b = flagOf config "u-b"
@@ -1199,8 +1199,8 @@ let ``a fresh database reports no version 9 step`` () =
         task {
             let! upgrade = upgradeSchema config
 
-            Assert.Equal(14, upgrade.FromVersion)
-            Assert.Equal(14, upgrade.ToVersion)
+            Assert.Equal(15, upgrade.FromVersion)
+            Assert.Equal(15, upgrade.ToVersion)
             Assert.Equal(None, upgrade.EmailVerifiedLowered)
         })
 
@@ -1232,10 +1232,10 @@ let ``a version 9 database upgrades to 10 and every connector has no Apple key``
             let! upgrade = upgradeSchema config
 
             Assert.Equal(9, upgrade.FromVersion)
-            Assert.Equal(14, upgrade.ToVersion)
+            Assert.Equal(15, upgrade.ToVersion)
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! columns = scalar config "SELECT group_concat(name, ',') FROM pragma_table_info('connectors')"
             Assert.Contains("apple_team_id", columns)
@@ -1286,10 +1286,10 @@ let ``a version 10 database upgrades to 11 and every connector has no Apple logo
             let! upgrade = upgradeSchema config
 
             Assert.Equal(10, upgrade.FromVersion)
-            Assert.Equal(14, upgrade.ToVersion)
+            Assert.Equal(15, upgrade.ToVersion)
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! columns = scalar config "SELECT group_concat(name || ':' || type || ':' || \"notnull\", ',') FROM pragma_table_info('connectors')"
             Assert.Contains("apple_logo:TEXT:0", columns)
@@ -1331,10 +1331,10 @@ let ``a version 11 database upgrades to 12 and every link has no server`` () =
             let! upgrade = upgradeSchema config
 
             Assert.Equal(11, upgrade.FromVersion)
-            Assert.Equal(14, upgrade.ToVersion)
+            Assert.Equal(15, upgrade.ToVersion)
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! columns = scalar config "SELECT group_concat(name || ':' || type || ':' || \"notnull\", ',') FROM pragma_table_info('linked_accounts')"
             Assert.Contains("provider_server:TEXT:0", columns)
@@ -1383,10 +1383,10 @@ let ``a version 12 database upgrades to 13 and every connector has no audience``
             let! upgrade = upgradeSchema config
 
             Assert.Equal(12, upgrade.FromVersion)
-            Assert.Equal(14, upgrade.ToVersion)
+            Assert.Equal(15, upgrade.ToVersion)
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! columns = scalar config "SELECT group_concat(name || ':' || type || ':' || \"notnull\", ',') FROM pragma_table_info('connectors')"
             Assert.Contains("microsoft_audience:TEXT:0", columns)
@@ -1573,10 +1573,10 @@ let ``a version 13 database upgrades to 14, an oidc connector reads trust on and
             let! upgrade = upgradeSchema config
 
             Assert.Equal(13, upgrade.FromVersion)
-            Assert.Equal(14, upgrade.ToVersion)
+            Assert.Equal(15, upgrade.ToVersion)
 
             let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
-            Assert.Equal("14", version)
+            Assert.Equal("15", version)
 
             let! columns = scalar config "SELECT group_concat(name || ':' || type || ':' || \"notnull\", ',') FROM pragma_table_info('connectors')"
             Assert.Contains("email_trust:INTEGER:0", columns)
@@ -1606,6 +1606,41 @@ let ``a fresh database has connectors.email_trust`` () =
 
             let! columns = scalar config "SELECT group_concat(name || ':' || type || ':' || \"notnull\", ',') FROM pragma_table_info('connectors')"
             Assert.Contains("email_trust:INTEGER:0", columns)
+        })
+
+[<Fact>]
+let ``a version 14 database upgrades to 15, adding removed_links and passkeys.added_via`` () =
+    withDb (fun config ->
+        task {
+            do! initializeSchema config
+
+            do!
+                exec
+                    config
+                    "INSERT INTO users (id, display_name, email, email_verified, first_seen_utc, last_seen_utc)
+                     VALUES ('u1', 'u1', 'a@example.com', 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+                     INSERT INTO passkeys (id, user_id, credential_id, public_key, nickname, created_utc)
+                     VALUES ('p1', 'u1', x'0102', x'AA', 'Phone', '2026-01-01T00:00:00Z');
+                     DROP TABLE removed_links;
+                     ALTER TABLE passkeys DROP COLUMN added_via;
+                     UPDATE settings SET value = '14' WHERE key = 'schema_version';"
+
+            let! upgrade = upgradeSchema config
+
+            Assert.Equal(14, upgrade.FromVersion)
+            Assert.Equal(15, upgrade.ToVersion)
+
+            let! version = scalar config "SELECT value FROM settings WHERE key = 'schema_version'"
+            Assert.Equal("15", version)
+
+            let! columns = scalar config "SELECT group_concat(name || ':' || type || ':' || \"notnull\", ',') FROM pragma_table_info('passkeys')"
+            Assert.Contains("added_via:TEXT:0", columns)
+
+            let! existing = scalar config "SELECT count(*) FROM passkeys WHERE id = 'p1' AND added_via IS NULL"
+            Assert.Equal("1", existing)
+
+            let! removed = scalar config "SELECT count(*) FROM removed_links"
+            Assert.Equal("0", removed)
         })
 
 /// Step 9 shipped as this text. It is now built from `UnbackedEmailVerified`, and

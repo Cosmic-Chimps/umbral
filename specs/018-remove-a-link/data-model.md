@@ -18,7 +18,10 @@ added_via TEXT NULL
 
 In `Database.schema` (fresh databases) and as upgrade step 15 (one literal,
 the CREATE and `ALTER TABLE passkeys ADD COLUMN added_via TEXT NULL;`);
-`SchemaVersion = 15`.
+`SchemaVersion = 15`. Step 15 runs only when `passkeys` has no `added_via`
+yet: a database from before version 8 gets `passkeys` from `schema` itself,
+which runs before the steps and already has the column (and `removed_links`),
+and SQLite has no `ADD COLUMN IF NOT EXISTS`.
 
 `removed_links` has no `user_id` and no foreign key, on purpose (spec decision
 1): the record must outlive the user the link was removed from. The subject is

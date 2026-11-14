@@ -83,6 +83,17 @@ let private schema =
 
     CREATE INDEX IF NOT EXISTS ix_linked_accounts_user ON linked_accounts (user_id);
 
+    -- Provider accounts an operator removed from a user (specs/018). No user_id
+    -- and no foreign key, on purpose: the record must outlive the user the link
+    -- was removed from, or the stranger's own user would regain a verified copy
+    -- of the real person's address. The subject is what linked_accounts held.
+    CREATE TABLE IF NOT EXISTS removed_links (
+        provider_kind    TEXT NOT NULL,
+        provider_subject TEXT NOT NULL,
+        removed_utc      TEXT NOT NULL,
+        PRIMARY KEY (provider_kind, provider_subject)
+    );
+
     CREATE TABLE IF NOT EXISTS connectors (
         slug                    TEXT    NOT NULL PRIMARY KEY,
         kind                    TEXT    NOT NULL,
@@ -238,7 +249,9 @@ let private schema =
         transports       TEXT    NOT NULL DEFAULT '',
         backup_eligible  INTEGER     NULL,
         created_utc      TEXT    NOT NULL,
-        last_used_utc    TEXT        NULL
+        last_used_utc    TEXT        NULL,
+        -- Spec 018: credential reference of the session that added it; NULL when unknown.
+        added_via        TEXT        NULL
     );
 
     CREATE INDEX IF NOT EXISTS ix_passkeys_user ON passkeys (user_id);
@@ -308,7 +321,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 14
+let SchemaVersion = 15
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -506,6 +519,40 @@ let private UpgradeToVersion14 =
     "ALTER TABLE connectors ADD COLUMN email_trust INTEGER NULL;
      UPDATE connectors SET email_trust = 1 WHERE kind = 'oidc';"
 
+/// Spec 018. A new, empty table (no provider account has been removed from a
+/// user before the feature) and the nullable passkeys.added_via column (NULL
+/// for every existing row). Nothing existing is rewritten.
+[<Literal>]
+let private UpgradeToVersion15 =
+    "CREATE TABLE IF NOT EXISTS removed_links (
+         provider_kind    TEXT NOT NULL,
+         provider_subject TEXT NOT NULL,
+         removed_utc      TEXT NOT NULL,
+         PRIMARY KEY (provider_kind, provider_subject)
+     );
+     ALTER TABLE passkeys ADD COLUMN added_via TEXT NULL;"
+
+/// A database from before version 8 has no passkeys table until `schema` creates
+/// it, already with added_via, and SQLite has no ADD COLUMN IF NOT EXISTS: the
+/// ALTER in step 15 would fail there, so the step runs only when the column is
+/// missing (the table-creating part is a no-op either way).
+[<Literal>]
+let private HasAddedViaColumn =
+    "SELECT count(*) FROM pragma_table_info('passkeys') WHERE name = 'added_via'"
+
+[<Literal>]
+let private AlreadyAtVersion15 = "SELECT 1"
+
+let private upgradeToVersion15 (command: SqliteCommand) : unit =
+    use probe = (nonNull command.Connection).CreateCommand()
+    probe.Transaction <- command.Transaction
+    probe.CommandText <- HasAddedViaColumn
+
+    command.CommandText <- UpgradeToVersion15
+
+    if System.Convert.ToInt32(probe.ExecuteScalar()) > 0 then
+        command.CommandText <- AlreadyAtVersion15
+
 /// What takes a database from the version before to the version named. Applied
 /// in order, inside `initializeSchema`'s transaction, to a database stamped
 /// lower than `SchemaVersion`; a fresh database skips them, because `schema`
@@ -531,7 +578,8 @@ let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
       11, (fun command -> command.CommandText <- UpgradeToVersion11)
       12, (fun command -> command.CommandText <- UpgradeToVersion12)
       13, (fun command -> command.CommandText <- UpgradeToVersion13)
-      14, (fun command -> command.CommandText <- UpgradeToVersion14) ]
+      14, (fun command -> command.CommandText <- UpgradeToVersion14)
+      15, upgradeToVersion15 ]
 
 /// What `upgradeSchema` did. `EmailVerifiedLowered` is the number of users the
 /// version 9 step set back to unverified, or `None` when that step did not run

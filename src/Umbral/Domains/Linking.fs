@@ -7,6 +7,41 @@
 /// than discovered inside a query.
 module Umbral.Domains.Linking
 
+/// FR-008 (specs/018). The opaque name of one provider account, for a form and
+/// for a claim: the unpadded base64url SHA-256 of the provider kind, a line feed
+/// and the provider's subject (43 characters). Pure and never parsed back: a
+/// holder finds the account by computing the fingerprint of each link a user
+/// has. The page and the session never carry the subject itself.
+let fingerprint (kind: string) (subject: string) : string =
+    let bytes = System.Text.Encoding.UTF8.GetBytes(kind + "\n" + subject)
+    let hash = System.Security.Cryptography.SHA256.HashData bytes
+
+    System.Convert
+        .ToBase64String(hash)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_')
+
+/// FR-007 (specs/018). What a session and an authorization carry: the provider
+/// account it was made with, or the passkey.
+type CredentialReference =
+    | LinkCredential of fingerprint: string
+    | PasskeyCredential of passkeyId: string
+
+/// `link:<fingerprint>` or `passkey:<id>`.
+let credentialValue (credential: CredentialReference) : string =
+    match credential with
+    | LinkCredential fp -> "link:" + fp
+    | PasskeyCredential id -> "passkey:" + id
+
+/// The reverse of `credentialValue`; None for anything else, an empty value too.
+let parseCredential (value: string) : CredentialReference option =
+    if value.StartsWith("link:", System.StringComparison.Ordinal) && value.Length > 5 then
+        Some(LinkCredential(value.Substring 5))
+    elif value.StartsWith("passkey:", System.StringComparison.Ordinal) && value.Length > 8 then
+        Some(PasskeyCredential(value.Substring 8))
+    else None
+
 /// What a provider told us about whoever just signed in.
 type IncomingIdentity =
     { ProviderKind: string
