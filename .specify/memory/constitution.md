@@ -1,6 +1,39 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 3.1.0 → 3.2.0
+Rationale: MINOR, existing guidance materially expanded. The note left where
+Principle V was said "The admin UI is now the one place configuration
+changes". Spec 019 lets whoever starts Umbral declare apps and the passkey
+connector in its environment (UMBRAL__DECLARATION), applied at every start, for
+an Aspire AppHost or a compose file. The note now names that exception and the
+rules that keep it from bringing back what spec 004 removed: it covers apps and
+the passkey connector only, never a secret, a secret-bearing connector, a user
+or the operator credential; what it declares is read-only in the admin area, so
+a start never undoes an admin change; there is no export. Not MAJOR: no
+principle permits what it forbade, and Principle V stays removed.
+
+Principles:
+  V. (Removed in 2.0.0)                           NOTE AMENDED (declared apps, spec 019)
+  All others                                      unchanged
+
+Sections changed:
+  - The Principle V note: one paragraph after its first, before "The number stays".
+  - Version line: 3.2.0, Last Amended 2026-11-14.
+
+Templates requiring updates:
+  ✅ .specify/templates/plan-template.md: no edit required.
+  ✅ .specify/templates/spec-template.md: no edit required.
+  ✅ .specify/templates/tasks-template.md: no edit required.
+  ✅ specs/004-remove-config-document: history, not edited.
+  ✅ PRODUCT.md: its "one place" sentence amended in the same change.
+
+Plans invalidated: none.
+
+Deferred items: none.
+
+Previous report (3.1.0) follows.
+==================
 Version change: 3.0.1 → 3.1.0
 Rationale: MINOR, existing guidance materially expanded. Principle IV said
 "Redirect URIs MUST be matched exactly", and RFC 8252 §7.3 asks a server to
@@ -255,6 +288,13 @@ only as hashes. The admin UI is now the one place configuration changes, and
 the data directory is the whole state of an instance (Principle II): copying it
 moves or rebuilds an instance, secrets included.
 
+One exception since 3.2.0 (spec 019): whoever starts Umbral may declare apps
+and the passkey connector in its environment (`UMBRAL__DECLARATION`), and
+Umbral applies the declaration at every start. It never holds a secret, a
+secret-bearing connector, a user or the operator credential. What it declares
+is read-only in the admin UI while declared, so a start never undoes an admin
+change, and there is no export. Everything else changes only in the admin UI.
+
 The number stays so that references to Principles VI and VII keep pointing at
 them.
 
@@ -386,4 +426,4 @@ time and re-evaluated after design. Violations are either removed from the
 feature or recorded in the plan's Complexity Tracking table with an explicit
 justification; an unjustified violation blocks the plan.
 
-**Version**: 3.1.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-11-11
+**Version**: 3.2.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-11-14
