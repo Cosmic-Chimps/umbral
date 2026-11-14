@@ -83,3 +83,25 @@ cleaner; the second is safe whatever the order.
 4. **PRODUCT.md** (Operating Context) says tagged releases go to GHCR and the README covers Caravana.
    Add the package as the other way the image is run: "…and the `CosmicChimps.Aspire.Hosting.Umbral`
    package runs that image from a .NET Aspire AppHost."
+
+## Re-check at e43d016 (2026-11-14)
+
+**Clear to merge, once the maintainer settles B2's timing.** Both blocking items and all four nits
+are fixed (`d2aeed1..e43d016`).
+
+- **B1**: the page ("Run it on your machine") and the readme's `WithReference` section say that an
+  `AddProject` app reaches `http://localhost:<port>`, that an `AddContainer` or `AddDockerfile` app
+  cannot, and what to do instead. Right.
+- **B2**: after the install line, "The package is published with each Umbral release from 0.12.0 on."
+  The notes ask the maintainer to confirm 0.12.0, or to merge right before that release. Right. Since
+  the job now fails on this repository without `NUGET_USER` (below), the maintainer's one-time steps
+  must be done before that release, or the sentence is wrong on the day it ships.
+- **N1–N4**: the run-mode origin sentence (plus the code review's "on the resource's port"), the
+  narrowed publishing wording, "a self-hosted OpenID Connect provider" in the readme and
+  `Description`, and the package named in PRODUCT.md. Right.
+- **The code review's additions.** "A string origin is stored the way Umbral reports its issuer" is
+  right: `WithPublicOrigin` stores `GetLeftPart(UriPartial.Authority)`, which lowercases the scheme and
+  host and drops the default port, as `PublicOrigin.parse` does. The parameter wording ("give it in that
+  form") is right too. The `nuget` job runs on `Cosmic-Chimps/umbral` and fails without `NUGET_USER`
+  (a fork skips it); the header comment and maintainer step 3 say so. Right.
+- `check-links.py`: 422 links resolve. `changelog.sh check`: in order.
