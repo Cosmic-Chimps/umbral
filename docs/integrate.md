@@ -142,6 +142,49 @@ Both errors come back to your app's redirect URI as an ordinary OpenID Connect
 error, not a fault: Umbral has already ended the session, so treat them as
 "sign in again". A disabled person who does is told why on Umbral's page.
 
+## When a link is removed
+
+Umbral joins a provider account to an existing user when the provider vouches
+for the user's address (see [How people are identified](#how-people-are-identified)).
+When a provider vouches wrongly, someone else is joined into that user and
+signs in as them in every app: a provider that marks unchecked addresses as
+verified, an address a company gave to a new employee, an inbox two people
+share. On the **Users** screen, a user with two or more ways to sign in has a
+list of **Linked accounts**, each with the date it was linked and last used, and
+**Remove link** on each row. Umbral asks first, and says which passkeys go with
+the link.
+
+Removing a link:
+
+- **keeps the user**. The person who stays keeps their `sub`, their other
+  providers and passkeys, and their sessions. Your app sees no change for them.
+- **ends everything the removed account signed in to**. The Umbral session made
+  through it, and every refresh token issued through it, are refused at their
+  next use: an authorization request comes back with `error=login_required` (or
+  goes to the sign-in page), and a refresh gets `invalid_grant`. An access token
+  already issued keeps working until it expires, within the hour, as after
+  disabling someone.
+- **removes the passkeys added while signed in through that account**, and any
+  passkey added while signed in with those. Passkeys added before this version
+  of Umbral have no recorded origin and stay; the confirmation lists those added
+  since the link was made, so you can remove any the person does not recognise.
+- **makes the removed account a stranger, for good**. Its next sign-in creates a
+  new user, with a new `sub`, and Umbral never again counts an address that
+  account reports as verified, so it can never be joined to anyone by email.
+- **re-checks the user's address**. If only the removed account had verified
+  it, it becomes unverified, and apps see `email_verified: false` until a
+  provider that verifies it signs the person in.
+
+It cannot be undone. If you remove the real person's own link by mistake, their
+next sign-in through that account makes a new user with an unverified address,
+and your apps see a new person. Umbral has no way to join the two again.
+
+The removed person may already have done things in your app under the user's
+`sub`. Umbral cannot see or undo that: tell whoever runs each app.
+
+A user's last way to sign in cannot be removed: delete the user instead, or
+invite them to add a passkey first.
+
 ## Naming the provider's application
 
 Umbral is the one login for all your apps, so the application you create at a
@@ -203,7 +246,9 @@ creates a new user:
 - more than one user has it. Umbral does not guess between them: it creates a
   new user and leaves the others for you to delete.
 
-You can disable or delete users on the **Users** screen.
+You can disable or delete users on the **Users** screen, or remove one wrong
+provider account from a user without touching the rest (see
+[When a link is removed](#when-a-link-is-removed)).
 
 A person who enrols with a passkey has no email, so nothing can link them to a
 provider account later: they are their own user, and signing in with a provider

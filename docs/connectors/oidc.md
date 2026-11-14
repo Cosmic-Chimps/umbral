@@ -508,12 +508,23 @@ up at this provider while it was **Trusted**, someone may have claimed another
 person's address and been linked into that person's account: they sign in as
 that person, in every app, and turning trust off does not stop them. Look for
 it on the **Users** screen: a user who has this provider **and** another one
-among their providers, where you do not recognise the link. Umbral cannot remove
-one link from a user. **Disable** stops both people, the real one included,
-because both sign in as that user. **Delete** removes the user and every link:
-the real person then signs in again through their own provider and gets a new
-account, and the other person, with trust off, gets a separate one. Apps see the
-new account as a new person.
+among their providers, where you do not recognise the link. Under **Linked
+accounts**, the dates help: the wrong link was usually made later than the
+person's own.
+
+Remove that one link with **Remove link** on its row (see
+[When a link is removed](../integrate.md#when-a-link-is-removed)). The real
+person keeps their account and their `sub`, and their sessions go on. The other
+person is signed out of Umbral and of every app at the next request or token
+refresh, loses any passkey they added while signed in that way, and becomes a
+separate user the next time they sign in. Umbral never trusts that provider
+account's addresses again, whatever this setting says. Turn trust off first all
+the same, so nobody else is joined the same way.
+
+**Disable** and **Delete** are blunter. Disable stops both people, the real one
+included, because both sign in as that user. Delete removes the user and every
+link: the real person then signs in again through their own provider and gets a
+new account, which apps see as a new person.
 
 Turning it **off** does one more thing, and asks first. Every stored address that
 only this provider verified becomes unverified, so that it can no longer join

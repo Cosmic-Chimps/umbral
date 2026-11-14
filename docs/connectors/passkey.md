@@ -118,6 +118,12 @@ passkey of their own.
   a device is stolen. You may remove their last one; to cut a person off, disable
   or delete the user.
 
+Either way, whatever was signed in with that passkey is signed out: the Umbral
+session made with it, and the refresh tokens issued through that session, are
+refused at their next use. Removing a provider account from a user on **Users**
+also removes the passkeys added while signed in through that account (see
+[When a link is removed](../integrate.md#when-a-link-is-removed)).
+
 Deleting a user deletes their passkeys and invitations. Deleting the connector
 deletes its invitations but not anyone's passkeys: they work again if you enable
 the connector again.
