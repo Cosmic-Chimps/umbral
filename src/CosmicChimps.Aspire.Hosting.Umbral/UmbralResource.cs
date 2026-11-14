@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Aspire.Hosting.ApplicationModel;
 
 namespace Aspire.Hosting;
@@ -13,6 +14,8 @@ namespace Aspire.Hosting;
 /// <param name="name">The name of the resource.</param>
 public class UmbralResource(string name) : ContainerResource(name)
 {
+    private readonly List<UmbralAppResource> _apps = [];
+
     /// <summary>The name of the HTTP endpoint.</summary>
     public const string HttpEndpointName = "http";
 
@@ -30,4 +33,15 @@ public class UmbralResource(string name) : ContainerResource(name)
 
     /// <summary>The trusted proxy addresses and networks, or <see langword="null"/> when none were set.</summary>
     public string? TrustedProxies { get; internal set; }
+
+    /// <summary>The passkey sign-up declared with <c>WithPasskeys</c>, or <see langword="null"/> when the passkey connector is not declared.</summary>
+    public PasskeySignUp? Passkeys { get; internal set; }
+
+    /// <summary>The apps declared with <c>AddApp</c>, in the order they were added.</summary>
+    public IReadOnlyList<UmbralAppResource> Apps => _apps;
+
+    /// <summary>Whether the environment of the declaration has been added to the resource.</summary>
+    internal bool DeclarationEnvironmentAdded { get; set; }
+
+    internal void AddApp(UmbralAppResource app) => _apps.Add(app);
 }

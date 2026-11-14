@@ -49,10 +49,38 @@ An app on your machine (`AddProject`) reaches the run-mode `http://localhost:<po
 container (`AddContainer`, `AddDockerfile`) cannot: `localhost` there is the container itself.
 Run that app as a project while you develop, or deploy both with a public origin.
 
-## Not done here yet
+## Declaring apps
 
-Claiming Umbral and registering an app (to get a client ID and secret) are still done in Umbral's
-admin area, at `/admin`; the dashboard shows an "Admin" link to it.
+Umbral can create the passkey connector and your apps itself when it starts, so there is nothing to click
+in the admin area. The package writes the declaration (`UMBRAL__DECLARATION`) and each web app's secret
+(`UMBRAL__APP_SECRETS__<key>`) into Umbral's environment:
+
+```csharp
+var umbral = builder.AddUmbral("umbral")
+    .WithDataVolume()
+    .WithPasskeys(PasskeySignUp.Open);            // the passkey connector; invitations only by default
+
+var web = builder.AddProject<Projects.Web>("web");
+
+var app = umbral.AddApp("web")                    // key = client ID, a web (confidential) app by default
+    .WithDisplayName("Sample web app");
+web.WithReference(app);                           // UMBRAL_ISSUER, UMBRAL_CLIENT_ID, UMBRAL_CLIENT_SECRET
+```
+
+- A web app gets a generated 48-character secret, `<umbral>-<key>-client-secret`, kept in the AppHost's user
+  secrets in run mode and never written to the repository. `WithClientSecret(parameter)` uses your own.
+  An `UmbralAppType.Spa` app is public: no secret, no `UMBRAL_CLIENT_SECRET`.
+- The redirect URIs of a web app with none of its own are the `http` endpoint of the resource that references
+  it, plus `/signin-oidc` and, as post-logout URI, `/signout-callback-oidc`. `WithCallbackPaths(signIn, signOut)`
+  changes the paths, or turns this on for a spa app. `WithRedirectUri` and `WithPostLogoutRedirectUri` add
+  explicit ones, and are required when publishing: an endpoint's address is not the public one, so publishing
+  refuses derived URIs. An app referenced by two resources needs explicit URIs.
+- `WithConnectors("passkey", ...)` limits the sign-in methods of an app; every shared connector otherwise.
+- Signing in to a declared app needs no claim. To open the admin area, claim Umbral once at `/admin/setup`,
+  the second link in the dashboard; the setup token is in Umbral's console log. With `PasskeySignUp.Open`,
+  claim it before you publish it: until then anyone who reaches it can sign up.
+
+Operating Umbral stays in its admin area, at `/admin`; the dashboard shows an "Admin" link to it.
 
 Documentation: [Run Umbral from an Aspire AppHost](https://cosmic-chimps.github.io/umbral/run/aspire/),
 and the rest of Umbral's at <https://cosmic-chimps.github.io/umbral/>.

@@ -44,6 +44,8 @@ public static class UmbralResourceBuilderExtensions
             .WithHttpEndpoint(port: resource.Port, targetPort: UmbralResource.ContainerPort, name: UmbralResource.HttpEndpointName)
             .WithHttpHealthCheck("/healthz")
             .WithUrlForEndpoint(UmbralResource.HttpEndpointName, _ => new ResourceUrlAnnotation { Url = "/admin", DisplayText = "Admin" })
+            // The first run: the setup token is in Umbral's console log, see the Aspire page of the docs.
+            .WithUrlForEndpoint(UmbralResource.HttpEndpointName, _ => new ResourceUrlAnnotation { Url = "/admin/setup", DisplayText = "Claim (first run)" })
             .WithEnvironment(async context =>
             {
                 var origin = await UmbralOrigin.ResolveAsync(resource, context.ExecutionContext, context.CancellationToken).ConfigureAwait(false);
@@ -197,14 +199,17 @@ public static class UmbralResourceBuilderExtensions
         ArgumentNullException.ThrowIfNull(app);
         ArgumentNullException.ThrowIfNull(umbral);
 
-        var resource = umbral.Resource;
+        return WithIssuer(app, umbral.Resource);
+    }
 
-        return app.WithEnvironment(async context =>
+    /// <summary>Sets <c>UMBRAL_ISSUER</c>: one place for <c>WithReference(umbral)</c> and <c>WithReference(app)</c>.</summary>
+    internal static IResourceBuilder<TDestination> WithIssuer<TDestination>(IResourceBuilder<TDestination> app, UmbralResource resource)
+        where TDestination : IResourceWithEnvironment =>
+        app.WithEnvironment(async context =>
         {
             var origin = await UmbralOrigin.ResolveAsync(resource, context.ExecutionContext, context.CancellationToken).ConfigureAwait(false);
             context.EnvironmentVariables["UMBRAL_ISSUER"] = origin.Value;
         });
-    }
 
     private static string DefaultImageTag() =>
         typeof(UmbralResourceBuilderExtensions).Assembly
