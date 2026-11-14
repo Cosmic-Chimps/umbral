@@ -117,3 +117,22 @@ b7fb2d4; code 9472ef8; screen 0786250).
 One tidy-up, not a condition: 628bcb5 left `docs/connectors/oidc.md`, `docs/connectors/passkey.md`,
 `docs/integrate.md` and `changelog.d/018-remove-a-link.md` without a final newline (the diff shows
 "No newline at end of file"). Add it back so the next edit's diff stays clean.
+
+## Addendum: 69bd10a, after the re-check (2026-11-14)
+
+**Still clear.** The code review's B1 made userinfo judge an access token (FR-014). Four docs
+changed: integrate.md, oidc.md, run/troubleshooting.md and the changelog. Checked against the code:
+
+- The connector and credential claims now go to the access token, and never the identity token
+  (`destinationsFor`), so userinfo tells the stranger's token from the real person's. The test
+  ``after a removal the stranger's access token is refused at userinfo and the remaining link's
+  access token is served`` (`UserLinkRecheckTests.fs:714`) says so. "Refused at userinfo from then on
+  (`401` with `invalid_token`), as after disabling someone" is right, and so is the deleted-connector
+  wording in oidc.md and troubleshooting.md.
+- An access token from before this version carries neither claim and is refused once the user is
+  recorded in `legacy_sessions_ended`, for both people. That matches integrate.md's bullet on older
+  sessions ("for both people").
+- The design keeps those claims away from apps only while no app may call introspection, which
+  integrate.md already states ("no app is allowed to call it: it answers `unauthorized_client`").
+  That sentence now carries a security property: keep it true, and keep it in mind if introspection
+  is ever opened to apps.
