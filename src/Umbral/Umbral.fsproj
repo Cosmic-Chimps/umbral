@@ -102,6 +102,7 @@
     <Compile Include="Infrastructure/WebAuthn.fs" />
     <Compile Include="Infrastructure/AdminAuth.fs" />
     <Compile Include="Infrastructure/AppClients.fs" />
+    <Compile Include="Infrastructure/Declarations.fs" />
     <Compile Include="Infrastructure/WebForms.fs" />
     <Compile Include="Infrastructure/RateLimits.fs" />
     <Compile Include="Infrastructure/BrowserCookies.fs" />

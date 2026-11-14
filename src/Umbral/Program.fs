@@ -631,6 +631,49 @@ let private ensureSchema (app: WebApplication) (dbConfig: Database.DbConfig) =
                 logger.LogInformation(message, upgrade.FromVersion, upgrade.ToVersion, count)
     }
 
+/// The declaration (spec 019): read `UMBRAL__DECLARATION` and the secret
+/// variables, check them, apply them in one transaction, say what happened.
+///
+/// A refusal stops the start with every problem in the log and nothing written,
+/// and so does any exception while applying (C1: OpenIddict's application cache
+/// could hold what a rolled-back transaction did, and only the process going
+/// away drops it). Nothing here catches.
+let private applyDeclaration (app: WebApplication) =
+    task {
+        let logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Umbral.Declaration")
+        let configuration = app.Services.GetRequiredService<IConfiguration>()
+        let json = configuration["UMBRAL:DECLARATION"] |> Option.ofObj |> Option.defaultValue ""
+
+        let refuse (problems: string list) =
+            for problem in problems do
+                logger.LogError("{Problem}", problem)
+
+            failwith "The declaration in UMBRAL__DECLARATION was refused; nothing was changed. Fix the problems above and start again."
+
+        // Blank is no declaration: everything still declared is handed back.
+        let declaration =
+            if String.IsNullOrWhiteSpace json then
+                None
+            else
+                let secrets =
+                    configuration.GetSection("UMBRAL:APP_SECRETS").GetChildren()
+                    |> Seq.choose (fun child -> Option.ofObj child.Value |> Option.map (fun value -> child.Key, value))
+                    |> List.ofSeq
+
+                match Umbral.Domains.Declaration.parse json secrets with
+                | Ok declaration -> Some declaration
+                | Error problems -> refuse problems
+
+        match! Declarations.apply app.Services declaration with
+        | Error problems -> return refuse problems
+        | Ok applied ->
+            for warning in applied.Warnings do
+                logger.LogWarning("{Warning}", warning)
+
+            if declaration.IsSome || Declarations.handedBack applied then
+                logger.LogInformation("{Applied}", Declarations.describe applied)
+    }
+
 /// Everything that must happen before the first request: the schema Umbral owns,
 /// OpenIddict's migrations, and the key material.
 ///
@@ -666,6 +709,8 @@ let initialize (app: WebApplication) =
 
         if connectors |> List.exists (fun c -> c.Kind = Umbral.Domains.Connectors.Fake) && not gate.IsAllowed then
             failwith gate.Explain
+
+        do! applyDeclaration app
 
         let! configured = AdminAuth.isConfigured dbConfig
 

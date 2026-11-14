@@ -312,6 +312,19 @@ let private schema =
         created_utc    TEXT    NOT NULL,
         last_used_utc  TEXT        NULL
     );
+
+    -- What a declaration (spec 019) names, and has named: one row per declared
+    -- app (the client ID) and for the passkey connector (its slug). No foreign
+    -- key: apps live in OpenIddict's tables, and the row is history, so "declared
+    -- once" outlives an un-declare.
+    CREATE TABLE IF NOT EXISTS declared_items (
+        kind               TEXT NOT NULL CHECK (kind IN ('app', 'connector')),
+        id                 TEXT NOT NULL,
+        is_declared        INTEGER NOT NULL,
+        first_declared_utc TEXT NOT NULL,
+        changed_utc        TEXT NOT NULL,
+        PRIMARY KEY (kind, id)
+    );
     """
 
 /// The unique index on the issuer, kept out of `schema`: that script also runs
@@ -329,7 +342,7 @@ let private issuerIndex =
 /// older build could not read, so a downgrade fails loudly instead of corrupting:
 /// `initializeSchema` refuses a database stamped higher than this.
 [<Literal>]
-let SchemaVersion = 15
+let SchemaVersion = 16
 
 /// Spec 003. Every existing connector becomes shared through the column
 /// default and no app has a choice row, so every app offers what it offered
@@ -545,6 +558,19 @@ let private UpgradeToVersion15 =
      );
      ALTER TABLE passkeys ADD COLUMN added_via TEXT NULL;"
 
+/// Spec 019. One new, empty table (nothing was declared before the feature);
+/// nothing existing is rewritten.
+[<Literal>]
+let private UpgradeToVersion16 =
+    "CREATE TABLE IF NOT EXISTS declared_items (
+         kind               TEXT NOT NULL CHECK (kind IN ('app', 'connector')),
+         id                 TEXT NOT NULL,
+         is_declared        INTEGER NOT NULL,
+         first_declared_utc TEXT NOT NULL,
+         changed_utc        TEXT NOT NULL,
+         PRIMARY KEY (kind, id)
+     );"
+
 /// A database from before version 8 has no passkeys table until `schema` creates
 /// it, already with added_via, and SQLite has no ADD COLUMN IF NOT EXISTS: the
 /// ALTER in step 15 would fail there, so the step runs only when the column is
@@ -592,7 +618,8 @@ let private upgradeSteps: (int * (SqliteCommand -> unit)) list =
       12, (fun command -> command.CommandText <- UpgradeToVersion12)
       13, (fun command -> command.CommandText <- UpgradeToVersion13)
       14, (fun command -> command.CommandText <- UpgradeToVersion14)
-      15, upgradeToVersion15 ]
+      15, upgradeToVersion15
+      16, (fun command -> command.CommandText <- UpgradeToVersion16) ]
 
 /// What `upgradeSchema` did. `EmailVerifiedLowered` is the number of users the
 /// version 9 step set back to unverified, or `None` when that step did not run

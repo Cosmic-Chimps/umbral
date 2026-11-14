@@ -12,6 +12,7 @@ module Umbral.Infrastructure.AppConnectors
 
 open System.Collections.Generic
 open System.Threading.Tasks
+open Microsoft.Data.Sqlite
 open OpenIddict.Abstractions
 open Umbral.Domains.Connectors
 
@@ -78,14 +79,17 @@ let allChoices (config: Database.DbConfig) : Task<Map<string, AppChoice>> =
         return sets |> Seq.map (fun kv -> kv.Key, Only(Set.ofSeq kv.Value)) |> Map.ofSeq
     }
 
-/// Store an app's choice in one transaction. `Only` writes the marker and
-/// replaces the set; `AllShared` deletes the marker, whose cascade removes the
-/// set with it. Saving the same choice twice leaves the same rows.
-let setChoice (config: Database.DbConfig) (clientId: string) (choice: AppChoice) : Task<unit> =
+/// Store an app's choice on a connection the caller owns, inside the
+/// transaction it gave (null: each statement on its own). `Only` writes the
+/// marker and replaces the set; `AllShared` deletes the marker, whose cascade
+/// removes the set with it. Saving the same choice twice leaves the same rows.
+let setChoiceIn
+    (connection: SqliteConnection)
+    (transaction: SqliteTransaction | null)
+    (clientId: string)
+    (choice: AppChoice)
+    : Task<unit> =
     task {
-        use! connection = Database.openConnection config
-        use transaction = connection.BeginTransaction()
-
         match choice with
         | AllShared ->
             use delete = connection.CreateCommand()
@@ -119,7 +123,14 @@ let setChoice (config: Database.DbConfig) (clientId: string) (choice: AppChoice)
                 insert.Parameters.AddWithValue("@slug", slug) |> ignore
                 let! _ = insert.ExecuteNonQueryAsync()
                 ()
+    }
 
+/// Store an app's choice in one transaction of its own.
+let setChoice (config: Database.DbConfig) (clientId: string) (choice: AppChoice) : Task<unit> =
+    task {
+        use! connection = Database.openConnection config
+        use transaction = connection.BeginTransaction()
+        do! setChoiceIn connection transaction clientId choice
         do! transaction.CommitAsync()
     }
 

@@ -33,7 +33,9 @@ CREATE TABLE IF NOT EXISTS declared_items (
 
 A declared app is "unchanged" when all of these are equal to the stored ones:
 display name, client type (`web` = confidential), redirect URIs and
-post-logout redirect URIs (as ordered lists of the stored, normalised form),
-the connector choice (`AppConnectors.choiceFor`), and, for `web`, the secret
+post-logout redirect URIs (as sets of the stored form: matching has no order,
+and a reordered list must not count as a change), the connector choice
+(`AppConnectors.choiceFor`, against the declared slugs that a connector has),
+and, for `web`, the secret
 validates against the stored hash. The passkey connector is unchanged when it
 exists, is enabled and shared, and its enrolment is the declared one.

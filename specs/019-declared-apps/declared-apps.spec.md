@@ -162,7 +162,9 @@ referencing app could not know it.
 with actor `system`, the client ID or connector slug, and a detail starting
 `declared`, never a secret or a URI list:
 - `app_created` (`declared`), `app_updated` (`declared;fields=name,type,redirect_uris,post_logout_redirect_uris,connectors`, the fields that changed), `app_secret_rotated` (`declared`), `app_updated` (`undeclared`);
-- `connector_created` / `connector_updated` (`declared;enrolment=open|invitations`), `connector_enabled` (`declared`), `connector_updated` (`declared;adopted`, C2), `connector_updated` (`undeclared`).
+- `connector_created` / `connector_updated` (`declared;enrolment=open|invitations`, with `;shared` when sharing was turned back on), `connector_enabled` (`declared`), `connector_updated` (`declared;adopted`, C2), `connector_updated` (`undeclared`).
+- An item declared again after an un-declare adds `;redeclared` to its `app_updated` or `connector_updated` detail, even when no field changed.
+- A type change is one `app_updated` (`fields=type`): the secret is set or dropped in the same update, with no separate `app_secret_rotated`.
 
 A start that changes nothing records nothing. One Information line per start
 says what was applied (counts only, and `passkey connector adopted` when it
@@ -264,8 +266,11 @@ change only when the compose file does.
 ### Edge cases
 
 - A connector slug in an app's `connectors` that no connector has is accepted,
-  with a warning line: the operator may add that connector later, and until
-  then it offers nothing (`Connectors.offeredTo`).
+  with a warning line: the operator may add that connector later. It cannot be
+  stored until then (`app_connectors` has a foreign key to `connectors`), so
+  the app's stored choice holds only the known slugs and offers nothing through
+  the missing one. Once the connector exists, the next start adds it
+  (`app_updated` `declared;fields=connectors`).
 - The type changes from `web` to `spa`: the secret is removed and the secret
   variable must be gone. From `spa` to `web`: the secret variable is required.
 - A declared app deleted outside Umbral's screens (for example a restored

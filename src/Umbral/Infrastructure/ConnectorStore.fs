@@ -309,15 +309,16 @@ let private SqliteConstraint = 19
 /// the secret's name too: the name's discriminator derives from `created_utc`,
 /// and a replace later re-derives the same name from the stored value
 /// (specs/005 research R5).
-let create
-    (config: Database.DbConfig)
+let createIn
+    (connection: SqliteConnection)
+    (transaction: SqliteTransaction | null)
     (now: DateTimeOffset)
     (connector: Connector)
     (secretRef: string, secretHint: string)
     : Task<CreateResult> =
     task {
-        use! connection = Database.openConnection config
         use command = connection.CreateCommand()
+        command.Transaction <- transaction
 
         command.CommandText <-
             "INSERT INTO connectors
@@ -355,6 +356,18 @@ let create
             // `ON CONFLICT (slug)` covers only the primary key; the unique
             // index on the issuer raises instead of being skipped.
             return IssuerTaken
+    }
+
+/// `createIn` on its own connection.
+let create
+    (config: Database.DbConfig)
+    (now: DateTimeOffset)
+    (connector: Connector)
+    (secretRef: string, secretHint: string)
+    : Task<CreateResult> =
+    task {
+        use! connection = Database.openConnection config
+        return! createIn connection null now connector (secretRef, secretHint)
     }
 
 /// Change what the card form edits on a stored connector: display name, client
@@ -702,12 +715,45 @@ let switchSecretRef
             return if Convert.ToInt32 count > 0 then Changed else Gone
     }
 
+let setEnabledIn
+    (connection: SqliteConnection)
+    (transaction: SqliteTransaction | null)
+    (clock: TimeProvider)
+    (slug: string)
+    (isEnabled: bool)
+    : Task<unit> =
+    task {
+        use command = connection.CreateCommand()
+        command.Transaction <- transaction
+        command.CommandText <- "UPDATE connectors SET is_enabled = @enabled, updated_utc = @now WHERE slug = @slug"
+        command.Parameters.AddWithValue("@enabled", (if isEnabled then 1 else 0)) |> ignore
+        command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+        command.Parameters.AddWithValue("@slug", slug) |> ignore
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
+    }
+
 let setEnabled (config: Database.DbConfig) (clock: TimeProvider) (slug: string) (isEnabled: bool) : Task<unit> =
     task {
         use! connection = Database.openConnection config
+        return! setEnabledIn connection null clock slug isEnabled
+    }
+
+/// Changes whether other apps can offer a connector (the shared setting), and
+/// nothing else on it. Its own statement, as `setEnabled` is, for a caller
+/// that owns only this field (spec 019's declared passkey connector).
+let setSharedIn
+    (connection: SqliteConnection)
+    (transaction: SqliteTransaction | null)
+    (clock: TimeProvider)
+    (slug: string)
+    (isShared: bool)
+    : Task<unit> =
+    task {
         use command = connection.CreateCommand()
-        command.CommandText <- "UPDATE connectors SET is_enabled = @enabled, updated_utc = @now WHERE slug = @slug"
-        command.Parameters.AddWithValue("@enabled", (if isEnabled then 1 else 0)) |> ignore
+        command.Transaction <- transaction
+        command.CommandText <- "UPDATE connectors SET is_shared = @shared, updated_utc = @now WHERE slug = @slug"
+        command.Parameters.AddWithValue("@shared", (if isShared then 1 else 0)) |> ignore
         command.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
         command.Parameters.AddWithValue("@slug", slug) |> ignore
         let! _ = command.ExecuteNonQueryAsync()
@@ -718,15 +764,16 @@ let setEnabled (config: Database.DbConfig) (clock: TimeProvider) (slug: string) 
 /// statement, as `setEnabled` is, so the card's save cannot touch a secret or a
 /// name that the passkey kind does not have. Returns false when no connector has
 /// that slug.
-let setEnrolment
-    (config: Database.DbConfig)
+let setEnrolmentIn
+    (connection: SqliteConnection)
+    (transaction: SqliteTransaction | null)
     (clock: TimeProvider)
     (slug: string)
     (enrolment: PasskeyEnrolment)
     : Task<bool> =
     task {
-        use! connection = Database.openConnection config
         use command = connection.CreateCommand()
+        command.Transaction <- transaction
 
         command.CommandText <-
             "UPDATE connectors SET passkey_enrolment = @enrolment, updated_utc = @now WHERE slug = @slug"
@@ -736,6 +783,17 @@ let setEnrolment
         command.Parameters.AddWithValue("@slug", slug) |> ignore
         let! changed = command.ExecuteNonQueryAsync()
         return changed > 0
+    }
+
+let setEnrolment
+    (config: Database.DbConfig)
+    (clock: TimeProvider)
+    (slug: string)
+    (enrolment: PasskeyEnrolment)
+    : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        return! setEnrolmentIn connection null clock slug enrolment
     }
 
 /// Changes who may sign in through the Fediverse connector (specs/010). Its own
