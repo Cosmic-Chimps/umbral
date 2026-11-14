@@ -140,11 +140,13 @@ the removal would not do what it says.
   lists readably, and a `data-confirm` asks nothing without JavaScript, which
   matters now that the removal takes passkeys with it. Words in
   `contracts/screens.md`.
-- **UserInfo** (reviewer's suggestion, not taken): giving the credential claim
-  the access-token destination would let an app read it at
-  `/connect/introspect`, which returns an access token's claims to its
-  client. An access token already issued stays valid until it expires (one
-  hour): a known limit, as after **Disable** and in task s1ug.
+- **UserInfo** (code review B1, taken): access tokens are reference tokens and
+  no app is granted the introspection permission, so nothing an access token
+  carries reaches an app, and `/connect/userinfo` is the one place one is
+  honoured. The credential and connector claims go to the access token too
+  (never the id token), and userinfo runs the session check (FR-014). An
+  earlier draft named the window as "as after Disable"; it was not: userinfo
+  already refuses a disabled user's token.
 
 ## User Scenarios & Testing
 
@@ -211,7 +213,10 @@ anyone by email until a provider that verifies it signs him in. The event says
   Those added after the link was made are named in the confirmation with their
   dates; the operator removes them with the card's passkey Remove if they are
   not the real person's. Their sessions from before this version end with the
-  removal anyway (decision 5).
+  removal anyway (decision 5). A passkey added after the upgrade through a
+  session from before it also has no recorded origin (that session carries no
+  reference); it is caught the same way, by the confirm block's list of
+  passkeys added since the link was made (code review N1).
 - **A refresh already past the check** when the removal commits gets one more
   token, refused at its next use: a known limit.
 - **Removing a passkey** (operator or owner) now ends the sessions and refresh
@@ -228,9 +233,11 @@ anyone by email until a provider that verifies it signs him in. The event says
 - **The user's display name and picture** are whatever the last sign-in
   brought, possibly the stranger's; the real person's next sign-in refreshes
   them. Not changed by the removal.
-- **An access token already issued** to the stranger lasts until it expires,
-  as after **Disable** (OpenIddict's default, one hour); userinfo serves it
-  until then. The app's next refresh is refused.
+- **An access token already issued** to the stranger is refused at userinfo
+  from the removal on (401 `invalid_token`), as a disabled user's is, and the
+  app's next refresh is refused. One issued before this version carries no
+  connector or credential claim; userinfo refuses it once the user is recorded
+  in `legacy_sessions_ended` (FR-013), which any removal does.
 - **The wrong link removed** (the real person's): there is no way back. Their
   next sign-in through that account makes a new user with the address
   unverified, and apps see a new `sub`. The confirmation and the docs say so.
@@ -315,6 +322,16 @@ anyone by email until a provider that verifies it signs him in. The event says
   was deleted or replaced, a case task s1ug left open there. The email domain
   and server rules stay where they are (authorize and token only): they decide
   who may sign in to an app, not who may manage their own passkeys.
+- **FR-014**: The access token carries `umbral_credential` and
+  `umbral_connector` (destination access token only, never the id token).
+  `/connect/userinfo`, after its enabled check, runs `EndUserSession.recheck`
+  (stage `userinfo`) on a token with a connector claim, and on a token without
+  one (issued before this version) refuses only a user recorded in
+  `legacy_sessions_ended`. A refusal is 401 `invalid_token`, as for a
+  disabled user, recorded as `sign_in_failed` with
+  `credential_removed;stage=userinfo` (or s1ug's `connector_changed` detail).
+  This also closes s1ug's window at userinfo: an access token issued through a
+  connector since deleted answers 401 (`ConnectorDeleteTests` changed to say so).
 - **FR-010**: Schema version 15 adds `removed_links (provider_kind,
   provider_subject, removed_utc)`, primary key `(provider_kind,
   provider_subject)`, no foreign key; `passkeys.added_via TEXT NULL`; and

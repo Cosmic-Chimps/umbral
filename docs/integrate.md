@@ -164,8 +164,8 @@ Removing a link:
   through it, and every refresh token issued through it, are refused at their
   next use: an authorization request goes to the sign-in page, or, with
   `prompt=none`, comes back with `error=login_required`, and a refresh gets
-  `invalid_grant`. An access token already issued keeps working until it
-  expires, within the hour, as after disabling someone.
+  `invalid_grant`. An access token already issued is refused at userinfo from
+  then on (`401` with `invalid_token`), as after disabling someone.
 - **ends the user's sessions from before this version of Umbral**. Those don't
   record which provider account or passkey made them, so after any removal
   Umbral refuses them all, for both people. The person who stays signs in again

@@ -169,14 +169,14 @@ ceremony's.
 | Where | Name | Value |
 | --- | --- | --- |
 | End-user session cookie | `credential` (`Sessions.CredentialClaim`) | the credential reference |
-| Authorization identity (codes, refresh tokens) | `umbral_credential` (`OpenIddictSetup.CredentialClaim`) | copied from the session; no destination |
+| Authorization identity (codes, refresh tokens, access tokens) | `umbral_credential` (`OpenIddictSetup.CredentialClaim`) | copied from the session; destination access token only (FR-014: reference tokens, no app has introspection), never the id token |
 
 `Sessions.signIn` takes `credential: string option` as a last argument:
 `Callback.finishSignIn` passes the link's reference, the passkey ceremonies the
 passkey's (the one used to sign in, or the one just created at a sign-up or an
 invitation). `Authorize.buildIdentity` copies `Sessions.currentCredential` into
-the identity; `destinationsFor` gives `umbral_credential` no destination,
-beside the two existing private claims. The token endpoint keeps it through a
+the identity; `destinationsFor` gives `umbral_credential` and `umbral_connector`
+the access token only (FR-014), and `umbral_email_domain` none. The token endpoint keeps it through a
 refresh (the identity is rebuilt from the principal's claims).
 
 `Passkeys.insertIn` writes `added_via`; the ceremony of purpose `Add` passes the

@@ -11,12 +11,17 @@ module Umbral.Tests.UserLinkRecheckTests
 open System
 open System.Net
 open System.Net.Http
+open System.Security.Claims
 open System.Text.Json
+open System.Text.RegularExpressions
 open System.Threading.Tasks
+open Microsoft.AspNetCore
 open Microsoft.AspNetCore.Authentication
 open Microsoft.AspNetCore.Authentication.Cookies
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Options
+open OpenIddict.Server
+open OpenIddict.Server.AspNetCore
 open Xunit
 open Umbral.Domains
 open Umbral.Infrastructure
@@ -660,4 +665,197 @@ let ``a recorded user signs in again with a passkey and the new session is admit
 
         let! details = failureDetails app
         Assert.Equal(1, List.length details)
+    }
+
+// ---------------------------------------------------------------------------
+// The access token at userinfo (specs/018, code review B1)
+// ---------------------------------------------------------------------------
+
+/// A fresh browser signed in through the fake provider and its tokens, from the
+/// code exchange.
+let private signInForTokens (app: Fixtures.TestApp) (clientId: string) (secret: string) (subject: string) (email: string) =
+    task {
+        let browser = Browser(app.Client)
+        let! signedIn = signInViaFake browser clientId scope subject email
+        let code = Uri.UnescapeDataString(Result.defaultWith failwith signedIn)
+        let! exchanged = exchangeCode app clientId secret code
+        Assert.Equal(HttpStatusCode.OK, exchanged.StatusCode)
+        let! tokens = json exchanged
+        return browser, tokens
+    }
+
+/// The tokens of a browser that already holds a session, through the authorize
+/// endpoint and the code exchange.
+let private tokensOfSession (app: Fixtures.TestApp) (clientId: string) (secret: string) (browser: Browser) =
+    task {
+        let! issued = browser.Get(authorizeUrl clientId scope)
+        assertCodeIssued issued
+        let code = Uri.UnescapeDataString(Regex.Match(location issued, "code=([^&]+)").Groups[1].Value)
+        let! exchanged = exchangeCode app clientId secret code
+        Assert.Equal(HttpStatusCode.OK, exchanged.StatusCode)
+        return! json exchanged
+    }
+
+let private assertUserInfoRefused (app: Fixtures.TestApp) (accessToken: string) =
+    task {
+        let! response = userInfo app.Client accessToken
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode)
+        let! body = json response
+        Assert.Equal("invalid_token", strOf body "error")
+    }
+
+let private assertUserInfoServed (app: Fixtures.TestApp) (accessToken: string) =
+    task {
+        let! response = userInfo app.Client accessToken
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+    }
+
+[<Fact>]
+let ``after a removal the stranger's access token is refused at userinfo and the remaining link's access token is served`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, clientId, secret = setup app
+
+        let! _, samTokens = signInForTokens app clientId secret "fake-user-1" "sam@example.com"
+        let! _, strangerTokens = signInForTokens app clientId secret "fake-user-2" "sam@example.com"
+        let! samId = userIdOf app "fake-user-1"
+
+        do! assertUserInfoServed app (strOf strangerTokens "access_token")
+
+        do! removeLinkOf app samId "fake-user-2"
+
+        do! assertUserInfoRefused app (strOf strangerTokens "access_token")
+
+        let! failures = events app "sign_in_failed"
+        let userId, slug, detail = Assert.Single failures
+        Assert.Equal(Some samId, userId)
+        Assert.Equal(Some "fake", slug)
+        Assert.Equal(Some "credential_removed;stage=userinfo", detail)
+
+        do! assertUserInfoServed app (strOf samTokens "access_token")
+        let! stillOne = failureDetails app
+        Assert.Equal(1, List.length stillOne)
+    }
+
+[<Fact>]
+let ``after a passkey is deleted the access token of a passkey session is refused at userinfo and the link's access token is served`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, clientId, secret = setup app
+
+        let! sam, samTokens = signInForTokens app clientId secret "fake-user-1" "sam@example.com"
+        let laptop = newAuthenticator ()
+        do! addPasskeyAs sam laptop "Laptop"
+
+        let! withPasskey = signInWithPasskeyOn app clientId laptop
+        let! passkeyTokens = tokensOfSession app clientId secret withPasskey
+        do! assertUserInfoServed app (strOf passkeyTokens "access_token")
+
+        do! run app "DELETE FROM passkeys WHERE nickname = 'Laptop'"
+
+        do! assertUserInfoRefused app (strOf passkeyTokens "access_token")
+        let! details = failureDetails app
+        Assert.Equal("credential_removed;stage=userinfo", Assert.Single details)
+
+        do! assertUserInfoServed app (strOf samTokens "access_token")
+    }
+
+[<Fact>]
+let ``an access token issued after a refresh is refused at userinfo once the link is removed`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, clientId, secret = setup app
+
+        let! _, samTokens = signInForTokens app clientId secret "fake-user-1" "sam@example.com"
+        let! _, strangerTokens = signInForTokens app clientId secret "fake-user-2" "sam@example.com"
+        let! samId = userIdOf app "fake-user-1"
+
+        let! strangerRefreshed = refresh app.Client clientId secret (strOf strangerTokens "refresh_token")
+        Assert.Equal(HttpStatusCode.OK, strangerRefreshed.StatusCode)
+        let! strangerNext = json strangerRefreshed
+
+        let! samRefreshed = refresh app.Client clientId secret (strOf samTokens "refresh_token")
+        Assert.Equal(HttpStatusCode.OK, samRefreshed.StatusCode)
+        let! samNext = json samRefreshed
+
+        do! assertUserInfoServed app (strOf strangerNext "access_token")
+
+        do! removeLinkOf app samId "fake-user-2"
+
+        do! assertUserInfoRefused app (strOf strangerNext "access_token")
+        do! assertUserInfoServed app (strOf samNext "access_token")
+    }
+
+// A pre-upgrade access token: one issued with neither the connector nor the
+// credential claim. No endpoint can make one now (authorize and the token
+// endpoint both refuse a session or a token with no connector), so this handler
+// takes the two private claims out of the access token's principal, only while
+// the switch is on, just before OpenIddict generates the token.
+type private StripSwitch() =
+    member val On = false with get, set
+
+type private StripPrivateClaims() =
+    interface IOpenIddictServerHandler<OpenIddictServerEvents.ProcessSignInContext> with
+        member _.HandleAsync(context) =
+            match context.Transaction.GetHttpRequest() with
+            | null -> ()
+            | request ->
+                if not (isNull context.AccessTokenPrincipal)
+                   && request.HttpContext.RequestServices.GetRequiredService<StripSwitch>().On then
+                    for identity in context.AccessTokenPrincipal.Identities do
+                        for claim in
+                            identity.FindAll(fun c ->
+                                c.Type = OpenIddictSetup.ConnectorClaim || c.Type = OpenIddictSetup.CredentialClaim)
+                            |> Seq.toList do
+                            identity.RemoveClaim claim
+
+            System.Threading.Tasks.ValueTask.CompletedTask
+
+    static member Descriptor =
+        OpenIddictServerHandlerDescriptor
+            .CreateBuilder<OpenIddictServerEvents.ProcessSignInContext>()
+            .UseSingletonHandler<StripPrivateClaims>()
+            .SetOrder(OpenIddictServerHandlers.GenerateAccessToken.Descriptor.Order - 1)
+            .SetType(OpenIddictServerHandlerType.Custom)
+            .Build()
+
+let private withClaimlessTokens (builder: Microsoft.AspNetCore.Builder.WebApplicationBuilder) =
+    builder.Services.AddSingleton<StripSwitch>() |> ignore
+
+    builder.Services
+        .AddOpenIddict()
+        .AddServer(fun server -> server.AddEventHandler StripPrivateClaims.Descriptor |> ignore)
+    |> ignore
+
+[<Fact>]
+let ``a pre-upgrade access token is served until the user is recorded in legacy_sessions_ended and refused after`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings withClaimlessTokens
+        let! _, clientId, secret = setup app
+        let strip = app.Services.GetRequiredService<StripSwitch>()
+
+        let! _, normal = signInForTokens app clientId secret "fake-user-1" "sam@example.com"
+        let! _, _ = signInForTokens app clientId secret "fake-user-2" "sam@example.com"
+        let! samId = userIdOf app "fake-user-1"
+
+        strip.On <- true
+        let! _, claimless = signInForTokens app clientId secret "fake-user-1" "sam@example.com"
+        strip.On <- false
+
+        // Not recorded: served, and not refused as Unrecorded by a full re-check.
+        do! assertUserInfoServed app (strOf claimless "access_token")
+        do! assertUserInfoServed app (strOf normal "access_token")
+        let! none = failureDetails app
+        Assert.Empty none
+
+        // A removal records the user: the claimless token goes, the other stays.
+        do! removeLinkOf app samId "fake-user-2"
+        let! recorded = scalar app $"SELECT count(*) FROM legacy_sessions_ended WHERE user_id = '{samId}'" []
+        Assert.Equal("1", recorded)
+
+        do! assertUserInfoRefused app (strOf claimless "access_token")
+        do! assertUserInfoServed app (strOf normal "access_token")
+
+        let! details = failureDetails app
+        Assert.Equal("credential_removed;stage=userinfo", Assert.Single details)
     }

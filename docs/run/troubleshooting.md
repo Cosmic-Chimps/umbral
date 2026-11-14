@@ -40,8 +40,9 @@ must pick one it does. They are still signed in to Umbral for other apps.
 
 **After I deleted a connector, apps get `invalid_grant` when they refresh.**
 A refresh is judged by the rules of the connector the person signed in through,
-and a deleted connector has none left, so its refresh tokens stop working. The
-app sends the person to sign in again. Their account is kept: signing in through
+and a deleted connector has none left, so its refresh tokens stop working, and
+userinfo refuses its access tokens with `401`. The app sends the person to sign
+in again. Their account is kept: signing in through
 a connector of the same provider (for OpenID Connect, the same issuer) returns
 them to the same user, with the same `sub`. Through another provider they are
 the same user only if a verified email links them (see

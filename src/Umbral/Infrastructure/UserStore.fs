@@ -361,6 +361,19 @@ let private UnbackedEmailVerified = Database.UnbackedEmailVerified
 let private LowerUnbackedFlag =
     "UPDATE users SET email_verified = 0 WHERE id = @userId AND " + UnbackedEmailVerified
 
+/// FR-013. True when a sign-in method of this user was removed, so their
+/// sessions and tokens with no credential reference are refused. The user-info
+/// endpoint uses it for an access token issued before the credential claim.
+let legacySessionsEnded (config: Database.DbConfig) (userId: string) : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+        command.CommandText <- LegacySessionsEnded
+        command.Parameters.AddWithValue("@userId", userId) |> ignore
+        let! value = command.ExecuteScalarAsync()
+        return Convert.ToInt32 value = 1
+    }
+
 /// FR-003. Removes one linked provider account from a user, in one transaction:
 /// the passkeys added through it go first (transitively), then the link goes only
 /// if the user keeps a way in among what remains (another link or a passkey),

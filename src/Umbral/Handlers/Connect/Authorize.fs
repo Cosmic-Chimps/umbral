@@ -72,16 +72,21 @@ let destinationsFor (claim: Claim) : string seq =
             Destinations.IdentityToken
         }
 
-    // The private claims that let the token endpoint judge a code or a refresh
-    // token by the allowed email domains again. NO destination, on purpose and
-    // before the default below, which would send an unknown claim to the access
-    // token: they stay in the encrypted code and refresh token and nowhere an app
-    // can read them (specs/006 R7).
-    | t when
-        t = OpenIddictSetup.ConnectorClaim
-        || t = OpenIddictSetup.EmailDomainClaim
-        || t = OpenIddictSetup.CredentialClaim
-        -> Seq.empty
+    // The email domain the token endpoint judges a code or a refresh token by:
+    // NO destination, on purpose and before the default below, which would send
+    // an unknown claim to the access token. It stays in the encrypted code and
+    // refresh token and nowhere an app can read it (specs/006 R7).
+    | t when t = OpenIddictSetup.EmailDomainClaim -> Seq.empty
+
+    // The connector and the credential reference let the user-info endpoint judge
+    // an access token again after a sign-in method is removed (specs/018). They
+    // go to the access token and never to the identity token. That is safe
+    // because access tokens are reference tokens (OpenIddictSetup) and apps hold
+    // no introspection permission (AppClients): the payload stays in Umbral's
+    // database and no app can read it. Granting an app introspection would
+    // expose them, so that permission must stay off.
+    | t when t = OpenIddictSetup.ConnectorClaim || t = OpenIddictSetup.CredentialClaim ->
+        Seq.singleton Destinations.AccessToken
 
     | _ -> Seq.singleton Destinations.AccessToken
 

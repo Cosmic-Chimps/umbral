@@ -154,12 +154,14 @@ let storeDetail (store: string) (op: string) (cause: Secrets.StoreFailure) (stal
 
 /// Where a refusal happened: the provider's return, an existing session at the
 /// authorize endpoint, a code or refresh token at the token endpoint, or a
-/// remembered session on the account pages (`Account`, specs/018 FR-012).
+/// remembered session on the account pages (`Account`, specs/018 FR-012), or an
+/// access token at the user-info endpoint (`UserInfo`).
 type RefusalStage =
     | Callback
     | Authorize
     | Token
     | Account
+    | UserInfo
 
     member this.Value =
         match this with
@@ -167,6 +169,7 @@ type RefusalStage =
         | Authorize -> "authorize"
         | Token -> "token"
         | Account -> "account"
+        | UserInfo -> "userinfo"
 
 /// A domain is only written into an event when it is already in the normalised
 /// form `EmailDomains` produces: lower-case letters, digits, dots and hyphens.
@@ -260,7 +263,7 @@ let connectorChangedDetail (change: Umbral.Domains.Connectors.ConnectorChange) (
 
 /// The `Detail` of a `sign_in_failed` event for a remembered sign-in whose
 /// credential the user no longer holds (specs/018 FR-009, FR-012):
-/// `credential_removed;stage=authorize|token|account`. Closed words only: the
+/// `credential_removed;stage=authorize|token|account|userinfo`. Closed words only: the
 /// credential reference itself (a fingerprint or a passkey id) is never written.
 let credentialRemovedDetail (stage: RefusalStage) = $"credential_removed;stage={stage.Value}"
 

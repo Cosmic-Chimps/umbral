@@ -32,10 +32,6 @@ tasks: `specs/018-remove-a-link/`.
 
 ## Known limits (in the spec)
 
-- An access token already issued lasts until it expires (one hour); userinfo serves it. Not closed at userinfo: the
-  claim would need the access-token destination. Note for the code review: apps are not granted the introspection
-  permission (`AppClients.fs:22`), so the introspection argument I gave is weaker than stated; the destination would
-  still put the reference in the reference-token payload. Your call whether to close the window there.
 - A refresh already past the check when the removal commits gets one more token, refused at its next use.
 - A refused Add start writes two `sign_in_failed` events (the session check's and the ceremony's).
 - The toggle's htmx fragment redraws a card without the search term, so Cancel on a block opened after a toggle
@@ -88,3 +84,14 @@ shot (fixed dates); every screen state goes through the browser forms. 41 shots,
 - At eb38935 (the nits change only `Users.fs` drawing and the CSS): the Users, admin-screen, passkey-admin and
   page-asset tests, 239 of 239 passed.
 - Reviews: docs re-check clear (8aa1444); design review and re-check clear (review.md, at eb38935); code review pending.
+
+## After the code review (9bbbffc)
+
+| Item | What was done |
+| --- | --- |
+| B1 (userinfo window) | `umbral_credential` and `umbral_connector` go to the access token (never the id token; `umbral_email_domain` still nowhere). `/connect/userinfo` runs `EndUserSession.recheck` (stage `userinfo`) on a token with a connector claim; a token without one (issued before this version) is refused only when the user is in `legacy_sessions_ended`, so the upgrade does not 401 every live access token. Refusal: 401 `invalid_token`, `sign_in_failed`. Spec FR-014, the limit dropped from the spec, integrate.md and the changelog. |
+| B1, side effect | An access token issued through a deleted connector now answers 401 at userinfo (s1ug's window): `ConnectorDeleteTests` changed, oidc.md and troubleshooting.md say so, changelog "Changed". `AllowedDomainsSignInTests`' no-private-claim test now pins the server-side view: connector claim present in the access token, email domain absent, nothing in the id token or userinfo. |
+| N1 | Spec edge case: a passkey added after the upgrade through a pre-upgrade session has no recorded origin and shows in the confirm block's check-these list. |
+| N2 (optional) | Left as documented: a refused Add start writes two `sign_in_failed` events. |
+
+The pre-upgrade access token is tested with an OpenIddict sign-in handler that strips the two claims from the access token only (no endpoint can mint one now).

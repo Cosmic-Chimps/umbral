@@ -104,12 +104,15 @@ let ``deleting a connector removes it, records it, and leaves the people who use
         Assert.Equal("1", users)
         Assert.Equal("1", links)
 
-        // Nothing was revoked either: tokens belong to the person, not to the
-        // connector they happened to arrive through.
+        // The authorization is not revoked, but a token issued through the deleted
+        // connector is judged by it, at userinfo as at the token endpoint (task
+        // s1ug, specs/018): nothing says which connector's rules would apply now.
         let message = new HttpRequestMessage(HttpMethod.Get, "/connect/userinfo")
         message.Headers.Add("Authorization", "Bearer " + accessToken)
         let! userInfo = app.Client.SendAsync message
-        Assert.Equal(HttpStatusCode.OK, userInfo.StatusCode)
+        Assert.Equal(HttpStatusCode.Unauthorized, userInfo.StatusCode)
+        let! refused = scalar app "SELECT detail FROM security_events WHERE event_type = 'sign_in_failed'" []
+        Assert.Equal("connector_changed;reason=deleted;stage=userinfo", refused)
 
         // Add the connector back and the same person signs in to the same sub.
         do! seedFakeConnector app

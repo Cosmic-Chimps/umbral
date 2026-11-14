@@ -231,7 +231,8 @@ the same issuer (under any identifier) returns everyone to the same Umbral user.
 A different issuer, even for the same provider, starts everyone as a new user.
 
 Apps feel it: once the connector is deleted, a refresh through it answers
-`invalid_grant`, and the app sends the person to sign in again. Re-added under
+`invalid_grant`, userinfo answers `401` for an access token issued through it,
+and the app sends the person to sign in again. Re-added under
 the **same identifier**, the old sessions and refresh tokens are accepted again,
 and they are judged by the new connector's settings, including its allowed email
 domains. That is so even if the issuer is different. Under a new identifier they

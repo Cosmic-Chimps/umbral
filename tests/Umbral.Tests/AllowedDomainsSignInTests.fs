@@ -786,7 +786,7 @@ type private AccessClaimsProbe() =
                 next.Invoke app)
 
 [<Fact>]
-let ``the private claims never reach an access token, an id token or userinfo`` () =
+let ``the email domain claim never reaches an access token, and no private claim reaches an id token or userinfo`` () =
     task {
         use! app =
             Fixtures.createAppWith Journeys.fakeSettings (fun builder ->
@@ -817,7 +817,13 @@ let ``the private claims never reach an access token, an id token or userinfo`` 
             let! claimTypes = probed.Content.ReadAsStringAsync()
             // Not vacuous: the token validated and carries the profile claims.
             Assert.Contains("email", claimTypes)
-            Assert.DoesNotContain("umbral_", claimTypes)
+            // The probe sees the token as the server validates it. The connector
+            // and credential claims ride in the access token so userinfo can
+            // judge it again (specs/018); it is a reference token and apps hold
+            // no introspection permission, so an app never reads them. The email
+            // domain claim has no destination at all.
+            Assert.Contains(OpenIddictSetup.ConnectorClaim, claimTypes)
+            Assert.DoesNotContain(OpenIddictSetup.EmailDomainClaim, claimTypes)
 
             let! info = Journeys.userInfo app.Client accessToken
             let! body = info.Content.ReadAsStringAsync()

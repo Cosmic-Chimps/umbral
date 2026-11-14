@@ -10,12 +10,16 @@
 
 - Removing a passkey, by its owner or on **Users**, now also signs out whatever was signed in
   with it: the Umbral session and its refresh tokens are refused at their next use.
+- Userinfo now judges an access token as the token endpoint judges a refresh: one issued through
+  a sign-in method that was removed, or through a connector that was deleted, answers `401`
+  with `invalid_token`.
 
 ### Security
 
 - A provider account joined to the wrong person (a provider that marks unchecked addresses as
   verified, a reused company address, a shared inbox) can now be removed from that person alone.
-  Its sessions and refresh tokens are refused at their next use. The passkeys added while signed
+  Its sessions and refresh tokens are refused at their next use, and its access tokens at
+  userinfo. The passkeys added while signed
   in through it go with it. Umbral never trusts that account's addresses again, so it can't be
   joined to anyone by email. See "When a link is removed" in the integration guide.
 - The passkey pages (`/account/passkeys` and adding a passkey) now check the session as an app

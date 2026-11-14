@@ -265,11 +265,12 @@ let ``a passkey added while signed in through a provider records the link, while
 let private mentionsCredential (text: string) =
     text.Contains Sessions.CredentialClaim
     || text.Contains OpenIddictSetup.CredentialClaim
+    || text.Contains OpenIddictSetup.ConnectorClaim
     || text.Contains "link:"
     || text.Contains "passkey:"
 
 [<Fact>]
-let ``no token response, id token or userinfo response carries the credential, also after a refresh`` () =
+let ``no token response, id token or userinfo response carries the credential or the connector claim, also after a refresh`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
         let! _, clientId, secret = setup app
