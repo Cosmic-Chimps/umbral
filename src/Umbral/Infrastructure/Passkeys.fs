@@ -250,15 +250,44 @@ let recordUse (config: Database.DbConfig) (clock: TimeProvider) (id: string) (ne
         return ()
     }
 
+/// FR-013 (specs/018). A removal of a sign-in method records the user, in the
+/// removal's own transaction, so their sessions and tokens from before schema
+/// 15 (no credential reference) are refused from then on.
+[<Literal>]
+let private RecordLegacySessionsEnded =
+    "INSERT INTO legacy_sessions_ended (user_id, ended_utc) VALUES (@userId, @now) ON CONFLICT DO NOTHING"
+
 /// Removes a passkey whoever owns it: the operator's removal, which may take a
 /// user's last one (they can delete the user too). False when it was not there.
-let remove (config: Database.DbConfig) (id: string) : Task<bool> =
+/// When one was removed, its user is recorded in `legacy_sessions_ended` in the
+/// same transaction (FR-013).
+let remove (config: Database.DbConfig) (clock: TimeProvider) (id: string) : Task<bool> =
     task {
         use! connection = Database.openConnection config
+        use transaction = connection.BeginTransaction()
+
+        use owner = connection.CreateCommand()
+        owner.Transaction <- transaction
+        owner.CommandText <- "SELECT user_id FROM passkeys WHERE id = @id"
+        owner.Parameters.AddWithValue("@id", id) |> ignore
+        let! userId = owner.ExecuteScalarAsync()
+
         use command = connection.CreateCommand()
+        command.Transaction <- transaction
         command.CommandText <- "DELETE FROM passkeys WHERE id = @id"
         command.Parameters.AddWithValue("@id", id) |> ignore
         let! changed = command.ExecuteNonQueryAsync()
+
+        if changed > 0 && not (isNull userId) then
+            use ended = connection.CreateCommand()
+            ended.Transaction <- transaction
+            ended.CommandText <- RecordLegacySessionsEnded
+            ended.Parameters.AddWithValue("@userId", string userId) |> ignore
+            ended.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+            let! _ = ended.ExecuteNonQueryAsync()
+            ()
+
+        do! transaction.CommitAsync()
         return changed > 0
     }
 
@@ -275,8 +304,9 @@ type RemoveOutcome =
 /// sign in. The rule is in the DELETE's own condition, so counting and deleting
 /// are one statement and two simultaneous removals cannot each see "two left"
 /// and leave none. The transaction exists to read why nothing was deleted from
-/// the same state.
-let removeOwnIfNotLast (config: Database.DbConfig) (userId: string) (id: string) : Task<RemoveOutcome> =
+/// the same state, and to record the user in `legacy_sessions_ended` (FR-013)
+/// with the removal.
+let removeOwnIfNotLast (config: Database.DbConfig) (clock: TimeProvider) (userId: string) (id: string) : Task<RemoveOutcome> =
     task {
         use! connection = Database.openConnection config
         use transaction = connection.BeginTransaction()
@@ -295,6 +325,12 @@ let removeOwnIfNotLast (config: Database.DbConfig) (userId: string) (id: string)
         let! changed = delete.ExecuteNonQueryAsync()
 
         if changed > 0 then
+            use ended = connection.CreateCommand()
+            ended.Transaction <- transaction
+            ended.CommandText <- RecordLegacySessionsEnded
+            ended.Parameters.AddWithValue("@userId", userId) |> ignore
+            ended.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+            let! _ = ended.ExecuteNonQueryAsync()
             do! transaction.CommitAsync()
             return Removed
         else

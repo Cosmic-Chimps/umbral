@@ -272,7 +272,7 @@ let assertion: EndpointHandler =
                         Slug
                         Slug
                         None
-                        (Some(Linking.credentialValue (Linking.PasskeyCredential stored.Id)))
+                        (Linking.credentialValue (Linking.PasskeyCredential stored.Id))
 
                 do!
                     record
@@ -652,7 +652,7 @@ let registration: EndpointHandler =
                                 Slug
                                 Slug
                                 None
-                                (Some(Linking.credentialValue (Linking.PasskeyCredential passkeyId)))
+                                (Linking.credentialValue (Linking.PasskeyCredential passkeyId))
 
                     let redirect =
                         match ceremony.Purpose, ceremony.ReturnUrl with

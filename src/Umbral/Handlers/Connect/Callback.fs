@@ -161,7 +161,7 @@ let finishSignIn
                 connector.Kind.Value
                 connector.Slug
                 admittedDomain
-                (Some credential)
+                credential
         do! recordFor userId Success SignInSucceeded None
 
         // Back to the authorization request this all started for, replayed

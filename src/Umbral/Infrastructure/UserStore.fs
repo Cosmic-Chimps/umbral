@@ -342,6 +342,16 @@ let private RecordRemovedLink =
     "INSERT INTO removed_links (provider_kind, provider_subject, removed_utc)
      VALUES (@kind, @subject, @now) ON CONFLICT DO NOTHING"
 
+/// FR-013. Records that this user had a sign-in method removed, so their
+/// sessions and tokens with no credential reference are refused from now on.
+[<Literal>]
+let private RecordLegacySessionsEnded =
+    "INSERT INTO legacy_sessions_ended (user_id, ended_utc) VALUES (@userId, @now) ON CONFLICT DO NOTHING"
+
+[<Literal>]
+let private LegacySessionsEnded =
+    "SELECT EXISTS (SELECT 1 FROM legacy_sessions_ended WHERE user_id = @userId)"
+
 /// `Database.UnbackedEmailVerified` under a local name, so the SQL below is built
 /// from a constant of this file (the shape MetaTests accepts).
 [<Literal>]
@@ -356,8 +366,9 @@ let private LowerUnbackedFlag =
 /// if the user keeps a way in among what remains (another link or a passkey),
 /// with the rule in the DELETE's own condition (as `Passkeys.removeOwnIfNotLast`)
 /// so two removals cannot both succeed; a refusal rolls back the passkeys too.
-/// The provider account is recorded in `removed_links`, and `email_verified`
-/// falls where no remaining link backs it.
+/// The provider account is recorded in `removed_links`, the user in
+/// `legacy_sessions_ended` (FR-013), and `email_verified` falls where no
+/// remaining link backs it.
 let removeLink
     (config: Database.DbConfig)
     (clock: TimeProvider)
@@ -423,6 +434,13 @@ let removeLink
                 record.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
                 let! _ = record.ExecuteNonQueryAsync()
 
+                use ended = connection.CreateCommand()
+                ended.Transaction <- transaction
+                ended.CommandText <- RecordLegacySessionsEnded
+                ended.Parameters.AddWithValue("@userId", userId) |> ignore
+                ended.Parameters.AddWithValue("@now", clock.GetUtcNow().ToString "o") |> ignore
+                let! _ = ended.ExecuteNonQueryAsync()
+
                 use lower = connection.CreateCommand()
                 lower.Transaction <- transaction
                 lower.CommandText <- LowerUnbackedFlag
@@ -461,7 +479,10 @@ let private PasskeyHeld =
 /// - `passkey:<id>`: true when the user has a passkey with that row id.
 /// - A value that does not parse: false (fails closed).
 /// - No reference and no connector slug: true (the connector re-checks own it).
-/// - No reference (made before this version): judged by the connector. The
+/// - No reference (made before this version), the user recorded in
+///   `legacy_sessions_ended` (a sign-in method of theirs was removed, FR-013):
+///   false, for every connector kind, the passkey one included. Checked first.
+/// - No reference, the user not recorded: judged by the connector. The
 ///   passkey kind, or a connector that no longer exists, is true. For `oidc`,
 ///   true when the user has an `oidc` link whose subject starts with the
 ///   connector's issuer and `#` (false with no issuer). Another kind: true when
@@ -494,22 +515,31 @@ let credentialStillHeld
                 return Convert.ToInt32 value = 1
             | None, None -> return true
             | None, Some slug ->
-                let! connector = ConnectorStore.findBySlug config slug
+                use! connection = Database.openConnection config
+                use ended = connection.CreateCommand()
+                ended.CommandText <- LegacySessionsEnded
+                ended.Parameters.AddWithValue("@userId", userId) |> ignore
+                let! recorded = ended.ExecuteScalarAsync()
 
-                match connector with
-                | None -> return true
-                | Some c when c.Kind = ProviderKind.Passkey -> return true
-                | Some c ->
-                    let! links = linkedAccountDetails config userId
+                if Convert.ToInt32 recorded = 1 then
+                    return false
+                else
+                    let! connector = ConnectorStore.findBySlug config slug
 
-                    if c.Kind = ProviderKind.Oidc then
-                        return
-                            match c.IssuerUrl with
-                            | Some issuer ->
-                                links
-                                |> List.exists (fun l ->
-                                    l.Kind = ProviderKind.Oidc.Value && l.Subject.StartsWith(issuer + "#", StringComparison.Ordinal))
-                            | None -> false
-                    else
-                        return links |> List.exists (fun l -> l.Kind = c.Kind.Value)
+                    match connector with
+                    | None -> return true
+                    | Some c when c.Kind = ProviderKind.Passkey -> return true
+                    | Some c ->
+                        let! links = linkedAccountDetails config userId
+
+                        if c.Kind = ProviderKind.Oidc then
+                            return
+                                match c.IssuerUrl with
+                                | Some issuer ->
+                                    links
+                                    |> List.exists (fun l ->
+                                        l.Kind = ProviderKind.Oidc.Value && l.Subject.StartsWith(issuer + "#", StringComparison.Ordinal))
+                                | None -> false
+                        else
+                            return links |> List.exists (fun l -> l.Kind = c.Kind.Value)
     }

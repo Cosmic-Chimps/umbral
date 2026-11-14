@@ -94,6 +94,14 @@ let private schema =
         PRIMARY KEY (provider_kind, provider_subject)
     );
 
+    -- Users who had a sign-in method removed (specs/018, FR-013): a session or
+    -- refresh token of theirs with no credential reference (made before schema
+    -- 15) is refused from then on. Goes with the user.
+    CREATE TABLE IF NOT EXISTS legacy_sessions_ended (
+        user_id   TEXT NOT NULL PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+        ended_utc TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS connectors (
         slug                    TEXT    NOT NULL PRIMARY KEY,
         kind                    TEXT    NOT NULL,
@@ -519,9 +527,10 @@ let private UpgradeToVersion14 =
     "ALTER TABLE connectors ADD COLUMN email_trust INTEGER NULL;
      UPDATE connectors SET email_trust = 1 WHERE kind = 'oidc';"
 
-/// Spec 018. A new, empty table (no provider account has been removed from a
-/// user before the feature) and the nullable passkeys.added_via column (NULL
-/// for every existing row). Nothing existing is rewritten.
+/// Spec 018. Two new, empty tables (no provider account has been removed from a
+/// user before the feature, and no user has had their sessions ended) and the
+/// nullable passkeys.added_via column (NULL for every existing row). Nothing
+/// existing is rewritten.
 [<Literal>]
 let private UpgradeToVersion15 =
     "CREATE TABLE IF NOT EXISTS removed_links (
@@ -529,6 +538,10 @@ let private UpgradeToVersion15 =
          provider_subject TEXT NOT NULL,
          removed_utc      TEXT NOT NULL,
          PRIMARY KEY (provider_kind, provider_subject)
+     );
+     CREATE TABLE IF NOT EXISTS legacy_sessions_ended (
+         user_id   TEXT NOT NULL PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+         ended_utc TEXT NOT NULL
      );
      ALTER TABLE passkeys ADD COLUMN added_via TEXT NULL;"
 

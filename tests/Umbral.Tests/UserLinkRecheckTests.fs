@@ -511,3 +511,153 @@ let ``a passkey session without a credential claim is honoured`` () =
         let! response = withPasskey.Get(authorizeUrl clientId "openid")
         assertCodeIssued response
     }
+
+// ---------------------------------------------------------------------------
+// FR-013: a removal ends the sessions from before schema 15
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``after a link removal a claimless session through a connector the user still holds a link of is refused at authorize`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, clientId, _ = setup app
+
+        let! sam = signInThroughFake app clientId "fake-user-1" "sam@example.com"
+        let! _ = signInThroughFake app clientId "fake-user-2" "sam@example.com"
+        let! samId = userIdOf app "fake-user-1"
+        withoutCredential app sam
+
+        // Before any removal the connector fallback honours it.
+        let! before = sam.Get(authorizeUrl clientId "openid")
+        assertCodeIssued before
+
+        // The other link is removed; Sam's own link, through the same connector, is still held.
+        do! removeLinkOf app samId "fake-user-2"
+
+        let! refused = sam.Get(authorizeUrl clientId "openid")
+        assertSentToSignIn refused
+        assertSignedOut sam
+
+        let! details = failureDetails app
+        Assert.Equal("credential_removed;stage=authorize", Assert.Single details)
+    }
+
+/// Sam, signed in through the fake provider, with two passkeys; a browser signed
+/// in with the first, its credential claim taken out. Returns the browser, the
+/// first authenticator and the ids of the two passkeys.
+let private claimlessPasskeySession (app: Fixtures.TestApp) (clientId: string) =
+    task {
+        let! sam = signInThroughFake app clientId "fake-user-1" "sam@example.com"
+        let laptop = newAuthenticator ()
+        do! addPasskeyAs sam laptop "Laptop"
+        do! addPasskeyAs sam (newAuthenticator ()) "Phone"
+
+        let! withPasskey = signInWithPasskeyOn app clientId laptop
+        withoutCredential app withPasskey
+
+        let! before = withPasskey.Get(authorizeUrl clientId "openid")
+        assertCodeIssued before
+
+        let! phoneId = scalar app "SELECT id FROM passkeys WHERE nickname = 'Phone'" []
+        let! samId = userIdOf app "fake-user-1"
+        return withPasskey, laptop, samId, phoneId
+    }
+
+[<Fact>]
+let ``after the operator removes a passkey a claimless passkey session is refused at authorize and on the passkeys page`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, clientId, _ = setup app
+        let! withPasskey, _, _, phoneId = claimlessPasskeySession app clientId
+
+        let! removed = Passkeys.remove app.DbConfig app.Clock phoneId
+        Assert.True removed
+
+        let! refused = withPasskey.Get(authorizeUrl clientId "openid")
+        assertSentToSignIn refused
+        assertSignedOut withPasskey
+
+        let! details = failureDetails app
+        Assert.Equal("credential_removed;stage=authorize", Assert.Single details)
+    }
+
+[<Fact>]
+let ``after the owner removes a passkey a claimless passkey session is refused on the passkeys page`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, clientId, _ = setup app
+        let! withPasskey, _, samId, phoneId = claimlessPasskeySession app clientId
+
+        let! visible = withPasskey.Get "/account/passkeys"
+        Assert.Equal(HttpStatusCode.OK, visible.StatusCode)
+
+        let! outcome = Passkeys.removeOwnIfNotLast app.DbConfig app.Clock samId phoneId
+        Assert.Equal(Passkeys.Removed, outcome)
+
+        let! refused = withPasskey.Get "/account/passkeys"
+        assertSentToSignIn refused
+        assertSignedOut withPasskey
+
+        let! details = failureDetails app
+        Assert.Equal("credential_removed;stage=account", Assert.Single details)
+    }
+
+[<Fact>]
+let ``a recorded user signs in again through the provider they still hold and the new session is admitted`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, clientId, _ = setup app
+
+        let! sam = signInThroughFake app clientId "fake-user-1" "sam@example.com"
+        let! _ = signInThroughFake app clientId "fake-user-2" "sam@example.com"
+        let! samId = userIdOf app "fake-user-1"
+        withoutCredential app sam
+
+        do! removeLinkOf app samId "fake-user-2"
+        let! recorded = scalar app $"SELECT count(*) FROM legacy_sessions_ended WHERE user_id = '{samId}'" []
+        Assert.Equal("1", recorded)
+
+        let! refused = sam.Get(authorizeUrl clientId "openid")
+        assertSentToSignIn refused
+
+        let! again = signInThroughFake app clientId "fake-user-1" "sam@example.com"
+        Assert.True((sessionClaims app again).Identities |> Seq.head |> _.FindFirst(Sessions.CredentialClaim) |> isNull |> not)
+
+        let! authorized = again.Get(authorizeUrl clientId "openid")
+        assertCodeIssued authorized
+
+        let! page = again.Get "/account/passkeys"
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode)
+
+        // Judged by its own reference, not refused as a claimless session.
+        let! details = failureDetails app
+        Assert.Equal(1, List.length details)
+    }
+
+[<Fact>]
+let ``a recorded user signs in again with a passkey and the new session is admitted`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! _, clientId, _ = setup app
+        let! withPasskey, laptop, samId, phoneId = claimlessPasskeySession app clientId
+
+        let! removed = Passkeys.remove app.DbConfig app.Clock phoneId
+        Assert.True removed
+        let! recorded = scalar app $"SELECT count(*) FROM legacy_sessions_ended WHERE user_id = '{samId}'" []
+        Assert.Equal("1", recorded)
+
+        let! refused = withPasskey.Get(authorizeUrl clientId "openid")
+        assertSentToSignIn refused
+
+        let! again = signInWithPasskeyOn app clientId laptop
+        Assert.True((sessionClaims app again).Identities |> Seq.head |> _.FindFirst(Sessions.CredentialClaim) |> isNull |> not)
+
+        let! authorized = again.Get(authorizeUrl clientId "openid")
+        assertCodeIssued authorized
+
+        let! page = again.Get "/account/passkeys"
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode)
+
+        let! details = failureDetails app
+        Assert.Equal(1, List.length details)
+    }

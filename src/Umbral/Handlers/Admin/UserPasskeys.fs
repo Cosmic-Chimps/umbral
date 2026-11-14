@@ -53,7 +53,7 @@ let removeHandler (id: string) (pid: string) : EndpointHandler =
 
             match! Passkeys.findById config pid with
             | Some pk when pk.UserId = id ->
-                let! _ = Passkeys.remove config pid
+                let! _ = Passkeys.remove config clock pid
 
                 do!
                     SecurityEvents.record

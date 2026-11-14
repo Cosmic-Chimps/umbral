@@ -178,8 +178,8 @@ let ``remove deletes a passkey whoever holds it and says whether it was there`` 
         do! seedUser app "user-1"
         do! insert app (passkeyFor "user-1" "pk-1" [| 1uy |])
 
-        let! first = Passkeys.remove app.DbConfig "pk-1"
-        let! second = Passkeys.remove app.DbConfig "pk-1"
+        let! first = Passkeys.remove app.DbConfig app.Clock "pk-1"
+        let! second = Passkeys.remove app.DbConfig app.Clock "pk-1"
 
         Assert.True first
         Assert.False second
@@ -199,7 +199,7 @@ let ``a person with two passkeys can remove one`` () =
         do! insert app (passkeyFor "user-1" "pk-1" [| 1uy |])
         do! insert app (passkeyFor "user-1" "pk-2" [| 2uy |])
 
-        let! outcome = Passkeys.removeOwnIfNotLast app.DbConfig "user-1" "pk-1"
+        let! outcome = Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "user-1" "pk-1"
 
         Assert.Equal(Passkeys.Removed, outcome)
         let! left = Passkeys.listForUser app.DbConfig "user-1"
@@ -213,7 +213,7 @@ let ``a person with one passkey and no provider cannot remove it`` () =
         do! seedUser app "user-1"
         do! insert app (passkeyFor "user-1" "pk-1" [| 1uy |])
 
-        let! outcome = Passkeys.removeOwnIfNotLast app.DbConfig "user-1" "pk-1"
+        let! outcome = Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "user-1" "pk-1"
 
         Assert.Equal(Passkeys.LastWayIn, outcome)
         let! count = Passkeys.countForUser app.DbConfig "user-1"
@@ -228,7 +228,7 @@ let ``a person with one passkey and a linked provider can remove it`` () =
         do! linkProvider app "user-1"
         do! insert app (passkeyFor "user-1" "pk-1" [| 1uy |])
 
-        let! outcome = Passkeys.removeOwnIfNotLast app.DbConfig "user-1" "pk-1"
+        let! outcome = Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "user-1" "pk-1"
 
         Assert.Equal(Passkeys.Removed, outcome)
         let! count = Passkeys.countForUser app.DbConfig "user-1"
@@ -246,8 +246,8 @@ let ``someone else's passkey and an unknown id are both not found, and nothing i
         do! insert app (passkeyFor "user-2" "pk-3" [| 3uy |])
 
         // user-2 names user-1's passkey: it is theirs to remove only if it is theirs.
-        let! others = Passkeys.removeOwnIfNotLast app.DbConfig "user-2" "pk-1"
-        let! unknown = Passkeys.removeOwnIfNotLast app.DbConfig "user-1" "nope"
+        let! others = Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "user-2" "pk-1"
+        let! unknown = Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "user-1" "nope"
 
         Assert.Equal(Passkeys.NotFound, others)
         Assert.Equal(Passkeys.NotFound, unknown)
@@ -265,8 +265,8 @@ let ``two removals racing for the last two passkeys leave one`` () =
         do! insert app (passkeyFor "user-1" "pk-2" [| 2uy |])
 
         let! outcomes =
-            Task.WhenAll [| Passkeys.removeOwnIfNotLast app.DbConfig "user-1" "pk-1"
-                            Passkeys.removeOwnIfNotLast app.DbConfig "user-1" "pk-2" |]
+            Task.WhenAll [| Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "user-1" "pk-1"
+                            Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "user-1" "pk-2" |]
 
         let removed = outcomes |> Array.filter ((=) Passkeys.Removed) |> Array.length
         Assert.Equal(1, removed)

@@ -82,8 +82,13 @@ let configure (options: CookieAuthenticationOptions) =
 /// Establish a session for a user who has just come back from a provider,
 /// through the connector `slug` of the given `kind`. `emailDomain` is the domain
 /// of the verified email that was checked at this sign-in, if there was one.
-/// `credential` is the reference of the link or the passkey that signed in.
-let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) (emailDomain: string option) (credential: string option) : Task =
+/// `credential` is the reference of the link or the passkey that signed in. It
+/// is required, not optional, on purpose (specs/018, FR-013): a removal records
+/// the user in `legacy_sessions_ended`, and from then on a session with no
+/// credential reference is refused. That is only safe while no session can be
+/// made without one, so the type holds the invariant: a claimless session made
+/// here would be refused at every sign-in of a recorded user.
+let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) (emailDomain: string option) (credential: string) : Task =
     let identity = ClaimsIdentity(Scheme)
     identity.AddClaim(Claim(ClaimTypes.NameIdentifier, userId))
     identity.AddClaim(Claim(IdpClaim, kind))
@@ -93,9 +98,7 @@ let signIn (ctx: HttpContext) (userId: string) (kind: string) (slug: string) (em
     | Some domain -> identity.AddClaim(Claim(EmailDomainClaim, domain))
     | None -> ()
 
-    match credential with
-    | Some value -> identity.AddClaim(Claim(CredentialClaim, value))
-    | None -> ()
+    identity.AddClaim(Claim(CredentialClaim, credential))
 
     // Every end-user session starts here, and only after every check passed
     // (callback, passkey sign-in, passkey sign-up or invitation). The admin

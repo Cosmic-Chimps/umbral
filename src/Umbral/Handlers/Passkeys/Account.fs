@@ -131,12 +131,13 @@ let remove (id: string) : EndpointHandler =
     fun ctx ->
         task {
             let config = ctx.GetService<Database.DbConfig>()
+            let clock = ctx.GetService<TimeProvider>()
             let! _ = WebForms.readValidated ctx
 
             match! currentUser ctx with
             | None -> return ()
             | Some user ->
-                let! outcome = Passkeys.removeOwnIfNotLast config user.Id id
+                let! outcome = Passkeys.removeOwnIfNotLast config clock user.Id id
 
                 let notice =
                     match outcome with
@@ -148,7 +149,7 @@ let remove (id: string) : EndpointHandler =
                     do!
                         record
                             config
-                            (ctx.GetService<TimeProvider>())
+                            clock
                             { event PasskeyRemoved Success Actor.User with
                                 UserId = Some user.Id
                                 ConnectorSlug = Some "passkey"

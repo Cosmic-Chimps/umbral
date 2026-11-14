@@ -407,3 +407,161 @@ let ``credentialStillHeld refuses a value that does not parse`` () =
             let! r = UserStore.credentialStillHeld app.DbConfig "u1" (Some "passkey") (Some bad)
             Assert.False r
     }
+
+// ---------------------------------------------------------------------------
+// FR-013: a removal ends the sessions from before schema 15 (legacy_sessions_ended)
+// ---------------------------------------------------------------------------
+
+let private endedRows (app: Fixtures.TestApp) (userId: string) =
+    value app $"SELECT count(*) FROM legacy_sessions_ended WHERE user_id = '{userId}'"
+
+[<Fact>]
+let ``removeLink records the user in legacy_sessions_ended with the removal's time`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! addUser app "u1" "a@example.com" false
+        do! addLink app "github" "g-1" "u1" "a@example.com" false
+        do! addLink app "google" "o-1" "u1" "a@example.com" false
+
+        do! expectEq "0" (endedRows app "u1")
+
+        let! _ = UserStore.removeLink app.DbConfig app.Clock "u1" (fp "github" "g-1")
+
+        do! expectEq "1" (endedRows app "u1")
+        let! at = value app "SELECT ended_utc FROM legacy_sessions_ended WHERE user_id = 'u1'"
+        Assert.Equal(app.Clock.GetUtcNow().ToString "o", at)
+
+        // A second removal does not fail on the existing row and keeps one.
+        let! _ = UserStore.removeLink app.DbConfig app.Clock "u1" (fp "google" "o-1")
+        do! expectEq "1" (endedRows app "u1")
+    }
+
+[<Fact>]
+let ``a refused removeLink records nothing, for the last way in and for a link not found`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! addUser app "u1" "a@example.com" false
+        do! addLink app "github" "g-1" "u1" "a@example.com" false
+        do! addUser app "u2" "b@example.com" false
+        do! addLink app "github" "g-2" "u2" "b@example.com" false
+
+        let! last = UserStore.removeLink app.DbConfig app.Clock "u1" (fp "github" "g-1")
+        Assert.Equal(UserStore.LinkLastWayIn, last)
+
+        // u2's link named by u1: not found.
+        let! notFound = UserStore.removeLink app.DbConfig app.Clock "u1" (fp "github" "g-2")
+        Assert.Equal(UserStore.LinkNotFound, notFound)
+
+        do! expectEq "0" (value app "SELECT count(*) FROM legacy_sessions_ended")
+    }
+
+[<Fact>]
+let ``the operator's passkey removal records the owner, and only when a passkey was removed`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! addUser app "u1" "a@example.com" false
+        do! addPasskeyVia app "u1" "pk-1" None
+        do! addUser app "u2" "b@example.com" false
+
+        let! missing = Umbral.Infrastructure.Passkeys.remove app.DbConfig app.Clock "nope"
+        Assert.False missing
+        do! expectEq "0" (value app "SELECT count(*) FROM legacy_sessions_ended")
+
+        let! removed = Umbral.Infrastructure.Passkeys.remove app.DbConfig app.Clock "pk-1"
+        Assert.True removed
+
+        do! expectEq "1" (endedRows app "u1")
+        do! expectEq "0" (endedRows app "u2")
+        let! at = value app "SELECT ended_utc FROM legacy_sessions_ended WHERE user_id = 'u1'"
+        Assert.Equal(app.Clock.GetUtcNow().ToString "o", at)
+    }
+
+[<Fact>]
+let ``a person's own passkey removal records them, and a refused one records nothing`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! addUser app "u1" "a@example.com" false
+        do! addPasskeyVia app "u1" "pk-1" None
+        do! addPasskeyVia app "u1" "pk-2" None
+        do! addUser app "u2" "b@example.com" false
+        do! addPasskeyVia app "u2" "pk-3" None
+
+        // Not found (someone else's id, an unknown id) and last way in (u2's only passkey).
+        let! others = Umbral.Infrastructure.Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "u2" "pk-1"
+        let! unknown = Umbral.Infrastructure.Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "u1" "nope"
+        let! last = Umbral.Infrastructure.Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "u2" "pk-3"
+        Assert.Equal(Umbral.Infrastructure.Passkeys.NotFound, others)
+        Assert.Equal(Umbral.Infrastructure.Passkeys.NotFound, unknown)
+        Assert.Equal(Umbral.Infrastructure.Passkeys.LastWayIn, last)
+        do! expectEq "0" (value app "SELECT count(*) FROM legacy_sessions_ended")
+
+        let! removed = Umbral.Infrastructure.Passkeys.removeOwnIfNotLast app.DbConfig app.Clock "u1" "pk-1"
+        Assert.Equal(Umbral.Infrastructure.Passkeys.Removed, removed)
+
+        do! expectEq "1" (endedRows app "u1")
+        do! expectEq "0" (endedRows app "u2")
+    }
+
+[<Fact>]
+let ``credentialStillHeld refuses a claimless session of a recorded user through every kind of connector`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! seedHeld app
+        do! addLink app "discord" "d-1" "u1" "a@example.com" false
+
+        // Before the record the fallback admits all of them: the user holds links of these kinds.
+        let! oidcBefore = UserStore.credentialStillHeld app.DbConfig "u1" (Some "home") None
+        let! discordBefore = UserStore.credentialStillHeld app.DbConfig "u1" (Some "discord") None
+        let! passkeyBefore = UserStore.credentialStillHeld app.DbConfig "u1" (Some "passkey") None
+        Assert.True oidcBefore
+        Assert.True discordBefore
+        Assert.True passkeyBefore
+
+        do! run app "INSERT INTO legacy_sessions_ended (user_id, ended_utc) VALUES ('u1', '2026-01-03T00:00:00Z')"
+
+        let! oidc = UserStore.credentialStillHeld app.DbConfig "u1" (Some "home") None
+        let! discord = UserStore.credentialStillHeld app.DbConfig "u1" (Some "discord") None
+        let! passkey = UserStore.credentialStillHeld app.DbConfig "u1" (Some "passkey") None
+        Assert.False oidc
+        Assert.False discord
+        Assert.False passkey
+
+        // The record is per user: another user's claimless session keeps the fallback.
+        do! addUser app "u4" "d@example.com" false
+        do! addLink app "discord" "d-4" "u4" "d@example.com" false
+        let! other = UserStore.credentialStillHeld app.DbConfig "u4" (Some "discord") None
+        Assert.True other
+    }
+
+[<Fact>]
+let ``credentialStillHeld judges a credential reference whatever the record says`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! seedHeld app
+        do! addPasskeyVia app "u1" "pk-1" None
+        do! run app "INSERT INTO legacy_sessions_ended (user_id, ended_utc) VALUES ('u1', '2026-01-03T00:00:00Z')"
+
+        let! link = UserStore.credentialStillHeld app.DbConfig "u1" (Some "discord") (Some("link:" + fp "github" "g-1"))
+        let! gone = UserStore.credentialStillHeld app.DbConfig "u1" (Some "discord") (Some("link:" + fp "github" "g-2"))
+        let! passkey = UserStore.credentialStillHeld app.DbConfig "u1" (Some "passkey") (Some "passkey:pk-1")
+        let! noSlug = UserStore.credentialStillHeld app.DbConfig "u1" None (Some("link:" + fp "github" "g-1"))
+        Assert.True link
+        Assert.False gone
+        Assert.True passkey
+        Assert.True noSlug
+    }
+
+[<Fact>]
+let ``deleting the user deletes their legacy_sessions_ended row`` () =
+    task {
+        use! app = Fixtures.createApp ()
+        do! addUser app "u1" "a@example.com" false
+        do! addLink app "github" "g-1" "u1" "a@example.com" false
+        do! addLink app "google" "o-1" "u1" "a@example.com" false
+        let! _ = UserStore.removeLink app.DbConfig app.Clock "u1" (fp "github" "g-1")
+        do! expectEq "1" (endedRows app "u1")
+
+        do! run app "PRAGMA foreign_keys = ON; DELETE FROM users WHERE id = 'u1'"
+
+        do! expectEq "0" (value app "SELECT count(*) FROM legacy_sessions_ended")
+    }

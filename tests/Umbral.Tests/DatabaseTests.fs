@@ -1622,6 +1622,7 @@ let ``a version 14 database upgrades to 15, adding removed_links and passkeys.ad
                      INSERT INTO passkeys (id, user_id, credential_id, public_key, nickname, created_utc)
                      VALUES ('p1', 'u1', x'0102', x'AA', 'Phone', '2026-01-01T00:00:00Z');
                      DROP TABLE removed_links;
+                     DROP TABLE legacy_sessions_ended;
                      ALTER TABLE passkeys DROP COLUMN added_via;
                      UPDATE settings SET value = '14' WHERE key = 'schema_version';"
 
@@ -1641,6 +1642,12 @@ let ``a version 14 database upgrades to 15, adding removed_links and passkeys.ad
 
             let! removed = scalar config "SELECT count(*) FROM removed_links"
             Assert.Equal("0", removed)
+
+            let! ended = scalar config "SELECT count(*) FROM legacy_sessions_ended"
+            Assert.Equal("0", ended)
+
+            let! endedColumns = scalar config "SELECT group_concat(name || ':' || type || ':' || \"notnull\", ',') FROM pragma_table_info('legacy_sessions_ended')"
+            Assert.Equal("user_id:TEXT:1,ended_utc:TEXT:1", endedColumns)
         })
 
 /// Step 9 shipped as this text. It is now built from `UnbackedEmailVerified`, and
