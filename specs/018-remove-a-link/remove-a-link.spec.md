@@ -325,6 +325,10 @@ anyone by email until a provider that verifies it signs him in. The event says
   `legacy_sessions_ended` in the same transaction as the removal (insert or
   ignore). `credentialStillHeld` with no reference refuses a user recorded
   there, before the connector fallback and for the passkey connector too.
+  No `ended_utc` comparison is needed because no claimless session can be made
+  after the upgrade; that invariant is load-bearing (a recorded user would
+  otherwise be refused at every sign-in), so `Sessions.signIn` takes the
+  credential as a required argument (code reviewer, 2026-11-14).
 - **FR-011**: Documentation: `docs/connectors/oidc.md` "Changing the email
   setting later" points to the removal as the remedy and keeps Disable and
   Delete as the blunt ones; `docs/integrate.md` where it lists what the Users

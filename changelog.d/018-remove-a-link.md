@@ -27,5 +27,6 @@
 - The database moves to schema version 15. An older image refuses it, so take the backup first,
   as usual.
 - Sessions and refresh tokens from before the upgrade don't record which provider account or
-  passkey they were made with. The first time you remove a link or a passkey from someone, all of
-  that person's sessions from before the upgrade end, and they sign in again once.
+  passkey they were made with. Once you remove a link or a passkey from someone, that person's
+  Umbral sessions from before the upgrade, and the refresh tokens your apps hold for them from
+  before the upgrade, end at their next use, and they sign in again once.
