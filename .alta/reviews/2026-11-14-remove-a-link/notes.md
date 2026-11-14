@@ -81,3 +81,10 @@ shot (fixed dates); every screen state goes through the browser forms. 41 shots,
 | `notice-removed` | after confirming Dave's removal: "Link removed." (Success) |
 | `notice-last` | Erin (one link, her only passkey added through it): "That is Erin Castillo's only way to sign in, so it was not removed. …" (Warning) |
 | `notice-not-found` | Frank's link removed meanwhile, then confirmed: "That link was already removed." (Warning) |
+
+## Verification
+
+- Full suite at 9472ef8 (the code before the design nits): **2891 of 2891** passed, 0 skipped (Debug, 16 min 59 s).
+- At eb38935 (the nits change only `Users.fs` drawing and the CSS): the Users, admin-screen, passkey-admin and
+  page-asset tests, 239 of 239 passed.
+- Reviews: docs re-check clear (8aa1444); design review and re-check clear (review.md, at eb38935); code review pending.

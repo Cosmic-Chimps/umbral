@@ -44,3 +44,12 @@ and sessions is the spec's and the code review's.
 
 `block-both` at 1280 in one theme and `card-two-links-passkey` at 360 in one theme, if the nits
 are taken.
+
+## Re-check, 2026-11-14, at `eb38935`
+
+**Clear to merge.** Looked at `block-both-1280-light` and `card-two-links-passkey-360-light`.
+
+- Nit 1 taken: the confirm block is a tonal panel with no red border. The outline in the
+  capture is the focus ring on the block, which is right.
+- Nit 2 taken: the passkey rows read "Added 2026-07-15 · Never used", in the same form as the
+  link rows above them.
