@@ -111,7 +111,7 @@ let credentialStillHeld
 | --- | --- |
 | No connector slug | true (the connector re-checks own this case) |
 | `link:<fp>` | true when one of the user's links has that fingerprint |
-| `passkey:<id>` | true when the user has a passkey with that row id |
+| `passkey:<id>` | true when a passkey with that row id belongs to that user (`id = @id AND user_id = @userId`, never the id alone) |
 | A value that does not parse | false (fails closed) |
 | No reference, connector is the passkey kind (or not found) | true (the kind re-check refuses a missing connector first) |
 | No reference, `oidc` connector | true when the user has an `oidc` link whose subject starts with the connector's issuer + `#` (false with no issuer) |
@@ -122,6 +122,29 @@ passkeys step 2 would take and the user's passkeys with NULL `added_via`
 created after the link's `LinkedUtc`. The screen computes both from the user's
 passkeys (`Passkey.AddedVia`, read from the new column) and the link's
 reference; no extra query.
+
+## The end-user session check (FR-012, `Infrastructure/EndUserSession.fs`)
+
+Compiled after `UserStore.fs`, `ConnectorStore.fs` and `SecurityEvents.fs`.
+
+```fsharp
+/// The connector-kind re-check (s1ug), then credentialStillHeld. None admits;
+/// Some detail is the sign_in_failed detail of the refusal.
+let recheck (config) (principal: ClaimsPrincipal) (stage: SecurityEvents.RefusalStage) : Task<string option>
+
+/// For the account pages and the Add ceremony: the session's enabled user, or
+/// None. A missing session is None with nothing done; a user gone or disabled,
+/// or a refusal by `recheck`, signs the session out (the refusal also records
+/// sign_in_failed) and is None.
+let current (ctx: HttpContext) : Task<Users.User option>
+```
+
+`RefusalStage` gains `Account` (`stage=account`) for the passkey pages.
+Authorize calls `recheck` where it calls `ConnectorStore.recheckKind` today
+(its refusal path and its event stay its own). `Account.currentUser` becomes
+`EndUserSession.current` plus its redirect; the Add start uses `current`,
+and the Add finish uses `current` and requires the user to be the
+ceremony's.
 
 ## Claims
 

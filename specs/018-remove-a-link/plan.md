@@ -44,6 +44,7 @@ stub providers. No new package (`System.Security.Cryptography.SHA256`).
 | `Handlers/Passkeys/Ceremonies.fs` | the passkey's reference in `Sessions.signIn`; `added_via` for purpose `Add` |
 | `Handlers/Connect/Authorize.fs` | `buildIdentity` copies the credential; `destinationsFor`; the FR-009 re-check |
 | `Handlers/Connect/Token.fs` | the FR-009 re-check |
+| `Infrastructure/EndUserSession.fs` (new) | FR-012: `recheck` and `current`; used by Authorize, `Handlers/Passkeys/Account.fs` and the `Add` ceremony |
 | `Handlers/Admin/Users.fs` | the list on the card; `Row.Links` |
 | `Handlers/Admin/UserLinks.fs` (new) | the POST handler; in the fsproj after `UserDelete.fs`, the endpoint in `Program.fs` |
 | `Views/Texts.fs` | the contract's words, the three notices |

@@ -113,6 +113,18 @@ the removal would not do what it says.
   review: name the refresh race and the access-token window as known limits;
   the fingerprint is opaque, not secret; the docs say what a removal costs the
   real owner if it was the wrong link, and to tell the app owners.
+- **The passkey pages** (`umbral`, re-read of 126f1c0, blocking): FR-009
+  checked the credential only at authorize and token, but `/account/passkeys`
+  (`Account.currentUser`) and the passkey ceremony of purpose `Add` (start
+  and finish) accept any session whose user exists and is enabled. The
+  stranger's old cookie could add a fresh passkey there after the removal, and
+  remove the owner's. Answered by FR-012: one end-user session check, used by
+  all four places. `passkey:<id>` matches on the id **and** the user.
+- **The confirmation** (`umbral-designer`, second answer): the server's
+  confirm block, not a browser dialog. One dialog cannot carry the passkey
+  lists readably, and a `data-confirm` asks nothing without JavaScript, which
+  matters now that the removal takes passkeys with it. Words in
+  `contracts/screens.md`.
 - **UserInfo** (reviewer's suggestion, not taken): giving the credential claim
   the access-token destination would let an app read it at
   `/connect/introspect`, which returns an access token's claims to its
@@ -220,13 +232,17 @@ anyone by email until a provider that verifies it signs him in. The event says
   card lists each linked provider account with its label (as today's pill), its
   linked date and its last-used date, and a remove button. The layout and words
   are the designer's (`contracts/screens.md`).
-- **FR-002**: The button posts to `/admin/users/{userId}/links/{fingerprint}/remove`
-  with the antiforgery token, behind a confirmation naming the provider and the
-  user and saying it cannot be undone. The confirmation also says how many
-  passkeys go with the link (decision 3), and names, with their added dates,
-  the user's passkeys with no recorded origin added after the link was made.
-  The fingerprint is the opaque value of FR-008; the page never carries a
-  provider's subject.
+- **FR-002**: The row's button posts to
+  `/admin/users/{userId}/links/{fingerprint}/remove` with the antiforgery token
+  and no `confirm` field. That post changes nothing: the server redraws the
+  Users page at 422 with that card's row expanded into a confirm block (the
+  product's pattern, as Remove passkey on the Credential screen and Turn trust
+  off), which names the provider and the user, lists the passkeys that go with
+  the link (decision 3) and the user's passkeys with no recorded origin added
+  after the link was made, with their dates, and says it cannot be undone. Its
+  Danger button posts the same address with `confirm=remove`; only that post
+  removes. Focus goes to the block. The fingerprint is the opaque value of
+  FR-008; the page never carries a provider's subject.
 - **FR-003**: The removal is one transaction: delete the passkeys added through
   the link, transitively (a recursive query on `added_via`); delete the link
   only if the user keeps a way in (another link or a remaining passkey), in the
@@ -263,12 +279,27 @@ anyone by email until a provider that verifies it signs him in. The event says
 - **FR-009**: The authorize endpoint (on a remembered session) and the token
   endpoint (on a code or refresh token) refuse, after the connector-kind
   re-check and before the email domain rules: with a reference, when the user
-  holds no link with that fingerprint or no passkey with that id; without one,
+  holds no link with that fingerprint, or no passkey with that id belonging to
+  that user (never matched on the id alone); without one,
   when the connector is not the passkey connector and the user holds no link
   of its kind (for `oidc`, whose subject starts with the connector's issuer
   and `#`). The refusal is the existing one of each endpoint (session signed
   out and the request treated as signed out; `invalid_grant`), recorded as
   `sign_in_failed` with detail `credential_removed;stage=authorize|token`.
+- **FR-012**: One end-user session check (`Infrastructure/EndUserSession.fs`)
+  judges a remembered session wherever one is accepted: the authorize endpoint,
+  `/account/passkeys` (the page and its remove post) and the passkey ceremony
+  of purpose `Add`, at its start and again at its finish (the ceremony lasts
+  five minutes and can straddle a removal; the finish never trusts the start's
+  verdict). It runs the connector-kind re-check of task s1ug, then FR-009's
+  credential check. On a refusal it signs the session out, records
+  `sign_in_failed` with the FR-009 detail or s1ug's `connector_changed`
+  detail, and the caller treats the person as signed out: authorize as today,
+  the passkey page by sending them to sign in, the ceremony by refusing
+  (nothing stored). The account pages also refuse a session whose connector
+  was deleted or replaced, a case task s1ug left open there. The email domain
+  and server rules stay where they are (authorize and token only): they decide
+  who may sign in to an app, not who may manage their own passkeys.
 - **FR-010**: Schema version 15 adds `removed_links (provider_kind,
   provider_subject, removed_utc)`, primary key `(provider_kind,
   provider_subject)`, no foreign key, and `passkeys.added_via TEXT NULL`.
@@ -293,8 +324,9 @@ anyone by email until a provider that verifies it signs him in. The event says
   creates a new user and never joins the user it was removed from, whether or
   not its provider still says the address is verified.
 - **SC-002**: The removed account's existing session and refresh tokens, and
-  those of the passkeys added through it, are refused at their next use; the
-  remaining credentials' sessions and tokens are not.
+  those of the passkeys added through it, are refused at their next use, at an
+  app and on the account's passkey pages; the remaining credentials' sessions
+  and tokens are not.
 - **SC-003**: No request removes a user's last way in.
 - **SC-004**: The security log shows who removed what kind of link from whom,
   with no subject or address.
