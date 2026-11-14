@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS declared_items (
 | --- | --- |
 | Is this app owned by the declaration? | a row `('app', clientId)` with `is_declared = 1` |
 | May the declaration take this client ID? | no OpenIddict app with it, or a row `('app', clientId)` (any `is_declared`) |
-| May the declaration take the passkey connector? | no `passkey` connector, or a row `('connector', 'passkey')` |
+| May the declaration take the passkey connector? | no `passkey` connector, or a row `('connector', 'passkey')`, or (C2, adopt) it is enabled, shared and has the declared enrolment |
 | What to un-declare? | rows with `is_declared = 1` not named by the declaration (all of them when there is none) |
 
 ## The comparison

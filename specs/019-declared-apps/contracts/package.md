@@ -45,13 +45,15 @@ IResourceBuilder<T> WithReference<T>(this IResourceBuilder<T> destination,
   be named `key`), is a child of Umbral in the dashboard, and has no lifecycle
   of its own.
 - A `Web` app gets a secret parameter `<umbral>-<key>-client-secret`:
-  `AddParameter(name, new GenerateParameterDefault { MinLength = 43, Special = false }, secret: true, persist: true)`.
+  `AddParameter(name, new GenerateParameterDefault { MinLength = 48, Special = false }, secret: true, persist: true)`
+  (48 characters, well over Umbral's 32, pinned by a test, N2).
   In run mode Aspire keeps the generated value in the AppHost's user secrets,
   so it is the same at every run and never in the repository.
   `WithClientSecret` replaces it with the developer's own parameter.
 - `WithPasskeys` and the first `AddApp` add to Umbral the environment of
   `contracts/declaration.md`: `UMBRAL__DECLARATION` (built from the model at
-  start, plain JSON) and `UMBRAL__APP_SECRETS__<key>` (a reference to the
+  start, plain JSON) and `UMBRAL__APP_SECRETS__<key>` with `-` written as `_`
+  (N1; a reference to the
   secret parameter, never its value). Without either call Umbral gets neither
   variable.
 - Redirect URIs: the ones given with `WithRedirectUri`, plus, when

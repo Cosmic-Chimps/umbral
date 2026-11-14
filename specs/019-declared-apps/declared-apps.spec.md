@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-14
 
-**Status**: Draft; security decisions sent to the code reviewer (`umbral`) and the Declared marking to the designer (`umbral-designer`) before the build
+**Status**: Security decisions cleared by the code reviewer with C1 and C2 (a962660); Declared marking answered by the designer; ready for the build
 
 **Input**: Task `2026-11-14-aspire-integration-declare-apps-from-the-apphost-a5ap` (Aspire integration, Tier 2).
 
@@ -49,7 +49,7 @@ differs on each point:
   data directory still change nothing (`NoConfigFileTests` keeps passing).
 
 The sentence of Principle V "The admin UI is now the one place configuration
-changes" is no longer true once this lands. See decision D10.
+changes" is no longer true once this lands. See decision D11.
 
 ## Decisions Already Taken
 
@@ -68,8 +68,10 @@ From the task and the `umbral` session (2026-11-14); not open:
 
 ## Decisions taken in this spec (for the code reviewer)
 
-The questions of the task, answered. Each is a recommendation until the code
-reviewer clears it.
+The questions of the task, answered. Cleared by the code reviewer on
+2026-11-14 (`.alta/reviews/2026-11-14-declared-apps/security-decisions.md`),
+with conditions C1 and C2 and nits N1 to N3 written into D1, D5, D6, D8 and
+D10 below.
 
 **D1. Mechanism: one environment variable holding JSON, and one variable per
 app secret.** `UMBRAL__DECLARATION` holds the declaration as a JSON document
@@ -83,6 +85,13 @@ a dashboard, a manifest or a compose file in plain text.
   variable works the same in `docker run`, a compose file and every Aspire
   target. Redirect lists stay readable: the AppHost writes them in C#, and a
   hand-written compose file can hold the JSON in a block scalar.
+- The secrets are ordinary environment variables: visible to `docker inspect`,
+  written to a compose publish's `.env`, and masked in the Aspire dashboard as
+  secret parameters. The docs say so.
+- (N1) Some platforms and shells refuse `-` in a variable name, so the secret of
+  the key `my-app` is also found as `UMBRAL__APP_SECRETS__my_app`. That is
+  unambiguous, since `_` cannot appear in a key. The package emits the
+  underscore form. Both forms set for one key is refused.
 
 **D2. The declaration owns what it names.** At every start, a declared app is
 created if missing and otherwise updated to match: name, type, both URI lists,
@@ -110,9 +119,16 @@ free to change.
 
 **D5. Conflicts are refused, never merged.** A declared key equal to the client
 ID of an app that was never declared (created in the admin area) is refused.
-So is `passkeys` when the passkey connector exists and was never declared: it
-may already be in use with other settings (invitations only), and adopting it
-would change who can enrol without anyone choosing it. The log line says which
+So is `passkeys` when the passkey connector exists, was never declared, and
+differs from the declaration: it may be in use with other settings
+(invitations only), and adopting it would change who can enrol without anyone
+choosing it. (C2) When it was never declared and is already exactly what the
+declaration says (enabled, shared, the same sign-up mode), it is **adopted**:
+adopting changes nothing and widens nothing, and every volume set up by the old
+sample steps is in that state. Adopting is recorded as `connector_updated`
+with `declared;adopted`. Apps need no such rule: an app made in the admin area
+has a random client ID, so the old sample's app is left as an ordinary app
+that may be deleted. The log line says which
 item, why, and what to do (remove it from the declaration, or give the app
 another key). An item that was declared once and later un-declared may be
 declared again: it was the declaration's before.
@@ -126,6 +142,12 @@ does for a bad public origin. Everything is then applied in one transaction
 with its security events. A half-applied declaration, or an app served with
 yesterday's redirect URIs because today's were refused, is worse than a
 container that says why it did not start.
+- (C1) Any failure while applying, not only a refusal, also stops the start;
+  it is never logged and passed over. OpenIddict's application manager keeps an
+  in-memory cache, and an app created or updated in a transaction that rolled
+  back could stay in it with the wrong redirect URIs. Stopping the process
+  drops the cache with the transaction. The manager is taken from the same
+  scope as the context that holds the transaction.
 
 **D7. Secrets.** A confidential (`web`) app needs `UMBRAL__APP_SECRETS__<key>`
 of at least 32 characters; a public (`spa`) app must have none. Umbral never
@@ -140,10 +162,11 @@ referencing app could not know it.
 with actor `system`, the client ID or connector slug, and a detail starting
 `declared`, never a secret or a URI list:
 - `app_created` (`declared`), `app_updated` (`declared;fields=name,type,redirect_uris,post_logout_redirect_uris,connectors`, the fields that changed), `app_secret_rotated` (`declared`), `app_updated` (`undeclared`);
-- `connector_created` / `connector_updated` (`declared;enrolment=open|invitations`), `connector_enabled` (`declared`), `connector_updated` (`undeclared`).
+- `connector_created` / `connector_updated` (`declared;enrolment=open|invitations`), `connector_enabled` (`declared`), `connector_updated` (`declared;adopted`, C2), `connector_updated` (`undeclared`).
 
 A start that changes nothing records nothing. One Information line per start
-says what was applied (counts only). A refused declaration records no event;
+says what was applied (counts only, and `passkey connector adopted` when it
+was, N3). A refused declaration records no event;
 the log line is the record, since nothing changed.
 
 **D9. Run mode and publish mode.** Both are allowed: nothing in a declaration
@@ -159,7 +182,9 @@ signing in to an app never needed it. Whoever sets the container's environment
 already holds more than the setup token (they can run `reset-credential`), so
 applying the declaration before the claim gives nobody anything new. On a
 fresh volume the sample therefore signs in before the claim; the claim is only
-needed to open the admin area.
+needed to open the admin area. The docs add: with `"signUp": "open"` an
+unclaimed instance on a public host lets people sign up to the declared apps
+before anyone claims it, so claim the instance before you publish it.
 
 **D11. Constitution.** A MINOR amendment (3.2.0, guidance materially expanded): Principle V's last paragraph
 says the admin UI is where configuration changes *except what a declaration
@@ -172,9 +197,20 @@ secure default (off unless given, and refused rather than merged).
 
 ### Session 2026-11-14
 
-- (Pending) Security decisions D1 to D11, code reviewer (`umbral`).
-- (Pending) The Declared marking and the refusals' words, designer
-  (`umbral-designer`): see `contracts/screens.md`.
+- **Security decisions** (`umbral`, code reviewer, before the build, a962660):
+  D1 to D11 cleared. C1: any failure while applying stops the start (the
+  application manager's cache), with a test that induces one mid-apply. C2:
+  adopt a never-declared passkey connector that already matches, with a test
+  on a volume set up by the old sample steps. Nits: N1 (`_` form of a key in
+  the secret variable), N2 (the package generates 48 characters, pinned by a
+  test), N3 (the start line names an adoption). Docs: the secrets are plain
+  environment variables; claim before you publish with open sign-up.
+- **Screens** (`umbral-designer`): a muted pill in the pane header, "· Declared"
+  on the list entry's second line, an info note naming `UMBRAL__DECLARATION`
+  with a docs link, owned fields as values (no disabled inputs, no closing
+  row), the passkey settings as label and value lines, two Warning refusals.
+  Words in `contracts/screens.md`. PRODUCT.md needs a sentence on declared
+  items, through the documentation review.
 
 ## User Scenarios & Testing
 
@@ -222,8 +258,8 @@ change only when the compose file does.
    invalid JSON: Umbral does not start, the log names each problem, and the
    database is unchanged.
 3. `passkeys` declared on a volume whose passkey connector was set up in the
-   admin area: Umbral does not start and says to remove `passkeys` from the
-   declaration.
+   admin area with other settings: Umbral does not start and says to remove
+   `passkeys` from the declaration. With the same settings it is adopted (C2).
 
 ### Edge cases
 
@@ -267,8 +303,9 @@ change only when the compose file does.
   volume and a reused one.
 - **FR-013** Documentation: `docs/run/aspire.md` (declaring apps),
   `docs/run/settings.md` (the two variables), `docs/integrate.md` (pointer),
-  the package README, the samples README, and a changelog fragment with an
-  Upgrade note (schema 16).
+  the package README, the samples README, PRODUCT.md (declared items are the
+  exception to "one place"), and a changelog fragment with an Upgrade note
+  (schema 16).
 
 ## Success Criteria
 

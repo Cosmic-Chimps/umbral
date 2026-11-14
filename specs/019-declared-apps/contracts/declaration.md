@@ -5,7 +5,7 @@
 | Variable | Holds | Secret |
 | --- | --- | --- |
 | `UMBRAL__DECLARATION` | The declaration, a JSON document (below). Unset or empty: no declaration (FR-001). | No |
-| `UMBRAL__APP_SECRETS__<key>` | The client secret of the confidential app `<key>`, at least 32 characters. Exactly one per `web` app, none for a `spa` app. | Yes |
+| `UMBRAL__APP_SECRETS__<key>` | The client secret of the confidential app `<key>`, at least 32 characters. Exactly one per `web` app, none for a `spa` app. The key may be written with `_` in place of `-` (`my_app` for `my-app`, N1); both forms for one key is refused. | Yes |
 
 A variable `UMBRAL__APP_SECRETS__<key>` whose key is not a declared `web` app is
 refused (a leftover secret for a removed or renamed app is a mistake worth
@@ -59,13 +59,14 @@ do, never a secret value. Examples:
 - `apps[1] (key "spa"): UMBRAL__APP_SECRETS__spa is set, but a spa app is public and holds no secret. Remove the variable.`
 - `apps[0] (key "web"): UMBRAL__APP_SECRETS__web is shorter than 32 characters.`
 - `apps[0] (key "web"): redirectUris[0] "https://*.example.com/cb" contains a wildcard. Redirect URIs are matched exactly.`
-- `passkeys: the passkey connector was set up in the admin area. Remove "passkeys" from the declaration; the connector stays as it is.`
+- `passkeys: the passkey connector was set up in the admin area with other settings (who can sign up: invitations only). Remove "passkeys" from the declaration; the connector stays as it is.` (A connector that already matches is adopted instead, C2.)
 - `UMBRAL__APP_SECRETS__old: no declared web app has the key "old". Remove the variable.`
 
 ## The start line
 
 One Information line per start with a declaration:
 `Declaration applied: 1 app created, 0 updated, 0 unchanged, 0 no longer declared; passkey connector created.`
+The passkey part is one of `created`, `updated`, `adopted`, `unchanged`, `no longer declared`, or absent.
 With no variable and nothing to un-declare, no line.
 
 ## Application order (one transaction)
@@ -79,4 +80,6 @@ With no variable and nothing to un-declare, no line.
 
 OpenIddict's application manager writes through its own EF Core context, not
 through the raw connection of the transaction. The plan says how the two are
-made one unit (plan.md, R2).
+made one unit (plan.md, R2). Any exception while applying stops the start
+(C1): the transaction rolls back, and the process goes away with OpenIddict's
+application cache.
