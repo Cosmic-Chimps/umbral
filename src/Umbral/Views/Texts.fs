@@ -32,6 +32,15 @@ let DocumentationUrl = DocsUrl + "/"
 [<Literal>]
 let TroubleshootingUrl = DocsUrl + "/run/troubleshooting/"
 
+/// The variable that declares apps and the passkey connector (spec 019), named in
+/// the Declared notes in mono.
+[<Literal>]
+let DeclarationVariable = "UMBRAL__DECLARATION"
+
+/// The page of the documentation the Declared notes end with.
+[<Literal>]
+let DeclaredAppsUrl = DocsUrl + "/run/aspire/#declared-apps"
+
 /// The secret stores' overview page, which lists each store's own page.
 [<Literal>]
 let SecretStoresUrl = DocsUrl + "/run/secret-stores/"
@@ -158,6 +167,21 @@ type Texts =
       AppsListLabel: string
       AppsCount: int -> string
       AppsUnrestrictedMarker: string
+      /// The word of the pill, and of the second line of a list entry
+      /// ("Web application · Declared"), for what the declaration owns (spec 019).
+      DeclaredBadge: string
+      /// An app's note, in three parts around the variable (shown in mono), then
+      /// the link text to `DeclaredAppsUrl`.
+      DeclaredAppNoteLead: string
+      DeclaredAppNoteTail: string
+      /// The passkey connector's note, in the same three parts.
+      DeclaredPasskeyNoteLead: string
+      DeclaredPasskeyNoteTail: string
+      DeclaredNoteLink: string
+      /// The passkey connector's settings, shown as values while it is declared.
+      DeclaredYes: string
+      DeclaredNo: string
+      DeclaredWhoCanSignUpLabel: string
       AppConnectionTitle: string
       AppNameLabel: string
       AppRedirectUriLabel: string
@@ -955,6 +979,10 @@ let private noticeEn (code: string) : string option =
     | "app-not-found" -> Some "That app no longer exists. Choose one from the list, or register it again."
     | "connector-not-found" ->
         Some "That connector no longer exists. Choose one from the list, or add it again."
+    | "app-declared" ->
+        Some "This app is declared in Umbral's start-up settings, so it was not changed. Change it there, then start Umbral again."
+    | "connector-declared" ->
+        Some "The passkey connector is declared in Umbral's start-up settings, so it was not changed. Change it there, then start Umbral again."
     | "app-no-secret" ->
         Some "Single-page and native apps have no secret to replace — they use PKCE instead. If sign-in fails for this app, check that it sends a PKCE challenge."
     | "user-not-found" -> Some "That user no longer exists. Choose one from the list below."
@@ -1252,6 +1280,17 @@ let en: Texts =
       AppsListLabel = "Apps list"
       AppsCount = fun n -> if n = 1 then "1 app" else $"{n} apps"
       AppsUnrestrictedMarker = "Check sign-in methods"
+      DeclaredBadge = "Declared"
+      DeclaredAppNoteLead = "This app is declared in Umbral's start-up settings ("
+      DeclaredAppNoteTail =
+          ", set where Umbral is started, such as an Aspire AppHost). Its name, type, addresses and sign-in methods are changed there, and take effect when Umbral starts again. Branding is changed here."
+      DeclaredPasskeyNoteLead = "The passkey connector is declared in Umbral's start-up settings ("
+      DeclaredPasskeyNoteTail =
+          "). Whether it is on, who can sign up and whether it is shared are changed there, and take effect when Umbral starts again. Invitations are made here."
+      DeclaredNoteLink = "How declared apps work"
+      DeclaredYes = "Yes"
+      DeclaredNo = "No"
+      DeclaredWhoCanSignUpLabel = "Who can sign up"
       AppConnectionTitle = "Connection"
       AppNameLabel = "Name"
       AppRedirectUriLabel = "Redirect URI"

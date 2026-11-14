@@ -88,6 +88,15 @@ let handler (slug: string) : EndpointHandler =
             | None -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
             | Some connector ->
 
+            // Spec 019 D2: whether the passkey connector is on is the declaration's.
+            // Before the strand and last-door checks, so `?confirm=yes` cannot
+            // carry a switch past it.
+            let! declared = Declarations.isDeclared config Declarations.ConnectorItem slug
+
+            if declared then
+                return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-declared"
+            else
+
             let turningOff = connector.IsEnabled
 
             // FR-023: warn before the action that leaves nobody able to sign in

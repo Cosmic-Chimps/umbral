@@ -99,6 +99,7 @@ let pane
     (revealedLink: string option)
     (view: Components.FrameView)
     (notice: HtmlElement option)
+    (declared: bool)
     : HtmlElement =
     let isConfigured = existing.IsSome
     let isEnabled = existing |> Option.exists (fun c -> c.IsEnabled)
@@ -122,6 +123,9 @@ let pane
                             (if isShared then t.ConnectorSharedBadge else t.ConnectorNotSharedBadge)
 
                         Components.stateBadge isEnabled t.Enabled t.Disabled
+
+                        if declared then
+                            Components.declaredPill t.DeclaredBadge
                     else
                         Components.pill Components.MutedTone t.NotConfigured ]
 
@@ -130,8 +134,12 @@ let pane
 
               // What the screen has to say: the notice, the invitation link
               // shown once, and why nobody is offered this connector.
-              (if notice.IsSome || revealedLink.IsSome || offeredNowhere then
+              (if declared || notice.IsSome || revealedLink.IsSome || offeredNowhere then
                    (div(class' = "mt-6 space-y-3") {
+                       // Spec 019: first, so it is seen before any section.
+                       if declared then
+                           Components.declaredNote t.DeclaredPasskeyNoteLead t.DeclaredPasskeyNoteTail t.DeclaredNoteLink
+
                        match notice with
                        | Some block -> block
                        | None -> Fragment() :> HtmlElement
@@ -172,7 +180,18 @@ let pane
 
               Components.paneSection
                   t.ConnectorSettingsTitle
-                  (form(method = "post", action = "/admin/connectors/passkey", class' = "space-y-3") {
+                  (if declared then
+                       // Owned by the declaration: values, not disabled fields (spec 019).
+                       (div(class' = "space-y-5").data("declared-settings", "") {
+                           Components.valueLine t.ConnectorSharedLabel (if isShared then t.DeclaredYes else t.DeclaredNo)
+
+                           Components.valueLine
+                               t.DeclaredWhoCanSignUpLabel
+                               (if enrolment = "open" then t.PasskeyEnrolmentOpenLabel else t.PasskeyEnrolmentInvitationsLabel)
+                       })
+                       :> HtmlElement
+                   else
+                   (form(method = "post", action = "/admin/connectors/passkey", class' = "space-y-3") {
                       ctx.GetAntiforgeryInput()
 
                       div(class' = "space-y-1") {
@@ -205,6 +224,7 @@ let pane
                           }
                       }
                   })
+                  :> HtmlElement)
 
               if isConfigured then
                   Components.paneSection
@@ -277,7 +297,7 @@ let pane
                               }
                       })
 
-              if isConfigured then
+              if isConfigured && not declared then
                   (Components.paneActions
                       [ (form(method = "post", action = confirmed "/admin/connectors/passkey/toggle", class' = "inline") {
                             ctx.GetAntiforgeryInput()
@@ -350,6 +370,15 @@ let save: EndpointHandler =
             let! form = WebForms.readValidated ctx
             let shared = WebForms.checkbox form "shared"
             let confirmed = ctx.TryGetQueryValue "confirm" = Some "yes"
+
+            // Spec 019 D2: who can sign up and sharing are the declaration's.
+            // Before the form is read for anything and before the strand check,
+            // so `?confirm=yes` cannot carry a save past it.
+            let! declared = Declarations.isPasskeyDeclared config
+
+            if declared then
+                return! WebForms.redirectWithNotice ctx (detailPath Slug) "connector-declared"
+            else
 
             match Passkeys.parseEnrolment (WebForms.value form "enrolment") with
             | None -> return! WebForms.redirectWithNotice ctx (detailPath Slug) "passkey-connector-invalid"

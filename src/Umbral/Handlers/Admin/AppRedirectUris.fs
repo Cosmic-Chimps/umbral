@@ -69,6 +69,14 @@ let private change (kind: Kind) (isAdd: bool) (clientId: string) : EndpointHandl
             | null -> return! WebForms.redirectWithNotice ctx Apps.listPath "app-not-found"
             | application ->
 
+            // Spec 019 D2: a declared app's addresses are the declaration's, and
+            // would be written back at the next start. Before anything is read.
+            let! declared = Declarations.isDeclared config Declarations.AppItem clientId
+
+            if declared then
+                return! WebForms.redirectWithNotice ctx (Apps.detailPath clientId) "app-declared"
+            else
+
             let! stored = kind.Read applications application
             let current = List.ofSeq stored
 

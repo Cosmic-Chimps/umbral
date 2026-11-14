@@ -93,6 +93,22 @@ let declaredClientIds (config: Database.DbConfig) : Task<Set<string>> =
 let isPasskeyDeclared (config: Database.DbConfig) : Task<bool> =
     isDeclared config ConnectorItem PasskeySlug
 
+/// Drops the history row of an item that is deleted from the admin area. Only a
+/// row that is no longer declared (D3): a declared item's routes refuse before
+/// this, and the row would only come back at the next start. Without it a later
+/// item with the same client ID or slug would start out looking as if it had
+/// been declared once.
+let forget (config: Database.DbConfig) (kind: ItemKind) (id: string) : Task<unit> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+        command.CommandText <- "DELETE FROM declared_items WHERE kind = @kind AND id = @id AND is_declared = 0"
+        command.Parameters.AddWithValue("@kind", kind.Value) |> ignore
+        command.Parameters.AddWithValue("@id", id) |> ignore
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
+    }
+
 /// How the passkey connector came out.
 type PasskeyOutcome =
     | PasskeyCreated

@@ -21,6 +21,14 @@ let handler (clientId: string) : EndpointHandler =
             | null -> return! WebForms.redirectWithNotice ctx "/admin/apps" "app-not-found"
             | application ->
 
+            // Spec 019 D2: a declared app is deleted by leaving the declaration,
+            // which only un-declares it; the admin area does not delete it.
+            let! declared = Declarations.isDeclared config Declarations.AppItem clientId
+
+            if declared then
+                return! WebForms.redirectWithNotice ctx $"/admin/apps/{clientId}" "app-declared"
+            else
+
             // Deleting the OpenIddict application cascades to its
             // authorizations and tokens on OpenIddict's own tables, which is
             // what makes "every token stops working immediately" true.
@@ -35,6 +43,10 @@ let handler (clientId: string) : EndpointHandler =
             // with the app, so the logo's address returns 404 from this moment.
             // Not logged apart from the deletion itself.
             do! BrandingStore.deleteFor config clientId
+
+            // And the history row of an app that was declared once (D3), so a
+            // later app with this client ID does not look declared before.
+            do! Declarations.forget config Declarations.AppItem clientId
 
             let remoteIp = ctx.Connection.RemoteIpAddress |> Option.ofObj |> Option.map string
 

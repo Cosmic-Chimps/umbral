@@ -44,6 +44,15 @@ let handler (slug: string) : EndpointHandler =
             | None -> return! WebForms.redirectWithNotice ctx listPath "connector-unknown"
             | Some connector ->
 
+            // Spec 019 D2: the passkey connector is deleted by leaving the
+            // declaration, which only un-declares it. Before the strand and
+            // last-door checks, so `?confirm=yes` cannot carry a delete past it.
+            let! declared = Declarations.isDeclared config Declarations.ConnectorItem slug
+
+            if declared then
+                return! WebForms.redirectWithNotice ctx (detailPath slug) "connector-declared"
+            else
+
             // FR-023, the same shape as the toggle: warn before the action that
             // leaves nobody able to sign in anywhere, and let a flag set by the
             // screen's own confirmation carry the operator through. Only an
@@ -83,6 +92,11 @@ let handler (slug: string) : EndpointHandler =
                         match! ConnectorStore.delete config slug with
                         | None -> return None
                         | Some encoded ->
+                            // The history row of a connector that was declared once
+                            // goes with it (spec 019 D3). Only an un-declared one: a
+                            // declared one was refused above.
+                            do! Declarations.forget config Declarations.ConnectorItem slug
+
                             // A reference that does not decode is "no secret": the
                             // passkey kind stores an empty one, because Umbral is its
                             // own provider (specs/008). Nothing to clean up, and the

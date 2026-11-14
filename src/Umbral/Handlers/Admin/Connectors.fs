@@ -1088,6 +1088,7 @@ let private noticeKind (code: string) =
     | "connector-display-name-required"
     | "connector-last-enabled"
     | "connector-delete-last-enabled"
+    | "connector-declared"
     | "passkey-connector-invalid"
     | "passkey-invitation-invalid"
     | "passkey-invitation-not-open"
@@ -1153,6 +1154,7 @@ let private view
     (appleLogoProblem: string option)
     (invitations: PasskeyInvitations.Invitation list)
     (revealedLink: string option)
+    (passkeyDeclared: bool)
     =
     let block code = noticeBlock ctx t domains strand explained code
     let blueskyAllowDev = (ctx.GetService<Providers.Bluesky.Options>()).AllowDev
@@ -1264,6 +1266,14 @@ let private view
 
         let subtitle =
             match row.Existing with
+            | Some c when passkeyDeclared && c.Slug = Declarations.PasskeySlug ->
+                // The entry allows one status marker, which stays the state badge;
+                // the line says it is declared (spec 019).
+                (span() {
+                    span(class' = "um-mono") { c.Slug }
+                    $" · {t.DeclaredBadge}"
+                })
+                :> HtmlElement
             | Some c -> (span(class' = "um-mono") { c.Slug }) :> HtmlElement
             | None -> (span() { t.NotConfigured }) :> HtmlElement
 
@@ -1322,6 +1332,7 @@ let private view
                     revealedLink
                     frameView
                     paneNotice
+                    passkeyDeclared
             | Fediverse ->
                 let draft =
                     domains.CardDraft
@@ -1461,6 +1472,7 @@ let private render
             // as the handlers count it.
             let clock = ctx.GetService<TimeProvider>()
             let! invitations = PasskeyInvitations.listOpen config clock "passkey"
+            let! passkeyDeclared = Declarations.isPasskeyDeclared config
             let enabledCount = existing |> List.filter (fun c -> c.IsEnabled) |> List.length
 
             // Every slug some app's chosen set names, for `data-offered-nowhere`.
@@ -1662,6 +1674,7 @@ let private render
                         drafts.AppleLogoProblem
                         invitations
                         revealedLink
+                        passkeyDeclared
                 )
         }
 

@@ -216,6 +216,9 @@ type private Row =
       PostLogoutRedirectUris: string list
       Choice: AppChoice
       Branding: AppBranding option
+      /// The declaration owns this app (spec 019): its owned fields are shown as
+      /// values and the routes that would change them refuse.
+      Declared: bool
       /// The names of the enabled connectors this app offers that have no
       /// domain rule, when it also offers some that do (FR-020). Empty when
       /// there is no such mix.
@@ -383,6 +386,7 @@ let private noticeKind (code: string) =
     | "app-redirect-uri-not-registered"
     | "app-type-invalid"
     | "app-connector-unknown"
+    | "app-declared"
     | "app-not-found"
     | "app-no-secret" -> Components.Warning
     | _ -> Components.Success
@@ -912,6 +916,22 @@ let private uriList (ctx: HttpContext) (t: Texts.Texts) (row: Row) (spec: UriLis
             }
     }
 
+/// A list of addresses the declaration owns: the label and the addresses as a
+/// plain mono list, with no Remove and no add field (spec 019).
+let private declaredUriList (spec: UriListSpec) =
+    div(class' = "space-y-2").data(spec.Marker, "") {
+        p(class' = "um-label") { spec.Label }
+
+        match spec.Uris, spec.Empty with
+        | [], Some none -> (p(class' = "text-body-md text-on-surface-variant") { none }) :> HtmlElement
+        | uris, _ ->
+            (ul(class' = "space-y-1 text-body-md text-on-surface-variant") {
+                for uri in uris do
+                    li().data("uri", uri) { span(class' = "um-mono [overflow-wrap:anywhere]") { uri } }
+            })
+            :> HtmlElement
+    }
+
 /// One app's pane (the contract's order): heading, the notices about it, the
 /// connection details, the sign-in methods, the branding, and the closing row.
 let private appPane
@@ -953,15 +973,31 @@ let private appPane
           Components.paneHeading
               "app-heading"
               row.DisplayName
-              [ Components.pill Components.MutedTone (if isPublic then SpaOrNative.Label t else Web.Label t) ]
+              [ Components.pill Components.MutedTone (if isPublic then SpaOrNative.Label t else Web.Label t)
 
-          match notice with
-          | Some code -> (div(class' = "mt-6") { itemNotice ctx t row code }) :> HtmlElement
-          | None -> Fragment() :> HtmlElement
+                if row.Declared then
+                    Components.declaredPill t.DeclaredBadge ]
 
+          // Under the heading, before any section and before a refusal's notice,
+          // so it is seen first (spec 019, contracts/screens.md).
+          if row.Declared then
+              (div(class' = "mt-6 space-y-3") {
+                  Components.declaredNote t.DeclaredAppNoteLead t.DeclaredAppNoteTail t.DeclaredNoteLink
+
+                  match notice with
+                  | Some code -> itemNotice ctx t row code
+                  | None -> Fragment() :> HtmlElement
+              })
+              :> HtmlElement
+          else
+              match notice with
+              | Some code -> (div(class' = "mt-6") { itemNotice ctx t row code }) :> HtmlElement
+              | None -> Fragment() :> HtmlElement
+
+          // A declared app has no secret to reveal: Regenerate is refused.
           match revealed with
-          | Some r -> (div(class' = "mt-6") { secretReveal t r }) :> HtmlElement
-          | None -> Fragment() :> HtmlElement
+          | Some r when not row.Declared -> (div(class' = "mt-6") { secretReveal t r }) :> HtmlElement
+          | _ -> Fragment() :> HtmlElement
 
           Components.paneSection
               t.AppConnectionTitle
@@ -984,10 +1020,7 @@ let private appPane
                           ignore
                   }
 
-                  uriList
-                      ctx
-                      t
-                      row
+                  (if row.Declared then declaredUriList else uriList ctx t row)
                       { Id = "redirect-uri-add"
                         Route = "redirect-uris"
                         Label = t.AppRedirectUrisLabel
@@ -1001,10 +1034,7 @@ let private appPane
                         Marker = "redirect-uris"
                         Kept = kept "redirect-uris" }
 
-                  uriList
-                      ctx
-                      t
-                      row
+                  (if row.Declared then declaredUriList else uriList ctx t row)
                       { Id = "post-logout-uri-add"
                         Route = "post-logout-uris"
                         Label = t.AppPostLogoutUrisLabel
@@ -1049,21 +1079,28 @@ let private appPane
                               :> HtmlElement
                       }
 
-                  form(method = "post", action = $"/admin/apps/{row.ClientId}/connectors", class' = "space-y-3") {
-                      ctx.GetAntiforgeryInput()
-                      connectorChoices t $"connectors-{row.ClientId}" false connectors row.Choice
+                  // A declared app's choice is the declaration's: the summary above
+                  // is all there is, with no cards and no Save (spec 019).
+                  if not row.Declared then
+                      (form(method = "post", action = $"/admin/apps/{row.ClientId}/connectors", class' = "space-y-3") {
+                          ctx.GetAntiforgeryInput()
+                          connectorChoices t $"connectors-{row.ClientId}" false connectors row.Choice
 
-                      button(type' = "submit", class' = Components.btnSm Components.Secondary) {
-                          t.AppConnectorsSaveButton
-                      }
-                  }
+                          button(type' = "submit", class' = Components.btnSm Components.Secondary) {
+                              t.AppConnectorsSaveButton
+                          }
+                      })
+                      :> HtmlElement
               })
 
           brandingSection ctx t row
 
           // The app's state and lifetime actions close the pane, behind their own
           // hairline, so they do not read as part of the accent form.
-          (Components.paneActions
+          // A declared app has no closing row: Regenerate secret and Delete are
+          // both the declaration's (spec 019).
+          if not row.Declared then
+           (Components.paneActions
               [ if not isPublic then
                     (form(method = "post", action = $"/admin/apps/{row.ClientId}/secret", class' = "inline") {
                         ctx.GetAntiforgeryInput()
@@ -1170,7 +1207,11 @@ let private view
                     (detailPath row.ClientId)
                     (not showCreate && (selected |> Option.exists (fun s -> s.ClientId = row.ClientId)))
                     row.DisplayName
-                    (span() { if row.ClientType = ClientTypes.Public then SpaOrNative.Label t else Web.Label t })
+                    (span() {
+                        let kind = if row.ClientType = ClientTypes.Public then SpaOrNative.Label t else Web.Label t
+                        // No pill: an entry allows one status marker. The line says it.
+                        if row.Declared then $"{kind} · {t.DeclaredBadge}" else kind
+                    })
                     (if row.Unrestricted.IsEmpty then
                          None
                      else
@@ -1275,6 +1316,7 @@ let private toRow
             { ClientId = clientId
               Choice = choices |> Map.tryFind clientId |> Option.defaultValue AllShared
               Branding = branding |> Map.tryFind clientId
+              Declared = false
               DisplayName = displayName |> Option.ofObj |> Option.defaultValue ""
               ClientType = clientType |> Option.ofObj |> Option.defaultValue ClientTypes.Confidential
               RedirectUris = redirectUris |> List.ofSeq
@@ -1313,10 +1355,14 @@ let private screen (selection: Selection) : EndpointHandler =
 
             // Read once for the page, not once per connector or per app.
             let! instanceList = EmailDomainRules.instanceList config
+            let! declared = Declarations.declaredClientIds config
 
             let rows =
                 rows
-                |> Seq.map (fun row -> { row with Unrestricted = unrestrictedFor instanceList connectors row.Choice })
+                |> Seq.map (fun row ->
+                    { row with
+                        Unrestricted = unrestrictedFor instanceList connectors row.Choice
+                        Declared = Set.contains row.ClientId declared })
                 |> List.ofSeq
                 |> List.sortBy (fun row -> row.DisplayName.ToLowerInvariant(), row.ClientId)
 
@@ -1451,6 +1497,15 @@ let setConnectors (clientId: string) : EndpointHandler =
             match application with
             | null -> return! WebForms.redirectWithNotice ctx listPath "app-not-found"
             | application ->
+
+            // Spec 019 D2: a declared app's connector choice is the declaration's.
+            // Before the choice is read, and before the strand check, so that
+            // `?confirm=yes` cannot carry a save past it.
+            let! declared = Declarations.isDeclared config Declarations.AppItem clientId
+
+            if declared then
+                return! WebForms.redirectWithNotice ctx (detailPath clientId) "app-declared"
+            else
 
             let choice = choiceFromForm form
             let! connectors = ConnectorStore.listAll config

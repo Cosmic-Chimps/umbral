@@ -26,6 +26,14 @@ let handler (clientId: string) : EndpointHandler =
             | null -> return! WebForms.redirectWithNotice ctx "/admin/apps" "app-not-found"
             | application ->
 
+            // Spec 019 D2: the secret of a declared app is the one it is given
+            // at start; a new one here would be undone at the next start.
+            let! declared = Declarations.isDeclared config Declarations.AppItem clientId
+
+            if declared then
+                return! WebForms.redirectWithNotice ctx (Apps.detailPath clientId) "app-declared"
+            else
+
             let! clientType = applications.GetClientTypeAsync application
 
             if clientType = OpenIddictConstants.ClientTypes.Public then

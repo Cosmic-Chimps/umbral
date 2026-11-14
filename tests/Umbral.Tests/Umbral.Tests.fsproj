@@ -93,6 +93,7 @@
     <Compile Include="AppRedirectUrisTests.fs" />
     <Compile Include="DeclarationParseTests.fs" />
     <Compile Include="DeclarationApplyTests.fs" />
+    <Compile Include="DeclaredAdminTests.fs" />
     <Compile Include="MultipleConnectorsTests.fs" />
     <Compile Include="NoConfigFileTests.fs" />
     <Compile Include="SecretStoreSettingsTests.fs" />

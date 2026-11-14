@@ -507,6 +507,34 @@ let paneHeading (headingId: string) (title: string) (pills: HtmlElement list) =
             p
     }
 
+/// The Declared pill, beside the type pill in a pane's heading (spec 019). Muted:
+/// nothing is wrong.
+let declaredPill (text: string) = pill MutedTone text
+
+/// The info note under the heading of a declared item's pane: `lead`, the
+/// variable in mono, `tail`, then the link to the documentation, in the same
+/// tab like the footer's links. Not `alert`, which would say `status`: this one
+/// is a `note` (spec 019, contracts/screens.md).
+let declaredNote (lead: string) (tail: string) (linkText: string) =
+    div(class' = "um-alert um-alert-info").attr("role", "note").data("declared-note", "") {
+        span(class' = "text-primary") { icon Info }
+
+        span() {
+            lead
+            span(class' = "um-mono") { DeclarationVariable }
+            $"{tail} "
+            a(href = DeclaredAppsUrl, class' = "um-link") { linkText }
+        }
+    }
+
+/// A label over a value in the pane's field style, for what the declaration owns
+/// and the pane therefore shows as a value, not as a field.
+let valueLine (label: string) (value: string) =
+    div(class' = "space-y-1").data("value-line", "") {
+        p(class' = "um-label") { label }
+        p(class' = "text-body-md text-on-surface-variant") { value }
+    }
+
 /// A section of a pane: a hairline, a title, and its groups 20px apart.
 let paneSection (title: string) (body: HtmlElement) =
     div(class' = "um-pane-section") {

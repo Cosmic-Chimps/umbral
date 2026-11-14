@@ -16,7 +16,7 @@ D1 to D11 cleared by the code reviewer with C1 and C2 (a962660); `contracts/scre
 
 ## Phase 3: Admin area
 
-- [ ] **T003** The Declared mark and owned fields per the designer's contract; refusals in `Apps.setConnectors`, `AppRedirectUris`, `AppSecret`, `AppDelete`, `PasskeyConnector.save`, `ConnectorToggle`, `ConnectorDelete` (`app-declared`, `connector-declared`); branding and invitations still work; `AppDelete` of an un-declared app removes its history row. Tests: each refused route, posted to directly, changes nothing; branding saves; mark drawn only while declared.
+- [x] **T003** The Declared mark and owned fields per the designer's contract; refusals in `Apps.setConnectors`, `AppRedirectUris`, `AppSecret`, `AppDelete`, `PasskeyConnector.save`, `ConnectorToggle`, `ConnectorDelete` (`app-declared`, `connector-declared`); branding and invitations still work; `AppDelete` of an un-declared app removes its history row. Tests: each refused route, posted to directly, changes nothing; branding saves; mark drawn only while declared.
 
 ## Phase 4: Aspire package and sample
 
