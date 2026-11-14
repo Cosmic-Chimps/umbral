@@ -21,10 +21,10 @@ D1 to D11 cleared by the code reviewer with C1 and C2 (a962660); `contracts/scre
 ## Phase 4: Aspire package and sample
 
 - [x] **T004** Package API per `contracts/package.md`, with tests (generated secret 48 characters (N2), secret variable in the `_` form (N1), environment of Umbral and of the project, JSON shape, secret parameter generated/persisted/secret and referenced, publish-mode refusal, key rule and duplicates, no variables without `AddApp`/`WithPasskeys`, manifest has no secret value).
-- [ ] **T005** `samples/aspire`: declare the sample and passkeys; steps reduced; README. Walk: fresh volume → passkey sign-up and sign-in in the sample with no admin click; second run → no new event (read `security_events`), no duplicate; change the redirect path in the AppHost → one `app_updated`; grep the Umbral log, the AppHost console and the manifest for the secret value.
+- [x] **T005** `samples/aspire`: declare the sample and passkeys; steps reduced; README. Walk: fresh volume → passkey sign-up and sign-in in the sample with no admin click; second run → no new event (read `security_events`), no duplicate; change the redirect path in the AppHost → one `app_updated`; grep the Umbral log, the AppHost console and the manifest for the secret value.
 
 ## Phase 5: Docs, constitution, reviews
 
-- [ ] **T006** Constitution 3.2.0 (Principle V paragraph, sync report); docs (FR-013, including: secrets are plain environment variables; claim before you publish with open sign-up; PRODUCT.md's "one place" sentence); changelog fragment with the Upgrade note (schema 16; a declaration is off unless given).
-- [ ] **T007** Captures of the Declared marking in `.alta/reviews/2026-11-14-declared-apps/` with `notes.md`.
+- [x] **T006** Constitution 3.2.0 (Principle V paragraph, sync report); docs (FR-013, including: secrets are plain environment variables; claim before you publish with open sign-up; PRODUCT.md's "one place" sentence); changelog fragment with the Upgrade note (schema 16; a declaration is off unless given).
+- [x] **T007** Captures of the Declared marking in `.alta/reviews/2026-11-14-declared-apps/` with `notes.md`.
 - [ ] **T008** Full suite green; code, design and documentation reviews; one re-check each.
