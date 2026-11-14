@@ -33,7 +33,10 @@ people in without passwords: with a social provider they already use
 or an account on a Mastodon or GoToSocial server, or a Bluesky account), or with a passkey that Umbral
 verifies itself. Apps talk to Umbral with any
 standard OIDC library. The operator wires each provider up once, in one place,
-instead of in every app.
+instead of in every app. The admin area is where configuration changes; the one
+exception is what the operator declares in Umbral's environment (`UMBRAL__DECLARATION`):
+apps and the passkey connector, applied at every start and shown read-only in the
+admin area as Declared.
 
 It ships as one container with an embedded SQLite database: no Postgres, no
 Redis, no sidecar. Success looks like a first login within a few minutes of

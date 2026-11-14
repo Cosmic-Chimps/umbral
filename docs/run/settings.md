@@ -15,8 +15,52 @@ Set these as environment variables on the container.
 | `UMBRAL__SECRET_GRACE_SECONDS` | `3600` | How long Umbral keeps using the last secret it read when the manager cannot be reached. `0` refuses at once. |
 | `UMBRAL__AZURE_KEY_VAULT_URI` | unset | The vault's `https://` address, no path. Required when the store is `azure`. |
 | `UMBRAL__BELLABAXTER_PROVIDER` | unset | The BellaBaxter provider's slug; needed only when the environment has no secret provider or several. |
+| `UMBRAL__DECLARATION` | unset (no declaration) | A JSON document that declares the apps Umbral serves and, optionally, the passkey connector. Umbral applies it at every start, then shows what it declares as **Declared** and read-only in the admin area. It holds no secret. Unset or empty, nothing is applied, and anything still marked Declared is handed back to the admin area. A declaration that is wrong stops the start and the log says what to fix. See [Declare apps without Aspire](#declare-apps-without-aspire) below and [Declared apps](aspire.md#declared-apps). |
+| `UMBRAL__APP_SECRETS__<key>` | none | The client secret of the declared web app `<key>`, at least 32 characters. One per web app, none for a spa app. Where a platform refuses `-` in a variable name, write `_` for it: `UMBRAL__APP_SECRETS__my_app` is the secret of `my-app`. Setting both forms for one key stops the start. Umbral stores only a hash and never logs the value, but it is an ordinary environment variable, visible to `docker inspect`. |
 
 The cloud's own variables (`AWS_REGION`, `GOOGLE_CLOUD_PROJECT`, `AZURE_*`,
 `BELLA_BAXTER_*`) are listed in each store's walkthrough:
 [AWS](../secret-stores/aws.md) · [Google Cloud](../secret-stores/gcp.md) ·
 [Azure](../secret-stores/azure.md) · [BellaBaxter](../secret-stores/bellabaxter.md).
+
+## Declare apps without Aspire
+
+The [Aspire package](aspire.md#declared-apps) writes these variables for you. In a
+compose file, write them yourself. The JSON goes in a block scalar so the redirect
+lists stay readable; the secrets come from the environment or an env file, not from
+the compose file:
+
+```yaml
+services:
+  umbral:
+    image: ghcr.io/cosmic-chimps/umbral:latest
+    environment:
+      UMBRAL__PUBLIC_ORIGIN: https://auth.example.com
+      UMBRAL__DECLARATION: |
+        {
+          "version": 1,
+          "passkeys": { "signUp": "invitations" },
+          "apps": [
+            {
+              "key": "web",
+              "name": "Our web app",
+              "type": "web",
+              "redirectUris": ["https://app.example.com/signin-oidc"],
+              "postLogoutRedirectUris": ["https://app.example.com/signout-callback-oidc"],
+              "connectors": "all-shared"
+            }
+          ]
+        }
+      UMBRAL__APP_SECRETS__web: ${WEB_CLIENT_SECRET}
+```
+
+`version` is `1`. `passkeys` is optional: leave it out and the passkey connector is
+not declared. `apps[].type` is `web` or `spa`; `connectors` is `"all-shared"` (the
+default) or a list of connector slugs. The app's client ID is its `key`. Unknown
+properties are refused, so a typo can't silently do nothing. Redirect URIs follow the admin
+area's rules: exact, absolute, no wildcard, no fragment, at most 10 per list.
+
+A declaration that cannot be applied stops Umbral, and `docker logs umbral` names
+each problem with what to do. For what a declaration owns and what it leaves to the
+admin area, how an app leaves it, and what to do before you run one in production,
+see [Declared apps](aspire.md#declared-apps).

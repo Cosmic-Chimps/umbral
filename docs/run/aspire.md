@@ -11,8 +11,10 @@ dotnet add package CosmicChimps.Aspire.Hosting.Umbral
 The package is published with each Umbral release from 0.12.0 on.
 
 It starts the published image, `ghcr.io/cosmic-chimps/umbral`, and gives your apps
-the issuer address. It does not claim Umbral or register your apps: you do that in
-the admin area, once.
+the issuer address. It can also create your apps and the passkey connector when
+Umbral starts, so there is nothing to click: see
+[Declare your app and sign in](#declare-your-app-and-sign-in). It never claims
+Umbral for you.
 
 ## Run it on your machine
 
@@ -59,27 +61,167 @@ machine (an `AddProject` resource) reaches. An app in a container (`AddContainer
 load the discovery document. Run that app as a project while you develop, or
 deploy both and use the public origin.
 
-## Claim Umbral and register your app
+## Declare your app and sign in
 
-The first time, open `/admin` from the dashboard and
-[claim the instance](../../README.md#3-claim-the-instance), then
-[register your app](../../README.md#5-register-an-app) to get its client ID and
-secret. Pass them to the app as Aspire parameters, the secret one marked `secret: true`:
+Declare the passkey connector and your app in the AppHost. Umbral creates both when
+it starts, and the project that signs in through the app receives its issuer,
+client ID and secret:
 
 ```csharp
-var clientId = builder.AddParameter("umbral-client-id");
-var clientSecret = builder.AddParameter("umbral-client-secret", secret: true);
+var umbral = builder.AddUmbral("umbral")
+    .WithDataVolume()
+    .WithPasskeys(PasskeySignUp.Open);        // the passkey connector; invitations only by default
 
-builder.AddProject<Projects.Web>("web")
-    .WithReference(umbral)
-    .WithEnvironment("UMBRAL_CLIENT_ID", clientId)
-    .WithEnvironment("UMBRAL_CLIENT_SECRET", clientSecret)
+var web = builder.AddProject<Projects.Web>("web");
+
+var app = umbral.AddApp("web")                // key = client ID; a web (confidential) app by default
+    .WithDisplayName("Sample web app");
+web.WithReference(app)                        // UMBRAL_ISSUER, UMBRAL_CLIENT_ID, UMBRAL_CLIENT_SECRET
     .WaitFor(umbral);
 ```
 
-Set the two values in the AppHost's user secrets (`Parameters:umbral-client-id`
-and `Parameters:umbral-client-secret`), so they stay out of the repository. The
-package does not declare apps itself yet.
+`aspire run` starts Umbral, then your project, and a new passkey signs in to it.
+There is no admin step: signing in to an app never needed the claim, and Umbral
+applies the declaration whether or not it has been claimed. **Claim Umbral only
+when you want to open the admin area**: use the second link in the dashboard,
+"Claim (first run)", which goes to `/admin/setup`, and paste the setup token from
+Umbral's console log. With `PasskeySignUp.Open`, claim the instance before you
+publish it (see [For a production instance](#for-a-production-instance)).
+
+What the declaration does, and what it never touches, is in
+[Declared apps](#declared-apps) below. To register an app by hand instead, leave
+out `WithPasskeys` and `AddApp`: then Umbral gets no declaration, and you
+[claim the instance](../../README.md#3-claim-the-instance) and
+[register your app](../../README.md#5-register-an-app) in the admin area, as the
+README says.
+
+### The AppHost methods
+
+- `AddApp(key)` declares an app. The key is its client ID: 1–32 lowercase letters,
+  digits or hyphens. `AddApp` throws on a key that breaks the rule or is used twice.
+  The app is a web (confidential) app. `AddApp(key, UmbralAppType.Spa)` makes a
+  public app that signs in with PKCE only, with no secret and no
+  `UMBRAL_CLIENT_SECRET`.
+- `WithDisplayName(name)` sets the name people see. It defaults to the key.
+- `WithConnectors("passkey", ...)` limits the app's sign-in methods to those
+  connectors. Without it the app offers every shared connector.
+- `WithReference(app)` on a project sets `UMBRAL_ISSUER`, `UMBRAL_CLIENT_ID` and,
+  for a web app, `UMBRAL_CLIENT_SECRET`. An app referenced by two projects needs
+  explicit redirect URIs.
+- `WithPasskeys(PasskeySignUp.InvitationsOnly | Open)` declares the passkey
+  connector.
+
+### Redirect URIs
+
+In run mode a web app with no redirect URI of its own gets the `http` endpoint of
+the project that references it, plus `/signin-oidc` and, as the post-logout URI,
+`/signout-callback-oidc`. `WithCallbackPaths(signIn, signOut)` changes the paths,
+or turns this on for a spa app. `WithRedirectUri(uri)` and
+`WithPostLogoutRedirectUri(uri)` add explicit ones; an app with an explicit
+redirect URI gets only those, unless you also call `WithCallbackPaths`. An app with
+no redirect URI at all is an error that names it.
+
+When you publish, a project's endpoint is an internal address no browser reaches,
+so the package refuses to derive the URIs and says to call `WithRedirectUri` with
+the public address:
+
+```csharp
+umbral.AddApp("web")
+    .WithRedirectUri("https://app.example.com/signin-oidc")
+    .WithPostLogoutRedirectUri("https://app.example.com/signout-callback-oidc");
+```
+
+## Declared apps
+
+A declaration is a list of apps and, optionally, the passkey connector, read from
+the environment each time Umbral starts. The package writes it for you from
+`AddApp` and `WithPasskeys` (`UMBRAL__DECLARATION`, plus
+`UMBRAL__APP_SECRETS__<key>` for each web app's secret). You can write the same
+variables yourself without Aspire: see the [settings reference](settings.md).
+Without `AddApp` or `WithPasskeys`, the package sets neither, and Umbral reads no
+declaration.
+
+**What the declaration owns.** At every start a declared app is created if it is
+missing and otherwise updated to match: its name, type, redirect URIs, post-logout
+redirect URIs, sign-in methods and secret. The passkey connector's *enabled*,
+*who can sign up* and *shared* settings are owned the same way. What the
+declaration does not name stays yours: an app's branding and the passkey
+connector's invitations are still changed in the admin area. It never touches
+other connectors, users, the operator credential or instance settings.
+
+**The Declared mark.** In the admin area a declared app, and the passkey connector
+when it is declared, carry a **Declared** mark. Its owned fields are shown as
+values, and **Delete** and **Regenerate secret** are not offered: any change there
+would be undone at the next start. The page says where to change it. A request that
+tries anyway is refused with "This app is declared in Umbral's start-up settings,
+so it was not changed. Change it there, then start Umbral again."
+
+**When an app leaves the declaration.** An app you stop declaring is handed back,
+never deleted, disabled or changed: it keeps working, loses the mark, and from the
+next start the admin area owns it like any app you made there. Dropping
+`WithPasskeys` hands the passkey connector back the same way. When Umbral starts
+with no declaration at all (the variable unset), everything still marked declared is
+handed back, so turning the feature off never leaves an app locked. You can declare
+an app again later: it was the declaration's before.
+
+**Identity.** An app's key is its client ID, so it is the same at every start and on
+every volume. The display name is free to change; the key is not. Change the key and
+you declare a new app, and the old one is handed back.
+
+**Conflicts are refused, never merged.** If a declared key equals the client ID of an
+app made in the admin area, Umbral refuses it. If the passkey connector was set up
+by hand and differs from the declaration (for example, invitations only where you
+declare open sign-up), Umbral refuses that too, because it may be in use. A passkey
+connector set up by hand that already has exactly the declared settings (enabled,
+shared, the same sign-up mode) is adopted: nothing changes and nobody is widened,
+and it is marked Declared from then on. Apps made in the admin area have random
+client IDs, so they only conflict with a key you chose to match.
+
+**A refused declaration stops Umbral.** Umbral checks the whole declaration before it
+writes anything: the JSON, each key, each redirect URI by the admin area's own rules
+(exact, absolute, no wildcard, no fragment, at most 10 per list, no duplicate), each
+secret, and the conflicts above. If anything is wrong, nothing is written and Umbral
+exits, with each problem and what to do about it in its log (`docker logs umbral`,
+or the resource's console in the Aspire dashboard). A failure while applying also
+stops the start, and the whole declaration is applied in one transaction, so you
+never get half of it. Fix what the log says and start again. A container that says
+why it did not start is better than an app served with yesterday's redirect URIs.
+
+**Secrets.** A web app's secret is an Aspire secret parameter,
+`<umbral>-<key>-client-secret`, generated at 48 characters the first time. In run
+mode Aspire keeps it in the AppHost's user secrets, so it is the same at every run
+and never in your repository. `WithClientSecret(parameter)` uses your own parameter
+instead. Umbral stores only a hash, as for an app made in the admin area, and never
+logs the value. At each start it checks the variable against that hash; when the
+parameter has changed, the secret is replaced (a rotation, recorded in the security
+log), and the project that references the app gets the new value.
+
+The secrets are ordinary environment variables. They are visible to
+`docker inspect` on the Umbral container, written to a compose publish's `.env`
+file, and masked only in the Aspire dashboard. Treat the Docker host, and that
+`.env` file, as holding them. Umbral never generates a declared app's secret, since
+the project that references the app could not know it.
+
+**The security log.** Every change a declaration makes is a security event with the
+actor `system`: the app or connector it touched and, in the detail, `declared`
+followed by what changed (never a secret or a redirect URI). A start that changes
+nothing records nothing, and logs one line saying how many apps were created,
+updated, unchanged or handed back.
+
+### For a production instance
+
+Nothing in a declaration is for laptops only: with the secrets as parameters you can
+publish it. Two things change:
+
+- **Apps change only by redeploying.** The apps and the passkey connector are owned by
+  the declaration, so the admin area will not change them. Edit the AppHost (or your
+  compose file) and deploy again.
+- **Claim before you publish with open sign-up.** Umbral applies the declaration
+  before anyone has claimed it. With `PasskeySignUp.Open`, anyone who reaches an
+  unclaimed instance can sign up to the declared apps. Start it, claim it at
+  `/admin/setup` with the setup token, and only then make it reachable.
+
+Publishing also needs explicit redirect URIs, as above.
 
 ## Deploy it
 
@@ -97,6 +239,9 @@ builder.AddUmbral("umbral")
 deploy time: `WithPublicOrigin(builder.AddParameter("umbral-origin"))`. Apps get
 its value as it is, so give it exactly as Umbral will report its issuer: lowercase,
 no default port, no trailing slash, for example `https://auth.example.com`.
+
+If you declare apps, publishing needs explicit redirect URIs too: see
+[Redirect URIs](#redirect-uris).
 
 In publish mode the package never sets `ASPNETCORE_ENVIRONMENT=Development` or
 `UMBRAL__INSECURE_ALLOW_HTTP`. Publishing (`aspire publish` with a compute
@@ -130,7 +275,8 @@ builder.AddUmbral("umbral")
 Everything Umbral keeps is in `/data`. `WithDataVolume()` mounts a Docker volume
 there (pass a name to choose it); `WithDataBindMount("path")` mounts a folder
 instead. It holds the operator credential, the connectors, the apps and the signing
-keys: without it you claim Umbral and register your apps again. Back it up as
+keys: without it you claim Umbral again and, unless the apps are declared, register
+them again. Back it up as
 [Your data: back it up](backup.md) says.
 
 ## A working example

@@ -85,7 +85,7 @@ second one its own prefix.
 
 ## Upgrading
 
-The database is at **schema version 15**. Umbral upgrades an older database by
+The database is at **schema version 16**. Umbral upgrades an older database by
 itself when it starts, and nothing changes until you use what the upgrade
 added: for example, every app starts with no branding, nobody can use a
 passkey until you enable the passkey connector, and the operator has no
@@ -102,7 +102,9 @@ of this kind too: it adds one column for the OpenID Connect connector's choice t
 trust its provider's verified emails, and sets it to trusted for every
 OpenID Connect connector you already have, so nobody's sign-in changes. Version 15
 is of this kind too: it adds one empty table that records the provider accounts
-you remove from a user. The one exception is version 9: it sets `email_verified` back
+you remove from a user. Version 16 is of this kind too: it adds one empty table
+that records which apps and connectors a declaration owns, and nothing is
+declared until you set `UMBRAL__DECLARATION`. The one exception is version 9: it sets `email_verified` back
 to `false` for every user whose stored address no provider verifies, and the
 log says how many (see the 0.8.0 notes in the [CHANGELOG](../../CHANGELOG.md)). It does not work the other way: an older
 image refuses to start on a newer database, and says so in `docker logs umbral`

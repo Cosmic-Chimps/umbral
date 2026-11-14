@@ -81,6 +81,11 @@ The client ID is generated, and the app's name and type are chosen when you
 create it. The app's **Sign-in methods** can change at any time on its page,
 like its redirect URIs, without touching the client ID or the secret.
 
+An app can also be **declared** in the environment Umbral starts with, such as an
+Aspire AppHost or a compose file, instead of created on the **Apps** screen. Its
+client ID is then a key you choose, and its fields change where it is declared: see
+[Declared apps](run/aspire.md#declared-apps).
+
 ## Endpoints
 
 Your library reads these from the discovery document; they are listed here so
