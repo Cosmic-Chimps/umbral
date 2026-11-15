@@ -1002,23 +1002,23 @@ let private appPane
           Components.paneSection
               t.AppConnectionTitle
               (div(class' = "space-y-5") {
-                  div(class' = "grid gap-3 sm:grid-cols-2") {
-                      Components.copyField
-                          t.Copy
-                          t.Copied
-                          t.AppClientIdLabel
-                          $"client-id-{row.ClientId}"
-                          row.ClientId
-                          ignore
+                  // One per row, as the secret above: side by side, a real
+                  // issuer URL is cut at a laptop's width.
+                  Components.copyField
+                      t.Copy
+                      t.Copied
+                      t.AppClientIdLabel
+                      $"client-id-{row.ClientId}"
+                      row.ClientId
+                      ignore
 
-                      Components.copyField
-                          t.Copy
-                          t.Copied
-                          t.AppIssuerUrlLabel
-                          $"issuer-{row.ClientId}"
-                          origin.Text
-                          ignore
-                  }
+                  Components.copyField
+                      t.Copy
+                      t.Copied
+                      t.AppIssuerUrlLabel
+                      $"issuer-{row.ClientId}"
+                      origin.Text
+                      ignore
 
                   (if row.Declared then declaredUriList else uriList ctx t row)
                       { Id = "redirect-uri-add"

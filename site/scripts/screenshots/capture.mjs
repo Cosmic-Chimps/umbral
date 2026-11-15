@@ -26,9 +26,6 @@ mkdirSync(rawDir, { recursive: true });
 //                  padding in px (a number, or { top, right, bottom, left }),
 //                  clamped to the page. A padding must stay under the gap to
 //                  the next element, or the clip cuts into it.
-//   fit            { widths, selectors, fallback }: the smallest of the widths
-//                  at which every element shows its whole value (no horizontal
-//                  scroll), else the fallback; replaces `width`
 // ---------------------------------------------------------------------------
 const operator = { width: 1180, height: 760 };
 const person = { width: 760, height: 600 };
@@ -45,17 +42,16 @@ const FRAMES = {
       padding: { top: 24, right: 24, bottom: 16, left: 24 },
     },
   },
-  // The detail pane from its header through the row of the client ID and the
-  // issuer URL: the notice, the shown-once warning, the secret, the ID.
+  // The detail pane from its header through the issuer URL: the notice, the
+  // shown-once warning, the secret, the client ID.
   'app-created': {
     ...operator,
-    fit: { widths: [1180, 1280, 1440, 1600], selectors: ['input[id^="client-id-"]', 'input[id^="issuer-"]'], fallback: 1440 },
     clip: {
       selectors: [
         '[data-app] > div:has(> #app-heading)',
         '[data-app] [data-notice="app-created"]',
         '[data-app] [data-secret-once]',
-        '[data-app] div:has(> div > label:text-is("Client ID"))',
+        '[data-app] div:has(> label:text-is("Issuer URL"))',
       ],
       padding: { top: 24, right: 24, bottom: 12, left: 24 },
     },
@@ -143,27 +139,6 @@ async function setTheme(page, theme) {
   return page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 }
 
-// The viewport width at which the elements show their whole value: the
-// smallest of the widths, else the fallback. Only IDs and URLs are read for
-// their size, never the app's secret.
-async function fitWidth(page, frame) {
-  const { widths, selectors, fallback } = frame.fit;
-  for (const width of widths) {
-    await page.setViewportSize({ width, height: frame.height });
-    await settle(page);
-    let fits = true;
-    for (const selector of selectors) {
-      fits &&= await page.locator(selector).first().evaluate((el) => el.scrollWidth <= el.clientWidth);
-    }
-    if (fits) {
-      log(`${selectors.join(' and ')} fit at ${width}px`);
-      return width;
-    }
-  }
-  log(`${selectors.join(' and ')} fit at none of ${widths.join(', ')}px: using ${fallback}px`);
-  return fallback;
-}
-
 // The clip of a frame: the union of the boxes of its selectors, padded, in page
 // coordinates, clamped to the page.
 async function clipOf(page, clip) {
@@ -195,8 +170,7 @@ async function clipOf(page, clip) {
 async function shoot(page, name) {
   const frame = FRAMES[name];
   if (!frame) throw new Error(`no frame for ${name}`);
-  const width = frame.fit ? await fitWidth(page, frame) : frame.width;
-  await page.setViewportSize({ width, height: frame.height });
+  await page.setViewportSize({ width: frame.width, height: frame.height });
   const backgrounds = {};
   for (const theme of THEMES) {
     backgrounds[theme] = await setTheme(page, theme);
@@ -302,6 +276,13 @@ try {
     if (!clientId) throw new Error('the app has no client ID');
     appUrl = op.url().split('?')[0];
     await shoot(op, 'app-created');
+    // The picture must show both values whole (task 3694). Only the ID and
+    // the URL are measured, never the secret.
+    for (const selector of ['input[id^="client-id-"]', 'input[id^="issuer-"]']) {
+      if (await op.locator(selector).evaluate((el) => el.scrollWidth > el.clientWidth)) {
+        throw new Error(`${selector} cuts its value at ${FRAMES['app-created'].width}px`);
+      }
+    }
   });
 
   // 4. Google, Discord, a passkey connector and Fediverse.
