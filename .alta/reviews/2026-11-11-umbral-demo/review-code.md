@@ -119,3 +119,45 @@ started, and how to check.
 ## Re-check
 
 One re-check after B1. For the demo repository, I'll read only what changed since `7efe66b`.
+
+## Re-check at dc2e695 (2026-11-15)
+
+**Clear from the code and security side.** I read the demo repository's diff since `7efe66b`.
+
+- **B1, option 2, taken.**
+  - The AppHost's backup policy keeps `keep: 100` for retention, with the schedule `0 4 31 2 *`
+    (the 31st of February). I checked it against Caravana `v0.20.0`, the version lacalabaza runs:
+    `validate.go` checks a schedule only with `cronexpr.Parse`, which accepts it; `schedule.go`
+    stops at a zero `Next()`; and cronexpr returns zero when no date in its range matches. So the
+    policy exists for "Back up now" and restore but never fires on its own.
+  - The reset script takes the weekly copy (`POST /v1/apps/{app}/backups`) only after a restore
+    that ended `succeeded`, on `BACKUP_WEEKDAY`, and follows it to its end. A missed Sunday that
+    runs late, through `Persistent=true`, takes no copy that week, which is the safe direction.
+  - The privacy page now matches.
+- **A reset that never started is reported:** `OnFailure=umbral-demo-reset-failed.service` runs a
+  notifier that posts the last journal lines to an optional ntfy topic, and otherwise only logs.
+  `notes.md` says what Caravana's needs-you list covers and what it doesn't. The script never
+  prints the token, so the journal lines it posts hold none.
+- **N1:**
+  - `LoadCredential=caravana-token:/etc/umbral-demo/caravana-token`, with the file root-owned,
+    0400 and written with umask 077.
+  - The script reads `$CREDENTIALS_DIRECTORY`, with `CARAVANA_TOKEN` kept only for a run by hand.
+  - `reset.env` no longer holds the token.
+- **N2:** a non-https `CARAVANA_URL` is refused before any request, loopback aside.
+- **N3:** `if: github.ref == 'refs/heads/main'` plus `environment: production`, and the README asks
+  for that environment to allow `main` only.
+- **N4:** the "Check the secrets" step fails when any of the three is empty, or when the client
+  secret is shorter than 32 characters.
+- **N5:** the site's base image is pinned by digest.
+- **N6:** the privacy page now names the console logs (kept by size, not cleared by a reset, no
+  account data and no addresses) and says there's no access log (confirmed by the `caravana`
+  session for 0.20.0).
+
+One wording nit, not blocking. "the copies … hold no account" is true but for a few seconds: the
+copy starts right after the restore reports `succeeded`, and Umbral is already serving by then.
+"hold no account, unless one was made in the minute after the reset" would be exact. Your call
+with the docs reviewer.
+
+**For the maintainer:** check the `production` environment's branch rule (README step 3) when you
+create the repository. The workflow's `if:` holds without it, but the rule also keeps the secrets
+away from other branches' workflows.
