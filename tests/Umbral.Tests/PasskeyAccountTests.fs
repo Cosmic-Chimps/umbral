@@ -703,6 +703,31 @@ let ``the page wears the plain chrome even when the session came through a brand
     }
 
 [<Fact>]
+let ``the page's notice is a success for a passkey added or removed and a failure for a refusal`` () =
+    task {
+        use! app = Fixtures.createAppWith fakeSettings ignore
+        let! w = world app
+
+        let alertOf (html: string) (code: string) =
+            Regex.Match(html, $"data-notice=\"{code}\"><div class=\"(um-alert[^\"]*)\" role=\"([a-z]+)\"").Groups
+
+        for code, cls, role in
+            [ "passkey-added", "um-alert um-alert-success", "status"
+              "passkey-removed", "um-alert um-alert-success", "status"
+              "passkey-not-found", "um-alert um-alert-error", "alert"
+              "passkey-last-cannot-remove", "um-alert um-alert-error", "alert" ] do
+            let! html = w.Sam.GetHtml $"/account/passkeys?msg={code}"
+            let groups = alertOf html code
+            Assert.True(groups[0].Success, $"{code} draws a notice")
+            Assert.Equal(cls, groups[1].Value)
+            Assert.Equal(role, groups[2].Value)
+
+        let! unknown = w.Sam.GetHtml "/account/passkeys?msg=not-a-code"
+        Assert.DoesNotContain("data-notice", unknown)
+        Assert.DoesNotContain("um-alert", unknown)
+    }
+
+[<Fact>]
 let ``removing without an antiforgery token is refused and keeps the passkey`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore

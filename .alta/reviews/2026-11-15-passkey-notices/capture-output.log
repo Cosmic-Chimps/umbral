@@ -1,0 +1,21 @@
+passkey connector saved: http://localhost:18093/admin/connectors/passkey?msg=passkey-connector-saved
+signed up, now at http://localhost:18093/account/passkeys
+added: http://localhost:18093/account/passkeys?msg=passkey-added
+added: http://localhost:18093/account/passkeys?msg=passkey-added
+removed: http://localhost:18093/account/passkeys?msg=passkey-removed
+notice-added-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280); notice=passkey-added class="um-alert um-alert-success" role=status text="Your passkey is ready."
+notice-added-360-dark: overflow=false (scrollWidth 360, innerWidth 360); notice=passkey-added class="um-alert um-alert-success" role=status text="Your passkey is ready."
+notice-added-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280); notice=passkey-added class="um-alert um-alert-success" role=status text="Your passkey is ready."
+notice-added-360-light: overflow=false (scrollWidth 360, innerWidth 360); notice=passkey-added class="um-alert um-alert-success" role=status text="Your passkey is ready."
+notice-removed-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280); notice=passkey-removed class="um-alert um-alert-success" role=status text="Passkey removed."
+notice-removed-360-dark: overflow=false (scrollWidth 360, innerWidth 360); notice=passkey-removed class="um-alert um-alert-success" role=status text="Passkey removed."
+notice-removed-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280); notice=passkey-removed class="um-alert um-alert-success" role=status text="Passkey removed."
+notice-removed-360-light: overflow=false (scrollWidth 360, innerWidth 360); notice=passkey-removed class="um-alert um-alert-success" role=status text="Passkey removed."
+notice-last-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280); notice=passkey-last-cannot-remove class="um-alert um-alert-error" role=alert text="You can't remove your only way to sign in. Add another passkey first, or ask whoever runs this Umbral to delete your account."
+notice-last-360-dark: overflow=false (scrollWidth 360, innerWidth 360); notice=passkey-last-cannot-remove class="um-alert um-alert-error" role=alert text="You can't remove your only way to sign in. Add another passkey first, or ask whoever runs this Umbral to delete your account."
+notice-last-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280); notice=passkey-last-cannot-remove class="um-alert um-alert-error" role=alert text="You can't remove your only way to sign in. Add another passkey first, or ask whoever runs this Umbral to delete your account."
+notice-last-360-light: overflow=false (scrollWidth 360, innerWidth 360); notice=passkey-last-cannot-remove class="um-alert um-alert-error" role=alert text="You can't remove your only way to sign in. Add another passkey first, or ask whoever runs this Umbral to delete your account."
+notice-not-found-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280); notice=passkey-not-found class="um-alert um-alert-error" role=alert text="That passkey no longer exists. Reload the page to see your current passkeys."
+notice-not-found-360-dark: overflow=false (scrollWidth 360, innerWidth 360); notice=passkey-not-found class="um-alert um-alert-error" role=alert text="That passkey no longer exists. Reload the page to see your current passkeys."
+notice-not-found-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280); notice=passkey-not-found class="um-alert um-alert-error" role=alert text="That passkey no longer exists. Reload the page to see your current passkeys."
+notice-not-found-360-light: overflow=false (scrollWidth 360, innerWidth 360); notice=passkey-not-found class="um-alert um-alert-error" role=alert text="That passkey no longer exists. Reload the page to see your current passkeys."

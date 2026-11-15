@@ -60,6 +60,20 @@ let private passkeyCard (ctx: HttpContext) (t: Texts.Texts) (passkey: Passkeys.P
         |> Components.confirmSubmit t.PasskeyRemoveConfirm
     }
 
+/// The notice of `?msg=`: the two successes the page is sent back with (a
+/// passkey added, one removed) are green, every refusal is a failure.
+let private notice (ctx: HttpContext) (t: Texts.Texts) : HtmlElement =
+    match SignIn.noticeCode ctx with
+    | Some code ->
+        let kind =
+            match code with
+            | "passkey-added"
+            | "passkey-removed" -> Components.Success
+            | _ -> Components.Failure
+
+        (div().data("notice", code) { Components.alert kind (t.Notice code) }) :> HtmlElement
+    | None -> Fragment() :> HtmlElement
+
 let private view
     (ctx: HttpContext)
     (t: Texts.Texts)
@@ -69,7 +83,7 @@ let private view
     =
     div(class' = "mx-auto w-full max-w-2xl space-y-5").data("screen", "passkeys") {
         Components.pageHeading t.PasskeysTitle (Some t.PasskeysLead)
-        SignIn.noticeAlert ctx t
+        notice ctx t
 
         p(class' = "text-body-md text-on-surface").data("ways-in", "") { t.PasskeysWaysIn waysIn }
 
