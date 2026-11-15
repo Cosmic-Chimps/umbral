@@ -79,3 +79,37 @@ maintainer's say, as PRODUCT.md's commitments do.
 4. **The "Try it" line.** The wording and the place (after the first paragraph) are right, and one edit
    does both the README and the site's start page, as you say. Consider "wiped every night at 04:00
    UTC", the same words as the landing page, so the README makes no promise the demo does not state.
+
+## Re-check at dc2e695 (2026-11-15)
+
+**Clear.** The three blocking items and the four nits are fixed in the demo repository
+(`7efe66b..dc2e695`). The code review's changes to README steps 3 and 9 and to notes.md read
+correctly too.
+
+- **B1**: "the time, the way in, the app, your user id here, and the IP address you came from", as
+  `security_events` stores it. Right.
+- **B2**: the reset paragraph now says what goes (accounts, sessions, tokens, Umbral's security log)
+  and what stays: the console output, kept by size (about 100 MB per service, Nomad's default), not
+  by time. The page now says the server in front keeps no access log (the caravana session confirmed
+  Traefik writes none on a 0.20.0 host). I checked "no account data and no addresses" in Umbral's
+  console against the code. Umbral has two `ILogger` calls (an unhandled error with its path, the
+  health check). `Microsoft.AspNetCore` is at Warning, and `LogRedaction.cappedCategories` caps
+  request logging, routing and the cookie handler at Warning, so no client address or account data
+  reaches the console. Right. notes.md says the promise "holds only while it stays true", which is
+  the right warning for whoever changes Umbral's logging.
+- **The weekly copy**: it is taken by the reset script only after a successful restore, and the
+  policy's own schedule never matches (`0 4 31 2 *`). So "hold no account" is true by design, not by
+  a five-minute race. Step 9 says to keep it true. Right.
+- **B3**: step 10 names both edits in one pull request, with PRODUCT.md's wording left to the
+  maintainer. Right.
+- **Nits**: Umbral's cookies are named; removals go to hello@cosmic-chimps.com, "so that you need not
+  say in public that you signed in"; **Shared with every app** is left ticked; the Try-it line says
+  "at 04:00 UTC". Right.
+- **The code review's changes**: the GitHub `production` environment limited to `main`; the full
+  token as a root-only file handed over with `LoadCredential`, in no process environment; the
+  `OnFailure` notifier for a reset that never reached Caravana; notes.md's host table and "When a
+  reset fails". Consistent with each other and with the secrets table. Right.
+
+One optional point, not a condition: the weekly copy is taken seconds after the restore, so a person
+who signs in within those seconds on a Sunday at 04:00 would be in it. "hold no account" is true in
+practice. If you want it exact, say "taken as soon as the restore ends", and let the reader judge.
