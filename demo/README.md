@@ -68,7 +68,7 @@ the AppHost's user secrets change the ports (on macOS, AirPlay Receiver listens 
 `Umbral:ImageTag` runs another image tag, on a laptop only.
 
 The declaration needs Umbral 0.12.0 or later. Until that release, the default image is 0.11.0,
-which ignores it: build this repository's image as `dev`
+which ignores it, so the sample cannot sign in: build this repository's image as `dev`
 (`docker build -t ghcr.io/cosmic-chimps/umbral:dev .` at its root) and set `Umbral:ImageTag`
 to `dev`.
 
@@ -310,7 +310,8 @@ Once the demo is live, and not before, two edits, in one pull request:
   succeeded, from the release's tag, with its image. A failed demo deploy leaves the release
   green; run `demo` by hand once fixed.
 - **A change to the demo's files or the sample** merged to `main` reaches the demo at the next
-  release, or at once with **Run workflow** on `demo`. Either way Umbral stays the last release.
+  release, or at once with **Run workflow** on `demo`. By hand, the AppHost, the hosting package
+  and the sample are `main`'s; Umbral's image stays the last release.
   A deploy that changes only the sample or the site restarts only that service: Nomad replaces
   the task groups whose spec changed.
 - **A change to a connector** is made in the admin area, then a new golden snapshot (step 8)

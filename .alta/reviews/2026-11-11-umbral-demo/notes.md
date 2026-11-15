@@ -124,3 +124,14 @@ clear), history squashed into this branch's commit.
   `samples/README.md` and `CHANGELOG.md`.
 - Not run: `demo.yml` itself (it needs the Bella Baxter values, the `demo` environment and a
   release of 0.12.0 or later).
+
+### Review nits taken (dm1r)
+
+- Code N1: after a release, `target` refuses a tag that is not an ancestor of `origin/main`
+  (a blob-less full checkout, `git merge-base --is-ancestor`) and hands the tag's commit, not
+  the tag, to the deploy job. N2: a comment names the no-backport assumption of
+  `releases/latest`. actionlint clean; the ancestry test checked locally (v0.11.0 on main, this
+  branch's head refused).
+- Docs 1 and 2: the README says the sample cannot sign in before 0.12.0, and that Run workflow
+  deploys `main`'s AppHost, hosting package and sample with the last release's image. Docs 3
+  (create the `demo` label) is among the maintainer's one-time steps.

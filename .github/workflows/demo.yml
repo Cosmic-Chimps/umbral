@@ -59,9 +59,23 @@ jobs:
       ref: ${{ steps.target.outputs.ref }}
       version: ${{ steps.target.outputs.version }}
     steps:
+      # After a release, the history of main and the tags (no file contents), to check that the
+      # release's tag is on main.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        if: ${{ github.event_name == 'workflow_run' }}
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
       # After a release: the latest release (the newest that is not a prerelease) must have
       # been published since that run was created (its first attempt; a re-run of failed jobs
       # keeps it). Otherwise the run made a prerelease, and there is nothing new to deploy.
+      # This assumes no backport line: a 0.12.1 released after 0.13.0 could become latest and
+      # deploy the older line.
+      # Its tag must be on main: the environment's rule checks the job's ref (always main), not
+      # the commit deployed, and release.yml tags any commit a tag is pushed to. The commit, not
+      # the tag, goes to the deploy job, so a tag moved meanwhile changes nothing.
       - name: The release, or main
         id: target
         env:
@@ -85,9 +99,14 @@ jobs:
             echo "deploy=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          commit=$(git rev-parse --verify "refs/tags/$tag^{commit}")
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "::error::The release's tag $tag is not on main: the demo deploys only what main holds."
+            exit 1
+          fi
           {
             echo "deploy=true"
-            echo "ref=$tag"
+            echo "ref=$commit"
             echo "version=${tag#v}"
           } >> "$GITHUB_OUTPUT"
 
