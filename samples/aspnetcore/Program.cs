@@ -12,6 +12,9 @@ var issuer = Required("UMBRAL_ISSUER");
 var clientId = Required("UMBRAL_CLIENT_ID");
 var clientSecret = Required("UMBRAL_CLIENT_SECRET"); // a Web application is a confidential client
 var port = Environment.GetEnvironmentVariable("PORT") is { Length: > 0 } p ? p : "5000";
+// The front page's title; the public demo of Umbral sets its own.
+var title = WebUtility.HtmlEncode(
+    Environment.GetEnvironmentVariable("SAMPLE_TITLE") is { Length: > 0 } t ? t : "Umbral sample: ASP.NET Core");
 
 // Plain http is allowed on a loopback address only, the one place Umbral
 // accepts it (the quick start's http://localhost:8080). Everywhere else the
@@ -74,8 +77,8 @@ app.MapGet("/", (HttpContext http) =>
     var session = http.User.Identity?.IsAuthenticated == true
         ? "<form method=\"post\" action=\"/signout\"><button type=\"submit\">Sign out</button></form>"
         : "<a href=\"/signin\">Sign in</a>";
-    return Page("Umbral sample: ASP.NET Core",
-        $"<h1>Umbral sample: ASP.NET Core</h1><p><a href=\"/public\">Public</a> <a href=\"/private\">Private</a></p><p>{session}</p>");
+    return Page(title,
+        $"<h1>{title}</h1><p><a href=\"/public\">Public</a> <a href=\"/private\">Private</a></p><p>{session}</p>");
 });
 
 app.MapGet("/public", () =>

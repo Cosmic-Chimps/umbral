@@ -23,7 +23,7 @@ register those URIs instead.
 
 ## How to run it
 
-The sample reads three variables, and the port:
+The sample reads three variables, the port, and an optional title:
 
 | Variable | What it is |
 | --- | --- |
@@ -31,6 +31,7 @@ The sample reads three variables, and the port:
 | `UMBRAL_CLIENT_ID` | The app's **Client ID**. |
 | `UMBRAL_CLIENT_SECRET` | The app's **Client secret**. |
 | `PORT` | The port to listen on. Default `5000`. |
+| `SAMPLE_TITLE` | Optional. The front page's title. Default `Umbral sample: ASP.NET Core`. |
 
 **Without Docker**, from this folder. This is the way to try it against the
 Umbral of the [quick start](../../README.md#quick-start-a-first-login-on-your-own-machine)
