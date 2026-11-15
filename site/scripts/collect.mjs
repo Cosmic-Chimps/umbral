@@ -4,7 +4,9 @@
 // samples/README.md and CHANGELOG.md read well on GitHub as they are, and this
 // script turns them into the pages of the site at build time, so no copy of a
 // page is ever committed and nothing under site/ is edited to change a page.
-// It writes only inside site/: the pages, the three fonts and their licences.
+// It writes only inside site/: the pages, the three fonts and their licences, and
+// the images the pages show (docs/images/ is where they live, so that a page that
+// loads one asks nothing of another host).
 //
 // It is strict on purpose. A link in a source that would not work on the site, a
 // README section it has not been told about, a page missing from the sidebar:
@@ -12,7 +14,8 @@
 // mistake in the documentation never reaches the published site in silence.
 //
 // The link scan follows .github/scripts/check-links.py (outside fenced code and
-// code spans; inline links and images, reference definitions and HTML href/src),
+// code spans; inline links and images, reference definitions and HTML
+// href/src/srcset),
 // and slug() is a port of its own, so an anchor that works on GitHub works here.
 // Like that script, the scan reads one line at a time, so a code span that
 // wraps onto a second line is not blanked. A link-like text in one usually
@@ -41,6 +44,9 @@ const OUT = path.join(SITE_DIR, 'src', 'content', 'docs');
 const FONTS_IN = path.join(ROOT, 'src', 'Umbral', 'Assets', 'fonts');
 const FONTS_OUT = path.join(SITE_DIR, 'src', 'fonts');
 const LICENSES_OUT = path.join(SITE_DIR, 'public', 'licenses', 'fonts');
+// The images the pages show are copied from here to public/images/ (generated, ignored).
+const IMAGES_IN = 'docs/images/';
+const IMAGES_OUT = path.join(SITE_DIR, 'public', 'images');
 
 // The README's `## ` sections are a closed list, so that a section added to the
 // README is a decision (publish it, or say it stays on GitHub) and is never
@@ -74,7 +80,8 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const CODE_SPAN = /(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)/g;
 const INLINE_LINK = /\]\(\s*(?:<([^>]*)>|((?:[^\s()]|\([^\s()]*\))*))/dg;
 const REF_DEF = /^[ >]{0,3}\[[^\]]+\]:\s*(?:<([^>]*)>|(\S+))/dg;
-const HTML_ATTR = /\b(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/dg;
+const HTML_ATTR = /\b(href|srcset|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/dg;
+const IMAGE_FILE = /\.(?:png|webp|jpe?g|gif|avif|svg)$/i;
 const ATX = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const SETEXT = /^ {0,3}(?:=+|-+)[ \t]*$/;
 const SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
@@ -354,6 +361,7 @@ for (const page of pages) {
 // Links.
 
 const stats = { toPages: 0, toRepository: 0 };
+const images = new Set(); // the files of docs/images/ that a page references, as paths from the repository root
 const pageHref = (page) => (page.route ? `${base}/${page.route}/` : `${base}/`);
 const encodePath = (rel) => rel.split('/').map(encodeURIComponent).join('/');
 
@@ -373,9 +381,22 @@ function pageLink(page, here, key) {
   return id ? `${pageHref(page)}#${id}` : pageHref(page);
 }
 
-/** The new target of a link, null to leave it alone, or an Error. */
-function resolve(src, here, target) {
+/** The address on the site of an image of docs/images/, which is copied there. */
+function imageHref(rel, anchor) {
+  images.add(rel);
+  const href = `${base}/images/${encodePath(rel.slice(IMAGES_IN.length))}`;
+  return anchor ? `${href}#${anchor}` : href;
+}
+
+/**
+ * The new target of a link, null to leave it alone, or an Error. `embedded` is an image the page
+ * shows (`![]()`, src, srcset); `srcset` is the attribute of that name.
+ */
+function resolve(src, here, target, { embedded = false, srcset = false } = {}) {
   if (!target || SCHEME.test(target)) return null;
+  if (srcset && /[,\s]/.test(target)) {
+    return new Error('a srcset here holds one address and no descriptor (no comma, no 2x or 640w): one image for each <source>');
+  }
   const hash = target.indexOf('#');
   const rawPath = hash < 0 ? target : target.slice(0, hash);
   const anchorRaw = hash < 0 ? '' : target.slice(hash + 1);
@@ -396,6 +417,12 @@ function resolve(src, here, target) {
   if (rel.startsWith('..')) return new Error(`outside the repository`);
   if (!existsSync(dest)) return new Error(`no such file ${rel}`);
   const isDir = statSync(dest).isDirectory();
+  // An image: shown from the site's own copy. One that is not under docs/images/ is not copied, so a
+  // page cannot show it; a plain link to one goes to GitHub, like any other file.
+  if (!isDir && IMAGE_FILE.test(rel)) {
+    if (rel.startsWith(IMAGES_IN)) return imageHref(rel, anchorRaw);
+    if (embedded) return new Error(`${rel} is shown by a page, and the images a page shows live under ${IMAGES_IN}`);
+  }
   const isMarkdown = !isDir && dest.endsWith('.md');
   // A Markdown file's headings are read only when the link has an anchor to check.
   const target_ = isMarkdown && (anchor || rel === 'README.md') ? load(rel) : null;
@@ -429,14 +456,30 @@ function resolve(src, here, target) {
   return repositoryHref(rel, isDir, anchorRaw);
 }
 
-/** The place of each link target in a line, from the same patterns as check-links.py. */
+/** Whether the `](` that starts at `close` ends the alt text of an image: the `[` that opens it follows a `!`. */
+function endsImageAlt(text, close) {
+  let depth = 0;
+  for (let i = close - 1; i >= 0; i--) {
+    if (text[i] === ']') depth++;
+    else if (text[i] === '[') {
+      if (depth === 0) return text[i - 1] === '!';
+      depth--;
+    }
+  }
+  return false; // the alt text wraps onto another line: read as a link, like check-links.py
+}
+
+/** The place of each link target in a line, from the same patterns as check-links.py, and how the target is used. */
 function linkTargets(line) {
   const found = [];
-  for (const pattern of [INLINE_LINK, REF_DEF, HTML_ATTR]) {
+  // The first group that took part holds the target (the `<...>` form or the plain one); an HTML attribute's name comes first.
+  for (const [pattern, first] of [[INLINE_LINK, 1], [REF_DEF, 1], [HTML_ATTR, 2]]) {
     for (const m of line.blanked.matchAll(pattern)) {
-      // The first group that took part holds the target (the `<...>` form or the plain one).
-      const group = m.indices.findIndex((range, i) => i > 0 && range && m[i]);
-      if (group > 0) found.push({ start: m.indices[group][0], end: m.indices[group][1], target: m[group] });
+      const group = m.indices.findIndex((range, i) => i >= first && range && m[i]);
+      if (group < 1) continue;
+      const attr = pattern === HTML_ATTR ? m[1] : '';
+      const embedded = pattern === INLINE_LINK ? endsImageAlt(line.blanked, m.index) : attr === 'src' || attr === 'srcset';
+      found.push({ start: m.indices[group][0], end: m.indices[group][1], target: m[group], use: { embedded, srcset: attr === 'srcset' } });
     }
   }
   return found.sort((a, b) => b.start - a.start);
@@ -449,8 +492,8 @@ function renderBody(page) {
     for (const line of seg.lines) {
       let text = line.raw;
       if (!line.code) {
-        for (const { start, end, target } of linkTargets(line)) {
-          const next = resolve(seg.src, page, target);
+        for (const { start, end, target, use } of linkTargets(line)) {
+          const next = resolve(seg.src, page, target, use);
           if (next instanceof Error) {
             fail(`${seg.src.rel}:${line.n}`, `${target}: ${next.message}`);
           } else if (next !== null) {
@@ -519,7 +562,15 @@ for (const name of readdirSync(FONTS_IN)) {
   }
 }
 
+// The images the pages reference, and only those. public/ also holds committed files, so only images/ is cleared.
+rmSync(IMAGES_OUT, { recursive: true, force: true });
+for (const rel of images) {
+  const copy = path.join(IMAGES_OUT, rel.slice(IMAGES_IN.length));
+  mkdirSync(path.dirname(copy), { recursive: true });
+  copyFileSync(path.join(ROOT, rel), copy);
+}
+
 console.log(
   `collect: ${pages.length} pages written to src/content/docs/, ` +
-    `${stats.toPages} links to pages and ${stats.toRepository} to the repository on GitHub, ${fonts} fonts copied`,
+    `${stats.toPages} links to pages and ${stats.toRepository} to the repository on GitHub, ${fonts} fonts and ${images.size} images copied`,
 );

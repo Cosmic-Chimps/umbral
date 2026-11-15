@@ -135,6 +135,26 @@ function checkPreviewImage(file, which, value) {
   }
 }
 
+// An image a page shows from the site's own host (an <img src> or a <source srcset>,
+// relative to the page or absolute) must be a file this build holds, under the base
+// path: the pages show the images of docs/images/, which collect.mjs copies, and a
+// missing copy would otherwise be an empty box that no build noticed.
+function checkOwnImage(file, tag, attr, value) {
+  let url;
+  try {
+    url = new URL(value.trim(), new URL(path.relative(DIST, file).split(path.sep).join('/'), `https://${OWN_HOST}${BASE_PATH}/`));
+  } catch {
+    problem(file, `<${tag} ${attr}> is "${value}", which is not an address`);
+    return;
+  }
+  if (url.host !== OWN_HOST || !/^https?:$/.test(url.protocol)) return; // another host is judged elsewhere, data: needs no file
+  if (BASE_PATH && !url.pathname.startsWith(`${BASE_PATH}/`)) {
+    problem(file, `<${tag} ${attr}> is ${value}, which is not under ${BASE_PATH}/`);
+  } else if (!existsSync(path.join(DIST, decodeURIComponent(url.pathname.slice(BASE_PATH.length))))) {
+    problem(file, `<${tag} ${attr}> is ${value}, and dist/ holds no such file`);
+  }
+}
+
 // What a source of the Content-Security-Policy may be: one of these keywords, a
 // hash, a nonce, or data:. Everything else is refused by name: a host or another
 // scheme would let the browser ask another host, and so would a keyword such as
@@ -211,9 +231,11 @@ function checkHtml(file, html) {
         for (const candidate of value.split(',')) {
           const url = candidate.trim().split(/\s+/)[0];
           if (otherHost(url) !== null) problem(file, `<${name} srcset> holds ${url}`);
+          else if (url && (name === 'source' || name === 'img')) checkOwnImage(file, name, 'srcset', url);
         }
       } else if (FETCHED.has(attr)) {
         if (otherHost(value) !== null) problem(file, `<${name} ${attr}> points at ${value}`);
+        else if (attr === 'src' && name === 'img' && value) checkOwnImage(file, name, attr, value);
       } else if (attr === 'style') {
         for (const u of cssUrls(value)) problem(file, `an inline style on <${name}> fetches ${u}`);
       } else if (name === 'meta' && attr === 'content' && PREVIEW_IMAGE.has(attrs.get('property') ?? attrs.get('name') ?? '')) {

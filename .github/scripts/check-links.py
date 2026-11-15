@@ -4,10 +4,12 @@
     .github/scripts/check-links.py [FILE.md ...]
 
 Checks README.md and docs/**/*.md (or the files given) outside code blocks and code spans: inline
-links and images, reference definitions, and HTML href/src attributes. A link with a URL scheme
-(https:, mailto:, ...) is skipped, since the check makes no network calls. For any other link the
-target file or directory must exist, and when it is a Markdown file the #anchor must match one of its
-headings (slugged the way GitHub does) or an explicit <a name="..."> / id="..." anchor.
+links and images, reference definitions, and HTML href/src/srcset attributes. A srcset holds one
+address, as the docs write it: a value with a descriptor ("x.png 2x") fails as a file that does not
+exist. A link with a URL scheme (https:, mailto:, ...) is skipped, since the check makes no network
+calls. For any other link the target file or directory must exist, and when it is a Markdown file
+the #anchor must match one of its headings (slugged the way GitHub does) or an explicit
+<a name="..."> / id="..." anchor.
 
 Prints "path:line: target: reason" for each dead link and exits 1; exits 0 when all resolve, and 2
 on a bad usage (a file that does not exist). CI runs it from .github/workflows/ci.yml.
@@ -26,7 +28,7 @@ FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)")
 INLINE_LINK = re.compile(r"\]\(\s*(?:<([^>]*)>|((?:[^\s()]|\([^\s()]*\))*))")
 REF_DEF = re.compile(r"^[ >]{0,3}\[[^\]]+\]:\s*(?:<([^>]*)>|(\S+))")
-HTML_ATTR = re.compile(r"""\b(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+HTML_ATTR = re.compile(r"""\b(?:href|srcset|src)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
 HTML_ANCHOR = re.compile(
     r"""<a\b[^>]*\bname\s*=\s*["']([^"']+)["']|\bid\s*=\s*["']([^"']+)["']"""
 )
