@@ -8,7 +8,8 @@
     "collect": "node scripts/collect.mjs",
     "dev": "node scripts/collect.mjs && astro dev",
     "build": "node scripts/collect.mjs && astro build && node scripts/check-dist.mjs",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "screenshots": "scripts/screenshots/run.sh"
   },
   "dependencies": {
     "@astrojs/starlight": "0.42.10",

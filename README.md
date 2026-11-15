@@ -9,6 +9,11 @@ or Authelia, and through that same connector to a forge, such as GitLab, Codeber
 Forgejo or Gitea. It can also sign people in with a passkey on its own. You wire each
 provider up once, in one place, instead of in every app.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/sign-in-dark.png">
+  <img alt="Umbral's sign-in page for an app called Larder: the title Sign in to Larder above five buttons, Sign in with Discord, Fediverse, GitHub, Google and a passkey." src="docs/images/sign-in-light.png" width="640">
+</picture>
+
 It ships as **one container with an embedded SQLite database**: no Postgres, no
 Redis, no sidecar. It is meant for a homelab or a small project: a Raspberry Pi
 (64-bit OS) is enough.
@@ -225,6 +230,12 @@ same command replaces the password (see
    `<origin>/connect/github/callback`, here
    `http://localhost:8080/connect/github/callback`. Umbral builds it for you:
    do not type it by hand.
+
+   <picture>
+     <source media="(prefers-color-scheme: dark)" srcset="docs/images/connector-github-dark.png">
+     <img alt="The GitHub connector's pane before it is set up: under Set-up, the field Redirect URI to register with the provider holds http://localhost:8080/connect/github/callback, with a Copy button beside it." src="docs/images/connector-github-light.png" width="556">
+   </picture>
+
 2. In GitHub: your profile picture → **Settings** → **Developer settings**
    (bottom of the left menu) → **OAuth Apps** → **New OAuth App**
    (`https://github.com/settings/applications/new`).
@@ -274,6 +285,11 @@ Open **Apps** and fill in:
 Click **Create app**. A card appears with the **client ID** and **client
 secret**. **Copy the secret now.** Umbral stores only a hash of it and shows it
 this once. If you lose it, use **Regenerate secret**.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/app-created-dark.png">
+  <img alt="The app's pane right after Create app: the notice App registered, a warning that the secret is shown only once, the client secret with a Copy button, and under Connection the client ID and the issuer URL." src="docs/images/app-created-light.png" width="720">
+</picture>
 
 ### 6. Prove it works, with no app of your own
 

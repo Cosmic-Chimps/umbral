@@ -66,6 +66,11 @@ and confirm.
 4. They are signed in to Umbral and see **Your passkeys**, with the new one on it
    (*Your passkey is ready.*).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/your-passkeys-dark.png">
+  <img alt="The Your passkeys page of a person with one passkey, named Phone: the date it was added, when it was last used and a Remove button, above the form to add another." src="../images/your-passkeys-light.png" width="640">
+</picture>
+
 An invitation is for a new person. If someone who already has an account redeems
 one, they become a second user. To give an existing user a passkey, see
 [Recovery](#recovery).
@@ -78,6 +83,11 @@ this Umbral and asks them to confirm. No name is typed, and they are sent back t
 the app. With **Anyone can sign up**, the page also offers **Create an account
 with a passkey**. With invitations only it says *Need an account? Ask whoever runs
 this Umbral for an invitation link.*
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/passkey-step-dark.png">
+  <img alt="The passkey step of the sign-in page: the title Sign in with a passkey, the button Continue with your passkey, and the line Need an account? Ask whoever runs this Umbral for an invitation link." src="../images/passkey-step-light.png" width="448">
+</picture>
 
 ## Adding a passkey to an account that uses a provider
 

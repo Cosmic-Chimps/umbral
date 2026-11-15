@@ -20,6 +20,11 @@ pick light or dark). It is always there, and no setting hides it or recolours it
 a person tells Umbral's real sign-in page from a lookalike: if branding could
 remove it, it would prove nothing.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/sign-in-branded-dark.png">
+  <img alt="The sign-in page of the same app with its branding: the app's logo above the title, the buttons in the app's orange, and at the bottom Secured by Umbral with the Gnomon in place of Umbral's name bar and footer." src="images/sign-in-branded-light.png" width="640">
+</picture>
+
 ## The logo
 
 On the app's card, under **Logo**, choose a file and click **Save logo**.
