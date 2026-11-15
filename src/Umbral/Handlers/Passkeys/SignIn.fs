@@ -23,10 +23,15 @@ let javascriptNote (t: Texts.Texts) : HtmlElement =
         p(class' = "text-body-md text-on-surface-variant") { t.PasskeyJavascriptRequired }
     })
 
-/// The failure the script asked the server to name with `?msg=`, if it is one
-/// of the known codes. Never any other text from the address.
+/// The code of `?msg=`, if it is one of the known codes. Never any other text
+/// from the address.
+let noticeCode (ctx: HttpContext) : string option =
+    ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice
+
+/// The failure the script asked the server to name with `?msg=`. The sign-in
+/// and invitation pages are only sent back with a failure.
 let noticeAlert (ctx: HttpContext) (t: Texts.Texts) : HtmlElement =
-    match ctx.TryGetQueryValue "msg" |> Option.bind Texts.knownNotice with
+    match noticeCode ctx with
     | Some code -> Components.alert Components.Failure (t.Notice code) :> HtmlElement
     | None -> Fragment() :> HtmlElement
 
