@@ -1,0 +1,34 @@
+# A throwaway Umbral and a browser, sharing ONE network namespace, to take the
+# screenshots of the documentation (see run.sh).
+#
+# `umbral` owns the namespace; `browser` joins it with
+# `network_mode: "service:umbral"`, as in samples/test/docker-compose.yml.
+# Everything is therefore `localhost`, as in the README's quick start: Umbral
+# accepts plain http only for localhost. No port is published.
+#
+# The environment is the quick start's, and nothing more: the screenshots must
+# show what a reader's own instance shows. In particular never
+# UMBRAL__ALLOW_FAKE_CONNECTOR, which appears in samples/test/docker-compose.yml
+# only (the fake connector must not show in a published image).
+services:
+  umbral:
+    build: ../../..
+    image: umbral:screenshots
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      UMBRAL__INSECURE_ALLOW_HTTP: "true"
+      UMBRAL__PUBLIC_ORIGIN: http://localhost:8080
+    # No named volume: /data is the image's anonymous volume, and
+    # `docker compose down -v` clears it.
+
+  browser:
+    build: .
+    network_mode: "service:umbral"
+    profiles: [tools]
+    environment:
+      ADMIN_PASSWORD:
+      HOST_UID:
+      HOST_GID:
+      UMBRAL_URL: http://localhost:8080
+    volumes:
+      - ./out:/work/out

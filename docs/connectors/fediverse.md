@@ -98,6 +98,11 @@ servers work.* They type one of four forms, and they all work:
 - `mastodon.social`
 - `https://mastodon.social`
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/fediverse-step-dark.png">
+  <img alt="The Fediverse step of the sign-in page: the title Where is your account?, the field Your account or server holding @ana@social.example, the hint under it, the Continue button and the link Other ways to sign in." src="../images/fediverse-step-light.png" width="448">
+</picture>
+
 They press **Continue**. Umbral works out the server, makes sure it is allowed,
 and sends them to it to approve the sign-in. When they come back they are signed
 in and sent on to the app. If the app offers other connectors too, the page has a

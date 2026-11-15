@@ -114,6 +114,14 @@ main h1 {
   font-weight: 600;
 }
 
+/* A screenshot of Umbral has the page's own colours, so without an edge its
+   name bar and its Theme control read as the site's. A border that must be
+   seen says where the picture ends. */
+.sl-markdown-content picture img {
+  border: 1px solid var(--sl-color-gray-4);
+  border-radius: 0.75rem;
+}
+
 /* The wordmark: the site title in the display face, in the text colour. */
 .site-title {
   font-family: var(--umbra-font-display);

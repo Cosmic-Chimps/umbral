@@ -2,9 +2,16 @@
 
 Umbral has one look, called Umbra: a warm gold accent on near-black, or on
 paper in the light theme, with the **Gnomon** as its mark (a sundial's upright
-and its shadow). The operator screens have a side rail with the three screens,
-**Apps**, **Connectors** and **Users**, the **Credential** page, and
-**Sign out**; on a narrow screen it stacks above the page.
+and its shadow).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/sign-in-dark.png">
+  <img alt="Umbral's sign-in page for an app called Larder: the title Sign in to Larder above five buttons, Sign in with Discord, Fediverse, GitHub, Google and a passkey." src="images/sign-in-light.png" width="640">
+</picture>
+
+The operator screens have a side rail with the three screens, **Apps**,
+**Connectors** and **Users**, the **Credential** page, and **Sign out**; on a
+narrow screen it stacks above the page.
 
 **Two themes, and it follows your system.** By default Umbral is dark or light
 as your operating system or browser says, and changes when it does. To pick one
@@ -12,6 +19,14 @@ yourself use the **Theme** control: *Follow system*, *Light* or *Dark*. It is at
 the bottom of the side rail on the operator screens and in the footer of every
 other page, the sign-in page people see included (also on an app's branded
 page). It is a plain form, so it works with JavaScript off.
+
+**An app can show its own logo and colour.** Its sign-in page then carries them in
+place of Umbral's gold and name bar; see [Brand an app's sign-in page](branding.md).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/sign-in-branded-dark.png">
+  <img alt="The sign-in page of the same app with its branding: the app's logo above the title, the buttons in the app's orange, and at the bottom Secured by Umbral with the Gnomon in place of Umbral's name bar and footer." src="images/sign-in-branded-light.png" width="640">
+</picture>
 
 **The choice is one cookie, in that browser.** `umbral_theme` holds `light` or
 `dark` for a year; *Follow system* removes it. Nothing about it is stored on the

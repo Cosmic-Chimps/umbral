@@ -22,6 +22,11 @@ Open **Credential** in the side rail. The page has three parts: **Passkeys**,
   sign-in on**.
 - **Password.** Replaces the password, as before.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/operator-credential-dark.png">
+  <img alt="The Credential page: the Passkeys card lists one passkey, named Laptop, with a Remove button, above the form to add another; the Password sign-in card says On, with the button Turn password sign-in off." src="../images/operator-credential-light.png" width="720">
+</picture>
+
 **Signing in.** On `/admin/signin`, click **Sign in with a passkey** and pick
 the passkey on your device. No name is typed. The password form stays beside it
 while password sign-in is on. Without JavaScript the page shows the password
