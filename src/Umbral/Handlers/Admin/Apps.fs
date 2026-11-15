@@ -1002,7 +1002,10 @@ let private appPane
           Components.paneSection
               t.AppConnectionTitle
               (div(class' = "space-y-5") {
-                  div(class' = "grid gap-3 sm:grid-cols-2") {
+                  // One per row, as the secret above: side by side, a real
+                  // issuer URL is cut at a laptop's width. The pair is one
+                  // group, closer together than the lists under it.
+                  div(class' = "space-y-3") {
                       Components.copyField
                           t.Copy
                           t.Copied

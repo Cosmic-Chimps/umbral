@@ -182,8 +182,9 @@ state; on wide screens the pane shows the create form at once, as if
    confirm button), and the **secret reveal** after create or regenerate: the
    existing reveal card's content, shown once, at the top of this app's pane
    rather than above the list.
-3. **Connection** (new section title, catalogue): Client ID with copy, Issuer
-   URL with copy, in a two-column grid from 640px; then the redirect URIs and
+3. **Connection** (new section title, catalogue): Client ID with copy, then
+   Issuer URL with copy, one per row (amended 2026-11-15, task 3694: in two
+   columns from 640px a real issuer URL was cut); then the redirect URIs and
    the post-logout redirect URIs, each a mono list with Remove per row and an
    add form under it (spec 012, `specs/012-several-redirect-uris/contracts/routes.md`;
    amended 2026-11-11, before that a list with no form).
