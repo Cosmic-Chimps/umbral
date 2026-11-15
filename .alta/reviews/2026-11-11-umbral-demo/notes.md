@@ -56,3 +56,71 @@ The reviews live here because the demo repository has no `.alta/`.
 - Documentation (`umbral-documentation`): `review-docs.md` here.
 - Design (`umbral-designer`): `review-design.md` here.
 - Code and security (`umbral`): `review-code.md` here.
+
+## Moved into the repository (task dm1r, 2026-11-15)
+
+The demo now lives in this repository under `demo/`; the separate repository is retired.
+`/Users/jjchiw/Documents/code4fun/umbral-demo` was never pushed and nothing refers to it any
+more: the maintainer deletes it. The files came from its head, `a44398a` (the task names
+`dc2e695`; the three commits after it only change the privacy page's wording, all reviewed
+clear), history squashed into this branch's commit.
+
+| Was (demo repository) | Now |
+| --- | --- |
+| `apphost/`, `site/`, `reset/`, `README.md`, `notes.md`, `.config/`, `aspire.config.json` | the same under `demo/`, plus `demo/Directory.Build.props` (keeps the repository's F# build settings out, as `samples/` does) and `demo/.gitignore` (`*.env`) |
+| `app/`, a copy of `samples/aspnetcore` | gone: the AppHost references `samples/aspnetcore` and sets `SAMPLE_TITLE=Umbral demo`, a new optional variable of the sample (default: its old title). The demo's two extra sentences (the front page's line, "The claims Umbral sent this app" on Private) are dropped. |
+| package `CosmicChimps.Aspire.Hosting.Umbral` 0.12.0 | ProjectReference to `src/CosmicChimps.Aspire.Hosting.Umbral` (`IsAspireProjectResource="false"`): its default tag is the first `## X.Y.Z` of `CHANGELOG.md`. `Umbral:ImageTag` is still honoured in run mode only. |
+| `.github/workflows/deploy.yml`, on push to `main`, GitHub secrets | `.github/workflows/demo.yml`: after a release, or Run workflow on `main`; the three values from Bella Baxter |
+| `.github/dependabot.yml` (nuget, docker, actions) | `.github/dependabot.yml` of this repository, new: docker for `/demo/site` and github-actions; no NuGet entry |
+| links to `Cosmic-Chimps/umbral-demo` (landing page, privacy page, the reset unit) | this repository: `tree/main/demo`, `tree/main/demo/apphost`, and the privacy page's question link is `issues/new?labels=demo` (the maintainer creates the label) |
+| host checkout `/opt/umbral-demo` | `/opt/umbral`, `sudo sh /opt/umbral/demo/reset/install.sh`; the reset itself is unchanged |
+
+### Deviations from the task's decisions, and why
+
+- **The trigger is `workflow_run` on `release`, not `release: published`.** release.yml's
+  `release` job publishes the GitHub release with `GITHUB_TOKEN`, and GitHub starts no workflow
+  for an event `GITHUB_TOKEN` caused (only `workflow_dispatch` and `repository_dispatch` are
+  exempt), so `release: published` would never fire. `demo.yml` runs when a release run ends in
+  success, from this repository, started by a tag push or Run workflow; it then deploys the
+  latest release if that release was published since the run was created (a prerelease is
+  never latest; `created_at` rather than `run_started_at`, so a re-run of failed jobs after the
+  release was published still deploys). release.yml is unchanged. The
+  other way, a `gh workflow run demo.yml` step at the end of release.yml, would need
+  `actions: write` there and a change to release.yml.
+- **The environment `demo` needs the branch `main` only.** A `workflow_run` always runs with the
+  default branch as its ref, so no run of `demo.yml` has a `v*` ref; leaving `v*` out allows
+  less.
+- **The version is passed explicitly.** A pushed tag's own commit has no section of its own in
+  `CHANGELOG.md` (release.yml prepares it in its checkout and records it on `main` afterwards),
+  so building the tag would take the previous version. The workflow sets the MSBuild property
+  `Version` (an environment variable of the deploy step) to the release's version, or on a Run
+  workflow to the first `## X.Y.Z` of `main`'s `CHANGELOG.md`, and refuses anything before
+  0.12.0 (the declaration needs it; `CHANGELOG.md` says 0.11.0 today).
+- **The Bella Baxter variables are the demo's own**: `DEMO_BELLA_BAXTER_PROJECT` (the opt-in,
+  as `BELLA_BAXTER_PROJECT` is for the release) and `DEMO_BELLA_BAXTER_ENV` (default `demo`), so
+  the demo's values sit in an environment whose trust domain requires `environment` = `demo`
+  and the release job cannot read them, nor the demo job the release's.
+- **`check-links.py` now scans `demo/`'s Markdown by default**, as it does `samples/`, so CI
+  catches a broken link in the runbook (its relative links now point into the repository).
+
+### Verified
+
+- `dotnet build -warnaserror` of `demo/apphost`: 0 warnings.
+- `aspire publish` with dummy parameters, against the old demo's publish at `a44398a` (package
+  0.12.0 from the local cache): the only differences are the Umbral tag (`0.11.0`, from
+  `CHANGELOG.md`) and the new `SAMPLE_TITLE`. With `Version=0.12.0` in the environment, as the
+  workflow sets it, the tag is `0.12.0` and `SAMPLE_TITLE` is the only difference. The
+  declaration JSON is intact, `UMBRAL_DEMO_CLIENT_SECRET` is a placeholder (empty in `.env`, the
+  dummy value in neither file), the origin is https, the trusted proxy is set.
+- `dotnet run` of the AppHost with the `dev` image on other ports: the three services healthy,
+  the sample's front page titled "Umbral demo", `/private` redirects to Umbral with
+  `client_id=demo`.
+- The site image: `/`, `/privacy/`, `/health` 200, `/privacy` 308, `/nope` 404, font and CSS 200;
+  CSP, Referrer-Policy and nosniff present; the new links in place.
+- actionlint 1.7.12 (Docker, with shellcheck) on `demo.yml` and `release.yml`: clean; shellcheck
+  on the script inside `bella run`: clean.
+- `check-links.py`: 468 links in 42 files (now with `demo/`), all resolve. The docs site builds
+  (33 pages) and nothing in it comes from `demo/`: `collect.mjs` takes only README.md, `docs/`,
+  `samples/README.md` and `CHANGELOG.md`.
+- Not run: `demo.yml` itself (it needs the Bella Baxter values, the `demo` environment and a
+  release of 0.12.0 or later).

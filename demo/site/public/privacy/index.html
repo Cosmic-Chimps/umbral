@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy · Umbral demo</title>
+  <meta name="description" content="What the Umbral demo keeps when you sign in, for how long, and what your own server sees.">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <main>
+    <a class="mark" href="/">
+      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle class="mark-sun" cx="11" cy="11" r="5.5"/><path class="mark-shadow" d="M22 40H45L22 32Z"/><path class="mark-upright" d="M22 40V13" stroke-width="5.5" stroke-linecap="round"/></svg>
+      <span class="wordmark">Umbral</span>
+      <span class="demo">demo</span>
+    </a>
+
+    <h1>What happens to your data</h1>
+
+    <p class="lead">
+      This is a demo of a sign-in server. If you sign in, here is what it keeps, for how long, and
+      who else sees anything.
+    </p>
+
+    <h2>What is kept</h2>
+    <dl>
+      <dt>When you sign in with GitHub, Google or Discord</dt>
+      <dd>What the provider shares after you consent: your id at the provider, your name, your
+        email address (and whether the provider says it is verified) and the address of your
+        avatar. Umbral asks for nothing else and never sees your password.</dd>
+
+      <dt>When you sign in with a Mastodon or GoToSocial account</dt>
+      <dd>Your account's id on your server, its username and display name, and your avatar's
+        address. Umbral reads nothing you post.</dd>
+
+      <dt>When you sign in with a passkey</dt>
+      <dd>The passkey's public key and the name you give it. The private half never leaves your
+        device, and there is no password at all.</dd>
+
+      <dt>In your browser</dt>
+      <dd>Umbral sets a cookie that keeps you signed in to it, one that remembers which way in
+        you used last, and one for the theme if you pick one. The sample app sets a session
+        cookie and keeps nothing on its side.</dd>
+
+      <dt>A record of sign-ins</dt>
+      <dd>Umbral's security log notes each sign-in: the time, the way in, the app, your user id
+        here, and the IP address you came from. The server in front keeps no access log.</dd>
+    </dl>
+
+    <h2>For how long</h2>
+    <p>
+      <strong>Every night at 04:00 UTC the instance is reset to its empty state.</strong> Every
+      account, session and token goes with it, and Umbral's security log too, yours included.
+    </p>
+    <p>
+      Once a week, as soon as a reset that succeeded ends, a copy of the empty instance is taken
+      so it can be rebuilt. None is taken after a reset that failed, so a copy holds no account,
+      unless you signed in during the moments between that reset and the copy. The copies are
+      kept for up to about two years.
+    </p>
+    <p>
+      What Umbral and the sample write to their console while they run (start-up lines, warnings,
+      request paths; no account data and no addresses) is kept by the host by size, about 100 MB
+      per service, not by time. A reset does not clear it.
+    </p>
+
+    <h2>What your own server sees</h2>
+    <p>
+      When you sign in with a Mastodon or GoToSocial account, Umbral registers an application
+      named <strong>Umbral</strong> on your server the first time anyone from that server signs in,
+      asking for the <code>read:accounts</code> permission and giving this demo's address as its
+      website. Your server lists it under the applications you have authorised, and you can revoke
+      it there at any time. After a reset, this instance has forgotten that registration, so the
+      next sign-in from your server registers it again, and your server may list it twice.
+    </p>
+
+    <h2>What is not done</h2>
+    <ul>
+      <li>Nothing is shared with anyone, sold, or used for anything other than showing you the
+        sign-in.</li>
+      <li>Nothing is analysed. These pages run no script and load nothing from another host; the
+        sign-in pages and the sample app load nothing from another host either.</li>
+      <li>No email is sent.</li>
+    </ul>
+
+    <h2>Who runs it</h2>
+    <p>
+      <a href="https://github.com/Cosmic-Chimps">Cosmic Chimps</a>, the people behind Umbral, on
+      a server of their own. For a question, open an issue on
+      <a href="https://github.com/Cosmic-Chimps/umbral/issues/new?labels=demo">Umbral's repository</a>. To
+      have your data removed before the next reset, write to
+      <a href="mailto:hello@cosmic-chimps.com">hello@cosmic-chimps.com</a>, so that you need not
+      say in public that you signed in.
+    </p>
+  </main>
+
+  <footer>
+    <div>
+      <a href="/">The demo</a>
+      <a href="https://cosmic-chimps.github.io/umbral/">Documentation</a>
+      <a href="https://github.com/Cosmic-Chimps/umbral">Umbral on GitHub</a>
+    </div>
+  </footer>
+</body>
+</html>

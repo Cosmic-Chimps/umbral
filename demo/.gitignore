@@ -1,0 +1,3 @@
+# The reset's settings on the host (reset.env, notify.env) are never committed;
+# the *.env.example files are.
+*.env

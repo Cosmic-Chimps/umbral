@@ -1,0 +1,200 @@
+# The public demo (demo/): deploys it to Caravana as the app umbral-demo. `aspire deploy`
+# builds and pushes the sample's and the site's images to GHCR
+# (ghcr.io/cosmic-chimps/umbral-demo/app and .../site, packages of their own that release.yml's
+# prune never touches), sends the AppHost to Caravana and waits until the three services are
+# healthy. Umbral itself is the released image, never one built here.
+#
+# Separate from release.yml, so a failed demo deploy never turns a release red. Two triggers:
+#   - after a release: when a run of release.yml ends in success and published a new release
+#     (a prerelease is never marked latest, so it deploys nothing). Not `release: published`:
+#     release.yml publishes the release with GITHUB_TOKEN, and GitHub starts no workflow for
+#     an event GITHUB_TOKEN caused. This checks out the release's tag.
+#   - by hand (Run workflow), on main only: checks out main. The image is still the last
+#     release, the first "## X.Y.Z" of CHANGELOG.md; only the demo's own files and the sample
+#     come from main.
+# Either way the version is passed to the build as the MSBuild property Version, which the
+# hosting package takes as its image tag (a pushed tag's own commit has no section of its own
+# in CHANGELOG.md yet), and a version before 0.12.0 is refused: the AppHost's declaration
+# needs 0.12.0.
+#
+# No secret is stored in GitHub. The Caravana URL, a deploy token for the app umbral-demo and
+# the demo app's client secret are read from Bella Baxter with the job's OIDC token, as
+# release.yml's deploy job reads Caravana's settings. Setup: demo/README.md, step 3: the
+# variables DEMO_BELLA_BAXTER_PROJECT (and DEMO_BELLA_BAXTER_ENV, default `demo`) and
+# BELLA_BAXTER_TENANT, and the environment `demo`, whose deployment branches allow main. Both
+# triggers run with the ref main (a workflow_run always does). Without
+# DEMO_BELLA_BAXTER_PROJECT (a fork, say) nothing runs.
+name: demo
+
+on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; a second one waits for the first.
+concurrency:
+  group: demo
+  cancel-in-progress: false
+
+jobs:
+  # What to deploy: the tag of the release just published, or main's commit.
+  target:
+    if: >-
+      vars.DEMO_BELLA_BAXTER_PROJECT != '' && (
+        (github.event_name == 'workflow_run'
+          && github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.head_repository.full_name == github.repository
+          && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
+        || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      deploy: ${{ steps.target.outputs.deploy }}
+      ref: ${{ steps.target.outputs.ref }}
+      version: ${{ steps.target.outputs.version }}
+    steps:
+      # After a release: the latest release (the newest that is not a prerelease) must have
+      # been published since that run was created (its first attempt; a re-run of failed jobs
+      # keeps it). Otherwise the run made a prerelease, and there is nothing new to deploy.
+      - name: The release, or main
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          RUN_CREATED: ${{ github.event.workflow_run.created_at }}
+        run: |
+          if [ "$EVENT" != workflow_run ]; then
+            {
+              echo "deploy=true"
+              echo "ref=$GITHUB_SHA"
+              echo "version="
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest")
+          tag=$(jq -r .tag_name <<< "$latest")
+          published=$(jq -r .published_at <<< "$latest")
+          if [[ "$published" < "$RUN_CREATED" ]]; then
+            echo "::notice::The release run published no new release (the latest, $tag, is from $published): nothing to deploy."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "deploy=true"
+            echo "ref=$tag"
+            echo "version=${tag#v}"
+          } >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: target
+    if: ${{ needs.target.outputs.deploy == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Its deployment branches allow main only, and Bella Baxter's trust requires this
+    # environment's name in the token.
+    environment: demo
+    permissions:
+      contents: read
+      packages: write # push the sample's and the site's images
+      id-token: write # the job's OIDC token, which Bella Baxter exchanges for a key
+    env:
+      BELLA_BAXTER_URL: https://api.bella-baxter.io
+      BELLA_BAXTER_TENANT: ${{ vars.BELLA_BAXTER_TENANT }}
+      BELLA_BAXTER_PROJECT: ${{ vars.DEMO_BELLA_BAXTER_PROJECT }}
+      BELLA_BAXTER_ENV: ${{ vars.DEMO_BELLA_BAXTER_ENV || 'demo' }}
+    defaults:
+      run:
+        working-directory: demo
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.target.outputs.ref }}
+          persist-credentials: false
+
+      # working-directory applies to run steps only: the path is from the repository's root.
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+
+      # The release's version, or on main the last release in CHANGELOG.md.
+      - name: The Umbral version
+        id: version
+        env:
+          RELEASE_VERSION: ${{ needs.target.outputs.version }}
+          REF: ${{ needs.target.outputs.ref }}
+        run: |
+          version="$RELEASE_VERSION"
+          if [ -z "$version" ]; then
+            version=$(sed -nE 's/^## ([0-9]+\.[0-9]+\.[0-9]+)( .*)?$/\1/p' ../CHANGELOG.md | head -n 1)
+          fi
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::No released Umbral version to deploy (got '$version')."
+            exit 1
+          fi
+          if [ "$(printf '%s\n%s\n' 0.12.0 "$version" | sort -V | head -n 1)" != 0.12.0 ]; then
+            echo "::error::Umbral $version is before 0.12.0, which the demo's declaration needs."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "### Demo: Umbral $version, from $REF" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore the Aspire CLI
+        run: dotnet tool restore
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Only when the variable is set: an unset one must not become an empty audience.
+      - name: Bella Baxter audience
+        if: ${{ vars.BELLA_OIDC_AUDIENCE != '' }}
+        env:
+          AUDIENCE: ${{ vars.BELLA_OIDC_AUDIENCE }}
+        run: echo "BELLA_OIDC_AUDIENCE=$AUDIENCE" >> "$GITHUB_ENV"
+
+      # Signs in with the job's OIDC token (no stored secret) and leaves a short-lived key for
+      # `bella run`.
+      - uses: cosmic-chimps/bella-baxter-setup-action@cf993ff9e477ec89370abb7f166a4e48a2786693 # v0.1.1-preview.137
+        with:
+          version: 0.1.1-preview.137
+          oidc: 'true'
+
+      # `bella run` puts the environment's secrets in the environment of the command it runs,
+      # and nowhere else; it does not mask them, so the token and the client secret are masked
+      # first. A deploy without the client secret is refused: it would generate a new one and
+      # rotate the app's secret in Umbral and in the sample at every deploy. Aspire reads its
+      # parameters from Parameters__<name>; `Version` is the hosting package's image tag.
+      - name: Deploy
+        env:
+          Version: ${{ steps.version.outputs.version }}
+        run: |
+          # shellcheck disable=SC2016 # the single quotes are on purpose: the inner shell expands
+          bella run -- bash -c '
+            set -euo pipefail
+            for name in CARAVANA_TOKEN UMBRAL_DEMO_CLIENT_SECRET; do
+              if [ -n "${!name:-}" ]; then echo "::add-mask::${!name}"; fi
+            done
+            for name in CARAVANA_URL CARAVANA_TOKEN UMBRAL_DEMO_CLIENT_SECRET; do
+              if [ -z "${!name:-}" ]; then
+                echo "::error::The Bella Baxter secret $name is not set (demo/README.md, step 3)."
+                exit 1
+              fi
+            done
+            if [ "${#UMBRAL_DEMO_CLIENT_SECRET}" -lt 32 ]; then
+              echo "::error::UMBRAL_DEMO_CLIENT_SECRET is shorter than 32 characters."
+              exit 1
+            fi
+            env "Parameters__caravana-url=$CARAVANA_URL" \
+              "Parameters__caravana-token=$CARAVANA_TOKEN" \
+              "Parameters__registry-endpoint=ghcr.io" \
+              "Parameters__registry-repository=cosmic-chimps/umbral-demo" \
+              "Parameters__umbral-demo-client-secret=$UMBRAL_DEMO_CLIENT_SECRET" \
+              dotnet aspire deploy --non-interactive'

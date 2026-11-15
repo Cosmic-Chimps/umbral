@@ -3,13 +3,13 @@
 
     .github/scripts/check-links.py [FILE.md ...]
 
-Checks README.md and docs/**/*.md (or the files given) outside code blocks and code spans: inline
-links and images, reference definitions, and HTML href/src/srcset attributes. A srcset holds one
-address, as the docs write it: a value with a descriptor ("x.png 2x") fails as a file that does not
-exist. A link with a URL scheme (https:, mailto:, ...) is skipped, since the check makes no network
-calls. For any other link the target file or directory must exist, and when it is a Markdown file
-the #anchor must match one of its headings (slugged the way GitHub does) or an explicit
-<a name="..."> / id="..." anchor.
+Checks README.md, docs/**/*.md and the Markdown of samples/ and demo/ (or the files given) outside
+code blocks and code spans: inline links and images, reference definitions, and HTML href/src/srcset
+attributes. A srcset holds one address, as the docs write it: a value with a descriptor ("x.png 2x")
+fails as a file that does not exist. A link with a URL scheme (https:, mailto:, ...) is skipped,
+since the check makes no network calls. For any other link the target file or directory must exist,
+and when it is a Markdown file the #anchor must match one of its headings (slugged the way GitHub
+does) or an explicit <a name="..."> / id="..." anchor.
 
 Prints "path:line: target: reason" for each dead link and exits 1; exits 0 when all resolve, and 2
 on a bad usage (a file that does not exist). CI runs it from .github/workflows/ci.yml.
@@ -156,11 +156,12 @@ def main(args):
         files = [
             ROOT / "README.md",
             *sorted((ROOT / "docs").rglob("*.md")),
-            # The samples' READMEs are documentation too. A sample's build output
-            # and a harness's node_modules are not.
+            # The samples' READMEs and the demo's runbook are documentation too.
+            # A build's output and a harness's node_modules are not.
             *sorted(
                 p
-                for p in (ROOT / "samples").rglob("*.md")
+                for folder in ("samples", "demo")
+                for p in (ROOT / folder).rglob("*.md")
                 if not {"node_modules", "bin", "obj"} & set(p.relative_to(ROOT).parts)
             ),
         ]

@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly reset of the Umbral demo at 04:00 UTC
+
+[Timer]
+# The hour the landing page announces. A run missed while the host was down happens once it
+# is back; the weekly backup is scheduled five minutes later, in the AppHost.
+OnCalendar=*-*-* 04:00:00 UTC
+Persistent=true
+Unit=umbral-demo-reset.service
+
+[Install]
+WantedBy=timers.target

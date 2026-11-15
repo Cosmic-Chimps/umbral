@@ -1,0 +1,25 @@
+# static-web-server, for the landing and privacy pages. Caravana's Traefik terminates TLS in
+# front of it, so this listens on plain http inside the app's network.
+
+[general]
+host = "::"
+port = 8080
+root = "/public"
+# GET /health answers 200: the health check Caravana runs.
+health = true
+log-level = "warn"
+compression = true
+cache-control-headers = true
+directory-listing = false
+page404 = "/public/404.html"
+# /privacy/ serves privacy/index.html; a request for /privacy is redirected to it.
+redirect-trailing-slash = true
+
+# The pages load nothing from another host, and the browser is told to refuse it if they
+# ever did: no script at all, styles, images and fonts from this origin only.
+[[advanced.headers]]
+source = "**/*"
+[advanced.headers.headers]
+Content-Security-Policy = "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+Referrer-Policy = "same-origin"
+X-Content-Type-Options = "nosniff"

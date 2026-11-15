@@ -1,0 +1,17 @@
+# Dependabot: pull requests that bump pinned versions.
+#   - docker, /demo/site: the base image of the demo's pages (static-web-server, pinned by tag
+#     and digest in demo/site/Dockerfile).
+#   - github-actions: the actions every workflow pins by commit SHA (the version is in the
+#     comment beside each).
+# No NuGet entry for the demo: its AppHost references the hosting package and the sample by
+# ProjectReference, so it follows each release with no bump.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /demo/site
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
