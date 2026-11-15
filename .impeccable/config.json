@@ -27,6 +27,24 @@
         ],
         "createdAt": "2026-11-11T21:13:14.331Z",
         "reason": "Agent: Apple's rules fix the Sign in with Apple button to black and white; recorded in DESIGN.md, Buttons"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "demo/site/public/index.html"
+        ],
+        "createdAt": "2026-11-15T21:04:13.611Z",
+        "reason": "design review fzzx (.alta/reviews/2026-11-11-umbral-demo/review-design.md, blocking 1): the light scheme must be the product's Paper #f4f1ea from DESIGN.md and tailwind.config.js"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "demo/site/public/privacy/index.html"
+        ],
+        "createdAt": "2026-11-15T21:04:13.638Z",
+        "reason": "design review fzzx (.alta/reviews/2026-11-11-umbral-demo/review-design.md, blocking 1): the light scheme must be the product's Paper #f4f1ea from DESIGN.md and tailwind.config.js"
       }
     ]
   }
