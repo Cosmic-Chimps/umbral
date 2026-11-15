@@ -1,19 +1,21 @@
-# The Aspire sample, built.
+# The Aspire AppHosts, built: the Aspire sample and the public demo.
 #
-# samples/aspire/ is an AppHost, not a web server, so the harness of samples.yml
-# (which runs the web samples from their Dockerfiles) cannot walk it. This job
-# only builds the AppHost, with warnings as errors, so a change that breaks it,
-# or what it references (the ASP.NET Core sample and the hosting package
-# CosmicChimps.Aspire.Hosting.Umbral), is caught. The sign-in is walked by
-# hand: samples/aspire/README.md says how, and the task's review notes record it.
+# samples/aspire/ and demo/apphost/ are AppHosts, not web servers, so the
+# harness of samples.yml (which runs the web samples from their Dockerfiles)
+# cannot walk them. This job only builds each AppHost, with warnings as errors,
+# so a change that breaks one, or what both reference (the ASP.NET Core sample
+# and the hosting package CosmicChimps.Aspire.Hosting.Umbral), is caught before
+# it merges. demo.yml builds the demo again inside `aspire deploy`, but only
+# after a release. The sign-in is walked by hand: samples/aspire/README.md and
+# demo/README.md say how, and the tasks' review notes record it.
 name: samples-aspire
 
 on:
   push:
     branches: [main]
-    paths: ['samples/aspire/**', 'samples/aspnetcore/**', 'src/CosmicChimps.Aspire.Hosting.Umbral/**', '.github/workflows/samples-aspire.yml']
+    paths: ['samples/aspire/**', 'samples/aspnetcore/**', 'src/CosmicChimps.Aspire.Hosting.Umbral/**', 'demo/**', '.github/workflows/samples-aspire.yml']
   pull_request:
-    paths: ['samples/aspire/**', 'samples/aspnetcore/**', 'src/CosmicChimps.Aspire.Hosting.Umbral/**', '.github/workflows/samples-aspire.yml']
+    paths: ['samples/aspire/**', 'samples/aspnetcore/**', 'src/CosmicChimps.Aspire.Hosting.Umbral/**', 'demo/**', '.github/workflows/samples-aspire.yml']
   workflow_dispatch:
 
 permissions:
@@ -23,9 +25,14 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        apphost: [samples/aspire, demo/apphost]
+    name: build (${{ matrix.apphost }})
     defaults:
       run:
-        working-directory: samples/aspire
+        working-directory: ${{ matrix.apphost }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
