@@ -61,7 +61,8 @@ let private passkeyCard (ctx: HttpContext) (t: Texts.Texts) (passkey: Passkeys.P
     }
 
 /// The notice of `?msg=`: the two successes the page is sent back with (a
-/// passkey added, one removed) are green, every refusal is a failure.
+/// passkey added, one removed) are green, a refusal that follows a rule is a
+/// warning, and red is kept for a ceremony that went wrong.
 let private notice (ctx: HttpContext) (t: Texts.Texts) : HtmlElement =
     match SignIn.noticeCode ctx with
     | Some code ->
@@ -69,6 +70,9 @@ let private notice (ctx: HttpContext) (t: Texts.Texts) : HtmlElement =
             match code with
             | "passkey-added"
             | "passkey-removed" -> Components.Success
+            | "passkey-last-cannot-remove"
+            | "passkey-limit-reached"
+            | "passkey-not-found" -> Components.Warning
             | _ -> Components.Failure
 
         (div().data("notice", code) { Components.alert kind (t.Notice code) }) :> HtmlElement

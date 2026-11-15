@@ -7,9 +7,10 @@ Branch `alta/glad-gentian-hpdg`, on main `4958e12`. Task file:
 
 - `src/Umbral/Handlers/Passkeys/Account.fs`: the page has a notice helper of its own, built like the
   Credential page's (`<div data-notice="{code}">` around `Components.alert`). `passkey-added` and
-  `passkey-removed` are `Success` (green, check icon, `role="status"`). Every other known code
-  (`passkey-not-found`, `passkey-last-cannot-remove`, `passkey-registration-failed`,
-  `passkey-limit-reached`) stays `Failure` (red, `role="alert"`).
+  `passkey-removed` are `Success` (green, check icon, `role="status"`). The refusals that follow a
+  rule (`passkey-last-cannot-remove`, `passkey-limit-reached`, `passkey-not-found`) are `Warning`
+  (the design review's nit, as on the operator screens). `passkey-registration-failed` stays
+  `Failure` (red).
 - `src/Umbral/Handlers/Passkeys/SignIn.fs`: `noticeCode` reads `?msg=` through `Texts.knownNotice`
   (one place for "never any other text from the address"). `noticeAlert` uses it and stays a failure
   for the sign-in and invitation pages, which are only sent back with a failure.
@@ -18,9 +19,9 @@ Branch `alta/glad-gentian-hpdg`, on main `4958e12`. Task file:
 
 ## Tests
 
-`PasskeyAccountTests`: "the page's notice is a success for a passkey added or removed and a failure
-for a refusal". It checks the class and role for the two successes and the two refusals, and that an
-unknown code draws nothing. The sign-in page's failure notice is already covered in
+`PasskeyAccountTests`: "the page's notice is a success for a passkey added or removed, a warning for
+a rule and a failure for a ceremony". It checks the class and role for each of the six codes the page
+is sent back with, and that an unknown code draws nothing. The sign-in page's failure notice is already covered in
 `PasskeyCeremonyTests` (`msg=passkey-sign-in-failed`).
 
 ## Captures
@@ -35,13 +36,19 @@ person signs up with Chrome's virtual authenticator (one authenticator per key).
 | --- | --- | --- |
 | `notice-added` | the real Add ceremony (redirect `?msg=passkey-added`) | "Your passkey is ready." green, check icon |
 | `notice-removed` | a spare key added, then the real Remove | "Passkey removed." green, check icon |
-| `notice-last` | `?msg=passkey-last-cannot-remove` | red, as before |
-| `notice-not-found` | `?msg=passkey-not-found` | red, as before |
+| `notice-last` | `?msg=passkey-last-cannot-remove` | warning (amber, warning icon) |
+| `notice-not-found` | `?msg=passkey-not-found` | warning (amber, warning icon) |
+
+All 16 shots were retaken after the nit.
 
 The docs screenshot of Your passkeys (task v6pm, `site/scripts/screenshots/`) is taken after a reload,
 so it shows no notice. It needs no retake for this change. The v6pm note "retake after njtn" can go.
 
 ## Verification
 
-- Passkey tests (`PasskeyAccountTests`, `PasskeyCeremonyTests`, `PasskeyInvitationTests`): 77 of 77.
-- Full suite: running (result below when it lands).
+- At 84edf46, the passkey tests (`PasskeyAccountTests`, `PasskeyCeremonyTests`,
+  `PasskeyInvitationTests`): 77 of 77.
+- Design review: clear, one nit (taken); no re-check needed (review.md).
+- Full suite after the nit (the working tree committed with this note): **3004 of 3004** passed, 0 skipped
+  (Debug, 33 min 19 s). An earlier run crashed in the .NET runtime under memory pressure while
+  another worktree's suite ran; this one ran alone.

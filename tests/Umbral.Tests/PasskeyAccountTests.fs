@@ -703,7 +703,7 @@ let ``the page wears the plain chrome even when the session came through a brand
     }
 
 [<Fact>]
-let ``the page's notice is a success for a passkey added or removed and a failure for a refusal`` () =
+let ``the page's notice is a success for a passkey added or removed, a warning for a rule and a failure for a ceremony`` () =
     task {
         use! app = Fixtures.createAppWith fakeSettings ignore
         let! w = world app
@@ -714,8 +714,10 @@ let ``the page's notice is a success for a passkey added or removed and a failur
         for code, cls, role in
             [ "passkey-added", "um-alert um-alert-success", "status"
               "passkey-removed", "um-alert um-alert-success", "status"
-              "passkey-not-found", "um-alert um-alert-error", "alert"
-              "passkey-last-cannot-remove", "um-alert um-alert-error", "alert" ] do
+              "passkey-not-found", "um-alert um-alert-warning", "alert"
+              "passkey-last-cannot-remove", "um-alert um-alert-warning", "alert"
+              "passkey-limit-reached", "um-alert um-alert-warning", "alert"
+              "passkey-registration-failed", "um-alert um-alert-error", "alert" ] do
             let! html = w.Sam.GetHtml $"/account/passkeys?msg={code}"
             let groups = alertOf html code
             Assert.True(groups[0].Success, $"{code} draws a notice")
