@@ -45,7 +45,7 @@ All are captured at twice the pixel density and shown at the `width` of the `<im
   Chrome virtual authenticator, which lands them on **Your passkeys**. So the instance runs with the quick
   start's three settings and nothing else, `UMBRAL__ALLOW_FAKE_CONNECTOR` still appears only in
   `samples/test/docker-compose.yml`, and the script stops if the **Provider** list offers `fake`.
-- **Dark and light for all eight.** The set is 506 KB (budget 1.5 MB; the largest file is 43 KB, limit
+- **Dark and light for all eight.** The set is 609 KB (budget 1.5 MB; the largest file is 55 KB, limit
   200 KB), so no screen had to be one theme only, and a reader on a dark page never gets a light picture.
 - **The theme is the system's, emulated; nothing on the page is edited.** With no `umbral_theme` cookie
   Umbral follows `prefers-color-scheme`, so the script uses Playwright's `emulateMedia`. That switches a page
@@ -83,7 +83,7 @@ All are captured at twice the pixel density and shown at the `width` of the `<im
 | `check-links.py` | `check-links: 454 links in 40 files, all resolve` |
 | `npm run build` in `site/` | `collect: 32 pages … 3 fonts and 16 images copied`; `All internal links are valid`; `check-dist: 55 files read …, nothing requested from another host` |
 | The images appear on the built site | `dist/images/` holds the 16 files; captures of four pages in `site/` here, both themes. |
-| `docs/images/` under 1.5 MB | 506 KB |
+| `docs/images/` under 1.5 MB | 609 KB |
 
 ## Known limits
 
@@ -110,6 +110,29 @@ All are captured at twice the pixel density and shown at the `width` of the `<im
 - **Code (`umbral`):** `capture.mjs` (the walk, the frames, that the secret is never read or logged),
   `run.sh` and the Compose file (teardown, no fake connector), `optimise.mjs`; `collect.mjs` (`imageHref`,
   `endsImageAlt`, the `srcset` rule), `check-dist.mjs` (`checkOwnImage`), `check-links.py` (`srcset`).
+
+## After the reviews (2026-11-15)
+
+All three reviews are clear with no blocking item: design (`review.md`, two nits), documentation
+(`review-docs.md`, `dcc6021`, four nits), code (`code-review.md`, `6486058`, two nits). Taken:
+
+| Nit | What changed |
+| --- | --- |
+| Design 1, uneven letter spacing ("T heme") | `capture.mjs` launches Chromium with `--font-render-hinting=none`; all sixteen images retaken. The set went from 506 KB to 609 KB (more antialiasing tones). |
+| Design 2, the logo reads as a sixth button | The jar is drawn on a transparent background, with an amber lid. |
+| Design, the secret in `app-created` | A line under the picture in the README says the secret belonged to a throwaway instance. |
+| Docs 1, `look.md`'s picture followed the side rail | The first paragraph is split: the look and the mark, the picture, then the operator screens. |
+| Docs 2, the demo's "Try it" line | Nothing to change here. When fzzx step 10 adds the line to the README, it goes after the first paragraph and before this picture. |
+| Docs 3, commit then checkout | `site/README.md` now gives the two steps in order. |
+| Docs 4, the Theme select | Stays a stated limit. |
+| Code N1, the failure screenshot's guard | Skipped when the page holds `[data-secret-once]`, whatever step failed. |
+| Code N2, SVG | Dropped from `IMAGE_FILE` in `collect.mjs`; `site/README.md` says why. |
+
+Left for `umbral-designer`, outside this task (seen by the documentation review): on the passkey step
+**Continue with your passkey** carries the link icon, while **Sign in with a passkey** carries the key.
+
+After these: `run.sh` exit 0, `check-links.py` passes, `npm run build` passes with 16 images copied and
+nothing requested from another host. Design re-check asked on `sign-in-branded-light` and `app-created-dark`.
 
 ## Files here
 

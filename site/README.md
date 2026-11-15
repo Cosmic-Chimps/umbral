@@ -100,8 +100,8 @@ if the **Provider** list offers it.
 A second run gives the same bytes for every screen whose content is the same. Three screens
 change without a change of the UI: `app-created` on every run (the client ID and the secret are
 random), and `your-passkeys` and `operator-credential` when the day does (they show the date
-the passkey was added). So after a run, `git status` lists those files too: commit the files of
-the screens you changed, and put the others back with `git checkout docs/images/`.
+the passkey was added). So after a run, `git status` lists those files too. Commit the files of
+the screens you changed first; then `git checkout docs/images/` puts the others back.
 
 A page shows a screen in both themes with a `<picture>` element, which GitHub and the site both
 follow by the system's theme, and says what the picture shows in its `alt`:
@@ -122,7 +122,8 @@ screen, add its step to the walk and its entry to `FRAMES` in `capture.mjs`, rai
 - A link in a source that does not become a working link on the site: a file that does not exist, an
   anchor that is not a heading. The message is `source:line: target: reason`. A link to a file that is
   not a page (a sample, a spec, `docker-compose.yml`) becomes a link to it on GitHub.
-- An image a page shows (`![alt](path)`, `src`, `srcset`) that is not a file under `docs/images/`.
+- An image a page shows (`![alt](path)`, `src`, `srcset`) that is not a PNG, WebP, JPEG, GIF or AVIF
+  file under `docs/images/` (no SVG: served from the site's own address, it can run script).
   Those images are copied to the site and the page shows the copy, so nothing is loaded from GitHub;
   a plain link to an image under `docs/images/` goes to the copy as well. A `srcset` holds one
   address with no descriptor (no comma, no `2x`).

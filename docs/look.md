@@ -2,14 +2,16 @@
 
 Umbral has one look, called Umbra: a warm gold accent on near-black, or on
 paper in the light theme, with the **Gnomon** as its mark (a sundial's upright
-and its shadow). The operator screens have a side rail with the three screens,
-**Apps**, **Connectors** and **Users**, the **Credential** page, and
-**Sign out**; on a narrow screen it stacks above the page.
+and its shadow).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/sign-in-dark.png">
   <img alt="Umbral's sign-in page for an app called Larder: the title Sign in to Larder above five buttons, Sign in with Discord, Fediverse, GitHub, Google and a passkey." src="images/sign-in-light.png" width="640">
 </picture>
+
+The operator screens have a side rail with the three screens, **Apps**,
+**Connectors** and **Users**, the **Credential** page, and **Sign out**; on a
+narrow screen it stacks above the page.
 
 **Two themes, and it follows your system.** By default Umbral is dark or light
 as your operating system or browser says, and changes when it does. To pick one

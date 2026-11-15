@@ -92,7 +92,10 @@ const authorizeQuery = (clientId) =>
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-const browser = await chromium.launch();
+// Headless Chromium hints glyphs to whole pixels by default, which spaces the
+// letters of a word unevenly ("T heme"). With hinting off it places them as a
+// real screen does.
+const browser = await chromium.launch({ args: ['--font-render-hinting=none'] });
 const log = (message) => console.log(message);
 
 async function newContext(viewport, { passkeys = false } = {}) {
@@ -408,23 +411,19 @@ try {
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 256;
       const g = canvas.getContext('2d');
-      const cream = '#fff4e6';
-      const dark = '#3b1f0e';
-      g.fillStyle = accent;
-      g.fillRect(0, 0, 256, 256);
-      g.fillStyle = dark; // the shelf
-      g.fillRect(28, 206, 200, 14);
-      g.fillStyle = cream; // the jar
+      // A jar on a transparent background, so it reads as a logo on the dark
+      // and the light card, and not as one more button in the accent.
+      g.fillStyle = accent; // the jar
       g.beginPath();
-      g.roundRect(70, 78, 116, 128, 22);
+      g.roundRect(48, 84, 160, 156, 34);
       g.fill();
-      g.fillStyle = dark; // its lid
+      g.fillStyle = '#f2a65a'; // its lid
       g.beginPath();
-      g.roundRect(82, 52, 92, 30, 8);
+      g.roundRect(66, 20, 124, 50, 14);
       g.fill();
-      g.fillStyle = accent; // its label
+      g.fillStyle = '#fff4e6'; // its label
       g.beginPath();
-      g.roundRect(92, 122, 72, 52, 10);
+      g.roundRect(78, 126, 100, 72, 14);
       g.fill();
       return canvas.toDataURL('image/png').split(',')[1];
     }, ACCENT);
@@ -457,8 +456,10 @@ try {
   if (current?.page) {
     console.error(await describe(current.page));
     try {
-      if (current.title === 'app-created') throw new Error('the page shows the secret');
-      await current.page.screenshot({ path: `${rawDir}/_failure.png`, fullPage: true });
+      // Never a picture of a page that shows the app's secret, whatever step failed.
+      if ((await current.page.locator('[data-secret-once]').count()) === 0) {
+        await current.page.screenshot({ path: `${rawDir}/_failure.png`, fullPage: true });
+      }
     } catch {
       // the page may be gone
     }

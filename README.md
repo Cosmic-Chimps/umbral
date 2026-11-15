@@ -291,6 +291,8 @@ this once. If you lose it, use **Regenerate secret**.
   <img alt="The app's pane right after Create app: the notice App registered, a warning that the secret is shown only once, the client secret with a Copy button, and under Connection the client ID and the issuer URL." src="docs/images/app-created-light.png" width="720">
 </picture>
 
+(The secret in the picture belonged to a throwaway instance that no longer exists.)
+
 ### 6. Prove it works, with no app of your own
 
 Open this address in your browser (replace `CLIENT_ID`):

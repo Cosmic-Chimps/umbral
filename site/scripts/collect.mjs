@@ -81,7 +81,8 @@ const CODE_SPAN = /(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)/g;
 const INLINE_LINK = /\]\(\s*(?:<([^>]*)>|((?:[^\s()]|\([^\s()]*\))*))/dg;
 const REF_DEF = /^[ >]{0,3}\[[^\]]+\]:\s*(?:<([^>]*)>|(\S+))/dg;
 const HTML_ATTR = /\b(href|srcset|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/dg;
-const IMAGE_FILE = /\.(?:png|webp|jpe?g|gif|avif|svg)$/i;
+// No SVG: one served from the site's own address runs the script it holds when opened directly.
+const IMAGE_FILE = /\.(?:png|webp|jpe?g|gif|avif)$/i;
 const ATX = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const SETEXT = /^ {0,3}(?:=+|-+)[ \t]*$/;
 const SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
