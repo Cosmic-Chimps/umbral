@@ -1003,22 +1003,25 @@ let private appPane
               t.AppConnectionTitle
               (div(class' = "space-y-5") {
                   // One per row, as the secret above: side by side, a real
-                  // issuer URL is cut at a laptop's width.
-                  Components.copyField
-                      t.Copy
-                      t.Copied
-                      t.AppClientIdLabel
-                      $"client-id-{row.ClientId}"
-                      row.ClientId
-                      ignore
+                  // issuer URL is cut at a laptop's width. The pair is one
+                  // group, closer together than the lists under it.
+                  div(class' = "space-y-3") {
+                      Components.copyField
+                          t.Copy
+                          t.Copied
+                          t.AppClientIdLabel
+                          $"client-id-{row.ClientId}"
+                          row.ClientId
+                          ignore
 
-                  Components.copyField
-                      t.Copy
-                      t.Copied
-                      t.AppIssuerUrlLabel
-                      $"issuer-{row.ClientId}"
-                      origin.Text
-                      ignore
+                      Components.copyField
+                          t.Copy
+                          t.Copied
+                          t.AppIssuerUrlLabel
+                          $"issuer-{row.ClientId}"
+                          origin.Text
+                          ignore
+                  }
 
                   (if row.Declared then declaredUriList else uriList ctx t row)
                       { Id = "redirect-uri-add"
