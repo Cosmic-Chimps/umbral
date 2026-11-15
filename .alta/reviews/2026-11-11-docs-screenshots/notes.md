@@ -132,7 +132,9 @@ Left for `umbral-designer`, outside this task (seen by the documentation review)
 **Continue with your passkey** carries the link icon, while **Sign in with a passkey** carries the key.
 
 After these: `run.sh` exit 0, `check-links.py` passes, `npm run build` passes with 16 images copied and
-nothing requested from another host. Design re-check asked on `sign-in-branded-light` and `app-created-dark`.
+nothing requested from another host. The design re-check of `sign-in-branded-light` and
+`app-created-dark` is clear at `24bd6d6` (appended to `review.md`). All three reviews say clear; the
+maintainer merges.
 
 ## Files here
 

@@ -45,3 +45,17 @@ the README, beside the picture, that it is not a live one, if it does not alread
 ## Re-check
 
 `sign-in-branded-light` and `app-created-dark` after the retake. One look.
+
+## Re-check, 2026-11-15, at `24bd6d6`
+
+**Clear to merge.** Looked at `docs/images/sign-in-branded-light.png` and
+`docs/images/app-created-dark.png`; the other fourteen retakes were not opened.
+
+- Nit 1 taken: the type is evenly spaced ("Theme", "regenerate", "Web application").
+- Nit 2 taken: the stand-in logo is a jar on a transparent background and reads as a logo.
+- The line under the app-created picture about the throwaway instance: accepted from the
+  description, not read.
+
+Outside this task, noted by the documentation review: on the passkey step, "Continue with your
+passkey" carries the link icon while the picker's "Sign in with a passkey" carries the key.
+The step's button should carry the key too. Passed to the queue.
