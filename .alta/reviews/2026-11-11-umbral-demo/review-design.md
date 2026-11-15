@@ -71,3 +71,22 @@ stated. Nothing to change beyond nit 6.
 
 `index` and `privacy` in the light scheme at desktop and phone, and `index-dark-desktop` for
 the lockup. One look.
+
+## Re-check, 2026-11-15, at the demo repository's `dc2e695`
+
+**Clear.** Looked at `index-light-desktop`, `privacy-light-phone` and the lockup in
+`index-dark-desktop`; the other captures and `404.html` were not opened, and the site was not
+run.
+
+- Item 1: the light page is the product's paper, text and gold.
+- Item 2: the light button is ink with gold text; the dark one gold with dark text.
+- Item 3: the lockup is the lowercase display wordmark in the text colour, with "demo" muted
+  beside it on the privacy page, and the Gnomon takes each scheme's own colours.
+- Nits 4 to 6: taken as described; the five ways are a sentence, the note's bold is in the text
+  colour, the system mono is recorded as a choice.
+
+**The rewritten privacy paragraphs, for tone**: they read as the rest does, plain and exact.
+One optional point: "For how long" is now one long paragraph carrying three different things.
+Split it in three: the nightly reset; the weekly copy; the console output the host keeps. The
+sentence about console output would then read better as two: what it holds, then how long it
+is kept. Whether each statement is true is the documentation and code reviews', not mine.
