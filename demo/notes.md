@@ -9,15 +9,19 @@ lives where once it is up.
   `site`. Volume `umbral-demo-data` on `umbral`, mounted at `/data`.
 - **The reset** is the schedule `clear-users` of the app (**Schedules** in the console): the
   command `/app/Umbral clear-users --yes --security-log`, on `0 4 * * *` (UTC), in the
-  running copy of `umbral`, with the usual limit of one minute. It was created once in the
-  console (README, step 9) and no deploy touches it: a schedule is not part of the app's
-  Compose file or overlay. It skips a slot while its last run is still going.
+  running copy of `umbral`, Stop after 1 min. A schedule in the running copy is Caravana
+  feature 040 (API 0.43.0 or later). It was created once in the console (README, step 8) and no
+  deploy touches it: a schedule is not part of the app's Compose file or overlay, but it goes
+  with the app if the app is deleted, so check it is there after any new app. It skips a slot
+  while its last run is still going.
 - **Run it by hand**: **Run now** on the schedule, or **Run a command** on the app's page,
   service `umbral`, the same command. Neither keeps the output; the run's page shows the exit
   code (0 cleared, 1 failed, 2 the `--yes` was missing).
 - **Backups**: the `umbral` service's policy has the schedule `never` and keeps 3, so the only
-  backups are the ones taken by hand with **Back up now** (README, step 8), of the instance
-  while it held no visitor. The last three stay in the destination.
+  backups are the ones taken by hand with **Back up now** (README, step 9), each right after a
+  clearing: **Run now** first, then back up, every time, or back up just after 04:00 UTC. The
+  last three stay in the destination; the privacy page says no copy holds an account, and that
+  holds only while this order is kept.
 - Logs that the clearing does not touch: Umbral's and the sample's console output, kept by Nomad
   on the host by size (10 files of 10 MB per stream per copy, no time limit) and removed with the
   copy's allocation; Traefik writes no access log on a Caravana host. Umbral writes no account

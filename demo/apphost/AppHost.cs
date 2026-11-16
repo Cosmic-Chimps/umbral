@@ -52,7 +52,7 @@ if (publishing)
 // Umbral: the last released image, its data in a volume of its own, and
 // the passkey connector declared with sign-up open to anyone. The other connectors (GitHub,
 // Google, Discord, Fediverse) are set up once in the admin area and live in that volume, with
-// their secrets; the nightly clearing of the users leaves them alone (README, step 9).
+// their secrets; the nightly clearing of the users leaves them alone (README, step 8).
 var umbral = builder.AddUmbral("umbral", port: umbralPort)
     .WithDataVolume("umbral-demo-data")
     .WithPasskeys(PasskeySignUp.Open);
@@ -96,9 +96,9 @@ if (publishing)
         .WithCaravanaMemory(caravana!, 256, 512)
         // The backup policy, with no automatic backup (`never`, Caravana 0.21.0): "Back up now"
         // exists for the service, and the operator takes one by hand once the demo is set up and
-        // holds no visitor, as a way back if the volume is lost (README, step 8). The nightly
+        // holds no visitor, as a way back if the volume is lost (README, step 9). The nightly
         // reset is not a restore: a Caravana schedule runs `/app/Umbral clear-users` in the
-        // running copy at 04:00 UTC. It is set once in the Caravana console (README, step 9):
+        // running copy at 04:00 UTC. It is set once in the Caravana console (README, step 8):
         // a schedule is not part of a deploy, so a deploy leaves it alone, and the hosting
         // package (13.6.5) has no call to declare one.
         .WithCaravanaBackup(caravana!, CaravanaBackupEngine.Volume, schedule: "never", keep: 3);

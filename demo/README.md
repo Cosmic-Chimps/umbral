@@ -85,10 +85,10 @@ workflow is [`demo.yml`](../.github/workflows/demo.yml).
   `## X.Y.Z` of `CHANGELOG.md`, which the hosting package takes as its image tag, or the
   version of the release that started the workflow. The workflow refuses a version before
   0.13.0.
-- A Caravana whose schedules can run in the running copy (API 0.43.0, the release after
-  0.21.0) on the host, with a **backup destination** set (Settings, Backup destination): the
-  AppHost declares a backup policy on `umbral` (step 8), and Caravana refuses one without a
-  destination.
+- A Caravana whose schedules can run in the running copy (feature 040, API 0.43.0 or later;
+  not released as of 2026-11-16: name the version here when it ships) on the host, with a
+  **backup destination** set (Settings, Backup destination): the AppHost declares a backup
+  policy on `umbral` (step 9), and Caravana refuses one without a destination.
 - For a deploy from your machine: Docker, the .NET 10 SDK, `dotnet tool restore` in `demo/`,
   and `docker login ghcr.io` with a token that can write packages.
 
@@ -222,21 +222,12 @@ passkey on a phone, and check that each sign-in ends on the page listing `sub`, 
 `idp`, and `email` with `email_verified` where the provider shares an address. Cancel one at
 the provider: you land back on the sign-in page. Sign out: back to the sample's front page.
 
-Then **delete those users** on **Users**, so that the backup of step 8 holds no visitor. The
-Fediverse registrations are kept with the connector and do no harm.
+Then clean up: set the nightly schedule (step 8) and run it once with **Run now**. It deletes
+those users and empties the security log of your test sign-ins, with their addresses, in one
+step, and leaves exactly the state every night returns to. The Fediverse registrations are kept
+with the connector and do no harm.
 
-### 8. Back up now
-
-On the app's **Backups** tab in Caravana, service `umbral`, **Back up now**. It stops Umbral
-for a few seconds, archives `/data` and starts it again. This backup is for disaster recovery
-only, the way back if the volume is lost: claimed, operator passkey, password sign-in off, the
-five connectors, the declared app, no user. The policy's schedule is `never`, so Caravana takes
-no copy on its own, and it keeps the last three taken by hand.
-
-Retake it after a change worth keeping (another connector, a new logo). After an Umbral upgrade
-an old backup still works: Umbral migrates its database forward at each start.
-
-### 9. The reset
+### 8. The reset
 
 Caravana runs `/app/Umbral clear-users --yes --security-log` in Umbral's running copy every
 night at 04:00 UTC, as the landing page says, while Umbral keeps serving. A run that fails is on
@@ -244,11 +235,25 @@ Caravana's needs-you list and in its notifications.
 
 Set it once, in the Caravana console, **Schedules**, **New schedule**: app `umbral-demo`,
 service `umbral`, name `clear-users`, the command above, when `0 4 * * *`, **Run in: The
-running copy**, Stop after the usual (1 minute in the running copy). A schedule in the running
-copy always skips a slot while its last run is still going. The schedule is not part of the
+running copy**, **Stop after: 1 min** (the clearing takes about a second). A schedule in the
+running copy always skips a slot while its last run is still going. The schedule is not part of the
 deploy: an `aspire deploy` leaves it alone, and the hosting package has no call to declare
 one, so the console is where it lives. [`notes.md`](notes.md) says what the clearing keeps and
 how to run it by hand.
+
+### 9. Back up now
+
+On the app's **Backups** tab in Caravana, service `umbral`, **Back up now**, right after the
+clearing of step 7, while the instance is empty. It stops Umbral for a few seconds, archives
+`/data` and starts it again. This backup is for disaster recovery only, the way back if the
+volume is lost: claimed, operator passkey, password sign-in off, the five connectors, the
+declared app, no user. The policy's schedule is `never`, so Caravana takes no copy on its own,
+and it keeps the last three taken by hand.
+
+Retake it after a change worth keeping (another connector, a new logo), and only on an empty
+instance, so that no backup ever holds a visitor: **Run now** on `clear-users` first, then
+**Back up now**, in that order, every time, or take it just after 04:00 UTC. After an Umbral
+upgrade an old backup still works: Umbral migrates its database forward at each start.
 
 ### 10. The line in the README
 
@@ -278,7 +283,11 @@ Once the demo is live, and not before, two edits, in one pull request:
   A deploy that changes only the sample or the site restarts only that service: Nomad replaces
   the task groups whose spec changed.
 - **A change to a connector** is made in the admin area; the nightly clearing keeps it. Take a
-  new backup (step 8) when it is worth keeping.
+  new backup when it is worth keeping, on an empty instance only (step 9).
+- **The schedule is not in the repository.** After the app is deleted and created again in
+  Caravana, or on any doubt, check that **Schedules** lists `clear-users` on `umbral-demo`
+  with Run in: the running copy (step 8); without it the privacy page is untrue and nothing
+  says so.
 - **A change to the app or the passkey connector** is made in `AppHost.cs` and deployed.
 - **`/admin` with a password** must stay refused: the clearing keeps the operator credential
   and its switch as they are. A `reset-credential` turns password sign-in back on; turn it off
@@ -289,6 +298,8 @@ Once the demo is live, and not before, two edits, in one pull request:
 - On the deployed demo, a visitor signs in through each of the five connectors and sees the
   claims; the passkey path works on a phone; a refused or cancelled sign-in lands back on the
   sign-in page.
+- Caravana's **Schedules** lists `clear-users` on `umbral-demo`, in the running copy of
+  `umbral`, at 04:00 UTC.
 - After the 04:00 run, **Users** is empty, every connector and the app are still there, the
   security log holds one `users_cleared` row, Umbral never stopped, no backup was taken, and a
   new sign-in works.

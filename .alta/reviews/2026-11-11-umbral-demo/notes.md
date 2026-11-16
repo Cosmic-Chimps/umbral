@@ -146,12 +146,15 @@ one `users_cleared` row in the security log.
   stand-in was never installed: the demo was not deployed, and it is removed before go-live.
   Nothing in the repository mentions a Caravana API token on the host any more.
 - `demo.yml` refuses a version before 0.13.0 (was 0.12.0).
-- The runbook's steps 8 and 9 are "Back up now" (disaster recovery only, retaken after a change
-  worth keeping) and the schedule; `notes.md` says where the reset is set, how to run it by
+- The runbook's steps 8 and 9 are the schedule, run once by hand to clean up after the test
+  sign-ins, and "Back up now" (disaster recovery only, taken on an empty instance only: Run now
+  first, then the backup, every time); `notes.md` says where the reset is set, how to run it by
   hand (Run now, or Run a command) and what it keeps; the privacy page says every account and the
-  security log but one line go at 04:00 while the instance keeps running, that the only copy is
-  the one taken by hand of the empty instance, and that the Fediverse registration is kept; the
-  landing page no longer says the instance is off for a minute.
+  security log but one line go at 04:00 while the instance keeps running, that a failed night is
+  made up at the next one that succeeds, that the only copy is the one taken by hand of the empty
+  instance, and that the Fediverse registration is kept; the landing page no longer says the
+  instance is off for a minute. Both reviews' B1 (a backup retaken during the day would hold the
+  day's visitors) led to the "empty first" rule.
 
 ### Review nits taken (dm1r)
 
