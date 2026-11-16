@@ -45,7 +45,7 @@ let private passkeyCard (ctx: HttpContext) (t: Texts.Texts) (passkey: Passkeys.P
     article(class' = "um-card space-y-2").data("passkey", passkey.Id) {
         h2(class' = "text-headline-md text-on-surface") { passkey.Nickname }
 
-        p(class' = "text-label-md text-on-surface-variant") { $"{t.OperatorPasskeyAddedOn(date passkey.CreatedUtc)} · {used}" }
+        p(class' = "text-label-md font-normal text-on-surface-variant") { $"{t.OperatorPasskeyAddedOn(date passkey.CreatedUtc)} · {used}" }
 
         (form(method = "post", action = $"/account/passkeys/{Uri.EscapeDataString passkey.Id}/remove") {
             ctx.GetAntiforgeryInput()

@@ -295,7 +295,7 @@ let private linksList (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlElem
                         .data ("user-link", link.Fingerprint) {
                         span(class' = "text-on-surface") { link.Label }
 
-                        span() { t.UserLinkDates (day link.LinkedUtc) (day link.LastUsedUtc) }
+                        span(class' = "text-label-md font-normal") { t.UserLinkDates (day link.LinkedUtc) (day link.LastUsedUtc) }
 
                         if data.ConfirmLink = Some link.Fingerprint then
                             linkConfirm ctx t data link
@@ -339,7 +339,7 @@ let private passkeysList (ctx: HttpContext) (t: Texts.Texts) (data: Row) : HtmlE
                         // rows: "Added <date> · Last used <date>" or "· Never used"
                         // (design review, nit 2). The words are the Credential
                         // screen's own.
-                        span() {
+                        span(class' = "text-label-md font-normal") {
                             let used =
                                 match pk.LastUsedUtc with
                                 | Some d -> t.OperatorPasskeyLastUsedOn(day d)
