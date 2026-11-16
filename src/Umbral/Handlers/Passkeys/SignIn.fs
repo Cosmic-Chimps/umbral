@@ -75,7 +75,7 @@ let private card (ctx: HttpContext) (t: Texts.Texts) (enrolment: PasskeyEnrolmen
 
             button(type' = "button", class' = Components.btn Components.Primary + " w-full justify-center")
                 .data("passkey-signin", "") {
-                Components.icon Theme.Link
+                Components.icon Theme.Key
                 t.PasskeyContinue
             }
 

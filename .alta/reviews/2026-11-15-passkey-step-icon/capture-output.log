@@ -1,0 +1,5 @@
+passkey connector saved: http://localhost:18094/admin/connectors/passkey?msg=passkey-connector-saved
+passkey-step-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280); button="Continue with your passkey" icon path starts "M223.5-423.5Q200-447 200-480t23.5-56.5Q2"
+passkey-step-360-dark: overflow=false (scrollWidth 360, innerWidth 360); button="Continue with your passkey" icon path starts "M223.5-423.5Q200-447 200-480t23.5-56.5Q2"
+passkey-step-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280); button="Continue with your passkey" icon path starts "M223.5-423.5Q200-447 200-480t23.5-56.5Q2"
+passkey-step-360-light: overflow=false (scrollWidth 360, innerWidth 360); button="Continue with your passkey" icon path starts "M223.5-423.5Q200-447 200-480t23.5-56.5Q2"

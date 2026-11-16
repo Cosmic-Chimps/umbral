@@ -155,6 +155,12 @@ let ``signing in with a passkey yields tokens without an email, and again the sa
         let! returnUrl, page, token = startPasskeySignIn browser clientId "openid profile email"
         Assert.Contains("data-screen=\"passkey-signin\"", page)
         Assert.Contains("data-passkey-signin", page)
+        // The step's button wears the same Key icon as the picker's passkey button (task k3yi).
+        let continueButton =
+            Regex.Match(page, "<button [^>]*data-passkey-signin.*?</button>", RegexOptions.Singleline).Value
+            |> WebUtility.HtmlDecode
+        Assert.Contains(Umbral.Views.Theme.Key.Path, continueButton)
+        Assert.DoesNotContain(Umbral.Views.Theme.Link.Path, continueButton)
         Assert.Contains("data-invitations-only", page)
         Assert.DoesNotContain("data-passkey-signup", page)
         Assert.Contains("<noscript data-javascript-required", page)
