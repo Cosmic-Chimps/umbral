@@ -81,3 +81,22 @@ version, when it ships. Ask the `caravana` session which it will be.
    snapshot, not with this command. Write "to reset a public instance every night" or similar, so
    nobody reads it as the demo's own method. Or name the trade-off in one line: clearing keeps the
    newest setup; restoring also undoes setup changes made since the snapshot.
+
+## Re-check at e2512cd (2026-11-16)
+
+**Clear to merge.** Both blocking items and the three nits are fixed (`cb8e1e6..e2512cd`: docs
+e2512cd; code comment, notes and exit code b11cac4).
+
+- **B1**: the maintainer decided on 2026-11-16 that `removed_links` is deleted. The page keeps it
+  under what goes and now says what that reopens: an account whose provider still marks an
+  unconfirmed address as verified can be joined by email to the person who signs in again. It
+  advises setting such connectors to **Not trusted** first, with a link to "Changing the email
+  setting later" (oidc.md:501). The reason is recorded in `ClearUsers.fs` and in this folder's
+  notes. Right.
+- **B2**: "On a Caravana host, run it from the host with `docker exec`, as above." True today. Right.
+- **N1**: the app gets `error=login_required`, with a link to "When a person is disabled or deleted"
+  (integrate.md:132). **N2**: with invitations only, people wait for a new invitation. **N3**: "to
+  empty a public test instance every night". Right.
+- **Exit codes** (from the code review's N1): 2 without `--yes` (`Program.fs:952`), 1 when a
+  clearing fails (`:968`), 0 on success. The page says 2 and 1 and why they differ. Right.
+- `check-links.py`: 474 links resolve.
