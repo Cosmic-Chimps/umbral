@@ -10,9 +10,9 @@ using Microsoft.Extensions.Configuration;
 
 // The public names. Each is a Caravana domain with a certificate of its own and needs a DNS A
 // record of its own, DNS only (not proxied). Change them here and nowhere else, then deploy.
-const string SiteDomain = "umbral-demo.lacalabaza.xyz";         // the landing and privacy pages
-const string UmbralDomain = "auth.umbral-demo.lacalabaza.xyz";  // Umbral
-const string SampleDomain = "app.umbral-demo.lacalabaza.xyz";   // the sample app
+const string SiteDomain = "umbral-demo.lacalabaza.xyz"; // the landing and privacy pages
+const string UmbralDomain = "auth-umbral-demo.lacalabaza.xyz"; // Umbral
+const string SampleDomain = "app-umbral-demo.lacalabaza.xyz"; // the sample app
 
 // Caravana's Traefik reaches a service from this address on a host its installer set up. It is
 // the only sender whose X-Forwarded-* headers Umbral believes.
@@ -34,26 +34,30 @@ IResourceBuilder<CaravanaResource>? caravana = null;
 
 if (publishing)
 {
-    var caravanaUrl = builder.AddParameter("caravana-url");                   // https://caravana.example.com
+    var caravanaUrl = builder.AddParameter("caravana-url"); // https://caravana.example.com
     var caravanaToken = builder.AddParameter("caravana-token", secret: true); // a deploy token for umbral-demo
-    var registryEndpoint = builder.AddParameter("registry-endpoint");         // ghcr.io
-    var registryRepository = builder.AddParameter("registry-repository");     // cosmic-chimps/umbral-demo
+    var registryEndpoint = builder.AddParameter("registry-endpoint"); // ghcr.io
+    var registryRepository = builder.AddParameter("registry-repository"); // cosmic-chimps/umbral-demo
     builder.AddContainerRegistry("registry", registryEndpoint, registryRepository);
 
-    caravana = builder.PublishToCaravana("caravana", s =>
-    {
-        s.Url = caravanaUrl.AsCaravanaValue();
-        s.Token = caravanaToken.AsCaravanaValue();
-        s.AppName = "umbral-demo";
-        s.DisplayName = "Umbral demo";
-    });
+    caravana = builder.PublishToCaravana(
+        "caravana",
+        s =>
+        {
+            s.Url = caravanaUrl.AsCaravanaValue();
+            s.Token = caravanaToken.AsCaravanaValue();
+            s.AppName = "umbral-demo";
+            s.DisplayName = "Umbral demo";
+        }
+    );
 }
 
 // Umbral: the last released image, its data in a volume of its own, and
 // the passkey connector declared with sign-up open to anyone. The other connectors (GitHub,
 // Google, Discord, Fediverse) are set up once in the admin area and live in that volume, with
 // their secrets; the golden snapshot the nightly reset restores holds them.
-var umbral = builder.AddUmbral("umbral", port: umbralPort)
+var umbral = builder
+    .AddUmbral("umbral", port: umbralPort)
     .WithDataVolume("umbral-demo-data")
     .WithPasskeys(PasskeySignUp.Open);
 
@@ -68,11 +72,11 @@ if (!publishing && builder.Configuration["Umbral:ImageTag"] is { Length: > 0 } i
 // `umbral-demo-client-secret`, generated the first time and kept in this project's user secrets
 // on a laptop; a deploy from CI reads it from Bella Baxter (see the README). The sample
 // receives it with UMBRAL_ISSUER and UMBRAL_CLIENT_ID.
-var demoApp = umbral.AddApp("demo")
-    .WithDisplayName("Umbral demo");
+var demoApp = umbral.AddApp("demo").WithDisplayName("Umbral demo");
 
 // The ASP.NET Core sample of this repository, under the demo's own title.
-var sample = builder.AddProject<Projects.Umbral_Sample_AspNetCore>("app")
+var sample = builder
+    .AddProject<Projects.Umbral_Sample_AspNetCore>("app")
     // The sample reads PORT and listens there; the redirect URIs of the laptop run follow it.
     .WithHttpEndpoint(port: samplePort, env: "PORT")
     .WithEnvironment("SAMPLE_TITLE", "Umbral demo")
@@ -81,7 +85,8 @@ var sample = builder.AddProject<Projects.Umbral_Sample_AspNetCore>("app")
 
 // The landing and privacy pages: static files behind a small web server (site/Dockerfile),
 // built and pushed by `aspire deploy` like the sample. They load nothing from another host.
-var site = builder.AddDockerfile("site", "../site")
+var site = builder
+    .AddDockerfile("site", "../site")
     .WithHttpEndpoint(port: sitePort, targetPort: 8080);
 
 if (publishing)
@@ -100,7 +105,12 @@ if (publishing)
         // weekly copy of the blank instance only after a restore that succeeded (reset/). `keep`
         // is high so the golden snapshot stays in retention until this Caravana can pin it
         // (README, "The golden snapshot").
-        .WithCaravanaBackup(caravana!, CaravanaBackupEngine.Volume, schedule: "0 4 31 2 *", keep: 100);
+        .WithCaravanaBackup(
+            caravana!,
+            CaravanaBackupEngine.Volume,
+            schedule: "0 4 31 2 *",
+            keep: 100
+        );
 
     // A browser follows these, so they are the public address, never the service's.
     demoApp
@@ -114,8 +124,7 @@ if (publishing)
         .WithCaravanaHealthCheck(caravana!, "/public")
         .WithCaravanaMemory(caravana!, 128, 256);
 
-    site
-        .WithCaravanaDomain(caravana!, SiteDomain)
+    site.WithCaravanaDomain(caravana!, SiteDomain)
         .WithCaravanaHealthCheck(caravana!, "/health")
         .WithCaravanaMemory(caravana!, 16, 64);
 }

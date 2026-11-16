@@ -1,8 +1,8 @@
 # Umbral demo
 
 The public demo of Umbral, a self-hosted OpenID Connect provider that signs people in without passwords: a throwaway instance at
-`https://auth.umbral-demo.lacalabaza.xyz` with every connector, the ASP.NET Core sample at
-`https://app.umbral-demo.lacalabaza.xyz` showing the claims it receives, and a landing page at
+`https://auth-umbral-demo.lacalabaza.xyz` with every connector, the ASP.NET Core sample at
+`https://app-umbral-demo.lacalabaza.xyz` showing the claims it receives, and a landing page at
 `https://umbral-demo.lacalabaza.xyz`. Every night the instance goes back to a golden
 snapshot: connectors and the app stay, users go.
 
@@ -22,8 +22,8 @@ written out.
 
 | Service | What | Domain | Port | Health |
 | --- | --- | --- | --- | --- |
-| `umbral` | `ghcr.io/cosmic-chimps/umbral` at the last release (the first `## X.Y.Z` of [`CHANGELOG.md`](../CHANGELOG.md)) | `auth.umbral-demo.lacalabaza.xyz` | 8080 | `/healthz` |
-| `app` | [`samples/aspnetcore`](../samples/aspnetcore/), titled "Umbral demo" (`SAMPLE_TITLE`), built by `aspire deploy` | `app.umbral-demo.lacalabaza.xyz` | 5000 on a laptop | `/public` |
+| `umbral` | `ghcr.io/cosmic-chimps/umbral` at the last release (the first `## X.Y.Z` of [`CHANGELOG.md`](../CHANGELOG.md)) | `auth-umbral-demo.lacalabaza.xyz` | 8080 | `/healthz` |
+| `app` | [`samples/aspnetcore`](../samples/aspnetcore/), titled "Umbral demo" (`SAMPLE_TITLE`), built by `aspire deploy` | `app-umbral-demo.lacalabaza.xyz` | 5000 on a laptop | `/public` |
 | `site` | [`site/`](site/), the landing and privacy pages, static, behind static-web-server | `umbral-demo.lacalabaza.xyz` | 5100 on a laptop | `/health` |
 
 All of it is in [`apphost/AppHost.cs`](apphost/AppHost.cs). The three domains are constants
@@ -96,8 +96,8 @@ At the DNS provider of `lacalabaza.xyz`, three A records to the Caravana host's 
 | Name | For |
 | --- | --- |
 | `umbral-demo` | the landing page |
-| `auth.umbral-demo` | Umbral |
-| `app.umbral-demo` | the sample |
+| `auth-umbral-demo` | Umbral |
+| `app-umbral-demo` | the sample |
 
 **DNS only, not proxied**: Caravana's Traefik gets each host its Let's Encrypt certificate
 with an HTTP challenge, which must reach Traefik itself. Other names are fine: change the
@@ -176,14 +176,14 @@ dotnet aspire deploy
 
 It builds and pushes the two images, sends the app to Caravana and waits until the three
 services are healthy. Then `https://umbral-demo.lacalabaza.xyz` shows the landing page,
-`https://auth.umbral-demo.lacalabaza.xyz/healthz` answers, and
-`https://app.umbral-demo.lacalabaza.xyz/private` sends you to Umbral's sign-in page, which
+`https://auth-umbral-demo.lacalabaza.xyz/healthz` answers, and
+`https://app-umbral-demo.lacalabaza.xyz/private` sends you to Umbral's sign-in page, which
 offers **Passkey** only until step 6.
 
 **Claim it now, before you do anything else.** Umbral applied the declaration (passkey
 sign-up open) before anyone claimed it, which is what the demo wants, but the admin area is
 unclaimed until you take it. The setup token is in the `umbral` service's log in Caravana
-(the app's Logs tab, the first lines). Open `https://auth.umbral-demo.lacalabaza.xyz/admin/setup`,
+(the app's Logs tab, the first lines). Open `https://auth-umbral-demo.lacalabaza.xyz/admin/setup`,
 paste it, and choose a long operator password from a password manager.
 
 ### 5. The operator side: a passkey, and passwords off
