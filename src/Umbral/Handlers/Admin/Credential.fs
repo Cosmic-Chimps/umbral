@@ -135,7 +135,7 @@ let private passkeyRow (ctx: HttpContext) (t: Texts.Texts) (key: OperatorPasskey
     div(class' = "flex items-center justify-between gap-3 py-2").data ("passkey-row", key.Id) {
         div(class' = "min-w-0") {
             p(class' = "text-body-md font-medium text-on-surface") { key.Name }
-            p(class' = "text-label-md text-on-surface-variant") { $"{t.OperatorPasskeyAddedOn(day key.CreatedUtc)} · {used}" }
+            p(class' = "text-label-md font-normal text-on-surface-variant") { $"{t.OperatorPasskeyAddedOn(day key.CreatedUtc)} · {used}" }
         }
 
         form(method = "post", action = $"/admin/credential/passkeys/{key.Id}/remove") {

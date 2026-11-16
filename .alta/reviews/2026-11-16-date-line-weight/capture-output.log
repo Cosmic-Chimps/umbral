@@ -1,0 +1,11 @@
+operator passkey added: http://localhost:18097/admin/credential?msg=operator-passkey-added
+passkey connector saved: http://localhost:18097/admin/connectors/passkey?msg=passkey-connector-saved
+person signed in with the passkey: http://localhost:18097/account/passkeys
+credential-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+  "Added 2026-11-16 · Never used" class="text-label-md font-normal text-on-surface-variant" weight=400 size=13px
+your-passkeys-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+  "Added 2026-11-16 · Never used" class="text-label-md font-normal text-on-surface-variant" weight=400 size=13px
+  "Added 2026-11-16 · Last used 2026-11-16" class="text-label-md font-normal text-on-surface-variant" weight=400 size=13px
+users-card-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
+  "Linked 2026-06-02 · Last used 2026-11-13" class="text-label-md font-normal" weight=400 size=13px
+  "Added 2026-07-15 · Last used 2026-11-12" class="text-label-md font-normal" weight=400 size=13px

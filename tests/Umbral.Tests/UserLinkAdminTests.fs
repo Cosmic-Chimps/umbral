@@ -140,6 +140,9 @@ let ``the list is drawn with both labels and dates, and the passkey list has its
         let github = rowOf html (fp "github" "g-1")
         Assert.Contains("GitHub", github)
         Assert.Contains("Linked 2026-01-01", github)
+        // The date lines read like the Credential and Your passkeys screens'.
+        Assert.Contains("<span class=\"text-label-md font-normal\">Linked 2026-01-01", github)
+        Assert.Contains("<span class=\"text-label-md font-normal\">Added ", html)
         Assert.Contains("Last used 2026-01-02", github)
         Assert.Contains("data-user-link-remove", github)
         Assert.Contains("Remove link", github)

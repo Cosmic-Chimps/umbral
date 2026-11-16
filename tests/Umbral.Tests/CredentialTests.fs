@@ -290,6 +290,8 @@ let ``passkeys are listed by name with their dates and never by credential id`` 
         // The separator between the two is encoded by the view engine, so the
         // parts are checked on their own.
         Assert.Contains($"Added {today}", html)
+        // The date line is information, at normal weight, as on the other two screens.
+        Assert.Contains($"<p class=\"text-label-md font-normal text-on-surface-variant\">Added {today}", html)
         Assert.Contains("Never used", html)
         Assert.Contains($"Last used {today}", html)
         Assert.Contains($"data-passkey-row=\"{first.Id}\"", html)

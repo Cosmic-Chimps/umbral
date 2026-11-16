@@ -584,8 +584,8 @@ let ``adding passkeys lists them, signs in with the same sub and removing one re
         let! phoneId = samsPasskey "Phone"
         let laptopRow = rowOf usedHtml laptopId
         let phoneRow = rowOf usedHtml phoneId
-        Assert.Contains($"<p class=\"text-label-md text-on-surface-variant\">Added {today} · Last used {today}</p>", laptopRow)
-        Assert.Contains($"<p class=\"text-label-md text-on-surface-variant\">Added {today} · Never used</p>", phoneRow)
+        Assert.Contains($"<p class=\"text-label-md font-normal text-on-surface-variant\">Added {today} · Last used {today}</p>", laptopRow)
+        Assert.Contains($"<p class=\"text-label-md font-normal text-on-surface-variant\">Added {today} · Never used</p>", phoneRow)
 
         for row in [ laptopRow; phoneRow ] do
             let remove = Regex.Match(row, "<button[^>]*>\\s*Remove\\s*</button>").Value
