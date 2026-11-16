@@ -3,14 +3,14 @@ signed up, now at http://localhost:18094/account/passkeys
 added: http://localhost:18094/account/passkeys?msg=passkey-added
 signed in with the passkey, now at http://localhost:18094/account/passkeys
 your-passkeys-1280-dark: overflow=false (scrollWidth 1280, innerWidth 1280)
-  "Added 2026-11-16 · Never used" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm text-error hover:text-error" confirm=true
-  "Added 2026-11-16 · Last used 2026-11-16" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm text-error hover:text-error" confirm=true
+  "Added 2026-11-16 · Never used" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm -ml-3.5 text-error hover:text-error" confirm=true
+  "Added 2026-11-16 · Last used 2026-11-16" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm -ml-3.5 text-error hover:text-error" confirm=true
 your-passkeys-360-dark: overflow=false (scrollWidth 360, innerWidth 360)
-  "Added 2026-11-16 · Never used" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm text-error hover:text-error" confirm=true
-  "Added 2026-11-16 · Last used 2026-11-16" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm text-error hover:text-error" confirm=true
+  "Added 2026-11-16 · Never used" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm -ml-3.5 text-error hover:text-error" confirm=true
+  "Added 2026-11-16 · Last used 2026-11-16" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm -ml-3.5 text-error hover:text-error" confirm=true
 your-passkeys-1280-light: overflow=false (scrollWidth 1280, innerWidth 1280)
-  "Added 2026-11-16 · Never used" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm text-error hover:text-error" confirm=true
-  "Added 2026-11-16 · Last used 2026-11-16" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm text-error hover:text-error" confirm=true
+  "Added 2026-11-16 · Never used" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm -ml-3.5 text-error hover:text-error" confirm=true
+  "Added 2026-11-16 · Last used 2026-11-16" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm -ml-3.5 text-error hover:text-error" confirm=true
 your-passkeys-360-light: overflow=false (scrollWidth 360, innerWidth 360)
-  "Added 2026-11-16 · Never used" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm text-error hover:text-error" confirm=true
-  "Added 2026-11-16 · Last used 2026-11-16" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm text-error hover:text-error" confirm=true
+  "Added 2026-11-16 · Never used" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm -ml-3.5 text-error hover:text-error" confirm=true
+  "Added 2026-11-16 · Last used 2026-11-16" class="text-label-md text-on-surface-variant" remove="um-btn um-btn-ghost um-btn-sm -ml-3.5 text-error hover:text-error" confirm=true

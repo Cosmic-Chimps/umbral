@@ -50,7 +50,8 @@ let private passkeyCard (ctx: HttpContext) (t: Texts.Texts) (passkey: Passkeys.P
         (form(method = "post", action = $"/account/passkeys/{Uri.EscapeDataString passkey.Id}/remove") {
             ctx.GetAntiforgeryInput()
 
-            button(type' = "submit", class' = Components.btnSm Components.Ghost + " text-error hover:text-error") {
+            // Pulled back by its own padding so the word starts on the card's text column.
+            button(type' = "submit", class' = Components.btnSm Components.Ghost + " -ml-3.5 text-error hover:text-error") {
                 t.PasskeyRemoveButton
             }
         })

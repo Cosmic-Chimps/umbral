@@ -37,8 +37,17 @@ Pixel 9: one key never used, one used. Four shots, `your-passkeys-<width>-<theme
 dark and light, full page. **None overflows.**
 
 For the designer: on Credential the Remove ghost sits at the right of the row; here it stays under
-the dates, as the card's Remove did, so its ghost padding sets the word in a little from the text
-column. Moving it is not part of this task.
+the dates, as the card's Remove did.
+
+## After the design review
+
+- Nit 2, taken: Remove is pulled back by its padding (`-ml-3.5`) so "Remove" starts on the card's
+  text column; `umbral.css` rebuilt with `build-css.sh` (`--check` clean). The test now asserts the
+  ghost and error classes separately. All four captures and the docs image retaken.
+- Nit 1, not taken here: `font-normal` on this date line alone would make it differ from the same
+  line on Credential and the Users card, which this task matches. If the line should be lighter, it
+  is one class on all three (`Account.fs`, `Credential.fs` `passkeyRow`, `Users.fs`), for the
+  maintainer to decide.
 
 ## Docs image
 

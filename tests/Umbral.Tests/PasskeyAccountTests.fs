@@ -589,7 +589,8 @@ let ``adding passkeys lists them, signs in with the same sub and removing one re
 
         for row in [ laptopRow; phoneRow ] do
             let remove = Regex.Match(row, "<button[^>]*>\\s*Remove\\s*</button>").Value
-            Assert.Contains(Umbral.Views.Components.btnSm Umbral.Views.Components.Ghost + " text-error hover:text-error", remove)
+            Assert.Contains(Umbral.Views.Components.btnSm Umbral.Views.Components.Ghost, remove)
+            Assert.Contains(" text-error hover:text-error", remove)
             Assert.Contains("data-confirm=", row)
 
         // Remove it.
