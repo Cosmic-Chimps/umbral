@@ -55,7 +55,7 @@ if (publishing)
 // Umbral: the last released image, its data in a volume of its own, and
 // the passkey connector declared with sign-up open to anyone. The other connectors (GitHub,
 // Google, Discord, Fediverse) are set up once in the admin area and live in that volume, with
-// their secrets; the golden snapshot the nightly reset restores holds them.
+// their secrets; the nightly clearing of the users leaves them alone (README, step 8).
 var umbral = builder
     .AddUmbral("umbral", port: umbralPort)
     .WithDataVolume("umbral-demo-data")
@@ -99,17 +99,18 @@ if (publishing)
         .WithCaravanaDomain(caravana!, UmbralDomain)
         .WithCaravanaHealthCheck(caravana!, "/healthz")
         .WithCaravanaMemory(caravana!, 256, 512)
-        // The backup policy, so that "Back up now" and a restore exist for the service. Its
-        // schedule is a cron line that never matches (the 31st of February): Caravana accepts it
-        // and finds no slot, so no copy is ever taken on its own. The reset script takes the
-        // weekly copy of the blank instance only after a restore that succeeded (reset/). `keep`
-        // is high so the golden snapshot stays in retention until this Caravana can pin it
-        // (README, "The golden snapshot").
+        // The backup policy, with no automatic backup (`never`, Caravana 0.21.0): "Back up now"
+        // exists for the service, and the operator takes one by hand once the demo is set up and
+        // holds no visitor, as a way back if the volume is lost (README, step 9). The nightly
+        // reset is not a restore: a Caravana schedule runs `/app/Umbral clear-users` in the
+        // running copy at 04:00 UTC. It is set once in the Caravana console (README, step 8):
+        // a schedule is not part of a deploy, so a deploy leaves it alone, and the hosting
+        // package (13.6.5) has no call to declare one.
         .WithCaravanaBackup(
             caravana!,
             CaravanaBackupEngine.Volume,
-            schedule: "0 4 31 2 *",
-            keep: 100
+            schedule: "never",
+            keep: 3
         );
 
     // A browser follows these, so they are the public address, never the service's.

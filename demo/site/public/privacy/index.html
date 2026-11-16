@@ -50,19 +50,19 @@
 
     <h2>For how long</h2>
     <p>
-      <strong>Every night at 04:00 UTC the instance is reset to its empty state.</strong> Every
-      account, session and token goes with it, and Umbral's security log too, yours included.
+      <strong>Every night at 04:00 UTC every account is deleted</strong>, yours included, with
+      its sessions and tokens, and so is Umbral's security log, except one line saying that the
+      clearing happened. The instance keeps running while it does. If a night's clearing fails,
+      the people who run the demo are told, and it happens at the next one that succeeds.
     </p>
     <p>
-      Once a week, as soon as a reset that succeeded ends, a copy of the empty instance is taken
-      so it can be rebuilt. None is taken after a reset that failed, so a copy holds no account,
-      unless you signed in during the moments between that reset and the copy. The copies are
-      kept for up to about two years.
+      The only copy of the instance is a backup taken by hand while it was empty, so that it can
+      be rebuilt. No copy is taken on a schedule, so no copy holds an account.
     </p>
     <p>
       What Umbral and the sample write to their console while they run (start-up lines, warnings,
       request paths; no account data and no addresses) is kept by the host by size, about 100 MB
-      per service, not by time. A reset does not clear it.
+      per service, not by time. The nightly clearing does not touch it.
     </p>
 
     <h2>What your own server sees</h2>
@@ -71,8 +71,8 @@
       named <strong>Umbral</strong> on your server the first time anyone from that server signs in,
       asking for the <code>read:accounts</code> permission and giving this demo's address as its
       website. Your server lists it under the applications you have authorised, and you can revoke
-      it there at any time. After a reset, this instance has forgotten that registration, so the
-      next sign-in from your server registers it again, and your server may list it twice.
+      it there at any time. The nightly clearing keeps that registration, so it is made once per
+      server, not once per night.
     </p>
 
     <h2>What is not done</h2>

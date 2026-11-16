@@ -14,8 +14,8 @@
 #     come from main.
 # Either way the version is passed to the build as the MSBuild property Version, which the
 # hosting package takes as its image tag (a pushed tag's own commit has no section of its own
-# in CHANGELOG.md yet), and a version before 0.12.0 is refused: the AppHost's declaration
-# needs 0.12.0.
+# in CHANGELOG.md yet), and a version before 0.13.0 is refused: the nightly reset runs
+# `Umbral clear-users`, which 0.13.0 brought.
 #
 # No secret is stored in GitHub. The Caravana URL, a deploy token for the app umbral-demo and
 # the demo app's client secret are read from Bella Baxter with the job's OIDC token, as
@@ -156,8 +156,8 @@ jobs:
             echo "::error::No released Umbral version to deploy (got '$version')."
             exit 1
           fi
-          if [ "$(printf '%s\n%s\n' 0.12.0 "$version" | sort -V | head -n 1)" != 0.12.0 ]; then
-            echo "::error::Umbral $version is before 0.12.0, which the demo's declaration needs."
+          if [ "$(printf '%s\n%s\n' 0.13.0 "$version" | sort -V | head -n 1)" != 0.13.0 ]; then
+            echo "::error::Umbral $version is before 0.13.0, which the demo's nightly clear-users needs."
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"

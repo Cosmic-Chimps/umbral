@@ -3,8 +3,8 @@
 The public demo of Umbral, a self-hosted OpenID Connect provider that signs people in without passwords: a throwaway instance at
 `https://auth-umbral-demo.lacalabaza.xyz` with every connector, the ASP.NET Core sample at
 `https://app-umbral-demo.lacalabaza.xyz` showing the claims it receives, and a landing page at
-`https://umbral-demo.lacalabaza.xyz`. Every night the instance goes back to a golden
-snapshot: connectors and the app stay, users go.
+`https://umbral-demo.lacalabaza.xyz`. Every night at 04:00 UTC Umbral clears its users while it
+keeps running: connectors and the app stay, users go.
 
 It is one [.NET Aspire](https://aspire.dev) AppHost, deployed to
 [Caravana](https://github.com/Cosmic-Chimps/caravana) with
@@ -48,7 +48,8 @@ hand in the Caravana console is lost at the next deploy: keep them all in the Ap
 and the app `demo` (client ID `demo`, redirect URIs on the sample's domain). Umbral creates
 both when it starts and marks them **Declared** in the admin area; they change here, by a
 deploy, not there. GitHub, Google, Discord and Fediverse are set up once in the admin area
-(step 6) and survive every reset because the golden snapshot holds them.
+(step 6) and survive every reset: the nightly clearing deletes the users and what they hold,
+nothing else.
 
 ## Run it on a laptop
 
@@ -67,8 +68,8 @@ at the public addresses, not at the laptop. `Umbral:Port`, `Sample:Port` and `Si
 the AppHost's user secrets change the ports (on macOS, AirPlay Receiver listens on 5000);
 `Umbral:ImageTag` runs another image tag, on a laptop only.
 
-The declaration needs Umbral 0.12.0 or later. Until that release, the default image is 0.11.0,
-which ignores it, so the sample cannot sign in: build this repository's image as `dev`
+The declaration needs Umbral 0.12.0 or later, which the default image is since that release. To
+run an unreleased build, build this repository's image as `dev`
 (`docker build -t ghcr.io/cosmic-chimps/umbral:dev .` at its root) and set `Umbral:ImageTag`
 to `dev`.
 
@@ -79,13 +80,15 @@ workflow is [`demo.yml`](../.github/workflows/demo.yml).
 
 ### 0. Before
 
-- Umbral 0.12.0 or later is released, its image at that tag on GHCR. The demo runs the last
-  release: the first `## X.Y.Z` of `CHANGELOG.md`, which the hosting package takes as its
-  image tag, or the version of the release that started the workflow. The workflow refuses a
-  version before 0.12.0.
-- Caravana 0.20.0 or later on the host, with a **backup destination** set (Settings, Backup
-  destination): the golden snapshot is a Caravana volume backup, and Caravana refuses a
-  backup policy without a destination.
+- Umbral 0.13.0 or later is released, its image at that tag on GHCR: the nightly reset runs
+  `Umbral clear-users`, which 0.13.0 brought. The demo runs the last release: the first
+  `## X.Y.Z` of `CHANGELOG.md`, which the hosting package takes as its image tag, or the
+  version of the release that started the workflow. The workflow refuses a version before
+  0.13.0.
+- A Caravana whose schedules can run in the running copy (feature 040, API 0.43.0 or later;
+  not released as of 2026-11-16: name the version here when it ships) on the host, with a
+  **backup destination** set (Settings, Backup destination): the AppHost declares a backup
+  policy on `umbral` (step 9), and Caravana refuses one without a destination.
 - For a deploy from your machine: Docker, the .NET 10 SDK, `dotnet tool restore` in `demo/`,
   and `docker login ghcr.io` with a token that can write packages.
 
@@ -219,73 +222,38 @@ passkey on a phone, and check that each sign-in ends on the page listing `sub`, 
 `idp`, and `email` with `email_verified` where the provider shares an address. Cancel one at
 the provider: you land back on the sign-in page. Sign out: back to the sample's front page.
 
-Then **delete those users** on **Users**: the golden snapshot must hold no user. The
-Fediverse registrations are kept with the connector and do no harm.
+Then clean up: set the nightly schedule (step 8) and run it once with **Run now**. It deletes
+those users and empties the security log of your test sign-ins, with their addresses, in one
+step, and leaves exactly the state every night returns to. The Fediverse registrations are kept
+with the connector and do no harm.
 
-### 8. The golden snapshot
+### 8. The reset
 
-On the app's **Backups** tab in Caravana, service `umbral`, **Back up now**. It stops Umbral
-for a few seconds, archives `/data` and starts it again. Wait for the backup to say
-succeeded and note its **id** (on its row, or in `GET /v1/apps/umbral-demo/backups`). This is
-the state every reset returns to: claimed, operator passkey, password sign-in off, the five
-connectors, the declared app, no user.
+Caravana runs `/app/Umbral clear-users --yes --security-log` in Umbral's running copy every
+night at 04:00 UTC, as the landing page says, while Umbral keeps serving. A run that fails is on
+Caravana's needs-you list and in its notifications.
 
-Take a new one after any change you want to keep (another connector, a new logo) and point
-the reset at it. After an Umbral upgrade the old snapshot still works: Umbral migrates its
-database forward at each start.
+Set it once, in the Caravana console, **Schedules**, **New schedule**: app `umbral-demo`,
+service `umbral`, name `clear-users`, the command above, when `0 4 * * *`, **Run in: The
+running copy**, **Stop after: 1 min** (the clearing takes about a second). A schedule in the
+running copy always skips a slot while its last run is still going. The schedule is not part of the
+deploy: an `aspire deploy` leaves it alone, and the hosting package has no call to declare
+one, so the console is where it lives. [`notes.md`](notes.md) says what the clearing keeps and
+how to run it by hand.
 
-### 9. The reset
+### 9. Back up now
 
-A reset restores the golden snapshot: Caravana stops Umbral, puts the backup's files in its
-volume and starts it again. About a minute, at 04:00 UTC, as the landing page says. It
-drops every user, session and token, and also the Fediverse registrations made since the
-snapshot, so a server is registered again at its next sign-in.
+On the app's **Backups** tab in Caravana, service `umbral`, **Back up now**, right after the
+clearing of step 7, while the instance is empty. It stops Umbral for a few seconds, archives
+`/data` and starts it again. This backup is for disaster recovery only, the way back if the
+volume is lost: claimed, operator passkey, password sign-in off, the five connectors, the
+declared app, no user. The policy's schedule is `never`, so Caravana takes no copy on its own,
+and it keeps the last three taken by hand.
 
-The backup policy on the `umbral` service never fires on its own: its schedule is a cron line
-that never matches, and it exists so that the Backups tab, "Back up now" and the restore are
-there. The only copies Caravana holds are the golden snapshot and the weekly copies the reset
-takes right after a restore that succeeded (Sundays, `BACKUP_WEEKDAY` in `reset.env`): a
-reset that failed takes no copy, so no backup ever holds a user. That is what the privacy page
-promises; keep it true.
-
-**Caravana 0.21.0 or later, with a hosting package that declares it.** Pin the snapshot
-under the label `golden` (**Pin…** on its row, or
-`PUT /v1/apps/umbral-demo/backups/<id>/pin` with `{"label": "golden"}`): retention never
-deletes a pinned backup. Then declare the restore on the `umbral` service's backup policy
-(`restore: {schedule: "0 4 * * *", from: "golden"}`) through the Caravana hosting package's
-call for it, deploy, and lower `keep` in the AppHost to a few. Caravana runs the restore
-itself, with no token anywhere, and a failed one is on its needs-you list. That package call
-does not exist yet (13.6.4); until it does, the fallback below is the reset.
-
-**The fallback: a timer on the host.** The restore is the API call
-`POST /v1/apps/umbral-demo/backups/<id>/restore`, which needs a **full** API token (a deploy
-token is refused). A full token can do anything on the installation, so it is not a GitHub
-secret: the call runs from a systemd timer on the Caravana host, with the token in a file
-only a system user of its own can read. Everything is in [`reset/`](reset/):
-
-The installer runs from a checkout of this repository on the host, at `/opt/umbral`:
-
-```sh
-git clone https://github.com/Cosmic-Chimps/umbral /opt/umbral
-sudo sh /opt/umbral/demo/reset/install.sh
-sudo -e /etc/umbral-demo/reset.env                                      # CARAVANA_URL, GOLDEN_BACKUP_ID
-sudo sh -c 'umask 077; printf %s "cvat_..." > /etc/umbral-demo/caravana-token'
-sudo -e /etc/umbral-demo/notify.env                                     # a ntfy topic for failures, optional
-sudo systemctl start umbral-demo-reset.service
-journalctl -u umbral-demo-reset -n 20
-```
-
-The token: Settings, API tokens, or `sudo caravana admin create-token --name umbral-demo-reset`
-on the host. It is a file root alone can read; systemd hands it to the service as a credential,
-so it is in no process environment. The script refuses a Caravana address that is not https,
-checks that the golden backup is still there and succeeded, starts the restore, follows it
-until it ends, and on Sundays takes the weekly copy of the blank instance once the restore has
-succeeded. It exits non-zero with the reason when anything fails. A restore that started and
-failed is on Caravana's needs-you list; a reset that never got that far (an expired token, the
-snapshot gone) is not, so the unit's `OnFailure` runs a notifier that posts the journal's last
-lines to the ntfy topic in `notify.env`, or only logs when none is set. Until the snapshot can
-be pinned, it stays in retention with `keep: 100` and one copy a week: about two years.
-[`notes.md`](notes.md) says where each file lives and how to run a reset by hand.
+Retake it after a change worth keeping (another connector, a new logo), and only on an empty
+instance, so that no backup ever holds a visitor: **Run now** on `clear-users` first, then
+**Back up now**, in that order, every time, or take it just after 04:00 UTC. After an Umbral
+upgrade an old backup still works: Umbral migrates its database forward at each start.
 
 ### 10. The line in the README
 
@@ -314,20 +282,27 @@ Once the demo is live, and not before, two edits, in one pull request:
   and the sample are `main`'s; Umbral's image stays the last release.
   A deploy that changes only the sample or the site restarts only that service: Nomad replaces
   the task groups whose spec changed.
-- **A change to a connector** is made in the admin area, then a new golden snapshot (step 8)
-  and the reset pointed at it.
+- **A change to a connector** is made in the admin area; the nightly clearing keeps it. Take a
+  new backup when it is worth keeping, on an empty instance only (step 9).
+- **The schedule is not in the repository.** After the app is deleted and created again in
+  Caravana, or on any doubt, check that **Schedules** lists `clear-users` on `umbral-demo`
+  with Run in: the running copy (step 8); without it the privacy page is untrue and nothing
+  says so.
 - **A change to the app or the passkey connector** is made in `AppHost.cs` and deployed.
-- **`/admin` with a password** must stay refused: the switch is in the snapshot. A
-  `reset-credential` turns password sign-in back on; turn it off again and take a new
-  snapshot.
+- **`/admin` with a password** must stay refused: the clearing keeps the operator credential
+  and its switch as they are. A `reset-credential` turns password sign-in back on; turn it off
+  again.
 
 ## Acceptance
 
 - On the deployed demo, a visitor signs in through each of the five connectors and sees the
   claims; the passkey path works on a phone; a refused or cancelled sign-in lands back on the
   sign-in page.
-- After a reset, **Users** is empty, every connector and the app are still there, and a new
-  sign-in works.
+- Caravana's **Schedules** lists `clear-users` on `umbral-demo`, in the running copy of
+  `umbral`, at 04:00 UTC.
+- After the 04:00 run, **Users** is empty, every connector and the app are still there, the
+  security log holds one `users_cleared` row, Umbral never stopped, no backup was taken, and a
+  new sign-in works.
 - `/admin` cannot be reached with a password; no secret is in this repository or its logs.
 - The landing and privacy pages load nothing from another host (the site's
   Content-Security-Policy makes the browser refuse it).
@@ -339,8 +314,7 @@ Once the demo is live, and not before, two edits, in one pull request:
 | --- | --- |
 | `apphost/` | The AppHost: `aspire run` on a laptop, `aspire deploy` to Caravana. It references `../samples/aspnetcore` and `../src/CosmicChimps.Aspire.Hosting.Umbral`. |
 | `site/` | The landing and privacy pages, their style and fonts, the web server's config and Dockerfile. |
-| `reset/` | The nightly reset: the script, the systemd units, the installer. |
-| `notes.md` | Operations notes: what lives where on the host, how to run a reset by hand. |
+| `notes.md` | Operations notes: where the nightly reset is set, how to run it by hand, what it keeps. |
 | `.config/`, `aspire.config.json` | The pinned Aspire CLI, and the AppHost it runs. |
 | `../.github/workflows/demo.yml` | The deploy workflow. `../.github/dependabot.yml` bumps the site's base image. |
 
