@@ -495,6 +495,10 @@ let ``every event type in the data model is emitted by the real product`` () =
         let! exitCode = moveToLocal app store
         Assert.Equal(0, exitCode)
 
+        // -- The offline command that deletes every user (users_cleared). Last,
+        //    since it empties what the journey above made.
+        let! _ = ClearUsers.clear app.DbConfig app.Clock false
+
         let! rows = events app
         let seen = rows |> List.map (fun r -> r.EventType) |> Set.ofList
 

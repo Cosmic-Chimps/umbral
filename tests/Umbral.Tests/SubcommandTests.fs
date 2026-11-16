@@ -318,3 +318,77 @@ let ``move-secrets with an unknown store exits non-zero with the settings messag
             Assert.DoesNotContain("skipped", stdout)
             Assert.DoesNotContain("would move", stdout)
         })
+
+let private execute (dir: string) (statement: string) =
+    task {
+        use! connection = Database.openConnection (dbConfig dir)
+        use command = connection.CreateCommand()
+        command.CommandText <- statement
+        let! _ = command.ExecuteNonQueryAsync()
+        return ()
+    }
+
+/// A data directory with the schema in place, two users, one linked account and
+/// one earlier event. The schema comes from running the command once without
+/// `--yes`, which changes nothing; no server is started.
+let private seedUsers (dir: string) =
+    task {
+        let! code, _, _ = run dir (freePort ()) [ "clear-users" ]
+        Assert.Equal(1, code)
+
+        do!
+            execute
+                dir
+                "INSERT INTO users (id, display_name, first_seen_utc, last_seen_utc)
+                 VALUES ('u-1', 'Ana', '2026-11-16T00:00:00Z', '2026-11-16T00:00:00Z'),
+                        ('u-2', 'Bea', '2026-11-16T00:00:00Z', '2026-11-16T00:00:00Z');
+                 INSERT INTO linked_accounts (provider_kind, provider_subject, user_id, linked_utc, last_used_utc)
+                 VALUES ('github', 'gh-1', 'u-1', '2026-11-16T00:00:00Z', '2026-11-16T00:00:00Z');
+                 INSERT INTO security_events (occurred_utc, event_type, outcome, actor, user_id)
+                 VALUES ('2026-11-16T00:00:00Z', 'user_created', 'success', 'user', 'u-1')"
+    }
+
+[<Fact>]
+let ``clear-users without --yes says how many it would delete, exits non-zero and changes nothing`` () =
+    withDataDirectory (fun dir ->
+        task {
+            do! seedUsers dir
+
+            let! code, stdout, stderr = run dir (freePort ()) [ "clear-users" ]
+
+            Assert.True((code <> 0), $"exit {code}\n{stdout}\n{stderr}")
+            Assert.Contains("This would delete 2 users", stdout)
+            Assert.Contains("--yes", stdout)
+
+            let! users = scalarOf dir "SELECT COUNT(*) FROM users"
+            Assert.Equal("2", users)
+            let! links = scalarOf dir "SELECT COUNT(*) FROM linked_accounts"
+            Assert.Equal("1", links)
+            let! cleared = scalarOf dir "SELECT COUNT(*) FROM security_events WHERE event_type = 'users_cleared'"
+            Assert.Equal("0", cleared)
+        })
+
+[<Fact>]
+let ``clear-users --yes --security-log deletes the users, empties the log but for its own event, and prints no setup banner`` () =
+    withDataDirectory (fun dir ->
+        task {
+            do! seedUsers dir
+
+            let! code, stdout, stderr = run dir (freePort ()) [ "clear-users"; "--yes"; "--security-log" ]
+
+            Assert.True((code = 0), $"exit {code}\n{stdout}\n{stderr}")
+            Assert.Contains("Deleted 2 users, 1 linked account, 0 passkeys, 0 tokens.", stdout)
+            Assert.Contains("Security log cleared.", stdout)
+            Assert.DoesNotContain("not configured yet", stdout)
+            Assert.DoesNotContain("Token", stdout)
+            Assert.DoesNotContain("/admin/setup", stdout)
+
+            let! users = scalarOf dir "SELECT COUNT(*) FROM users"
+            Assert.Equal("0", users)
+            let! links = scalarOf dir "SELECT COUNT(*) FROM linked_accounts"
+            Assert.Equal("0", links)
+            let! events = scalarOf dir "SELECT COUNT(*) FROM security_events"
+            Assert.Equal("1", events)
+            let! details = eventDetails dir "users_cleared"
+            Assert.Equal("system:success:users=2;security_log=cleared", details)
+        })

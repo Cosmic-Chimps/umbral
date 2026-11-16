@@ -74,6 +74,7 @@
     <Compile Include="Infrastructure/SecretStores/Wiring.fs" />
     <Compile Include="Infrastructure/Database.fs" />
     <Compile Include="Infrastructure/SecurityEvents.fs" />
+    <Compile Include="Infrastructure/ClearUsers.fs" />
     <Compile Include="Infrastructure/LogRedaction.fs" />
     <Compile Include="Infrastructure/OAuthRoundTrip.fs" />
     <Compile Include="Infrastructure/ProviderAdapters.fs" />

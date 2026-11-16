@@ -912,6 +912,61 @@ let moveSecrets (app: WebApplication) (dryRun: bool) (write: string -> unit) =
                 write
     }
 
+/// Deletes every user and everything they hold, and keeps the setup (see
+/// `ClearUsers`). A command like `reset-credential`, run against the data
+/// directory of the live instance, for the nightly reset of a demo and for an
+/// operator starting over:
+///
+///     docker exec umbral /app/Umbral clear-users --yes
+///
+/// It runs in the running container and needs no restart: a session, a
+/// refresh token and an access token are each re-checked against the users
+/// table, so a cleared user is refused at once. SQLite's WAL and its
+/// `busy_timeout` let this process write beside the live one.
+///
+/// Without `--yes` it changes nothing: it says how many users it would delete
+/// and exits 1, so a script that forgot the flag fails instead of clearing, and
+/// a person typing it sees the count first. `--security-log` also empties the
+/// security log. Like `reset-credential`, it does not run `initialize` or
+/// OpenIddict's migrations; the schema is ensured so an instance that never
+/// started has the tables to count.
+let clearUsers (app: WebApplication) (confirmed: bool) (clearSecurityLog: bool) (write: string -> unit) =
+    task {
+        let dbConfig = app.Services.GetRequiredService<Database.DbConfig>()
+        let clock = app.Services.GetRequiredService<TimeProvider>()
+
+        let plural (n: int) (singular: string) =
+            if n = 1 then $"{n} {singular}" else $"{n} {singular}s"
+
+        do! ensureSchema app dbConfig
+
+        if not confirmed then
+            let! count = ClearUsers.count dbConfig
+            let users = plural count "user"
+
+            write (
+                $"This would delete {users} and everything they hold. Nothing was changed. Run it again with --yes to delete them (add --security-log to empty the security log too)."
+            )
+
+            return 1
+        else
+            try
+                let! cleared = ClearUsers.clear dbConfig clock clearSecurityLog
+                let users = plural cleared.Users "user"
+                let links = plural cleared.LinkedAccounts "linked account"
+                let passkeys = plural cleared.Passkeys "passkey"
+                let tokens = plural cleared.Tokens "token"
+                write $"Deleted {users}, {links}, {passkeys}, {tokens}."
+
+                if cleared.SecurityLogCleared then
+                    write "Security log cleared."
+
+                return 0
+            with ex ->
+                eprintfn $"The users could not be cleared, and nothing was changed: {ex.Message}"
+                return 1
+    }
+
 let healthcheck () =
     let port =
         match Environment.GetEnvironmentVariable "ASPNETCORE_HTTP_PORTS" with
@@ -941,6 +996,10 @@ let main args =
             (resetCredential app (args |> Array.contains "--forget-passkeys") Console.WriteLine).GetAwaiter().GetResult()
         elif args |> Array.contains "move-secrets" then
             (moveSecrets app (args |> Array.contains "--dry-run") Console.WriteLine).GetAwaiter().GetResult()
+        elif args |> Array.contains "clear-users" then
+            (clearUsers app (args |> Array.contains "--yes") (args |> Array.contains "--security-log") Console.WriteLine)
+                .GetAwaiter()
+                .GetResult()
         else
             (initialize app).GetAwaiter().GetResult()
             app.Run()

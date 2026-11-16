@@ -33,6 +33,8 @@ type EventType =
     | UserDeleted
     /// Specs/018: the operator removed one linked provider account from a user.
     | UserUnlinked
+    /// Every user was deleted by the `clear-users` command.
+    | UsersCleared
     // Operator
     | OperatorSignedIn
     | OperatorSignInFailed
@@ -81,6 +83,7 @@ type EventType =
         | UserDisabled -> "user_disabled"
         | UserDeleted -> "user_deleted"
         | UserUnlinked -> "user_unlinked"
+        | UsersCleared -> "users_cleared"
         | OperatorSignedIn -> "operator_signed_in"
         | OperatorSignInFailed -> "operator_sign_in_failed"
         | OperatorCredentialChanged -> "operator_credential_changed"
@@ -118,6 +121,7 @@ let allEventTypes =
       UserDisabled
       UserDeleted
       UserUnlinked
+      UsersCleared
       OperatorSignedIn
       OperatorSignInFailed
       OperatorCredentialChanged
