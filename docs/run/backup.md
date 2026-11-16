@@ -7,6 +7,10 @@
 > secret, so it cannot be recovered from anywhere.) Back it up, and test that you can restore
 > it.
 
+To start over without losing your setup, you do not need to restore anything:
+[clear every user](clear-users.md) deletes the people and keeps the connectors,
+apps and keys. Take a backup first: it cannot be undone.
+
 The same copy is how you move Umbral to another machine, or rebuild it after
 losing one. Start it on the copy with the same `UMBRAL__PUBLIC_ORIGIN`: the
 tokens and the redirect addresses you registered with each provider depend on

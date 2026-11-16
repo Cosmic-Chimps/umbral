@@ -74,6 +74,7 @@ reads the same here on GitHub.
   [Back up your data](https://cosmic-chimps.github.io/umbral/run/backup/) ·
   [Passkeys for the admin area](https://cosmic-chimps.github.io/umbral/run/operator-passkeys/) ·
   [Forgotten operator credential](https://cosmic-chimps.github.io/umbral/run/operator-credential/) ·
+  [Start over: clear every user](https://cosmic-chimps.github.io/umbral/run/clear-users/) ·
   [Secret stores](https://cosmic-chimps.github.io/umbral/run/secret-stores/) ·
   [AWS Secrets Manager](https://cosmic-chimps.github.io/umbral/secret-stores/aws/) ·
   [Google Cloud Secret Manager](https://cosmic-chimps.github.io/umbral/secret-stores/gcp/) ·
