@@ -12,6 +12,125 @@ Each section has the changes that matter to whoever runs Umbral, in this order a
 needed: Added, Changed, Fixed, Security, then Upgrade when an upgrade needs more than pulling the
 new image.
 
+## 0.12.0 - 2026-11-15
+
+### Added
+
+- An OpenID Connect provider now has a setting, **Verified email addresses from this provider**:
+  **Trusted** or **Not trusted**. With **Not trusted**, Umbral still stores the address and gives
+  it to your apps, but always as unverified, so it never links a person to an existing user with
+  the same address and never meets an allowed email domains rule. A new provider needs a choice,
+  with none preselected. Changing it applies from the next sign-in and unlinks nobody.
+- **Remove link** on the **Users** screen removes one provider account from a user, without
+  disabling or deleting anyone. The person who stays keeps their account, their `sub` and their
+  sessions. The removed account is signed out everywhere and becomes a separate user at its next
+  sign-in. A user with two or more ways to sign in lists them under **Linked accounts**, with the
+  date each was linked and last used. A user's last way to sign in can't be removed.
+- Declare your apps and the passkey connector when Umbral starts, so there is nothing to click in
+  the admin area. Set `UMBRAL__DECLARATION` (JSON) and one `UMBRAL__APP_SECRETS__<key>` per web app,
+  in a compose file or any container environment. Umbral creates what is declared and updates it to
+  match at every start. In the admin area a declared app and the passkey connector are marked
+  **Declared** and shown read-only, with where to change them; branding and passkey invitations stay
+  yours. An app you stop declaring is handed back to the admin area, never deleted. See
+  "Declared apps" in the Aspire guide and the settings reference.
+- The Aspire package declares for you: `WithPasskeys` declares the passkey connector, `AddApp`
+  declares an app with a generated secret, and `WithReference(app)` gives a project its issuer,
+  client ID and secret. With `WithPasskeys(PasskeySignUp.Open)`, `aspire run` then signs in with
+  a new passkey with no admin step; claim Umbral only to open the admin area.
+- A NuGet package, `CosmicChimps.Aspire.Hosting.Umbral`, that runs Umbral from a .NET Aspire
+  AppHost with `builder.AddUmbral("umbral")`. Its version is the image tag it runs, never `latest`.
+  It fixes the port (8080 unless given), sets the laptop settings for `aspire run`, and refuses to
+  publish without an `https://` address from `WithPublicOrigin`. See "Run Umbral from an Aspire
+  AppHost" in the documentation.
+- How to sign in with GitLab, Codeberg, Forgejo and Gitea through the OpenID Connect connector:
+  the issuer of each, where the OAuth application is registered and what to tick, and what their
+  `email_verified` means, in the OpenID Connect walkthrough and the README.
+- An Aspire sample, `samples/aspire/`: a .NET Aspire AppHost that starts Umbral from its published
+  image and the ASP.NET Core sample together with `aspire run`, on a laptop. The steps to claim
+  Umbral and register the sample are shown in the Aspire dashboard the first time; the client ID and secret go to user
+  secrets.
+
+### Changed
+
+- Removing a passkey, by its owner or on **Users**, now also signs out whatever was signed in
+  with it: the Umbral session and its refresh tokens are refused at their next use.
+- Userinfo now judges an access token as the token endpoint judges a refresh: one issued through
+  a sign-in method that was removed, or through a connector that was deleted, answers `401`
+  with `invalid_token`.
+- In the security log, a reason that comes from outside Umbral (a provider's answer, a network
+  error, a failed check when a connector is saved) can no longer look like extra fields of the
+  detail: its `;` is written as `,`, its `=` as `:`, line breaks as spaces, and it is cut at 300
+  characters.
+
+### Fixed
+
+- In an app's pane, the Client ID and the Issuer URL now sit one per row, so both show whole on
+  a laptop-width window. Side by side, the issuer URL was cut in any window narrower than about
+  1440 px.
+- On **Your passkeys**, "Your passkey is ready." (after adding a passkey or redeeming an
+  invitation) and "Passkey removed." are now shown as green success notices. Before, they were
+  drawn as red errors with the warning icon. A refusal that follows a rule (your only way to
+  sign in, the most passkeys an account can hold, a passkey already gone) is now a warning;
+  red is kept for a passkey that could not be saved.
+
+### Security
+
+- Some providers, such as Forgejo and Gitea, mark the address of every active account as
+  verified, even one nobody confirmed. Set to **Not trusted**, a provider like that is safe to
+  add whoever can register there. Turning trust off also makes unverified the stored addresses
+  that only this provider verified, so an account a stranger registered earlier no longer holds
+  someone else's address as verified. The page asks first and says how many.
+  It does not remove a link already made: see "Changing the email setting later" in the OpenID
+  Connect walkthrough for how to look for one.
+- A provider account joined to the wrong person (a provider that marks unchecked addresses as
+  verified, a reused company address, a shared inbox) can now be removed from that person alone.
+  Its sessions and refresh tokens are refused at their next use, and its access tokens at
+  userinfo. The passkeys added while signed
+  in through it go with it. Umbral never trusts that account's addresses again, so it can't be
+  joined to anyone by email. See "When a link is removed" in the integration guide.
+- The passkey pages (`/account/passkeys` and adding a passkey) now check the session as an app
+  sign-in does: a session whose sign-in method was removed, or whose connector was deleted or
+  replaced, is signed out there too.
+- A declared app's secret comes only from its own variable. Umbral stores a hash, never logs the
+  value, and replaces the stored secret when the variable changes. Every change a declaration makes
+  is a security event with the actor `system`, and none holds a secret or an address list.
+- A declaration that conflicts with something made in the admin area (an app with the same client
+  ID, a passkey connector set up with other settings) or is invalid is refused as a whole: Umbral
+  stops with each problem in its log, and nothing is written. A passkey connector set up by hand
+  with exactly the declared settings is adopted instead.
+- The secrets are ordinary environment variables, visible to `docker inspect` and written to a
+  compose publish's `.env` file. With open passkey sign-up, claim an instance before you make it
+  reachable: until then anyone who reaches it can sign up to the declared apps.
+- A person's session or refresh token is honoured only while the connector they signed in
+  through still exists and is of the same provider. Before, a refresh through a deleted
+  connector went on working with none of that connector's limits (its allowed email domains,
+  servers or Microsoft tenants), and a new connector given an old connector's name judged the
+  old sign-ins by its own rules. Now a session whose connector's name belongs to another
+  provider is signed out, and a refresh through a deleted connector, or one whose name now
+  belongs to a connector of another provider, answers `invalid_grant`; the person signs in
+  again. A connector re-created under the same name and provider is treated as the same
+  connector: sessions and refresh tokens from before go on, judged by its settings. Disabling a
+  connector changes nothing here: its tokens still refresh. The security log records
+  `connector_changed;reason=deleted`, `reason=other_kind`, or `reason=unrecorded` for a token
+  that names no connector (no released version issued one).
+
+### Upgrade
+
+- The database moves to schema version 14. An older image refuses it, so take the backup first,
+  as usual.
+- Every existing OpenID Connect provider is set to **Trusted**, so nobody's sign-in changes.
+  Review the setting on each one, under **Connectors**.
+- The database moves to schema version 15. An older image refuses it, so take the backup first,
+  as usual.
+- Sessions and refresh tokens from before the upgrade don't record which provider account or
+  passkey they were made with. Once you remove a link or a passkey from someone, that person's
+  Umbral sessions from before the upgrade, and the refresh tokens your apps hold for them from
+  before the upgrade, end at their next use, and they sign in again once.
+- The database moves to schema version 16. An older image refuses it, so take the backup first, as
+  usual.
+- Nothing changes unless `UMBRAL__DECLARATION` is set: with it unset, Umbral reads no declaration
+  and your apps and connectors stay as they are.
+
 ## 0.11.0 - 2026-11-13
 
 ### Added
