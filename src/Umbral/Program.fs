@@ -925,8 +925,9 @@ let moveSecrets (app: WebApplication) (dryRun: bool) (write: string -> unit) =
 /// `busy_timeout` let this process write beside the live one.
 ///
 /// Without `--yes` it changes nothing: it says how many users it would delete
-/// and exits 1, so a script that forgot the flag fails instead of clearing, and
-/// a person typing it sees the count first. `--security-log` also empties the
+/// and exits 2, so a script that forgot the flag fails instead of clearing (and
+/// can tell that from a failed clearing, which exits 1), and a person typing it
+/// sees the count first. `--security-log` also empties the
 /// security log. Like `reset-credential`, it does not run `initialize` or
 /// OpenIddict's migrations; the schema is ensured so an instance that never
 /// started has the tables to count.
@@ -948,7 +949,7 @@ let clearUsers (app: WebApplication) (confirmed: bool) (clearSecurityLog: bool) 
                 $"This would delete {users} and everything they hold. Nothing was changed. Run it again with --yes to delete them (add --security-log to empty the security log too)."
             )
 
-            return 1
+            return 2
         else
             try
                 let! cleared = ClearUsers.clear dbConfig clock clearSecurityLog

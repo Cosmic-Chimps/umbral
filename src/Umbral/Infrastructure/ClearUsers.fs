@@ -13,6 +13,15 @@
 /// session and refresh token stops working). The security log goes only when
 /// asked.
 ///
+/// `removed_links` goes on purpose, although spec 018 (decision 1) keeps it
+/// apart from any user and for good: the maintainer decided on 2026-11-16 that
+/// a clearing starts over from no people at all, and those records name
+/// people's provider accounts. What it reopens: a provider account removed as
+/// a stranger's is no longer known as one, so through a connector that still
+/// trusts its provider's verified addresses it can be joined, by email, to the
+/// person who signs in again with that address. The docs tell the operator to
+/// set such a connector to Not trusted before clearing.
+///
 /// Kept: the operator credential and operator passkeys, connectors,
 /// `fediverse_servers`, apps with their branding and connector choices,
 /// `declared_items`, settings and the signing, encryption and data-protection
@@ -63,7 +72,9 @@ let private CountTokens = "SELECT COUNT(*) FROM OpenIddictTokens"
 
 /// Every token and authorization: all of them belong to end users (the
 /// operator signs in with a cookie of its own, not through OpenIddict).
-/// Tokens first, since they point at their authorization.
+/// Tokens first, since they point at their authorization. A token entry still
+/// in OpenIddict's cache is refused anyway: redeeming it updates a row that is
+/// gone, and Token.fs and UserInfo.fs look the user up.
 [<Literal>]
 let private DeleteOpenIddict =
     "DELETE FROM OpenIddictTokens;

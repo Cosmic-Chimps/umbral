@@ -12,14 +12,21 @@ measurement it asked for.
 - **Order:** `OpenIddictTokens`, `OpenIddictAuthorizations`, `passkey_ceremonies`,
   `passkey_invitations`, `passkeys`, `linked_accounts`, `legacy_sessions_ended`, `removed_links`,
   `users`, then `security_events` with `--security-log`, then the event.
+- **`removed_links` is deleted, on purpose**, though spec 018 (decision 1) keeps it apart from
+  any user and for good. Docs review B1 (2026-11-16) pointed out what that reopens: a provider
+  account removed as a stranger's is no longer known as one, so through a connector that still
+  trusts its provider's verified addresses it can be joined, by email, to the real person when they
+  sign in again. The maintainer decided the same day to keep deleting it: a clearing starts over
+  from no people. The page tells the operator to set such a connector to Not trusted first, and the
+  module comment of `ClearUsers.fs` records the reason.
 - **Every passkey invitation goes**, including the unused ones for a new person (`user_id` NULL):
   each was made for a person, and its note usually names them. An operator who wants one again
   makes a new link.
 - **OpenIddict's tables may not exist yet.** The command runs beside the live instance and does not
   apply OpenIddict's migrations (the live process did, at its start). On a data directory that
   never started there is nothing in them to delete, so the store skips a table that isn't there.
-- **Exit codes:** 0 after a clearing, 1 without `--yes` (nothing changed), 1 on a failure (rolled
-  back).
+- **Exit codes:** 0 after a clearing, 2 without `--yes` (nothing changed), 1 on a failure (rolled
+  back). Exit 2 is code review nit N1: a scheduler can tell the forgotten flag from a failure.
 
 ## Measurement (10 000 users)
 

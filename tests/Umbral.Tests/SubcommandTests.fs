@@ -334,7 +334,7 @@ let private execute (dir: string) (statement: string) =
 let private seedUsers (dir: string) =
     task {
         let! code, _, _ = run dir (freePort ()) [ "clear-users" ]
-        Assert.Equal(1, code)
+        Assert.Equal(2, code)
 
         do!
             execute
@@ -349,14 +349,14 @@ let private seedUsers (dir: string) =
     }
 
 [<Fact>]
-let ``clear-users without --yes says how many it would delete, exits non-zero and changes nothing`` () =
+let ``clear-users without --yes says how many it would delete, exits 2 and changes nothing`` () =
     withDataDirectory (fun dir ->
         task {
             do! seedUsers dir
 
             let! code, stdout, stderr = run dir (freePort ()) [ "clear-users" ]
 
-            Assert.True((code <> 0), $"exit {code}\n{stdout}\n{stderr}")
+            Assert.True((code = 2), $"exit {code}\n{stdout}\n{stderr}")
             Assert.Contains("This would delete 2 users", stdout)
             Assert.Contains("--yes", stdout)
 
