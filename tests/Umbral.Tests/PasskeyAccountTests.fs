@@ -468,6 +468,11 @@ let private idOfPasskey (app: Fixtures.TestApp) (nickname: string) =
 
 let private rows (html: string) = Regex.Matches(html, "<article[^>]*data-passkey=").Count
 
+/// The `<article>` of one passkey on the page, decoded.
+let private rowOf (html: string) (id: string) =
+    let row = Regex.Match(html, $"<article[^>]*data-passkey=\"{Regex.Escape id}\".*?</article>", RegexOptions.Singleline)
+    WebUtility.HtmlDecode row.Value |> string
+
 let private waysIn (html: string) =
     Regex.Match(html, "<p[^>]*data-ways-in[^>]*>(.*?)</p>", RegexOptions.Singleline).Groups[1].Value
 
@@ -567,6 +572,25 @@ let ``adding passkeys lists them, signs in with the same sub and removing one re
         let! email = scalar app "SELECT email FROM users WHERE id = @u" [ "@u", w.SamId ]
         Assert.Equal(email, strOf idToken "email")
         Assert.True(idToken.GetProperty("email_verified").GetBoolean())
+
+        // Each row reads its dates on one line, as the Credential screen does,
+        // and Remove is a small red ghost behind its confirmation.
+        let! usedHtml = w.Sam.GetHtml "/account/passkeys"
+        let today = app.Clock.GetUtcNow().ToString("yyyy-MM-dd")
+        let samsPasskey nickname =
+            scalar app "SELECT id FROM passkeys WHERE user_id = @u AND nickname = @n" [ "@u", w.SamId; "@n", nickname ]
+
+        let! laptopId = samsPasskey "Laptop"
+        let! phoneId = samsPasskey "Phone"
+        let laptopRow = rowOf usedHtml laptopId
+        let phoneRow = rowOf usedHtml phoneId
+        Assert.Contains($"<p class=\"text-label-md text-on-surface-variant\">Added {today} · Last used {today}</p>", laptopRow)
+        Assert.Contains($"<p class=\"text-label-md text-on-surface-variant\">Added {today} · Never used</p>", phoneRow)
+
+        for row in [ laptopRow; phoneRow ] do
+            let remove = Regex.Match(row, "<button[^>]*>\\s*Remove\\s*</button>").Value
+            Assert.Contains(Umbral.Views.Components.btnSm Umbral.Views.Components.Ghost + " text-error hover:text-error", remove)
+            Assert.Contains("data-confirm=", row)
 
         // Remove it.
         let! id = idOfPasskey app "Laptop"

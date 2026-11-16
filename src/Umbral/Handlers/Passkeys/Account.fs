@@ -37,25 +37,22 @@ let private date (value: DateTimeOffset) =
     value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
 let private passkeyCard (ctx: HttpContext) (t: Texts.Texts) (passkey: Passkeys.Passkey) =
+    let used =
+        match passkey.LastUsedUtc with
+        | Some d -> t.OperatorPasskeyLastUsedOn(date d)
+        | None -> t.OperatorPasskeyNeverUsed
+
     article(class' = "um-card space-y-2").data("passkey", passkey.Id) {
         h2(class' = "text-headline-md text-on-surface") { passkey.Nickname }
 
-        p(class' = "text-body-md text-on-surface-variant") {
-            t.PasskeyAddedLabel + " " + date passkey.CreatedUtc
-        }
-
-        p(class' = "text-body-md text-on-surface-variant") {
-            t.PasskeyLastUsedLabel
-            + " "
-            + (match passkey.LastUsedUtc with
-               | Some used -> date used
-               | None -> t.PasskeyNeverUsed)
-        }
+        p(class' = "text-label-md text-on-surface-variant") { $"{t.OperatorPasskeyAddedOn(date passkey.CreatedUtc)} · {used}" }
 
         (form(method = "post", action = $"/account/passkeys/{Uri.EscapeDataString passkey.Id}/remove") {
             ctx.GetAntiforgeryInput()
 
-            button(type' = "submit", class' = Components.btnSm Components.Secondary) { t.PasskeyRemoveButton }
+            button(type' = "submit", class' = Components.btnSm Components.Ghost + " text-error hover:text-error") {
+                t.PasskeyRemoveButton
+            }
         })
         |> Components.confirmSubmit t.PasskeyRemoveConfirm
     }

@@ -597,9 +597,6 @@ type Texts =
       PasskeysLead: string
       /// The ways this account signs in, joined as the page lists them.
       PasskeysWaysIn: string -> string
-      PasskeyAddedLabel: string
-      PasskeyLastUsedLabel: string
-      PasskeyNeverUsed: string
       PasskeyRemoveButton: string
       PasskeyRemoveConfirm: string
       PasskeyAddButton: string
@@ -1665,9 +1662,6 @@ let en: Texts =
       PasskeysTitle = "Your passkeys"
       PasskeysLead = "A passkey signs you in with your fingerprint, face or PIN, on the device that holds it."
       PasskeysWaysIn = fun ways -> $"You can sign in with: {ways}."
-      PasskeyAddedLabel = "Added"
-      PasskeyLastUsedLabel = "Last used"
-      PasskeyNeverUsed = "Never"
       PasskeyRemoveButton = "Remove"
       PasskeyRemoveConfirm = "Remove this passkey? You will not be able to sign in with it any more."
       PasskeyAddButton = "Add a passkey"
