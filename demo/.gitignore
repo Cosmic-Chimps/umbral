@@ -1,3 +1,2 @@
-# The reset's settings on the host (reset.env, notify.env) are never committed;
-# the *.env.example files are.
+# A .env beside the AppHost (a publish's parameter values, say) is never committed.
 *.env

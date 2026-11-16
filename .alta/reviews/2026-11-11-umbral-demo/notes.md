@@ -125,6 +125,34 @@ clear), history squashed into this branch's commit.
 - Not run: `demo.yml` itself (it needs the Bella Baxter values, the `demo` environment and a
   release of 0.12.0 or later).
 
+## Reset by a command (task 28zs, 2026-11-16)
+
+The reset is now a Caravana schedule that runs `/app/Umbral clear-users --yes --security-log`
+in Umbral's running copy at 04:00 UTC (Caravana feature 040, `target: copy`, API 0.43.0;
+Umbral's `clear-users` is task c1rs, in 0.13.0). The maintainer chose it over the two designs
+before it: the host timer calling the restore API with a full token (too much on the host, and
+a token outside Caravana), and Caravana 0.21.0's scheduled restore of a pinned backup (a minute
+offline each night, and a golden snapshot to retake after every configuration change). The
+command keeps Umbral serving, keeps the connectors and the Fediverse registrations, and leaves
+one `users_cleared` row in the security log.
+
+- `AppHost.cs`: the backup policy is `schedule: "never", keep: 3`, in place of the
+  never-matching `0 4 31 2 *` and `keep: 100`; no restore, no pin. The schedule itself is
+  set once in the Caravana console: the hosting package (13.6.5) has no call for schedules, and
+  a schedule is a row of Caravana's own, not part of the Compose overlay a deploy replaces
+  (Caravana spec 022, "an app is redeployed … the next run runs the new live version"), so a
+  deploy leaves it alone.
+- `demo/reset/` (the script, the systemd units, the notifier, the installer) is deleted. The
+  stand-in was never installed: the demo was not deployed, and it is removed before go-live.
+  Nothing in the repository mentions a Caravana API token on the host any more.
+- `demo.yml` refuses a version before 0.13.0 (was 0.12.0).
+- The runbook's steps 8 and 9 are "Back up now" (disaster recovery only, retaken after a change
+  worth keeping) and the schedule; `notes.md` says where the reset is set, how to run it by
+  hand (Run now, or Run a command) and what it keeps; the privacy page says every account and the
+  security log but one line go at 04:00 while the instance keeps running, that the only copy is
+  the one taken by hand of the empty instance, and that the Fediverse registration is kept; the
+  landing page no longer says the instance is off for a minute.
+
 ### Review nits taken (dm1r)
 
 - Code N1: after a release, `target` refuses a tag that is not an ancestor of `origin/main`
