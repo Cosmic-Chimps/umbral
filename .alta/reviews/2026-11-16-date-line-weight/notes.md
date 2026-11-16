@@ -41,3 +41,10 @@ For the designer: on the Users card the dates are now one step smaller than the 
 `your-passkeys-{dark,light}.png` are kept, the rest restored.
 
 No `changelog.d/` fragment: a weight change nobody acts on.
+
+## Verification
+
+- `CredentialTests`, `UserLinkAdminTests`, `PasskeyAccountTests`: 59 of 59.
+- Full suite on 367b0cd: **3013 of 3013** passed, 0 skipped (Debug, 42 min 36 s). Same count as ypr0: the
+  change adds assertions, not tests.
+- Code review clear (24325c7), design review clear, no re-check (f7f4e9a).
