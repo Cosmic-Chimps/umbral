@@ -12,6 +12,21 @@ Each section has the changes that matter to whoever runs Umbral, in this order a
 needed: Added, Changed, Fixed, Security, then Upgrade when an upgrade needs more than pulling the
 new image.
 
+## 0.13.0 - 2026-11-17
+
+### Added
+
+- `docker exec umbral /app/Umbral clear-users --yes` deletes every user, with their linked
+  accounts, passkeys, invitations and tokens, in the running container and without a restart.
+  It keeps the connectors, apps, operator credential, settings and keys. Without `--yes` it only
+  says what it would delete. Add `--security-log` to empty the security log too; either way it
+  records a `users_cleared` event. Documented in "Start over: clear every user".
+
+### Changed
+
+- The passkey sign-in step's Continue button shows the key icon, the same mark as the passkey button on the sign-in page, instead of the link icon.
+- Your passkeys lists each passkey's dates on one line, as the operator's Credential screen does ("Added … · Last used …" or "Never used"), and its Remove button is a small red ghost, still behind its confirmation.
+
 ## 0.12.0 - 2026-11-15
 
 ### Added
