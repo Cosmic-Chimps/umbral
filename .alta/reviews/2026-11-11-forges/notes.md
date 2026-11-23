@@ -205,8 +205,9 @@ sign-up confirmation covered sign-up and nothing more (not tried there: no accou
 **What became of it.** The maintainer reported it privately to Forgejo on 2026-11-14; Forgejo
 answered that it was already known and scheduled. It is fixed in Forgejo **15.0.12** and **17.0.2**,
 released 2026-11-18
-([advisory #63](https://codeberg.org/forgejo/security-announcements/issues/63): "check email
-activation in MakeEmailAddressPrimary"). v16, at end of life since 2026-10-29, is not patched.
+([advisory #63](https://codeberg.org/forgejo/security-announcements/issues/63); the fix's title in
+its pull requests 15299 and 15298 is "check email activation in MakeEmailAddressPrimary"). v16, at
+end of life since 2026-10-29, is not patched.
 `docs/connectors/oidc.md` names the fixed versions and the setting for each (task fx63).
 
 **Upgrading doesn't undo it** (fx63 code review B1, tried 2026-11-23 on Forgejo 17.0.2). An account's

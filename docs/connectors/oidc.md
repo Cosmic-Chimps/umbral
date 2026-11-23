@@ -16,7 +16,8 @@ or a Forgejo or Gitea you run is this connector too: GitLab, Forgejo (what
 Codeberg runs) and Gitea are OpenID Connect providers. The steps below apply as
 written, with one thing to read before you add a Forgejo or Gitea:
 [what its `email_verified` means](#what-email_verified-means-on-a-forge), because
-an account there can claim an address it never confirmed, and the setting
+depending on its version and settings, an account there can claim an address it
+never confirmed, and the setting
 that makes such a forge safe to add, [**Not trusted**](#before-you-start). The rest of what
 differs is in
 [A public forge: GitLab, Codeberg, or one you run](#a-public-forge-gitlab-codeberg-or-one-you-run).
@@ -367,7 +368,8 @@ someone else's account:
   Before them, an account could make an address it never confirmed its primary
   one, by a request sent outside the page, and Forgejo then sent it as verified.
   Affected are v15 before 15.0.12, v17 before 17.0.2, every v16 (its end of life
-  was 2026-10-29, and it gets no fix), and every release older than v15.
+  was 2026-10-29, and it gets no fix), and older releases, which get no fix
+  either (14.0.5 was tried and is affected).
   Upgrading does not undo what was done before: an account that made an
   unconfirmed address its primary one keeps it, and Forgejo still sends it as
   verified (tried on 17.0.2).
