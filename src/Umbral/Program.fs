@@ -667,8 +667,8 @@ let private applyDeclaration (app: WebApplication) =
         // No declaration and nothing declared, the start of nearly every
         // instance: `apply` would write and say nothing, so it is not called.
         // Calling it compiles its large task methods, and the JIT's working
-        // memory for them stays in the native heap: about 2.7 MiB of the idle
-        // resident set on GitHub's arm64 runner (task mem2).
+        // memory for them stays in the native heap: 2.7 MiB of heap, about
+        // 2 MiB of the idle resident set, on GitHub's arm64 runner (task mem2).
         let! needed =
             match declaration with
             | Some _ -> Task.FromResult true
