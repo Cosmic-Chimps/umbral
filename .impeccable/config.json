@@ -63,6 +63,15 @@
         ],
         "createdAt": "2026-11-23T18:25:01.363Z",
         "reason": "Agent: false positive; the flagged container wraps a table whose cells carry 16px 22px padding, so no text touches the edge"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "demo/site/public/404.html"
+        ],
+        "createdAt": "2026-11-23T18:26:49.202Z",
+        "reason": "User confirmed (PRODUCT.md Brand Commitments, 2026-10-22): the Umbra look's light theme is paper #f4f1ea; same exception as the demo's index and privacy pages"
       }
     ]
   }
