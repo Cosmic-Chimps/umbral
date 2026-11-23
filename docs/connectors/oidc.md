@@ -116,7 +116,7 @@ Where each product puts it:
 | **Pocket ID** | `https://id.example.com` | The instance root: the address you open Pocket ID at, with no path. |
 | **Authelia** | `https://auth.example.com` | The instance root: the address of your Authelia portal, with no path. |
 | **GitLab** | `https://gitlab.com`, or `https://git.example.com` for your own | The instance root, with no path: the address people open GitLab at. Your own GitLab builds it from `external_url`. |
-| **Forgejo, Codeberg** | `https://codeberg.org`, or `https://git.example.com` for your own | The instance root, with no path. Your own Forgejo builds it from `ROOT_URL` (without the trailing slash). **Before adding one, Codeberg included, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): before Forgejo 15.0.12 and 17.0.2, an account there could claim an address it never confirmed.** Set it to **Trusted** only for a Forgejo you run on a fixed version with registration closed or confirming addresses; otherwise, Codeberg included until you have checked its version, **Not trusted**. |
+| **Forgejo, Codeberg** | `https://codeberg.org`, or `https://git.example.com` for your own | The instance root, with no path. Your own Forgejo builds it from `ROOT_URL` (without the trailing slash). **Before adding one, Codeberg included, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): before Forgejo 15.0.12 and 17.0.2, an account there could claim an address it never confirmed.** Set it to **Trusted** only for a Forgejo you run on a fixed version, with registration closed or confirming addresses and no unconfirmed primary address left from before; otherwise, and always for Codeberg, **Not trusted**. |
 | **Gitea** | `https://git.example.com` | The instance root, with no path: `ROOT_URL` without the trailing slash. **Before adding one, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): open registration without email confirmation lets people claim any address.** Set it to **Not trusted** unless its registration is closed or needs confirmation. |
 | **Another provider** | its discovery page without `/.well-known/openid-configuration` | Look for "Issuer", "Discovery URL" or "OpenID configuration" in its settings, or try the test above. |
 
@@ -368,21 +368,32 @@ someone else's account:
   one, by a request sent outside the page, and Forgejo then sent it as verified.
   Affected are v15 before 15.0.12, v17 before 17.0.2, every v16 (its end of life
   was 2026-10-29, and it gets no fix), and every release older than v15.
+  Upgrading does not undo what was done before: an account that made an
+  unconfirmed address its primary one keeps it, and Forgejo still sends it as
+  verified (tried on 17.0.2).
 
   So, before you add a forge, choose the setting this way:
   - **A Gitea**: **Trusted** when its registration is closed
     (`DISABLE_REGISTRATION = true`) or requires confirmation.
-  - **A Forgejo you run**: **Trusted** when it runs 15.0.12 or a later v15, or
-    17.0.2 or later, and its registration is closed or requires confirmation.
-    On any other version, or with registration open without confirmation,
-    **Not trusted**.
-  - **Codeberg** confirms new accounts' addresses (its own documentation; not
-    tried with an account there). Whether the build it runs carries the fix is
-    yours to check: `https://codeberg.org/api/v1/version` answers with its
-    version. Until you are satisfied it does, **Not trusted**.
+  - **A Forgejo you run**: **Trusted** when all three hold, otherwise **Not
+    trusted**:
+    - it runs 15.0.12 or a later v15, or 17.0.2 or later;
+    - its registration is closed or requires confirmation;
+    - no account's primary address is unconfirmed. If it only ever had accounts
+      you control, there is nothing to check. Otherwise, **Site administration →
+      Identity & access → User emails** lists every address with **Primary** and
+      **Activated** columns (in the database, the `email_address` table, rows
+      with `is_primary = 1` and `is_activated = 0`). For each such address,
+      remove the account, or mark the address activated there only once you know
+      its holder reads it.
+  - **Codeberg**: **Not trusted**. It confirms new accounts' addresses (its own
+    documentation; not tried with an account there), but it is an open instance
+    that ran affected versions, and nobody outside it can check whether an
+    existing account kept an unconfirmed primary address.
   - **Not trusted** is safe for any forge, whoever has an account there, because
     no address it sends is used to link anyone or to admit anyone. It is the
-    choice for a forge whose registration or version you do not control.
+    choice for a forge whose registration, version or accounts you do not
+    control.
 
   The [email setting](#before-you-start) at the top of this page is about exactly
   this. A deactivated account is refused by the forge before Umbral hears of it.

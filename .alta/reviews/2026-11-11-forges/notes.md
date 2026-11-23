@@ -209,6 +209,13 @@ released 2026-11-18
 activation in MakeEmailAddressPrimary"). v16, at end of life since 2026-10-29, is not patched.
 `docs/connectors/oidc.md` names the fixed versions and the setting for each (task fx63).
 
+**Upgrading doesn't undo it** (fx63 code review B1, tried 2026-11-23 on Forgejo 17.0.2). An account's
+primary address set to an unconfirmed one in the database, as one made before the upgrade would be,
+shows in **Site administration → Identity & access → User emails** ("Manage user emails") as
+Primary ✓, Activated ✗; Forgejo's API answers `"verified":false,"primary":true`, and the next
+`id_token` carries **`"email":"victim@example.test","email_verified":true`**. The same page can
+mark the address activated (`/admin/emails/activate`) or delete it.
+
 ## Through Umbral (`umbral.mjs`, `umbral-gitlab.mjs`)
 
 Connectors `forgejo`, `gitea` and `gitlab` added through the add form with the local issuers; all three
