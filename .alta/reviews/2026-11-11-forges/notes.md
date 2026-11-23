@@ -39,8 +39,8 @@ setup token from an argument):
   read of Umbral's own `id_token` and userinfo for each.
 - `umbral-gitlab.mjs`: the same for the GitLab connector, on the running instance.
 - `ui.mjs`: dumps the headings, labels and menu of each forge's application pages.
-- `primary.mjs`: the re-check with confirmation on, up to adding an unconfirmed address (the
-  Forgejo make-primary reproduction is held locally, outside the repo; see B3 above).
+- `primary.mjs`, `force.mjs`: the re-check with confirmation on (an active account adds an
+  unconfirmed address; a forced make-primary request).
 
 Playwright 1.64.1 with the installed Chrome; Node 22.23.4.
 
@@ -172,30 +172,42 @@ email before it is usable (not tried with an account; see the gap above).
 The review asked whether an **active** account can carry an address it never confirmed, which is
 the question that matters when `email_verified` is "the account is active". Both forges were
 re-created with `[service] REGISTER_EMAIL_CONFIRM = true` and a dummy `[mailer]` (checked in the
-effective `app.ini`):
+effective `app.ini`), scripts `primary.mjs` and `force.mjs`:
 
-1. **Self-registration** (`mallory`): the account is created inactive; at the authorization page
-   both forges show **"Activate your account"** and issue nothing. Confirmation on means sign-up no
-   longer lets anyone claim an address.
-2. **An active account adds an address** (`ana` adds a second address on **Settings → Account**):
-   the list shows it as **Requires activation**, and neither forge's UI offers to make an
-   unactivated address primary. Ana's token still carried her original address.
-3. **Gitea 1.26.4** kept the primary address confirmed under that setting. **Forgejo 14.0.5** could
-   not be shown to: an existing account was able to end up with a primary address it never
-   confirmed, after which Forgejo's own API reported that address as primary and unverified and the
-   next `id_token` and userinfo presented it as `email_verified: true`.
+1. **Self-registration** (`mallory`, `signup.mjs`): the account is created inactive; at the
+   authorization page both forges show **"Activate your account"** and issue nothing.
+2. **An active account adds an address** (`ana` adds `other@example.test` on **Settings → Account**):
+   "A confirmation email has been sent…", the list shows the address as **Requires activation**, and
+   the only buttons on it are *Remove* and *Activations pending* / *Send activation*. Neither UI
+   offers to make an unactivated address primary. Ana's token still said `ana@example.test`.
 
-So on Forgejo 14.0.5, confirmation being on is not enough: an existing account can present Umbral an
-address it never proved it can read. Gitea did not show that.
+#### Published after Forgejo's fix (advisory #63, 2026-11-18)
 
-> **Held out of the repository on the documentation reviewer's advice (B3).** The exact way the
-> Forgejo result was produced, and the script that does it, are **not** in this branch: this
-> repository is public, and this looks like an unreported Forgejo bug. A search on 2026-11-13 found
-> only a related, already-fixed Forgejo issue (primary-email validation bypass, v11.0.4 / v12.0.2,
-> forgejo/security-announcements #39), not this one. The reproduction is kept locally (outside the
-> repo) for a private report to Forgejo's security contact, which is **the maintainer's to make**;
-> it was not reported from here, and the method should come back into the notes and the walkthrough
-> only once a Forgejo release names it fixed.
+Step 3, `force.mjs` and the end of `primary.mjs` were held out of this public repository from
+2026-11-13 (documentation review B3) until Forgejo fixed the bug. They reproduce it on Forgejo
+14.0.5, a version Forgejo no longer supports.
+
+3. **The same request sent outside the page**: `POST /user/settings/account/email` with
+   `_method=PRIMARY` and the unactivated address's id, from the logged-in browser session (the
+   form the page uses for an activated address).
+   - **Gitea 1.26.4 refused it**: "The selected email address could not be found." The list is
+     unchanged; the token still carries `ana@example.test`.
+   - **Forgejo 14.0.5 accepted it** (303, no error): the list now shows
+     `other@example.test  Primary  Requires activation`, Forgejo's own API answers
+     `{"email":"other@example.test","verified":false,"primary":true}`, and the next `id_token` and
+     userinfo carry **`"email":"other@example.test","email_verified":true`**.
+
+So on Forgejo 14.0.5, whatever the registration settings, **anyone who has an account can make any
+address their primary one and have it presented to Umbral as verified**. Gitea checks the activation
+server-side; Forgejo checked it only in the page. Codeberg runs Forgejo, so before the fix its
+sign-up confirmation covered sign-up and nothing more (not tried there: no account).
+
+**What became of it.** The maintainer reported it privately to Forgejo on 2026-11-14; Forgejo
+answered that it was already known and scheduled. It is fixed in Forgejo **15.0.12** and **17.0.2**,
+released 2026-11-18
+([advisory #63](https://codeberg.org/forgejo/security-announcements/issues/63): "check email
+activation in MakeEmailAddressPrimary"). v16, at end of life since 2026-10-29, is not patched.
+`docs/connectors/oidc.md` names the fixed versions and the setting for each (task fx63).
 
 ## Through Umbral (`umbral.mjs`, `umbral-gitlab.mjs`)
 

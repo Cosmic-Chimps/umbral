@@ -116,15 +116,16 @@ Where each product puts it:
 | **Pocket ID** | `https://id.example.com` | The instance root: the address you open Pocket ID at, with no path. |
 | **Authelia** | `https://auth.example.com` | The instance root: the address of your Authelia portal, with no path. |
 | **GitLab** | `https://gitlab.com`, or `https://git.example.com` for your own | The instance root, with no path: the address people open GitLab at. Your own GitLab builds it from `external_url`. |
-| **Forgejo, Codeberg** | `https://codeberg.org`, or `https://git.example.com` for your own | The instance root, with no path. Your own Forgejo builds it from `ROOT_URL` (without the trailing slash). **Before adding one, Codeberg included, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): as of Forgejo 14.0, an account there may claim an address it never confirmed.** Set it to **Not trusted** unless you control who has an account. |
+| **Forgejo, Codeberg** | `https://codeberg.org`, or `https://git.example.com` for your own | The instance root, with no path. Your own Forgejo builds it from `ROOT_URL` (without the trailing slash). **Before adding one, Codeberg included, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): before Forgejo 15.0.12 and 17.0.2, an account there could claim an address it never confirmed.** Set it to **Trusted** only for a Forgejo you run on a fixed version with registration closed or confirming addresses; otherwise, Codeberg included until you have checked its version, **Not trusted**. |
 | **Gitea** | `https://git.example.com` | The instance root, with no path: `ROOT_URL` without the trailing slash. **Before adding one, read [what its `email_verified` means](#what-email_verified-means-on-a-forge): open registration without email confirmation lets people claim any address.** Set it to **Not trusted** unless its registration is closed or needs confirmation. |
 | **Another provider** | its discovery page without `/.well-known/openid-configuration` | Look for "Issuer", "Discovery URL" or "OpenID configuration" in its settings, or try the test above. |
 
 *Menu names and issuer shapes for Authentik, Keycloak, Pocket ID and Authelia
 are as of writing and are unverified against the 2026 versions of these
 products. The three forges were tried in November 2026 (GitLab 19.5, Forgejo
-14.0, Gitea 1.26, and the discovery pages of gitlab.com and codeberg.org). The
-discovery test above settles it whatever the console says.*
+14.0, Gitea 1.26, and the discovery pages of gitlab.com and codeberg.org);
+what was found on Forgejo 14.0 is fixed in 15.0.12 and 17.0.2. The discovery
+test above settles it whatever the console says.*
 
 ## 3. Create the client in your provider
 
@@ -286,7 +287,9 @@ with the forge as the provider, and so is a GitLab, Forgejo or Gitea you run.
 Steps 1 to 4 apply as written. This is what differs. *Tried in November 2026
 with GitLab 19.5, Forgejo 14.0 and Gitea 1.26 run locally, and with the
 discovery pages of gitlab.com and codeberg.org; the menu names are theirs as of
-then. A sign-in on gitlab.com and codeberg.org themselves was not tried.*
+then. A sign-in on gitlab.com and codeberg.org themselves was not tried. What
+was found on Forgejo 14.0 is fixed in 15.0.12 and 17.0.2: see
+[what `email_verified` means](#what-email_verified-means-on-a-forge).*
 
 **Issuer.** The address of the forge, with no path: `https://gitlab.com`,
 `https://codeberg.org`, or `https://git.example.com` for one you run. All three
@@ -353,25 +356,36 @@ someone else's account:
     gets it marked verified, and Umbral would link them to you. Both forges.
   - With confirmation required (`REGISTER_EMAIL_CONFIRM = true` under
     `[service]`, which needs a `[mailer]`), a new account is stopped at
-    "Activate your account" until it confirms, so sign-up no longer lets anyone
-    claim an address. **Gitea** (tried on 1.26.4) kept an existing account's
-    primary address confirmed under that setting. **Forgejo** (tried on 14.0.5)
-    could not be shown to: an existing account was able to end up with a primary
-    address it never confirmed, which then reached Umbral as verified. Codeberg
-    runs Forgejo, and was not tried (it may run another version).
+    "Activate your account" until it confirms, and an address an existing account
+    adds shows "Requires activation" with no button to make it primary. Both
+    forges. **Gitea** also refuses a request to make it primary sent outside the
+    page. **Forgejo before its fix accepts it**: on 14.0.5, such a request made
+    the unconfirmed address primary, and the next token carried it as verified.
 
-  So, before you add a Forgejo or Gitea of your own, you can:
-  - add a **Gitea** when its registration is closed (`DISABLE_REGISTRATION =
-    true`) or requires confirmation;
-  - add a **Forgejo, Codeberg included**, only if you trust everyone who has an
-    account there with any address, until a Forgejo release names this fixed;
-  - set the provider to **Not trusted**. That is safe whoever has an account
-    there, because no address it sends is used to link anyone or to admit
-    anyone. It is the choice for a forge whose registration you do not control.
+  **Forgejo fixed this in 15.0.12 and 17.0.2**, released on 2026-11-18
+  ([security advisory #63](https://codeberg.org/forgejo/security-announcements/issues/63)).
+  Before them, an account could make an address it never confirmed its primary
+  one, by a request sent outside the page, and Forgejo then sent it as verified.
+  Affected are v15 before 15.0.12, v17 before 17.0.2, every v16 (its end of life
+  was 2026-10-29, and it gets no fix), and every release older than v15.
+
+  So, before you add a forge, choose the setting this way:
+  - **A Gitea**: **Trusted** when its registration is closed
+    (`DISABLE_REGISTRATION = true`) or requires confirmation.
+  - **A Forgejo you run**: **Trusted** when it runs 15.0.12 or a later v15, or
+    17.0.2 or later, and its registration is closed or requires confirmation.
+    On any other version, or with registration open without confirmation,
+    **Not trusted**.
+  - **Codeberg** confirms new accounts' addresses (its own documentation; not
+    tried with an account there). Whether the build it runs carries the fix is
+    yours to check: `https://codeberg.org/api/v1/version` answers with its
+    version. Until you are satisfied it does, **Not trusted**.
+  - **Not trusted** is safe for any forge, whoever has an account there, because
+    no address it sends is used to link anyone or to admit anyone. It is the
+    choice for a forge whose registration or version you do not control.
 
   The [email setting](#before-you-start) at the top of this page is about exactly
-  this. The first two assume **Trusted**. A deactivated account is refused by the
-  forge before Umbral hears of it.
+  this. A deactivated account is refused by the forge before Umbral hears of it.
 
 A [domain rule](#allowed-email-domains) on a Forgejo or Gitea connector is only
 as strong as that, and it needs **Trusted**: a provider that is **Not trusted**
