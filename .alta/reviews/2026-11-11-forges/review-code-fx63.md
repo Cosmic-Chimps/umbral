@@ -61,3 +61,24 @@ One re-check after B1. I'll read only the diff since `3ff32bb`.
 
 `umbral-documentation` reviews the wording separately. The `umbral` session passes the request on
 when that session is running.
+
+## Re-check at 55d0560 (2026-11-23)
+
+**Clear from the code and security side.** I read the diff since `3ff32bb`.
+
+- **B1, taken, and shown on a real instance.** On a local Forgejo 17.0.2, an account with an
+  unconfirmed primary address (the state the bug left before an upgrade) still got
+  `email_verified: true` in its id_token. The docs now say that upgrading doesn't undo it.
+- **A Forgejo you run is Trusted only when all three hold:**
+  - a fixed version (15.0.12 or a later v15, or 17.0.2 or later);
+  - closed or confirming registration;
+  - no account's primary address unconfirmed. Nothing to check if only accounts you control were
+    ever there. Otherwise the page names **Site administration → Identity & access → User emails**
+    (verified on 17.0.2) and the `email_address` query (`is_primary = 1`, `is_activated = 0`), and
+    the action: remove the account, or mark the address activated only once you know its holder
+    reads it.
+- **Codeberg: Not trusted, with no exit,** and the reason is stated. Nothing is claimed about its
+  build.
+- The issuer-table row, the changelog fragment and the notes say the same.
+
+The advice is now no wider than the fix.
