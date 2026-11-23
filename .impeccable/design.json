@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-22T00:00:00Z",
+  "generatedAt": "2026-11-23T00:00:00Z",
   "title": "Design System: Umbral",
   "extensions": {
     "colorMeta": {
@@ -122,6 +122,22 @@
       "description": "The mark: a sun, an upright and the shadow it casts on the threshold, beside the lowercase wordmark. Its colours come from --mark-*, which no accent sheet sets.",
       "html": "<span class=\"ds-brand\"><svg class=\"ds-mark\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\" fill=\"none\" aria-hidden=\"true\"><circle class=\"ds-mark-sun\" cx=\"11\" cy=\"11\" r=\"4.5\"/><path class=\"ds-mark-base\" d=\"M6 39h36\" stroke-width=\"3\" stroke-linecap=\"round\"/><path class=\"ds-mark-shadow\" d=\"M22 39H44L22 33Z\"/><path class=\"ds-mark-upright\" d=\"M22 39V13\" stroke-width=\"4\" stroke-linecap=\"round\"/></svg><span class=\"ds-wordmark\">Umbral</span></span>",
       "css": ".ds-brand { display: inline-flex; align-items: center; gap: 10px; } .ds-mark { width: 28px; height: 28px; } .ds-mark-sun { fill: var(--mark-sun, #f5c26b); } .ds-mark-base { stroke: var(--mark-base, #3a3a52); } .ds-mark-shadow { fill: var(--mark-shadow, #a7a2b6); opacity: var(--mark-shadow-opacity, 0.5); } .ds-mark-upright { stroke: var(--mark-upright, #ece8df); } .ds-wordmark { font-family: var(--font-display, 'Bricolage Grotesque', 'Schibsted Grotesk', system-ui, sans-serif); font-weight: 800; font-size: 24px; line-height: 32px; letter-spacing: -0.035em; text-transform: lowercase; color: var(--color-on-surface, #ece8df); }"
+    },
+    {
+      "name": "List Entry",
+      "kind": "nav",
+      "refersTo": "rail-entry-current",
+      "description": "An entry of the list and detail frame (Apps, Connectors): drawn like the rail's, two lines and at most one status marker; the selected one takes the high step with its name in gold.",
+      "html": "<nav class=\"ds-list\"><a class=\"ds-entry ds-entry-current\" href=\"#\" aria-current=\"page\"><span class=\"ds-entry-text\"><span class=\"ds-entry-title\">Wiki</span><span class=\"ds-entry-sub\">Web application</span></span></a><a class=\"ds-entry\" href=\"#\"><span class=\"ds-entry-text\"><span class=\"ds-entry-title\">Grafana</span><span class=\"ds-entry-sub\">Web application · Declared</span></span></a></nav>",
+      "css": ".ds-list { display: flex; flex-direction: column; gap: 4px; width: 320px; font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); } .ds-entry { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 14px; border-radius: 12px; text-decoration: none; color: var(--color-on-surface-variant, #a7a2b6); transition: background-color 160ms ease, color 160ms ease; } .ds-entry:hover { background: var(--color-surface-container, #181826); } .ds-entry-current, .ds-entry-current:hover { background: var(--color-surface-container-high, #1d1d2b); } .ds-entry-text { flex: 1; min-width: 0; } .ds-entry-title { display: block; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--color-on-surface, #ece8df); } .ds-entry-current .ds-entry-title { font-weight: 600; color: var(--color-primary, #f5c26b); } .ds-entry-sub { display: block; font-size: 13px; line-height: 18px; color: var(--color-on-surface-variant, #a7a2b6); } .ds-entry:focus-visible { outline: 2px solid var(--color-primary, #f5c26b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Apple Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The Apple connector's sign-in button, the one button outside the token colours: Apple's rules fix it to black and white, and it never takes an app's accent. The dark theme's white button is shown.",
+      "html": "<button class=\"ds-btn ds-btn-apple\">Sign in with Apple</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 0; border-radius: 9999px; font-family: var(--font-family, 'Schibsted Grotesk', system-ui, sans-serif); font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: opacity 160ms ease; } .ds-btn-apple { background: #fff; color: #000; } .ds-btn-apple:hover { opacity: 0.85; } .ds-btn:focus-visible { outline: 2px solid var(--color-primary, #f5c26b); outline-offset: 2px; }"
     }
   ],
   "narrative": {
@@ -136,8 +152,8 @@
       "Everything self-hosted and legible with JavaScript off."
     ],
     "rules": [
-      { "name": "The Fill Pair Rule", "body": "The primary button uses primary-fill / on-primary-fill, not primary / on-primary. In the dark theme both pairs are gold on umber. In the light theme the fill pair is ink (#17151f) with gold text (#f5c26b) while links stay the darker gold (#8a5a00), so a gold fill never has to carry dark text at 4.5:1. An app's accent sheet overrides both pairs and nothing else.", "section": "colors" },
-      { "name": "The One Red Fill Rule", "body": "On any card, at most one button has the red danger fill, and it is the action that cannot be undone (Delete app, Delete connector). A destructive action that can be undone, such as removing a logo that can be uploaded again, is a ghost button in the error colour.", "section": "colors" },
+      { "name": "The Fill Pair Rule", "body": "The primary button uses primary-fill / on-primary-fill, not primary / on-primary. In the dark theme both pairs are gold on umber. In the light theme the fill pair is ink (#17151f) with gold text (#f5c26b) while links stay the darker gold (#8a5a00), so a gold fill never has to carry dark text at 4.5:1. An app's accent sheet overrides both pairs and nothing else. The one button outside this rule is the Apple connector's (see Buttons).", "section": "colors" },
+      { "name": "The One Red Fill Rule", "body": "On any card, at most one button has the red danger fill, and it is the action that cannot be undone (Delete app, Delete connector). A destructive action that can be undone, such as removing a logo that can be uploaded again, is a ghost button in the error colour. A destructive action on one row of a list is a ghost in the error colour with a confirm, whether or not it can be undone; the red fill is the card's own deletion.", "section": "colors" },
       { "name": "The Contrast Floor", "body": "Spec 007 FR-007: every text at 4.5:1 or better against what it sits on, every input border and focus indicator at 3:1 or better, in both themes. Where a palette value misses this for a border, the plan records a darker (light) or lighter (dark) value of the same hue for that use. An app's accent is checked against both themes and saved with a warning, never refused; its button text is black or white, whichever reads better, chosen by Umbral.", "section": "colors" },
       { "name": "The Mark Keeps Its Colours", "body": "The Gnomon takes its colours from --mark-*, which no accent rule touches, so an app's colour never recolours Umbral's mark. The \"Secured by Umbral\" line cannot be hidden or recoloured.", "section": "colors" },
       { "name": "The Lowercase Wordmark Rule", "body": "The wordmark reads umbral, in the display face at 800 with -0.035em tracking, lowercased by CSS so the text stays \"Umbral\" for titles and screen readers.", "section": "typography" },

@@ -45,6 +45,24 @@
         ],
         "createdAt": "2026-11-15T21:04:13.638Z",
         "reason": "design review fzzx (.alta/reviews/2026-11-11-umbral-demo/review-design.md, blocking 1): the light scheme must be the product's Paper #f4f1ea from DESIGN.md and tailwind.config.js"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "design/umbra/B-Connectors.dc.html"
+        ],
+        "createdAt": "2026-11-23T18:25:00.757Z",
+        "reason": "User confirmed (PRODUCT.md Brand Commitments, 2026-10-22): the Umbra look's light theme is paper #f4f1ea; this artboard is the light Connectors screen"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/umbra/B-Users.dc.html"
+        ],
+        "createdAt": "2026-11-23T18:25:01.363Z",
+        "reason": "Agent: false positive; the flagged container wraps a table whose cells carry 16px 22px padding, so no text touches the edge"
       }
     ]
   }
