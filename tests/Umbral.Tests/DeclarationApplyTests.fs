@@ -582,11 +582,18 @@ let ``an app no longer named is un-declared and left exactly as it was`` () =
 let ``with no declaration at all, everything still declared is handed back and nothing else happens`` () =
     withDirectory (fun directory ->
         task {
-            do! runOn directory (settingsFor (declaration (Some "open") [ web; spa ]) [ "web", webSecret ]) (fun _ _ -> Task.FromResult())
+            do!
+                runOn directory (settingsFor (declaration (Some "open") [ web; spa ]) [ "web", webSecret ]) (fun app _ ->
+                    task {
+                        let! any = Declarations.anyDeclared app.DbConfig
+                        Assert.True(any, "the declared apps and connector are owned")
+                    })
 
             do!
                 runOn directory [] (fun app logs ->
                     task {
+                        let! any = Declarations.anyDeclared app.DbConfig
+                        Assert.False(any, "everything was handed back")
                         let! all = events app.DbConfig
 
                         // Only the three events of the declaration, then the three hand-backs.

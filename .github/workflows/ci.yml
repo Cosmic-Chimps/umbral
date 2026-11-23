@@ -143,7 +143,19 @@ jobs:
         run: |
           echo "### Idle resident set (SC-007)" >> "$GITHUB_STEP_SUMMARY"
           # Only this project: the other test projects have no such class, and a run that matches no test exits 8.
-          if ! dotnet test -c Release --no-build --project tests/Umbral.Tests/Umbral.Tests.fsproj --filter-class "Umbral.Tests.IdleMemoryTests"; then
+          status=0
+          dotnet test -c Release --no-build --project tests/Umbral.Tests/Umbral.Tests.fsproj --filter-class "Umbral.Tests.IdleMemoryTests" || status=$?
+          # A green run can still be close to a ceiling: say so on the run, from
+          # the figures the test wrote to the summary
+          # ("- Arm64, local store: **142.4 MiB** idle resident set, ceiling 150 MiB"),
+          # so the next creep shows before it fails a pull request (task mem2).
+          sed -nE 's/^- [^,]+, (.+): \*\*([0-9.]+) MiB\*\* idle resident set, ceiling ([0-9]+) MiB$/\1|\2|\3/p' "$GITHUB_STEP_SUMMARY" |
+            while IFS='|' read -r label figure ceiling; do
+              if awk -v f="$figure" -v c="$ceiling" 'BEGIN { exit !(c - f < 2) }'; then
+                echo "::warning title=Idle memory near a ceiling ($ARCH)::$label: $figure MiB against a $ceiling MiB ceiling, under 2 MiB to spare."
+              fi
+            done
+          if [ "$status" -ne 0 ]; then
             echo "::warning title=Idle memory over a ceiling ($ARCH)::See the memory ($ARCH) job's summary for the figures. A gate on pull requests; a report on a push and in a release."
             exit 1
           fi

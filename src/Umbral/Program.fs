@@ -664,14 +664,25 @@ let private applyDeclaration (app: WebApplication) =
                 | Ok declaration -> Some declaration
                 | Error problems -> refuse problems
 
-        match! Declarations.apply app.Services declaration with
-        | Error problems -> return refuse problems
-        | Ok applied ->
-            for warning in applied.Warnings do
-                logger.LogWarning("{Warning}", warning)
+        // No declaration and nothing declared, the start of nearly every
+        // instance: `apply` would write and say nothing, so it is not called.
+        // Calling it compiles its large task methods, and the JIT's working
+        // memory for them stays in the native heap: about 2.7 MiB of the idle
+        // resident set on GitHub's arm64 runner (task mem2).
+        let! needed =
+            match declaration with
+            | Some _ -> Task.FromResult true
+            | None -> Declarations.anyDeclared (app.Services.GetRequiredService<Database.DbConfig>())
 
-            if declaration.IsSome || Declarations.handedBack applied then
-                logger.LogInformation("{Applied}", Declarations.describe applied)
+        if needed then
+            match! Declarations.apply app.Services declaration with
+            | Error problems -> return refuse problems
+            | Ok applied ->
+                for warning in applied.Warnings do
+                    logger.LogWarning("{Warning}", warning)
+
+                if declaration.IsSome || Declarations.handedBack applied then
+                    logger.LogInformation("{Applied}", Declarations.describe applied)
     }
 
 /// Everything that must happen before the first request: the schema Umbral owns,
