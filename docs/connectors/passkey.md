@@ -209,7 +209,9 @@ it is invitations only. See [Who can sign in](../who-can-sign-in.md).
   [Troubleshooting](../run/troubleshooting.md).
 - **Memory.** An instance with the passkey connector in use idles under 160 MB (a
   ceiling, as with an external secret store; the figure is confirmed by the
-  idle-memory test). Without the connector it stays under 150 MB.
+  idle-memory test). Without the connector it stays under 150 MB, unless the
+  operator signs in with a passkey of their own, which loads the same library
+  and has the same 160 MB ceiling.
 - **Passkeys for the admin area are separate.** The operator's own passkeys,
   for signing in to the admin area, do not need this connector: see
   [Passkeys for the admin area](../run/operator-passkeys.md).

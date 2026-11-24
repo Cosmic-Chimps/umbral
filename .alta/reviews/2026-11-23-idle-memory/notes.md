@@ -103,7 +103,7 @@ The branch's own `ci.yml`, called three times in a row (`actions/runs/4526496426
 - [x] The near-ceiling warning shows in runs that are close (rounds 2 and 4).
 - [x] Three consecutive `memory (arm64)` and `memory (x64)` runs on the branch pass.
 - [x] x64: the operator-passkey run is at least 4.1 MiB under 150.
-- [ ] arm64: the operator-passkey run at least 3 MiB under its ceiling. **Not met at 150:** its upper level is 148.6 to 149.2 MiB. It needs the maintainer's decision below.
+- [x] arm64: the operator-passkey run at least 3 MiB under its ceiling. Not met at 150 (its upper level is 148.6 to 149.2 MiB). With the 160 MiB the maintainer chose (below), at least 10.8 MiB.
 
 ## Decision for the maintainer: the operator-passkey ceiling
 
@@ -116,3 +116,13 @@ With the fix, what is left on arm64 is the operator-passkey run's upper level, t
 - **(b) Keep 150 MiB.**
   - Margin on arm64: 0.8 to 3.1 MiB, depending on the level a run lands on. The run passes today, but the warning fires on about two arm64 runs in three, and about 1 MiB more growth anywhere on the passkey path fails pull requests again.
   - The tracked cost: the next feature that adds code to every start, or to the WebAuthn path, has to win back what it adds, or this decision comes back.
+
+## The maintainer's choice: (a), 160 MiB (2026-11-24)
+
+The `umbral` session's code review recommended (a) too (`code-review.md`).
+
+- `IdleMemoryTests.fs`: the operator-passkey fact is "stays under 160 MB resident" and uses `ExternalStoreCeilingBytes`. The module comment says why (the same WebAuthn library as the connector run, and the two gen0 levels) and gives the current figures and the margin. The constant's comment names its three runs. The local store, and the Fediverse run, keep `LocalStoreCeilingBytes` (150 MiB).
+- Spec 011: SC-005 is amended, with the date and the reason, and the plan's "Memory" note gives the new ceiling and the runner figures.
+- Spec 008: SC-008 gains one sentence, because its "no passkey connector, under 150 MiB" no longer holds for an instance whose operator uses a passkey.
+- `docs/connectors/passkey.md`: its "without the connector it stays under 150 MB" gains the same exception.
+- No docs page promised 150 MB for an operator passkey. README, PRODUCT.md, the constitution and the run pages keep "under 150 MB": the default instance.

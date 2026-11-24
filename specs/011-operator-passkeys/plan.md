@@ -79,4 +79,6 @@ operator passkey on the Users screen. `CsrfTests` walks the new POSTs.
 Measured on linux/arm64 (Docker, Release, 2026-10-27): an instance with an
 operator passkey in use (added, then signed in with) idles at 147.6 MiB, under
 Principle II's 150 MiB. The local store measured 140.1 MiB in the same run.
-`IdleMemoryTests` holds the operator run to 150 MiB.
+`IdleMemoryTests` holds the operator run to 160 MiB, the passkey connector's
+ceiling, since SC-005 was amended on 2026-11-24 (task mem2). On GitHub's arm64
+runner it idles at 146.9 to 149.2 MiB.
