@@ -730,7 +730,9 @@ step of Story 1 from them alone.
 - **SC-008**: An instance with no passkey connector idles under 150 MiB
   resident (spec 001 SC-007); an instance with the connector enabled and one
   sign-in done idles under 160 MiB (the ceiling of spec 005 SC-006). Both
-  figures are measured by the suite and recorded in the plan.
+  figures are measured by the suite and recorded in the plan. An operator
+  passkey in use (spec 011) loads the same library and has the same 160 MiB
+  (spec 011 SC-005, 2026-11-24).
 - **SC-009**: Every existing test passes unchanged, and an instance without a
   passkey connector behaves exactly as before.
 - **SC-010**: A reader can enable the connector, invite a person and get them

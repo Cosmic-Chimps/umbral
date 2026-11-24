@@ -27,8 +27,8 @@ is for them.
 
 - **One container, modest hardware.** One image with an embedded SQLite
   database, no other service to run. It runs on a 64-bit Raspberry Pi and idles
-  under 150 MB of memory (160 MB with an external secret store). All state is
-  one data directory: backup is a copy.
+  under 150 MB of memory (under 160 MB with passkeys or an external secret
+  store). All state is one data directory: backup is a copy.
 - **Three concepts.** App, Connector and User are the whole product, and the
   admin area has three screens, one for each.
 - **Three values per app.** An app needs the issuer URL, a client ID and a

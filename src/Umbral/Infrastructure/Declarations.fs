@@ -93,6 +93,17 @@ let declaredClientIds (config: Database.DbConfig) : Task<Set<string>> =
 let isPasskeyDeclared (config: Database.DbConfig) : Task<bool> =
     isDeclared config ConnectorItem PasskeySlug
 
+/// Whether the declaration owns anything now. With no declaration and nothing
+/// owned, `apply` has nothing to write and nothing to hand back.
+let anyDeclared (config: Database.DbConfig) : Task<bool> =
+    task {
+        use! connection = Database.openConnection config
+        use command = connection.CreateCommand()
+        command.CommandText <- "SELECT EXISTS (SELECT 1 FROM declared_items WHERE is_declared = 1)"
+        let! found = command.ExecuteScalarAsync()
+        return (found :?> int64) = 1L
+    }
+
 /// Drops the history row of an item that is deleted from the admin area. Only a
 /// row that is no longer declared (D3): a declared item's routes refuse before
 /// this, and the row would only come back at the next start. Without it a later
