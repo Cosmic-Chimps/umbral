@@ -51,11 +51,14 @@
 /// Another run measures the operator's passkey in use (specs/011): a claimed
 /// instance, then, over HTTP, a password sign-in, a passkey added to the
 /// operator credential, and a sign-in with it from a fresh browser. It is the
-/// same WebAuthn library the connector run loads on its first ceremony, but here
-/// nothing else is enabled, and spec 011 holds the operator's use of it to the
-/// 150 MiB of Principle II, not the connector's 160. Either use costs about
-/// 7 MiB over the local store, paid by the first ceremony: about 3.3 MiB of JIT'd
-/// code, 2 MiB of heap and 1.4 MiB of assembly pages (libsodium is never loaded).
+/// same WebAuthn library the connector run loads on its first ceremony, so it
+/// shares the connector's 160 MiB ceiling (spec 011 SC-005, amended 2026-11-24,
+/// task mem2). The Raspberry Pi promise is the default instance, the local store,
+/// which keeps its 150 MiB. Either use costs about 7 MiB over the local store,
+/// paid by the first ceremony: about 3.3 MiB of JIT'd code, 2 MiB of heap and
+/// 1.4 MiB of assembly pages (libsodium is never loaded). On top of that, this run
+/// lands on one of two levels 2 MiB apart, the gen0 budget below, depending on
+/// whether a collection ran just before idle.
 ///
 /// Two settings keep these runs under their ceilings. Umbral.fsproj sets
 /// TieredCompilation=false, and the child reads it from Umbral.runtimeconfig.json
@@ -64,9 +67,11 @@
 /// The CI comparison step (DOTNET_TieredCompilation=1) keeps showing it, and its
 /// figures are the tiered-on ones, not the gated ones. The Dockerfile sets
 /// DOTNET_GCgen0size, an environment setting runtimeconfig.json ignores, and the
-/// child gets the same value: about 4 MiB in every run. With both, the
-/// operator-passkey run idles at about 142 MiB (amd64) and 145 MiB (arm64)
-/// (task m3m0, 2026-11-05; .alta/reviews/2026-11-05-idle-memory/notes.md).
+/// child gets the same value: about 4 MiB in every run. With both, on GitHub's
+/// runners, the local store idles at 136.8 to 137.6 MiB (amd64) and 139.7 to
+/// 140.6 MiB (arm64), and the operator-passkey run at 143.6 to 145.9 MiB (amd64)
+/// and 146.9 to 149.2 MiB (arm64), at least 10.8 MiB under its ceiling (task mem2,
+/// 2026-11-23; .alta/reviews/2026-11-23-idle-memory/notes.md).
 module Umbral.Tests.IdleMemoryTests
 
 open System
@@ -93,8 +98,9 @@ open Umbral.Tests.Infrastructure.ImageEnvironment
 [<Literal>]
 let private LocalStoreCeilingBytes = 157_286_400L
 
-/// The SC-006 ceiling with an external secret store: 160 MiB. See the module
-/// comment for why it is separate.
+/// 160 MiB: the SC-006 ceiling with an external secret store, which the two
+/// passkey runs share (SC-008, spec 011 SC-005). See the module comment for why
+/// it is separate.
 [<Literal>]
 let private ExternalStoreCeilingBytes = 167_772_160L
 
@@ -668,11 +674,11 @@ let private performOperatorCeremonies (port: int) =
     }
 
 [<Fact>]
-let ``an idle instance with an operator passkey in use stays under 150 MB resident`` () =
+let ``an idle instance with an operator passkey in use stays under 160 MB resident`` () =
     assertIdleUnderCeilingWith
         "operator passkey"
         "spec 011"
-        LocalStoreCeilingBytes
+        ExternalStoreCeilingBytes
         []
         seedClaimedOperator
         performOperatorCeremonies

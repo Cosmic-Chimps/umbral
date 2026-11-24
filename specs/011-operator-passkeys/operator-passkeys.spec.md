@@ -282,7 +282,11 @@ and the switch off, with and without the flag, and check the outcome.
 - **SC-004**: A user's passkey and an operator passkey are refused at each
   other's sign-in in 100% of tests, and no operator passkey appears on the
   Users screen.
-- **SC-005**: Idle memory stays within Principle II's 150 MiB.
+- **SC-005**: An instance with an operator passkey in use idles under 160 MiB,
+  the ceiling of the passkey connector (spec 008 SC-008): both load the same
+  WebAuthn library. An instance whose operator has no passkey stays within
+  Principle II's 150 MiB. (Amended 2026-11-24, task mem2: at 150 MiB this run
+  had under 1 MiB to spare on GitHub's arm64 runner.)
 
 ## Assumptions
 
