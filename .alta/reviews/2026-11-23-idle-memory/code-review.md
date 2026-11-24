@@ -60,3 +60,27 @@ My recommendation: **(a), the operator-passkey ceiling at 160 MiB, like SC-008.*
 If (a) is chosen, the follow-up is what the notes list: the fact uses `ExternalStoreCeilingBytes`
 with its comment and margin, spec 011's SC-005 and spec 008's note change, and umbral-documentation
 reviews those.
+
+## Re-check at 8cab3ab (2026-11-24): option (a)
+
+**Clear from the code side.** The implementer reports that the maintainer chose option (a); the
+`umbral` session hasn't heard it from the maintainer directly.
+
+- **Ceilings after the change:**
+  - local store (SC-007): 150 MiB, unchanged;
+  - Fediverse connector: 150 MiB, unchanged;
+  - external secret store (SC-006): 160 MiB;
+  - passkey connector (SC-008): 160 MiB;
+  - **operator passkey (spec 011 SC-005): 160 MiB**, now on `ExternalStoreCeilingBytes`, and the
+    test's name says "160 MB".
+
+  The Raspberry Pi promise (the default instance) is untouched.
+- **The comments:** the module comment and the constant's comment say why (the same WebAuthn
+  library as the connector, about 7 MiB on the first ceremony), add the two levels 2 MiB apart,
+  and give the current runner figures with the margin (at least 10.8 MiB on arm64).
+- The near-ceiling warning now stops firing for this run, as the notes predicted.
+- Spec 011 SC-005, its plan's note, spec 008 SC-008 and `docs/connectors/passkey.md` change too.
+  That wording is `umbral-documentation`'s review.
+
+The figures from the branch's three CI runs (run 45350028850) are to be added to `notes.md` by the
+implementer.
