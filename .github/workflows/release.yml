@@ -397,8 +397,9 @@ jobs:
         run: echo "BELLA_OIDC_AUDIENCE=$AUDIENCE" >> "$GITHUB_ENV"
 
       # Signs in with the job's OIDC token (no stored secret) and leaves a
-      # short-lived key for `bella run`.
-      - uses: cosmic-chimps/bella-baxter-setup-action@ac4b758d3fdc06d54e05c9bd60d464a25571129e # v0.1.1-preview.137
+      # short-lived key for `bella run`. Our own action, so by its major tag
+      # rather than a commit SHA (the rule for third-party actions).
+      - uses: cosmic-chimps/bella-baxter-setup-action@v0
         with:
           version: 0.1.1-preview.137
           oidc: 'true'
