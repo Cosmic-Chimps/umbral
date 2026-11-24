@@ -126,3 +126,11 @@ The `umbral` session's code review recommended (a) too (`code-review.md`).
 - Spec 008: SC-008 gains one sentence, because its "no passkey connector, under 150 MiB" no longer holds for an instance whose operator uses a passkey.
 - `docs/connectors/passkey.md`: its "without the connector it stays under 150 MB" gains the same exception.
 - No docs page promised 150 MB for an operator passkey. README, PRODUCT.md, the constitution and the run pages keep "under 150 MB": the default instance.
+
+## Round 5: the branch's `ci.yml` three times at 160 MiB
+
+`actions/runs/45350028850`, `8cab3ab` (the app code of round 4, with the operator-passkey run at 160 MiB):
+
+- `memory (arm64)` and `memory (x64)` green in all three calls, as are `links` and the first two calls' `test` jobs.
+- No near-ceiling warning on any of the six memory jobs, so every gated run was at least 2 MiB under its ceiling. The gated step prints its figures only to the job summary, which the API does not return. Round 4 measured the same app code: the operator-passkey run at 146.9–149.2 MiB on arm64, at least 10.8 MiB under 160.
+- The log's figures (arm64: operator passkey 159.2–160.2, local store 150.8–151.7) come from the tiered-compilation comparison step, which prints only on a failure and is over its ceilings by design.
