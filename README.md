@@ -91,8 +91,8 @@ reads the same here on GitHub.
 
 - **Docker.** Nothing else is needed to run Umbral.
 - **A 64-bit machine**: `linux/amd64` or `linux/arm64` (a Raspberry Pi 4 or 5
-  with a 64-bit OS works). Umbral is designed to idle under 150 MB of memory (under 160 MB with an
-  external secret store).
+  with a 64-bit OS works). Umbral is designed to idle under 150 MB of memory (under 160 MB with
+  passkeys or an external secret store).
 - **For a real deployment: a domain name and HTTPS.** Umbral refuses an
   `http://` address for anything but `localhost`, so a bare LAN IP such as
   `http://192.168.1.50:8080` does not work. See

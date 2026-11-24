@@ -60,8 +60,8 @@ product that offers those cannot truthfully claim this simplicity.
 ## Operating Context
 
 - Runs as a Docker container on `linux/amd64` or `linux/arm64`, designed to
-  idle under 150 MB (160 MB with an external secret store). Tagged releases
-  are published to GHCR; the README also covers deploying on Caravana, and the
+  idle under 150 MB (under 160 MB with passkeys or an external secret store).
+  Tagged releases are published to GHCR; the README also covers deploying on Caravana, and the
   `CosmicChimps.Aspire.Hosting.Umbral` package runs that image from a .NET Aspire
   AppHost.
 - A real deployment needs a domain and HTTPS; `http://` is refused for
@@ -98,7 +98,7 @@ product that offers those cannot truthfully claim this simplicity.
   never carries app branding.
 - Documentation is the support channel (`README.md`, `docs/`, `CHANGELOG.md`
   for people who run it). Product rules live in
-  `.specify/memory/constitution.md` (version 3.1.0, 2026-11-11); features are
+  `.specify/memory/constitution.md` (version 3.2.0, 2026-11-14); features are
   specified in `specs/NNN-*/` with spec, plan and tasks.
 
 ## Capabilities and Constraints

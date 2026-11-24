@@ -38,7 +38,7 @@ edit that file before the first release. It is only used when the app has no
 services yet: once the app is defined, the workflow ignores the file (and says
 so in the log), so change the app in the Caravana console, and later releases
 keep your changes. A release replaces only the image. The default memory (256 MB) is enough: Umbral
-idles under 150 MB (under 160 MB with an external secret store).
+idles under 150 MB (under 160 MB with passkeys or an external secret store).
 
 `UMBRAL__PUBLIC_ORIGIN` must match the domain exactly, scheme included;
 [The public origin must match exactly](https.md#the-public-origin-must-match-exactly)
