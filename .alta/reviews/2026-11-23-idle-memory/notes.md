@@ -131,6 +131,10 @@ The `umbral` session's code review recommended (a) too (`code-review.md`).
 
 `actions/runs/45350028850`, `8cab3ab` (the app code of round 4, with the operator-passkey run at 160 MiB):
 
-- `memory (arm64)` and `memory (x64)` green in all three calls, as are `links` and the first two calls' `test` jobs.
+- `memory (arm64)` and `memory (x64)` green in all three calls, as are `links` and `test` (the full suite, both architectures).
 - No near-ceiling warning on any of the six memory jobs, so every gated run was at least 2 MiB under its ceiling. The gated step prints its figures only to the job summary, which the API does not return. Round 4 measured the same app code: the operator-passkey run at 146.9–149.2 MiB on arm64, at least 10.8 MiB under 160.
 - The log's figures (arm64: operator passkey 159.2–160.2, local store 150.8–151.7) come from the tiered-compilation comparison step, which prints only on a failure and is over its ceilings by design.
+
+## Cleanup
+
+Every `diag/idle-memory-mem2*` branch is deleted on GitHub (none of `diag/**` is left, m3m0's included), and so is the local throwaway worktree.
