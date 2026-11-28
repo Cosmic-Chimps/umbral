@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Aspire.Hosting.ApplicationModel;
@@ -159,11 +160,17 @@ public static class UmbralResourceBuilderExtensions
     /// <param name="builder">The resource builder.</param>
     /// <param name="name">The volume name. Generated from the application and resource names when not given.</param>
     /// <returns>The resource builder.</returns>
+    /// <exception cref="InvalidOperationException">Something else is already mounted at <c>/data</c>:
+    /// another volume, or <see cref="WithDataBindMount(IResourceBuilder{UmbralResource}, string)"/>. Calling it again with the same volume is fine.</exception>
     public static IResourceBuilder<UmbralResource> WithDataVolume(this IResourceBuilder<UmbralResource> builder, string? name = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.WithVolume(name ?? VolumeNameGenerator.Generate(builder, "data"), DataPath);
+        var volume = name ?? VolumeNameGenerator.Generate(builder, "data");
+
+        return CheckDataMount(builder, ContainerMountType.Volume, volume, nameof(WithDataVolume))
+            ? builder
+            : builder.WithVolume(volume, DataPath);
     }
 
     /// <summary>
@@ -172,12 +179,19 @@ public static class UmbralResourceBuilderExtensions
     /// <param name="builder">The resource builder.</param>
     /// <param name="source">The folder on the host.</param>
     /// <returns>The resource builder.</returns>
+    /// <exception cref="InvalidOperationException">Something else is already mounted at <c>/data</c>:
+    /// another folder, or <see cref="WithDataVolume(IResourceBuilder{UmbralResource}, string?)"/>. Calling it again with the same folder is fine.</exception>
     public static IResourceBuilder<UmbralResource> WithDataBindMount(this IResourceBuilder<UmbralResource> builder, string source)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrEmpty(source);
 
-        return builder.WithBindMount(source, DataPath);
+        // Aspire resolves a relative source against the AppHost's folder and stores that.
+        var folder = Path.GetFullPath(source, builder.ApplicationBuilder.AppHostDirectory);
+
+        return CheckDataMount(builder, ContainerMountType.BindMount, folder, nameof(WithDataBindMount))
+            ? builder
+            : builder.WithBindMount(source, DataPath);
     }
 
     /// <summary>
@@ -210,6 +224,28 @@ public static class UmbralResourceBuilderExtensions
             var origin = await UmbralOrigin.ResolveAsync(resource, context.ExecutionContext, context.CancellationToken).ConfigureAwait(false);
             context.EnvironmentVariables["UMBRAL_ISSUER"] = origin.Value;
         });
+
+    // Umbral has one data folder, /data. Aspire refuses a second, different bind mount on a target, but
+    // lets a volume be added beside anything, which would leave two mounts at /data and the data in
+    // whichever one the container runtime picks. So a conflict is refused here, naming both calls.
+    // True when the same mount is already there (calling twice is a no-op, as Aspire's own is).
+    private static bool CheckDataMount(IResourceBuilder<UmbralResource> builder, ContainerMountType type, string source, string call)
+    {
+        foreach (var mount in builder.Resource.Annotations.OfType<ContainerMountAnnotation>().Where(m => m.Target == DataPath))
+        {
+            if (mount.Type == type && mount.Source == source)
+            {
+                return true;
+            }
+
+            var existing = mount.Type == ContainerMountType.Volume ? nameof(WithDataVolume) : nameof(WithDataBindMount);
+
+            throw new InvalidOperationException(
+                $"Umbral keeps its data in one place, {DataPath}, and {existing} already put '{mount.Source}' there. {call} cannot also put '{source}' there: call only one of {nameof(WithDataVolume)} and {nameof(WithDataBindMount)}, with one value.");
+        }
+
+        return false;
+    }
 
     private static string DefaultImageTag() =>
         typeof(UmbralResourceBuilderExtensions).Assembly
