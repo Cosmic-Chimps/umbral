@@ -17,11 +17,14 @@
   <ItemGroup>
     <!-- The ASP.NET Core sample, as it is in this repository: the demo runs no copy of it. -->
     <ProjectReference Include="../../samples/aspnetcore/Umbral.Sample.AspNetCore.csproj" />
-    <!-- AddUmbral, from source: a library, not a resource to run. Its default image tag is the
-         first "## X.Y.Z" of CHANGELOG.md, the last release, so the demo always runs a released
-         image (never latest, never an unreleased build). demo.yml passes the release's version
-         explicitly. -->
-    <ProjectReference Include="../../src/CosmicChimps.Aspire.Hosting.Umbral/CosmicChimps.Aspire.Hosting.Umbral.csproj" IsAspireProjectResource="false" />
+    <!-- AddUmbral, from NuGet for now. TEMPORARY: the hosting package source in this repository is
+         on Aspire 17, and this demo is still on Aspire 13.6.5 (the Caravana package below has no
+         Aspire 17 release yet), so a project reference would mix two Aspire versions. 0.13.0 is
+         built on Aspire 13.6.5 and its API is the one the source still has. Until the demo moves
+         to Aspire 17 (phase 2, after the Caravana package's 17 release), it runs the image
+         ghcr.io/cosmic-chimps/umbral:0.13.0 whatever MSBuild Version demo.yml passes: the image
+         tag is baked into the package, not into this build. -->
+    <PackageReference Include="CosmicChimps.Aspire.Hosting.Umbral" Version="0.13.0" />
   </ItemGroup>
 
   <ItemGroup>
