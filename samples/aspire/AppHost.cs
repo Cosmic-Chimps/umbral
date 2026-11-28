@@ -42,7 +42,7 @@ if (builder.Configuration["Umbral:ImageTag"] is { Length: > 0 } imageTag)
 var sampleApp = umbral.AddApp("sample")
     .WithDisplayName("ASP.NET Core sample");
 
-builder.AddProject<Projects.Umbral_Sample_AspNetCore>("sample")
+builder.AddDotnetProject("sample", "../aspnetcore/Umbral.Sample.AspNetCore.csproj")
     // The sample reads PORT and listens there; the port is pinned because the redirect URI
     // declared above is taken from it.
     .WithHttpEndpoint(port: samplePort, env: "PORT")
