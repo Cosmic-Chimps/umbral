@@ -76,7 +76,7 @@ var demoApp = umbral.AddApp("demo").WithDisplayName("Umbral demo");
 
 // The ASP.NET Core sample of this repository, under the demo's own title.
 var sample = builder
-    .AddProject<Projects.Umbral_Sample_AspNetCore>("app")
+    .AddDotnetProject("app", "../../samples/aspnetcore/Umbral.Sample.AspNetCore.csproj")
     // The sample reads PORT and listens there; the redirect URIs of the laptop run follow it.
     .WithHttpEndpoint(port: samplePort, env: "PORT")
     .WithEnvironment("SAMPLE_TITLE", "Umbral demo")
@@ -105,7 +105,7 @@ if (publishing)
         // reset is not a restore: a Caravana schedule runs `/app/Umbral clear-users` in the
         // running copy at 04:00 UTC. It is set once in the Caravana console (README, step 8):
         // a schedule is not part of a deploy, so a deploy leaves it alone, and the hosting
-        // package (13.6.5) has no call to declare one.
+        // package (Caravana 17.0.0) has no call to declare one.
         .WithCaravanaBackup(
             caravana!,
             CaravanaBackupEngine.Volume,

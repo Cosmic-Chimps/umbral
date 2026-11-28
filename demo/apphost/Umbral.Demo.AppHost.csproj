@@ -1,4 +1,4 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -8,29 +8,25 @@
     <!-- On a laptop, the demo app's client secret and the Caravana settings live in user
          secrets; from CI they come from Bella Baxter. Never in the repository. -->
     <UserSecretsId>umbral-demo-apphost</UserSecretsId>
-    <!-- ASPIRE010: the orchestrator and the dashboard are restored from NuGet, so the AppHost
-         runs with the pinned Aspire CLI (dotnet tool restore) and with dotnet run. -->
-    <AspireUseCliBundle>false</AspireUseCliBundle>
-    <NoWarn>$(NoWarn);ASPIRE010;ASPIRECOMPUTE003</NoWarn>
+    <!-- ASPIRECOMPUTE003: AddContainerRegistry (AppHost.cs), which `aspire deploy` pushes the
+         sample's and the site's images to, is still marked evaluation-only in Aspire 17. -->
+    <NoWarn>$(NoWarn);ASPIRECOMPUTE003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The ASP.NET Core sample, as it is in this repository: the demo runs no copy of it. -->
-    <ProjectReference Include="../../samples/aspnetcore/Umbral.Sample.AspNetCore.csproj" />
-    <!-- AddUmbral, from NuGet for now. TEMPORARY: the hosting package source in this repository is
-         on Aspire 17, and this demo is still on Aspire 13.6.5 (the Caravana package below has no
-         Aspire 17 release yet), so a project reference would mix two Aspire versions. 0.13.0 is
-         built on Aspire 13.6.5 and its API is the one the source still has. Until the demo moves
-         to Aspire 17 (phase 2, after the Caravana package's 17 release), it runs the image
-         ghcr.io/cosmic-chimps/umbral:0.13.0 whatever MSBuild Version demo.yml passes: the image
-         tag is baked into the package, not into this build. -->
-    <PackageReference Include="CosmicChimps.Aspire.Hosting.Umbral" Version="0.13.0" />
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="17.0.0" />
+    <PackageReference Include="Aspire.Hosting.Dotnet" Version="17.0.0" />
+    <!-- PublishToCaravana and the per-resource calls. It brings Aspire.Hosting.Docker, which this
+         AppHost uses no API of. -->
+    <PackageReference Include="CosmicChimps.Aspire.Hosting.Caravana" Version="17.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- PublishToCaravana and the per-resource calls. -->
-    <PackageReference Include="CosmicChimps.Aspire.Hosting.Caravana" Version="13.6.4" />
-    <PackageReference Include="Aspire.Hosting.Docker" Version="13.6.5" />
+    <!-- AddUmbral, from this repository's source: a library, not a resource to run. Its default
+         image tag is the last release in CHANGELOG.md; demo.yml passes the release's version
+         explicitly, through the MSBuild property Version. The ASP.NET Core sample is not
+         referenced: AppHost.cs starts it with AddDotnetProject. -->
+    <ProjectReference Include="../../src/CosmicChimps.Aspire.Hosting.Umbral/CosmicChimps.Aspire.Hosting.Umbral.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
 
 </Project>
