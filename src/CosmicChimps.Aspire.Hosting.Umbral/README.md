@@ -10,7 +10,7 @@ published image, `ghcr.io/cosmic-chimps/umbral`. The package version is the imag
 var umbral = builder.AddUmbral("umbral")      // host port 8080; AddUmbral("umbral", port: 8081) for another
     .WithDataVolume();                        // keeps /data: the operator credential, connectors, apps, keys
 
-builder.AddProject<Projects.Web>("web")
+builder.AddDotnetProject("web", "../Web/Web.csproj")
     .WithReference(umbral)
     .WaitFor(umbral);
 ```
@@ -45,7 +45,7 @@ gave, the parameter, or in run mode `http://localhost:<port>`. It is never the i
 (`http://umbral:8080`), because an app validates the issuer against exactly what Umbral puts in its
 tokens. It adds no `services__...` variables and no client ID or secret.
 
-An app on your machine (`AddProject`) reaches the run-mode `http://localhost:<port>`. An app in a
+An app on your machine (`AddDotnetProject`) reaches the run-mode `http://localhost:<port>`. An app in a
 container (`AddContainer`, `AddDockerfile`) cannot: `localhost` there is the container itself.
 Run that app as a project while you develop, or deploy both with a public origin.
 
@@ -60,7 +60,7 @@ var umbral = builder.AddUmbral("umbral")
     .WithDataVolume()
     .WithPasskeys(PasskeySignUp.Open);            // the passkey connector; invitations only by default
 
-var web = builder.AddProject<Projects.Web>("web");
+var web = builder.AddDotnetProject("web", "../Web/Web.csproj");
 
 var app = umbral.AddApp("web")                    // key = client ID, a web (confidential) app by default
     .WithDisplayName("Sample web app");

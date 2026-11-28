@@ -1,6 +1,6 @@
 # Aspire sample
 
-A [.NET Aspire](https://aspire.dev) AppHost (C#, .NET 10, Aspire 13.6.5) that
+A [.NET Aspire](https://aspire.dev) AppHost (C#, .NET 10, Aspire 17.0.0) that
 starts Umbral and the [ASP.NET Core sample](../aspnetcore/README.md) together
 with one command, `aspire run`. It runs another sample; it is not a new stack.
 Umbral is added with `AddUmbral`, from the hosting package
@@ -20,7 +20,7 @@ below).
 
 - Docker.
 - The .NET 10 SDK.
-- The Aspire CLI (`aspire`). See the [Aspire documentation](https://aspire.dev)
+- The Aspire CLI (`aspire`), version 17. See the [Aspire documentation](https://aspire.dev)
   for the install command of your platform.
 
 The Umbral here runs with the laptop settings of the quick start,
@@ -107,8 +107,9 @@ All of it is in [`AppHost.cs`](AppHost.cs).
   with `UMBRAL__PUBLIC_ORIGIN` set to `http://localhost:8080` and the laptop pair
   named above. `WithDataVolume("umbral-aspire-data")` keeps `/data`. Aspire waits
   for its `/healthz`.
-- **The project reference.** The sample is `../aspnetcore`, run as it is. It
-  reads `PORT` and listens there, so the AppHost pins it to 5000, the port its
+- **The sample project.** The sample is `../aspnetcore`, run as it is with
+  `AddDotnetProject("sample", "../aspnetcore/Umbral.Sample.AspNetCore.csproj")`: the
+  AppHost does not reference it. It reads `PORT` and listens there, so the AppHost pins it to 5000, the port its
   declared redirect URIs are taken from.
 - **The declaration.** `WithPasskeys(PasskeySignUp.Open)` declares the passkey
   connector, and `AddApp("sample")` the sample's app, with client ID `sample`.

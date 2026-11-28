@@ -8,7 +8,13 @@ If you build with [.NET Aspire](https://aspire.dev), the NuGet package
 dotnet add package CosmicChimps.Aspire.Hosting.Umbral
 ```
 
-The package is published with each Umbral release from 0.12.0 on.
+The package is published with each Umbral release from 0.12.0 on. It is built on
+Aspire 17: an AppHost still on Aspire 13 keeps using package 0.13.x. An Aspire 17
+AppHost project uses `Microsoft.NET.Sdk` (the `Aspire.AppHost.Sdk` project SDK is
+obsolete) with the `Aspire.Hosting.AppHost` package, and `Aspire.Hosting.Dotnet` to
+run your .NET projects with `AddDotnetProject`, as
+[Aspire's migration notes](https://aspire.dev/whats-new/aspire-17/) say. The
+[Aspire sample](../../samples/aspire/README.md) is a working one.
 
 It starts the published image, `ghcr.io/cosmic-chimps/umbral`, and gives your apps
 the issuer address. It can also create your apps and the passkey connector when
@@ -22,7 +28,7 @@ Umbral for you.
 var umbral = builder.AddUmbral("umbral")
     .WithDataVolume();
 
-builder.AddProject<Projects.Web>("web")
+builder.AddDotnetProject("web", "../Web/Web.csproj")
     .WithReference(umbral)
     .WaitFor(umbral);
 ```
@@ -56,7 +62,7 @@ issuer against exactly what Umbral writes in tokens. `UMBRAL_ISSUER` is the
 variable every [sample](../../samples/README.md) reads.
 
 In run mode the issuer is `http://localhost:<port>`, which an app running on your
-machine (an `AddProject` resource) reaches. An app in a container (`AddContainer`,
+machine (an `AddDotnetProject` resource) reaches. An app in a container (`AddContainer`,
 `AddDockerfile`) cannot: `localhost` there is the container itself, so it can't
 load the discovery document. Run that app as a project while you develop, or
 deploy both and use the public origin.
@@ -72,7 +78,7 @@ var umbral = builder.AddUmbral("umbral")
     .WithDataVolume()
     .WithPasskeys(PasskeySignUp.Open);        // the passkey connector; invitations only by default
 
-var web = builder.AddProject<Projects.Web>("web");
+var web = builder.AddDotnetProject("web", "../Web/Web.csproj");
 
 var app = umbral.AddApp("web")                // key = client ID; a web (confidential) app by default
     .WithDisplayName("Sample web app");
